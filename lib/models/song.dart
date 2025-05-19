@@ -4,7 +4,7 @@ class Song {
   final String albumArtUrl;
   final String? album;
   final String? releaseDate;
-  final String? audioUrl;
+  final String audioUrl; // changed from String? to String
 
   // Add these fields
   bool isDownloaded;
@@ -16,9 +16,9 @@ class Song {
     required this.albumArtUrl,
     this.album,
     this.releaseDate,
-    this.audioUrl,
+    this.audioUrl = '', // default to empty string
     this.isDownloaded = false,
-    this.localFilePath,
+    required this.localFilePath,
   });
 
   Song copyWith({
@@ -44,21 +44,53 @@ class Song {
   }
 
   factory Song.fromJson(Map<String, dynamic> json) {
-    final album = json['album'];
-    final images = album != null && album['images'] != null && album['images'].isNotEmpty
-        ? album['images']
-        : [];
-    final albumArtUrl = images.isNotEmpty ? images[0]['url'] : '';
+    // Handle album field based on its type.
+    String albumName;
+    String? releaseDate;
+    String albumArtUrl = '';
+    final albumField = json['album'];
+    if (albumField is Map) {
+      final images = albumField['images'] ?? [];
+      if (images is List && images.isNotEmpty) {
+        albumArtUrl = images[0]['url'] ?? '';
+      }
+      albumName = albumField['name'] ?? '';
+      releaseDate = albumField['release_date'];
+    } else if (albumField is String) {
+      albumName = albumField;
+    } else {
+      albumName = '';
+    }
     final artists = json['artists'] ?? [];
-    final artistName = artists.isNotEmpty ? artists[0]['name'] : '';
+    final artistName = artists is List && artists.isNotEmpty ? artists[0]['name'] ?? '' : '';
     return Song(
       title: json['name'] ?? '',
       artist: artistName,
       albumArtUrl: albumArtUrl,
-      album: album != null ? album['name'] : null,
-      releaseDate: album != null ? album['release_date'] : null,
-      audioUrl: null, //json['preview_url'], // Add this line
-      // isDownloaded and localFilePath default to false/null
+      album: albumName.isNotEmpty ? albumName : null,
+      releaseDate: releaseDate,
+      audioUrl: json['preview_url'] ?? '',
+      isDownloaded: json['isDownloaded'] ?? false,
+      localFilePath: json['localFilePath'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'artist': artist,
+        'albumArtUrl': albumArtUrl,
+        'album': album,
+        'releaseDate': releaseDate,
+        'audioUrl': audioUrl,
+        'isDownloaded': isDownloaded,
+        'localFilePath': localFilePath,
+      };
+
+  // New getter to safely provide a valid audio URL
+  String get effectiveAudioUrl {
+    // Return audioUrl if not empty, otherwise try localFilePath if downloaded and non-empty.
+    if (audioUrl.isNotEmpty) return audioUrl;
+    if (isDownloaded && (localFilePath ?? '').isNotEmpty) return localFilePath!;
+    return '';
   }
 }

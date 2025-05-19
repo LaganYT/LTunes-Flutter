@@ -1,10 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../models/song.dart';
+import '../models/playlist.dart';
 import '../services/api_service.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import '../providers/current_song_provider.dart';
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -21,6 +26,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final AudioPlayer audioPlayer = AudioPlayer();
   bool isPlaying = false;
+  final bool _isLoadingAudio = false;
 
   @override
   void initState() {
@@ -45,17 +51,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       final apiService = ApiService();
       audioUrl = await apiService.fetchAudioUrl(widget.song.artist, widget.song.title);
       if (audioUrl == null) {
-        scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(content: Text('Failed to fetch audio URL.')),
-        );
+        _showErrorDialog('Failed to fetch audio URL.');
         setState(() => _isDownloading = false);
         return;
       }
-      print('Fetching audio URL from: $audioUrl');
+      // print('Fetching audio URL from: $audioUrl');
     } catch (e) {
-      scaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('Error fetching audio URL: $e')),
-      );
+      _showErrorDialog('Error fetching audio URL: $e');
       setState(() => _isDownloading = false);
       return;
     }
@@ -73,70 +75,96 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       response.stream.listen(
         (List<int> newBytes) {
           bytes.addAll(newBytes);
-          setState(() {
-            _downloadProgress = bytes.length / (totalBytes ?? 1);
-          });
+          if (mounted) {
+            setState(() {
+              _downloadProgress = bytes.length / (totalBytes ?? 1);
+            });
+          }
         },
         onDone: () async {
           final file = File(filePath);
           await file.writeAsBytes(bytes);
-          setState(() {
-            _isDownloading = false;
-            widget.song.localFilePath = filePath;
-            widget.song.isDownloaded = true;
-          });
+          if (mounted) {
+            setState(() {
+              _isDownloading = false;
+              widget.song.localFilePath = filePath;
+              widget.song.isDownloaded = true;
+            });
+          }
+          await _saveSongMetadata(widget.song);
           scaffoldMessengerKey.currentState?.showSnackBar(
             const SnackBar(content: Text('Download complete!')),
           );
         },
         onError: (e) {
-          setState(() => _isDownloading = false);
-          scaffoldMessengerKey.currentState?.showSnackBar(
-            SnackBar(content: Text('Download failed: $e')),
-          );
+          if (mounted) {
+            setState(() => _isDownloading = false);
+          }
+          _showErrorDialog('Download failed: $e');
         },
         cancelOnError: true,
       );
     } catch (e) {
-      setState(() => _isDownloading = false);
-      scaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('Error downloading song: $e')),
-      );
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
+      _showErrorDialog('Error downloading song: $e');
     }
   }
 
-  Future<void> _playSong() async {
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('An Error Occurred'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Okay'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Save state and exit the app
+                // SystemNavigator.pop(); // Exit the app
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteSong() async {
     try {
-      if (widget.song.isDownloaded && widget.song.localFilePath != null) {
-        if (isPlaying) {
-          await audioPlayer.pause();
-        } else {
-          await audioPlayer.play(DeviceFileSource(widget.song.localFilePath!));
-        }
-        setState(() {
-          isPlaying = !isPlaying;
-        });
-      } else {
-        String? audioUrl = await ApiService().fetchAudioUrl(widget.song.artist, widget.song.title);
-        if (audioUrl != null) {
-          await audioPlayer.play(UrlSource(audioUrl));
-          setState(() {
-            isPlaying = true;
-          });
-        } else {
-          scaffoldMessengerKey.currentState?.showSnackBar(
-            const SnackBar(content: Text('Song is not downloaded and could not fetch URL')),
-          );
-        }
-      }
-    } catch (e) {
-      scaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('Error playing song: $e')),
-      );
+      final file = File(widget.song.localFilePath!);
+      await file.delete();
       setState(() {
-        isPlaying = false;
+        widget.song.isDownloaded = false;
+        widget.song.localFilePath = null;
       });
+      await _removeSongMetadata(widget.song);
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Song deleted!')),
+      );
+    } catch (e) {
+      _showErrorDialog('Error deleting song: $e');
     }
+  }
+
+  Future<void> _saveSongMetadata(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    final songJson = jsonEncode(song.toJson());
+    await prefs.setString('song_${song.title}', songJson);
+  }
+
+  Future<void> _removeSongMetadata(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('song_${song.title}');
+  }
+
+  Future<void> _playSong() async {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    currentSongProvider.playSong(widget.song);
   }
 
   @override
@@ -147,45 +175,262 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         appBar: AppBar(
           title: const Text('Song Details'),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.song.title, style: Theme.of(context).textTheme.titleLarge),
-              Text('Artist: ${widget.song.artist}'),
-              Text('Album: ${widget.song.album ?? 'N/A'}'),
-              Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}'),
-              const SizedBox(height: 20),
-              Image.network(widget.song.albumArtUrl),
-              const SizedBox(height: 20),
-              if (_isDownloading) ...[
-                LinearProgressIndicator(value: _downloadProgress),
-                Text('Downloading... ${(_downloadProgress * 100).toStringAsFixed(2)}%'),
-              ] else if (widget.song.isDownloaded) ...[
-                const Text('Song downloaded!'),
-              ] else ...[
-                ElevatedButton(
-                  onPressed: _downloadSong,
-                  child: const Text('Download Song'),
-                ),
-              ],
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _playSong,
-                child: Text(isPlaying ? 'Pause Song' : 'Play Song'),
+        body: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.song.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface)),
+                  Text('Artist: ${widget.song.artist}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  Text('Album: ${widget.song.album ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  const SizedBox(height: 20),
+                  Image.network(widget.song.albumArtUrl),
+                  const SizedBox(height: 20),
+                  if (_isDownloading) ...[
+                    LinearProgressIndicator(value: _downloadProgress),
+                    Text(
+                      'Downloading... ${(_downloadProgress * 100).toStringAsFixed(2)}%',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    ),
+                  ] else if (widget.song.isDownloaded) ...[
+                    Text('Song downloaded!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                    ElevatedButton(
+                      onPressed: _deleteSong,
+                      child: const Text('Delete Song'),
+                    ),
+                  ] else ...[
+                    ElevatedButton(
+                      onPressed: _downloadSong,
+                      child: const Text('Download Song'),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _playSong,
+                        child: _isLoadingAudio
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(isPlaying ? 'Pause Song' : 'Play Song'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Song Information'),
+                            content: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('Title: ${widget.song.title}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                                Text('Artist: ${widget.song.artist}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                                Text('Album: ${widget.song.album ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                                Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                              ],
+                            ),
+                            actions: <Widget>[
+                              TextButton(
+                                child: const Text('Close'),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                              ),
+                              TextButton(
+                                child: const Text('Add to Playlist'),
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _showAddToPlaylistDialog(context, widget.song);
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                    child: const Text('More Song Info'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  // TODO: Implement more song info functionality
-                },
-                child: const Text('More Song Info'),
+            ),
+            if (_isDownloading)
+              Container(
+                color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7),
+                child: const Center(child: CircularProgressIndicator()),
               ),
-            ],
-          ),
+          ],
         ),
       ),
+    );
+  }
+
+  void _showAddToPlaylistDialog(BuildContext context, Song song) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AddToPlaylistDialog(song: song);
+      },
+    );
+  }
+}
+
+class AddToPlaylistDialog extends StatefulWidget {
+  final Song song;
+
+  const AddToPlaylistDialog({super.key, required this.song});
+
+  @override
+  _AddToPlaylistDialogState createState() => _AddToPlaylistDialogState();
+}
+
+class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
+  List<Playlist> _playlists = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlaylists();
+  }
+
+  Future<void> _loadPlaylists() async {
+    final prefs = await SharedPreferences.getInstance();
+    final playlistJson = prefs.getStringList('playlists') ?? [];
+    setState(() {
+      _playlists = playlistJson.map((json) => Playlist.fromJson(jsonDecode(json))).toList();
+    });
+  }
+
+  Future<void> _savePlaylists() async {
+    final prefs = await SharedPreferences.getInstance();
+    final playlistJson = _playlists.map((playlist) => jsonEncode(playlist.toJson())).toList();
+    await prefs.setStringList('playlists', playlistJson);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add to Playlist'),
+      content: _playlists.isEmpty
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('No playlists available.'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _showCreatePlaylistDialog(context);
+                  },
+                  child: const Text('Create Playlist'),
+                ),
+              ],
+            )
+          : SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _playlists.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final playlist = _playlists[index];
+                  return ListTile(
+                    title: Text(playlist.name),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Delete Playlist',
+                      onPressed: () async {
+                        setState(() {
+                          _playlists.removeAt(index);
+                        });
+                        await _savePlaylists();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Deleted playlist "${playlist.name}"')),
+                        );
+                      },
+                    ),
+                    onTap: () {
+                      // Prevent duplicates
+                      if (!playlist.songs.any((s) =>
+                          s.title == widget.song.title &&
+                          s.artist == widget.song.artist)) {
+                        setState(() {
+                          playlist.songs.add(widget.song);
+                        });
+                        _savePlaylists();
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Added to ${playlist.name}')),
+                        );
+                      } else {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Song already in playlist')),
+                        );
+                      }
+                    },
+                  );
+                },
+              ),
+            ),
+      actions: [
+        TextButton(
+          child: const Text('Cancel'),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showCreatePlaylistDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final TextEditingController playlistNameController = TextEditingController();
+        return AlertDialog(
+          title: const Text('Create Playlist'),
+          content: TextField(
+            controller: playlistNameController,
+            decoration: const InputDecoration(hintText: 'Playlist Name'),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Create'),
+              onPressed: () {
+                final playlistName = playlistNameController.text.trim();
+                if (playlistName.isNotEmpty) {
+                  setState(() {
+                    _playlists.add(Playlist(id: DateTime.now().toString(), name: playlistName, songs: []));
+                  });
+                  _savePlaylists();
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }

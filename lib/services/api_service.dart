@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import '../models/song.dart';
 
 class ApiService {
@@ -35,41 +33,27 @@ class ApiService {
         throw Exception('Failed to load songs. Status code: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching songs: $e');
+      // print('Error fetching songs: $e');
       rethrow;
     }
   }
 
   Future<String> downloadSong(String url, String fileName) async {
-    // url should be a valid audio file URL (e.g., previewUrl)
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/$fileName';
-      final file = File(filePath);
-      await file.writeAsBytes(response.bodyBytes);
-      return filePath;
-    } else {
-      throw Exception('Failed to download song');
-    }
+    // Removed file caching. Simply return the provided URL.
+    return url;
   }
 
   Future<String?> fetchAudioUrl(String artist, String musicName) async {
     final Uri url = Uri.parse(
         '${baseUrl}audio/?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}');
-    print('Fetching audio URL from: $url');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['audioURL'];
-      } else {
-        print(
-            'Failed to fetch audio URL. Status code: ${response.statusCode}');
-        return null;
+        return data['audioURL'] as String?;
       }
+      return null;
     } catch (e) {
-      print('Error fetching audio URL: $e');
       return null;
     }
   }

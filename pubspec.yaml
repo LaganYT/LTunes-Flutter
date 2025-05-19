@@ -12,10 +12,14 @@ dependencies:
   flutter_lints: ^5.0.0
   http: ^1.4.0
   path_provider: ^2.0.11
-  audio_session: ^0.2.2
   audioplayers: ^6.4.0
   provider: ^6.1.5
   shared_preferences: ^2.5.3
+  dart_tags: ^0.4.1
+  audio_metadata_reader: ^1.4.1
+  dio: ^5.8.0+1
+  just_audio: ^0.10.3
+  flutter_media_metadata: ^1.0.0+1
 
 dev_dependencies:
   flutter_test:

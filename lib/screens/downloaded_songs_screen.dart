@@ -2,7 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import '../models/song.dart';
+import '../models/playlist.dart';
+import '../providers/current_song_provider.dart';
+import '../services/playlist_manager_service.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -50,38 +54,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _loadPlaylists() async {
-    // TODO: Load playlists from local storage
+    final playlistManager = PlaylistManager();
+    await playlistManager.loadPlaylists();
     setState(() {
-      _playlists = [
-        Playlist(name: 'My Playlist', songs: []),
-        Playlist(name: 'Workout', songs: []),
-      ];
+      _playlists = playlistManager.playlists;
     });
-  }
-
-  Future<void> _playSong(String filePath) async {
-    try {
-      if (_currentlyPlayingSongPath == filePath) {
-        if (isPlaying) {
-          await audioPlayer.pause();
-        } else {
-          await audioPlayer.resume();
-        }
-      } else {
-        await audioPlayer.play(DeviceFileSource(filePath));
-      }
-
-      setState(() {
-        isPlaying = !isPlaying;
-        _currentlyPlayingSongPath = filePath;
-      });
-    } catch (e) {
-      print('Error playing song: $e');
-      setState(() {
-        isPlaying = false;
-        _currentlyPlayingSongPath = null;
-      });
-    }
   }
 
   Future<void> _createPlaylist(BuildContext context) async {
@@ -108,7 +85,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 final playlistName = _playlistNameController.text.trim();
                 if (playlistName.isNotEmpty) {
                   setState(() {
-                    _playlists.add(Playlist(name: playlistName, songs: []));
+                    _playlists.add(Playlist(id: DateTime.now().toString(), name: playlistName, songs: []));
                   });
                   // TODO: Save playlist to local storage
                 }
@@ -120,6 +97,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
         );
       },
     );
+  }
+
+  Future<void> _deleteDownloadedSong(FileSystemEntity songFile) async {
+    try {
+      final file = File(songFile.path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      setState(() {
+        _songs.remove(songFile);
+        if (_currentlyPlayingSongPath == songFile.path) {
+          isPlaying = false;
+          _currentlyPlayingSongPath = null;
+        }
+      });
+      // Optionally: Remove metadata from storage if you use it
+      // final prefs = await SharedPreferences.getInstance();
+      // final songName = songFile.path.split('/').last.replaceAll('.mp3', '');
+      // await prefs.remove('song_$songName');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Deleted ${songFile.path.split('/').last}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting song: $e')),
+      );
+    }
   }
 
   @override
@@ -191,14 +195,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       final songName = song.path.split('/').last;
                       return ListTile(
                         title: Text(songName),
-                        trailing: IconButton(
-                          icon: Icon(
-                            _currentlyPlayingSongPath == song.path && isPlaying
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                          ),
-                          onPressed: () => _playSong(song.path),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Delete Download',
+                              onPressed: () => _deleteDownloadedSong(song),
+                            ),
+                          ],
                         ),
+                        onTap: () {
+                          // Play the song on tap.
+                          final songObj = Song(
+                            title: songName,
+                            artist: 'Unknown Artist',
+                            albumArtUrl: '',
+                            localFilePath: song.path,
+                            isDownloaded: true,
+                          );
+                          Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                        },
                       );
                     },
                   ),
@@ -207,11 +224,4 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
     );
   }
-}
-
-class Playlist {
-  String name;
-  List<Song> songs;
-
-  Playlist({required this.name, required this.songs});
 }

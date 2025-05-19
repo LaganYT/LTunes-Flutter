@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import './screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import './screens/settings_screen.dart';
+import './screens/full_screen_player.dart';
 import 'widgets/playbar.dart';
-import 'package:audioplayers/audioplayers.dart';
-import './models/song.dart';
+import 'providers/current_song_provider.dart';
 
 void main() {
   runApp(
@@ -93,58 +93,5 @@ class _TabViewState extends State<TabView> {
         onTap: _onItemTapped,
       ),
     );
-  }
-}
-
-
-class CurrentSongProvider extends ChangeNotifier {
-  Song? currentSong;
-  bool isPlaying = false;
-  final AudioPlayer audioPlayer = AudioPlayer();
-
-  void setSong(Song song) {
-    currentSong = song;
-    notifyListeners();
-  }
-
-  Future<void> playSong(Song song) async {
-    if (currentSong != song) {
-      currentSong = song;
-    }
-    try {
-      if (song.isDownloaded && song.localFilePath != null) {
-        await audioPlayer.play(DeviceFileSource(song.localFilePath!));
-      } else {
-        if (song.audioUrl != null) {
-          await audioPlayer.play(UrlSource(song.audioUrl!));
-        } else {
-          // Handle case where audio URL is not available
-          print('Audio URL not available');
-          return;
-        }
-      }
-      isPlaying = true;
-      notifyListeners();
-    } catch (e) {
-      print('Error playing song: $e');
-    }
-  }
-
-  Future<void> pauseSong() async {
-    await audioPlayer.pause();
-    isPlaying = false;
-    notifyListeners();
-  }
-
-  Future<void> resumeSong() async {
-    await audioPlayer.resume();
-    isPlaying = true;
-    notifyListeners();
-  }
-
-  void stopSong() async {
-    await audioPlayer.stop();
-    isPlaying = false;
-    notifyListeners();
   }
 }
