@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../services/api_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 
@@ -151,15 +151,22 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
-  Future<void> _saveSongMetadata(Song song) async {
-    final prefs = await SharedPreferences.getInstance();
-    final songJson = jsonEncode(song.toJson());
-    await prefs.setString('song_${song.title}', songJson);
-  }
 
   Future<void> _removeSongMetadata(Song song) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('song_${song.title}');
+  }
+
+  Future<void> _saveSongMetadata(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    final songData = jsonEncode({
+      'title': song.title,
+      'artist': song.artist,
+      'album': song.album,
+      'releaseDate': song.releaseDate,
+      'localFilePath': song.localFilePath,
+    });
+    await prefs.setString('song_${song.title}', songData);
   }
 
   Future<void> _playSong() async {

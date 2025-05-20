@@ -101,6 +101,33 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
     }
   }
 
+  Future<void> _confirmDeleteDownloadedSong(FileSystemEntity songFile) async {
+    final songName = songFile.path.split('/').last.replaceAll('.mp3', '');
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete Download'),
+          content: Text('Are you sure you want to delete "$songName"?'),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              child: const Text('Delete'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (shouldDelete == true) {
+      await _deleteDownloadedSong(songFile);
+      setState(() {}); // Refresh UI after deleting a song
+    }
+  }
+
   @override
   void dispose() {
     // Ensure no unsafe ancestor lookups by cleaning up properly
@@ -113,7 +140,7 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
 
   Future<void> _initializePlaylists() async {
     await _playlistManager.loadPlaylists();
-    setState(() {});
+    setState(() {}); // Refresh UI after loading playlists
   }
 
   Future<void> _createPlaylist(BuildContext context) async {
@@ -163,10 +190,54 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
     setState(() => _searchQuery = value.trim());
   }
 
-  void _onSlideToQueue(Song song) {
-    // Logic to add the song to the queue
-    final currentQueueProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    currentQueueProvider.addToQueue(song);
+  Widget _buildDownloadedSongsTab() {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context);
+    final filteredSongs = _songs
+        .where((songFile) => songFile.path.split('/').last.replaceAll('.mp3', '').toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+
+    return filteredSongs.isEmpty
+        ? Center(
+            child: Text(
+              'No downloaded songs yet.',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+            ),
+          )
+        : ListView.builder(
+            itemCount: filteredSongs.length,
+            itemBuilder: (context, index) {
+              final songFile = filteredSongs[index];
+              final songName = songFile.path.split('/').last.replaceAll('.mp3', '');
+              final progress = currentSongProvider.downloadProgress[songName] ?? 0.0;
+
+              return ListTile(
+                title: Text(
+                  songName,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                ),
+                subtitle: progress > 0.0 && progress < 1.0
+                    ? LinearProgressIndicator(value: progress)
+                    : null,
+                trailing: IconButton(
+                  icon: Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Delete Download',
+                  onPressed: () => _confirmDeleteDownloadedSong(songFile),
+                ),
+                onTap: () {
+                  // Play the song on tap.
+                  final songObj = Song(
+                    title: songName,
+                    id: DateTime.now().toString(),
+                    artist: 'Unknown Artist',
+                    albumArtUrl: '',
+                    localFilePath: songFile.path,
+                    isDownloaded: true,
+                  );
+                  Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                },
+              );
+            },
+          );
   }
 
   @override
@@ -322,70 +393,4 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
             },
           );
   }
-
-  Widget _buildDownloadedSongsTab() {
-    final filteredSongs = _songs
-        .where((songFile) => songFile.path.split('/').last.replaceAll('.mp3', '').toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
-
-    return filteredSongs.isEmpty
-        ? Center(
-            child: Text(
-              'No downloaded songs yet.',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-            ),
-          )
-        : ListView.builder(
-            itemCount: filteredSongs.length,
-            itemBuilder: (context, index) {
-              final songFile = filteredSongs[index];
-              final songName = songFile.path.split('/').last.replaceAll('.mp3', '');
-              return GestureDetector(
-                onHorizontalDragEnd: (details) {
-                  if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
-                    // Slide to queue action
-                    final songObj = Song(
-                      title: songName,
-                      id: DateTime.now().toString(),
-                      artist: 'Unknown Artist',
-                      albumArtUrl: '',
-                      localFilePath: songFile.path,
-                      isDownloaded: true,
-                    );
-                    _onSlideToQueue(songObj);
-                  }
-                },
-                child: ListTile(
-                  title: Text(
-                    songName,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
-                        tooltip: 'Delete Download',
-                        onPressed: () => _deleteDownloadedSong(songFile),
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    // Play the song on tap.
-                    final songObj = Song(
-                      title: songName,
-                      id: DateTime.now().toString(),
-                      artist: 'Unknown Artist',
-                      albumArtUrl: '',
-                      localFilePath: songFile.path,
-                      isDownloaded: true,
-                    );
-                    Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-                  },
-                ),
-              );
-            },
-          );
-  }
-
 }

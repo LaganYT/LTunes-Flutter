@@ -47,40 +47,45 @@ class Song {
   }
 
   factory Song.fromJson(Map<String, dynamic> json) {
-    // Handle album field based on its type.
-    String albumName;
-    String? releaseDate;
-    String albumArtUrl = '';
-    final albumField = json['album'];
-    if (albumField is Map) {
-      final images = albumField['images'] ?? [];
-      if (images is List && images.isNotEmpty) {
-        albumArtUrl = images[0]['url'] ?? '';
+    try {
+      // Handle album field based on its type.
+      String albumName;
+      String? releaseDate;
+      String albumArtUrl = '';
+      final albumField = json['album'];
+      if (albumField is Map) {
+        final images = albumField['images'] ?? [];
+        if (images is List && images.isNotEmpty) {
+          albumArtUrl = images[0]['url'] ?? '';
+        }
+        albumName = albumField['name'] ?? '';
+        releaseDate = albumField['release_date'];
+      } else if (albumField is String) {
+        albumName = albumField;
+      } else {
+        albumName = '';
       }
-      albumName = albumField['name'] ?? '';
-      releaseDate = albumField['release_date'];
-    } else if (albumField is String) {
-      albumName = albumField;
-    } else {
-      albumName = '';
+      final artists = json['artists'] ?? [];
+      final artistName = artists is List && artists.isNotEmpty ? artists[0]['name'] ?? '' : '';
+      return Song(
+        title: json['title'] ?? '',
+        id: json['id'] ?? '',
+        artist: artistName,
+        albumArtUrl: albumArtUrl,
+        album: albumName.isNotEmpty ? albumName : null,
+        releaseDate: releaseDate,
+        audioUrl: json['audioUrl'] ?? '',
+        isDownloaded: json['isDownloaded'] ?? false,
+        localFilePath: json['localFilePath'] ?? '',
+      );
+    } catch (e) {
+      throw FormatException('Invalid song JSON format: $e');
     }
-    final artists = json['artists'] ?? [];
-    final artistName = artists is List && artists.isNotEmpty ? artists[0]['name'] ?? '' : '';
-    return Song(
-      title: json['name'] ?? '',
-      id: json['id'] ?? '',
-      artist: artistName,
-      albumArtUrl: albumArtUrl,
-      album: albumName.isNotEmpty ? albumName : null,
-      releaseDate: releaseDate,
-      audioUrl: json['preview_url'] ?? '',
-      isDownloaded: json['isDownloaded'] ?? false,
-      localFilePath: json['localFilePath'] ?? '',
-    );
   }
 
   Map<String, dynamic> toJson() => {
         'title': title,
+        'id': id,
         'artist': artist,
         'albumArtUrl': albumArtUrl,
         'album': album,

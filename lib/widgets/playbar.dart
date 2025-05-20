@@ -17,6 +17,15 @@ class Playbar extends StatefulWidget {
 
 class _PlaybarState extends State<Playbar> {
   @override
+  void initState() {
+    super.initState();
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    currentSongProvider.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
     final Song? currentSong = currentSongProvider.currentSong;

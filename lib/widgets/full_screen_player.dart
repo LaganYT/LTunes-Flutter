@@ -71,7 +71,11 @@ class FullScreenPlayer extends StatelessWidget {
                         IconButton(
                           icon: Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
                           onPressed: () {
-                            currentSongProvider.downloadSong(currentSong);
+                            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                            currentSongProvider.downloadSongInBackground(currentSong);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Download started in the background')),
+                            );
                           },
                         ),
                         IconButton(

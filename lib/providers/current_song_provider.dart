@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:io';
 import '../models/song.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import '../services/api_service.dart';
 
 class CurrentSongProvider with ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -12,12 +18,40 @@ class CurrentSongProvider with ChangeNotifier {
   int _currentIndex = -1;
   final Map<String, String> _urlCache = {}; // Cache for song URLs
   bool isLoading = false;
+  final Map<String, double> _downloadProgress = {}; // Track download progress
 
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
   bool get isLooping => _isLooping;
   bool get isShuffling => _isShuffling;
   List<Song> get queue => _queue;
+  Map<String, double> get downloadProgress => _downloadProgress;
+
+  CurrentSongProvider() {
+    _loadCurrentSongFromStorage();
+  }
+
+  Future<void> _saveCurrentSongToStorage() async {
+    if (_currentSong != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('current_song', _currentSong!.toJson().toString());
+    }
+  }
+
+  Future<void> _loadCurrentSongFromStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final songJson = prefs.getString('current_song');
+    if (songJson != null) {
+      try {
+        // Ensure the JSON string is properly parsed
+        final decodedJson = jsonDecode(songJson) as Map<String, dynamic>;
+        _currentSong = Song.fromJson(decodedJson);
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Error loading current song: $e');
+      }
+    }
+  }
 
   void playSong(Song song) async {
     try {
@@ -47,6 +81,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       // Pre-fetch the next 3 songs in the queue
       _prefetchNextSongs();
+      _saveCurrentSongToStorage();
     } catch (e) {
       debugPrint('Error playing song: $e');
       stopSong();
@@ -142,4 +177,69 @@ class CurrentSongProvider with ChangeNotifier {
     _queue.add(song);
     notifyListeners();
   }
+
+  Future<void> downloadSongInBackground(Song song) async {
+    isLoading = true;
+    notifyListeners();
+    String? audioUrl;
+    try {
+      final apiService = ApiService();
+      audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+      if (audioUrl == null) {
+        debugPrint('Failed to fetch audio URL.');
+        isLoading = false;
+        notifyListeners();
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error fetching audio URL: $e');
+      isLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/${song.title}.mp3';
+      final url = audioUrl;
+
+      final request = http.Request('GET', Uri.parse(url));
+      final response = await http.Client().send(request);
+      final totalBytes = response.contentLength;
+      List<int> bytes = [];
+
+      response.stream.listen(
+        (List<int> newBytes) {
+          bytes.addAll(newBytes);
+          if (totalBytes != null) {
+            _downloadProgress[song.title] = bytes.length / totalBytes;
+            notifyListeners(); // Notify listeners to update UI
+          }
+        },
+        onDone: () async {
+          final file = File(filePath);
+          await file.writeAsBytes(bytes);
+          song.localFilePath = filePath;
+          song.isDownloaded = true;
+          _downloadProgress.remove(song.title);
+          isLoading = false;
+          notifyListeners();
+          debugPrint('Download complete!');
+        },
+        onError: (e) {
+          debugPrint('Download failed: $e');
+          _downloadProgress.remove(song.title);
+          isLoading = false;
+          notifyListeners();
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      debugPrint('Error downloading song: $e');
+      _downloadProgress.remove(song.title);
+      isLoading = false;
+      notifyListeners();
+    }
+  }
 }
+
