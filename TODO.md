@@ -13,7 +13,6 @@
 - allow you to click on the playbar to have it become fullscreen with more controls
 - add shuffle and loop
 
-- add queue
 - do not fetch song info on downloaded tracks, they should have the song info as metadata
 - Add an updater, the api to fetch update details is at: https://ltn-api.vercel.app/updates/update.json
 
