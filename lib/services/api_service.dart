@@ -29,6 +29,7 @@ class ApiService {
           items = data['tracks'] ?? [];
         }
 
+        // Ensure correct mapping to Song model
         return items.map<Song>((json) => Song.fromJson(json)).toList();
       } else {
         throw Exception('Failed to load songs. Status code: ${response.statusCode}');

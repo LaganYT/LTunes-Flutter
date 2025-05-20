@@ -48,6 +48,9 @@ class Song {
 
   factory Song.fromJson(Map<String, dynamic> json) {
     try {
+      // Ensure the title field is correctly parsed
+      final title = json['title'] ?? json['name'] ?? 'Unknown Title';
+
       // Handle album field based on its type.
       String albumName;
       String? releaseDate;
@@ -68,7 +71,7 @@ class Song {
       final artists = json['artists'] ?? [];
       final artistName = artists is List && artists.isNotEmpty ? artists[0]['name'] ?? '' : '';
       return Song(
-        title: json['title'] ?? '',
+        title: title,
         id: json['id'] ?? '',
         artist: artistName,
         albumArtUrl: albumArtUrl,
