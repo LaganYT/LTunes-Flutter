@@ -30,6 +30,12 @@ class CurrentSongProvider with ChangeNotifier {
         _urlCache[song.id] = sourceUrl;
       }
 
+      // Validate the URL
+      final parsedUri = Uri.tryParse(sourceUrl);
+      if (parsedUri == null || !parsedUri.hasAbsolutePath) {
+        throw Exception('Invalid audio URL: $sourceUrl');
+      }
+
       if (song.isDownloaded) {
         await _audioPlayer.play(DeviceFileSource(sourceUrl));
       } else {
@@ -44,6 +50,8 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error playing song: $e');
       stopSong();
+      // Notify the user about the error
+      notifyListeners();
     }
   }
 
