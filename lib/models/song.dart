@@ -1,5 +1,6 @@
 class Song {
   final String title;
+  final String id; 
   final String artist;
   final String albumArtUrl;
   final String? album;
@@ -12,6 +13,7 @@ class Song {
 
   Song({
     required this.title,
+    required this.id,
     required this.artist,
     required this.albumArtUrl,
     this.album,
@@ -33,6 +35,7 @@ class Song {
   }) {
     return Song(
       title: title ?? this.title,
+      id: id, // ID should not be changed
       artist: artist ?? this.artist,
       albumArtUrl: albumArtUrl ?? this.albumArtUrl,
       album: album ?? this.album,
@@ -65,6 +68,7 @@ class Song {
     final artistName = artists is List && artists.isNotEmpty ? artists[0]['name'] ?? '' : '';
     return Song(
       title: json['name'] ?? '',
+      id: json['id'] ?? '',
       artist: artistName,
       albumArtUrl: albumArtUrl,
       album: albumName.isNotEmpty ? albumName : null,

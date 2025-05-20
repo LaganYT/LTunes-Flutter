@@ -177,17 +177,52 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         ),
         body: Stack(
           children: [
-            Padding(
+            SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.song.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface)),
-                  Text('Artist: ${widget.song.artist}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                  Text('Album: ${widget.song.album ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                  Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  Text(
+                    widget.song.title,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Artist: ${widget.song.artist}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Album: ${widget.song.album ?? 'N/A'}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Release Date: ${widget.song.releaseDate ?? 'N/A'}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
                   const SizedBox(height: 20),
-                  Image.network(widget.song.albumArtUrl),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      widget.song.albumArtUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.music_note,
+                        size: 150,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   if (_isDownloading) ...[
                     LinearProgressIndicator(value: _downloadProgress),
@@ -215,13 +250,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                         onPressed: _playSong,
                         child: _isLoadingAudio
                             ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                             : Text(isPlaying ? 'Pause Song' : 'Play Song'),
                       ),
                     ],
@@ -327,65 +362,65 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
       title: const Text('Add to Playlist'),
       content: _playlists.isEmpty
           ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('No playlists available.'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _showCreatePlaylistDialog(context);
-                  },
-                  child: const Text('Create Playlist'),
-                ),
-              ],
-            )
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('No playlists available.'),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showCreatePlaylistDialog(context);
+            },
+            child: const Text('Create Playlist'),
+          ),
+        ],
+      )
           : SizedBox(
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _playlists.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final playlist = _playlists[index];
-                  return ListTile(
-                    title: Text(playlist.name),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      tooltip: 'Delete Playlist',
-                      onPressed: () async {
-                        setState(() {
-                          _playlists.removeAt(index);
-                        });
-                        await _savePlaylists();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Deleted playlist "${playlist.name}"')),
-                        );
-                      },
-                    ),
-                    onTap: () {
-                      // Prevent duplicates
-                      if (!playlist.songs.any((s) =>
-                          s.title == widget.song.title &&
-                          s.artist == widget.song.artist)) {
-                        setState(() {
-                          playlist.songs.add(widget.song);
-                        });
-                        _savePlaylists();
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Added to ${playlist.name}')),
-                        );
-                      } else {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Song already in playlist')),
-                        );
-                      }
-                    },
+        width: double.maxFinite,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: _playlists.length,
+          itemBuilder: (BuildContext context, int index) {
+            final playlist = _playlists[index];
+            return ListTile(
+              title: Text(playlist.name),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                tooltip: 'Delete Playlist',
+                onPressed: () async {
+                  setState(() {
+                    _playlists.removeAt(index);
+                  });
+                  await _savePlaylists();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Deleted playlist "${playlist.name}"')),
                   );
                 },
               ),
-            ),
+              onTap: () {
+                // Prevent duplicates
+                if (!playlist.songs.any((s) =>
+                    s.title == widget.song.title &&
+                        s.artist == widget.song.artist)) {
+                  setState(() {
+                    playlist.songs.add(widget.song);
+                  });
+                  _savePlaylists();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Added to ${playlist.name}')),
+                  );
+                } else {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Song already in playlist')),
+                  );
+                }
+              },
+            );
+          },
+        ),
+      ),
       actions: [
         TextButton(
           child: const Text('Cancel'),

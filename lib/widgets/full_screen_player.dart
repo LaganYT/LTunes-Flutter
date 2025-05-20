@@ -71,13 +71,13 @@ class FullScreenPlayer extends StatelessWidget {
                         IconButton(
                           icon: Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
                           onPressed: () {
-                            // Implement download functionality
+                            currentSongProvider.downloadSong(currentSong);
                           },
                         ),
                         IconButton(
                           icon: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.primary),
                           onPressed: () {
-                            // Implement add to playlist functionality
+                            currentSongProvider.addToQueue(currentSong);
                           },
                         ),
                         IconButton(
@@ -134,32 +134,48 @@ class FullScreenPlayer extends StatelessWidget {
                         itemCount: currentSongProvider.queue.length,
                         itemBuilder: (context, index) {
                           final song = currentSongProvider.queue[index];
-                          return Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: song.albumArtUrl.isNotEmpty
-                                      ? Image.network(
-                                          song.albumArtUrl,
-                                          width: 60,
-                                          height: 60,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 60, color: Theme.of(context).colorScheme.onSurface),
-                                        )
-                                      : Icon(Icons.music_note, size: 60, color: Theme.of(context).colorScheme.onSurface),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  song.title,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Theme.of(context).colorScheme.onSurface,
+                          return Dismissible(
+                            key: Key(song.id),
+                            direction: DismissDirection.startToEnd,
+                            onDismissed: (direction) {
+                              currentSongProvider.addToQueue(song);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('${song.title} added to queue')),
+                              );
+                            },
+                            background: Container(
+                              color: Theme.of(context).colorScheme.primary,
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.only(left: 16),
+                              child: Icon(Icons.queue, color: Theme.of(context).colorScheme.onPrimary),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: song.albumArtUrl.isNotEmpty
+                                        ? Image.network(
+                                            song.albumArtUrl,
+                                            width: 60,
+                                            height: 60,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 60, color: Theme.of(context).colorScheme.onSurface),
+                                          )
+                                        : Icon(Icons.music_note, size: 60, color: Theme.of(context).colorScheme.onSurface),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    song.title,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },

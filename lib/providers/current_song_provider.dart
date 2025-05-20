@@ -92,4 +92,14 @@ class CurrentSongProvider with ChangeNotifier {
       playSong(_queue[_currentIndex]);
     }
   }
+
+  void downloadSong(Song song) {
+    // Implement download logic here
+    debugPrint('Downloading song: ${song.title}');
+  }
+
+  void addToQueue(Song song) {
+    _queue.add(song);
+    notifyListeners();
+  }
 }

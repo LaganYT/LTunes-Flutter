@@ -203,6 +203,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         onTap: () {
                           final songObj = Song(
                             title: songName,
+                            id: DateTime.now().toString(),
                             artist: 'Unknown Artist',
                             albumArtUrl: '',
                             localFilePath: song.path,

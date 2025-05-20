@@ -353,6 +353,7 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
                   // Play the song on tap.
                   final songObj = Song(
                     title: songName,
+                    id: DateTime.now().toString(),
                     artist: 'Unknown Artist',
                     albumArtUrl: '',
                     localFilePath: songFile.path,
