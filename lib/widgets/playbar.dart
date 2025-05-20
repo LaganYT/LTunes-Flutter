@@ -109,7 +109,7 @@ class _PlaybarState extends State<Playbar> {
                         Icon(Icons.music_note, size: 32, color: Colors.grey),
                         SizedBox(width: 12),
                         Text(
-                          'No song selected',
+                          'No song selected', // This will show if no song was saved
                           style: TextStyle(
                             color: Colors.grey,
                             fontSize: 16,

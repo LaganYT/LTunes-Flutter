@@ -28,13 +28,13 @@ class CurrentSongProvider with ChangeNotifier {
   Map<String, double> get downloadProgress => _downloadProgress;
 
   CurrentSongProvider() {
-    _loadCurrentSongFromStorage();
+    _loadCurrentSongFromStorage(); // Load the last playing song on initialization
   }
 
   Future<void> _saveCurrentSongToStorage() async {
     if (_currentSong != null) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('current_song', _currentSong!.toJson().toString());
+      await prefs.setString('current_song', jsonEncode(_currentSong!.toJson()));
     }
   }
 
@@ -43,9 +43,7 @@ class CurrentSongProvider with ChangeNotifier {
     final songJson = prefs.getString('current_song');
     if (songJson != null) {
       try {
-        // Ensure the JSON string is properly parsed
-        final decodedJson = jsonDecode(songJson) as Map<String, dynamic>;
-        _currentSong = Song.fromJson(decodedJson);
+        _currentSong = Song.fromJson(jsonDecode(songJson));
         notifyListeners();
       } catch (e) {
         debugPrint('Error loading current song: $e');
@@ -81,7 +79,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       // Pre-fetch the next 3 songs in the queue
       _prefetchNextSongs();
-      _saveCurrentSongToStorage();
+      _saveCurrentSongToStorage(); // Save the current song when it starts playing
     } catch (e) {
       debugPrint('Error playing song: $e');
       stopSong();
@@ -129,6 +127,9 @@ class CurrentSongProvider with ChangeNotifier {
     _currentSong = null;
     _isPlaying = false;
     notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('current_song'); // Clear the saved song when playback stops
   }
 
   void toggleLoop() {

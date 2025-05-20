@@ -11,7 +11,7 @@ void main() {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        ChangeNotifierProvider(create: (context) => CurrentSongProvider()),
+        ChangeNotifierProvider(create: (context) => CurrentSongProvider()), // Ensure this is initialized
       ],
       child: const LTunesApp(),
     ),

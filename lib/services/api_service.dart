@@ -13,7 +13,6 @@ class ApiService {
     } else {
       url = Uri.parse('${baseUrl}topCharts');
     }
-    print('Fetching songs from URL: $url');
 
     try {
       final response = await http.get(url);
