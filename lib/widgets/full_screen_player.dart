@@ -183,6 +183,8 @@ class FullScreenPlayer extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (currentSongProvider.isLoading)
+                  Center(child: CircularProgressIndicator())
               ],
             )
           : Center(

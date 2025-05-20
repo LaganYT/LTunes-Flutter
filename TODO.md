@@ -2,7 +2,8 @@
 
 - Save song metadata to the song when downloaded to avoid fetching it later.
 
-- Add loading animation.
+- Add loading animation that persists until the song starts playing.
+- Implement slide-to-queue feature on the search and downloads screens.
 - Add the song thumbnail next to the downloaded song
 
 - Change the downloads icon to a library icon

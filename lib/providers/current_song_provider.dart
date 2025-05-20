@@ -10,6 +10,8 @@ class CurrentSongProvider with ChangeNotifier {
   bool _isShuffling = false;
   List<Song> _queue = [];
   int _currentIndex = -1;
+  final Map<String, String> _urlCache = {}; // Cache for song URLs
+  bool isLoading = false;
 
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -20,22 +22,48 @@ class CurrentSongProvider with ChangeNotifier {
   void playSong(Song song) async {
     try {
       _currentSong = song;
-      final sourceUrl = song.effectiveAudioUrl;
-      if (sourceUrl.isNotEmpty) {
-        if (song.isDownloaded) {
-          await _audioPlayer.play(DeviceFileSource(sourceUrl));
-        } else {
-          await _audioPlayer.play(UrlSource(sourceUrl));
-        }
-        _isPlaying = true;
-        notifyListeners();
-      } else {
-        debugPrint('No valid audio URL for song: ${song.title}');
-        stopSong();
+      String sourceUrl = _urlCache[song.id] ?? song.effectiveAudioUrl;
+
+      if (sourceUrl.isEmpty) {
+        // Fetch and cache the URL if not already cached
+        sourceUrl = await fetchSongUrl(song);
+        _urlCache[song.id] = sourceUrl;
       }
+
+      if (song.isDownloaded) {
+        await _audioPlayer.play(DeviceFileSource(sourceUrl));
+      } else {
+        await _audioPlayer.play(UrlSource(sourceUrl));
+      }
+
+      _isPlaying = true;
+      notifyListeners();
+
+      // Pre-fetch the next 3 songs in the queue
+      _prefetchNextSongs();
     } catch (e) {
       debugPrint('Error playing song: $e');
       stopSong();
+    }
+  }
+
+  Future<String> fetchSongUrl(Song song) async {
+    // Simulate fetching the song URL (replace with actual API call if needed)
+    return song.audioUrl;
+  }
+
+  void _prefetchNextSongs() async {
+    if (_queue.isEmpty || _currentIndex == -1) return;
+
+    for (int i = 1; i <= 3; i++) {
+      final nextIndex = _currentIndex + i;
+      if (nextIndex < _queue.length) {
+        final nextSong = _queue[nextIndex];
+        if (!_urlCache.containsKey(nextSong.id)) {
+          final url = await fetchSongUrl(nextSong);
+          _urlCache[nextSong.id] = url;
+        }
+      }
     }
   }
 
@@ -94,8 +122,12 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void downloadSong(Song song) {
+    isLoading = true;
+    notifyListeners();
     // Implement download logic here
     debugPrint('Downloading song: ${song.title}');
+    isLoading = false;
+    notifyListeners();
   }
 
   void addToQueue(Song song) {

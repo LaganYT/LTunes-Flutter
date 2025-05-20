@@ -97,4 +97,10 @@ class Song {
     if (isDownloaded && (localFilePath ?? '').isNotEmpty) return localFilePath!;
     return '';
   }
+
+  // New method to fetch the song URL
+  Future<String> fetchUrl() async {
+    // Simulate fetching the URL (replace with actual API call if needed)
+    return audioUrl.isNotEmpty ? audioUrl : '';
+  }
 }

@@ -41,6 +41,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _onSlideToQueue(Song song) {
+    // Logic to add the song to the queue
+    final currentQueueProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    currentQueueProvider.addToQueue(song);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -122,68 +128,75 @@ class _HomeScreenState extends State<HomeScreen> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final song = songs[index];
-                    return ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          song.albumArtUrl,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.music_note, size: 40),
-                        ),
-                      ),
-                      title: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                      ),
-                      subtitle: Text(
-                        song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.info_outline),
-                        color: Theme.of(context).colorScheme.onSurface,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SongDetailScreen(song: song),
-                            ),
-                          );
-                        },
-                      ),
-                      onTap: () async {
-                        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const Center(child: CircularProgressIndicator()),
-                        );
-                        try {
-                          final apiService = ApiService();
-                          final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
-                          Navigator.of(context, rootNavigator: true).pop(); // Remove loading dialog
-                          if (audioUrl != null && audioUrl.isNotEmpty) {
-                            final songWithAudio = song.copyWith(audioUrl: audioUrl);
-                            currentSongProvider.playSong(songWithAudio);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Failed to fetch audio URL.')),
-                            );
-                          }
-                        } catch (e) {
-                          Navigator.of(context, rootNavigator: true).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error fetching audio URL: $e')),
-                          );
+                    return GestureDetector(
+                      onHorizontalDragEnd: (details) {
+                        if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                          _onSlideToQueue(song);
                         }
                       },
+                      child: ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            song.albumArtUrl,
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.music_note, size: 40),
+                          ),
+                        ),
+                        title: Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                        ),
+                        subtitle: Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.info_outline),
+                          color: Theme.of(context).colorScheme.onSurface,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SongDetailScreen(song: song),
+                              ),
+                            );
+                          },
+                        ),
+                        onTap: () async {
+                          final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(child: CircularProgressIndicator()),
+                          );
+                          try {
+                            final apiService = ApiService();
+                            final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+                            Navigator.of(context, rootNavigator: true).pop(); // Remove loading dialog
+                            if (audioUrl != null && audioUrl.isNotEmpty) {
+                              final songWithAudio = song.copyWith(audioUrl: audioUrl);
+                              currentSongProvider.playSong(songWithAudio);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Failed to fetch audio URL.')),
+                              );
+                            }
+                          } catch (e) {
+                            Navigator.of(context, rootNavigator: true).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error fetching audio URL: $e')),
+                            );
+                          }
+                        },
+                      ),
                     );
                   },
                 );

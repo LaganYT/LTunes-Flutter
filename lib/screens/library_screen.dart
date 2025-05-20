@@ -163,6 +163,12 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
     setState(() => _searchQuery = value.trim());
   }
 
+  void _onSlideToQueue(Song song) {
+    // Logic to add the song to the queue
+    final currentQueueProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    currentQueueProvider.addToQueue(song);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -334,33 +340,49 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
             itemBuilder: (context, index) {
               final songFile = filteredSongs[index];
               final songName = songFile.path.split('/').last.replaceAll('.mp3', '');
-              return ListTile(
-                title: Text(
-                  songName,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      tooltip: 'Delete Download',
-                      onPressed: () => _deleteDownloadedSong(songFile),
-                    ),
-                  ],
-                ),
-                onTap: () {
-                  // Play the song on tap.
-                  final songObj = Song(
-                    title: songName,
-                    id: DateTime.now().toString(),
-                    artist: 'Unknown Artist',
-                    albumArtUrl: '',
-                    localFilePath: songFile.path,
-                    isDownloaded: true,
-                  );
-                  Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+              return GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                    // Slide to queue action
+                    final songObj = Song(
+                      title: songName,
+                      id: DateTime.now().toString(),
+                      artist: 'Unknown Artist',
+                      albumArtUrl: '',
+                      localFilePath: songFile.path,
+                      isDownloaded: true,
+                    );
+                    _onSlideToQueue(songObj);
+                  }
                 },
+                child: ListTile(
+                  title: Text(
+                    songName,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Delete Download',
+                        onPressed: () => _deleteDownloadedSong(songFile),
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    // Play the song on tap.
+                    final songObj = Song(
+                      title: songName,
+                      id: DateTime.now().toString(),
+                      artist: 'Unknown Artist',
+                      albumArtUrl: '',
+                      localFilePath: songFile.path,
+                      isDownloaded: true,
+                    );
+                    Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                  },
+                ),
               );
             },
           );
