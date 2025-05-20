@@ -1,4 +1,4 @@
-name: ltunes_flutter
+name: LTunes
 description: A simple Flutter frontend for a music app.
 publish_to: 'none'
 version: 1.0.0+1
@@ -44,11 +44,11 @@ transitive_dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/icon/icon.png
+    - ./assets/icon/icon.png
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/icon.png"
+  image_path: "./assets/icon/icon.png"
+  adaptive_icon_background: "#333333"
+  adaptive_icon_foreground: "./assets/icon/icon.png"

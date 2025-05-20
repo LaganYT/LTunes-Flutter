@@ -169,17 +169,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           final apiService = ApiService();
                           final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
                           Navigator.of(context, rootNavigator: true).pop(); // Remove loading dialog
-                          if ((audioUrl ?? '').isNotEmpty) { // ensure non-null and non-empty
-                            final songWithAudio = Song(
-                              title: song.title,
-                              artist: song.artist,
-                              album: song.album,
-                              albumArtUrl: song.albumArtUrl,
-                              releaseDate: song.releaseDate,
-                              localFilePath: song.localFilePath,
-                              audioUrl: audioUrl ?? '', // pass audioUrl with fallback to empty string
-                              // ...add any other metadata fields as needed...
-                            );
+                          if (audioUrl != null && audioUrl.isNotEmpty) {
+                            final songWithAudio = song.copyWith(audioUrl: audioUrl);
                             currentSongProvider.playSong(songWithAudio);
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(

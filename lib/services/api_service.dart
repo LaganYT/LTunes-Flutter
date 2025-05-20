@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/song.dart';
 
 class ApiService {
@@ -50,10 +51,13 @@ class ApiService {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['audioURL'] as String?;
+        if (data != null && data['audioURL'] != null) {
+          return data['audioURL'] as String;
+        }
       }
-      return null;
+      return null; // Explicitly return null if no valid URL is found
     } catch (e) {
+      debugPrint('Error fetching audio URL: $e');
       return null;
     }
   }

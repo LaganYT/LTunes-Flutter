@@ -4,7 +4,6 @@ import '../models/song.dart';
 import '../providers/current_song_provider.dart'; // Ensure this is the correct path to CurrentSongProvider
 import '../models/playlist_manager.dart';
 import '../screens/song_detail_screen.dart'; // Import the SongDetailScreen
-import '../screens/full_screen_player.dart'; // Import the FullScreenPlayer
 
 class Playbar extends StatefulWidget {
   static _PlaybarState of(BuildContext context) =>
@@ -28,7 +27,7 @@ class _PlaybarState extends State<Playbar> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FullScreenPlayer(song: currentSong!), // Navigate to full-screen player
+            builder: (context) => SongDetailScreen(song: currentSong!), // Navigate to full-screen player
           ),
         );
       },

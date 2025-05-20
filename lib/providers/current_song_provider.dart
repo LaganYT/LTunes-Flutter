@@ -24,7 +24,7 @@ class CurrentSongProvider with ChangeNotifier {
         _isPlaying = true;
         notifyListeners();
       } else {
-        debugPrint('No valid audio URL for song');
+        debugPrint('No valid audio URL for song: ${song.title}');
         stopSong();
       }
     } catch (e) {
@@ -40,7 +40,7 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void resumeSong() async {
-    if (_currentSong != null) {
+    if (currentSong != null) {
       await _audioPlayer.resume();
       _isPlaying = true;
       notifyListeners();

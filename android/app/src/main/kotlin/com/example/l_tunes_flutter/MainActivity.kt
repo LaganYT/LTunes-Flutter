@@ -1,4 +1,4 @@
-package com.example.ltunes_flutter
+package com.LTunes
 
 import io.flutter.embedding.android.FlutterActivity
 

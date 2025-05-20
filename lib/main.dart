@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import './screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import './screens/settings_screen.dart';
-import './screens/full_screen_player.dart';
 import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';
 

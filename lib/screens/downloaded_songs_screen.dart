@@ -112,10 +112,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
           _currentlyPlayingSongPath = null;
         }
       });
-      // Optionally: Remove metadata from storage if you use it
-      // final prefs = await SharedPreferences.getInstance();
-      // final songName = songFile.path.split('/').last.replaceAll('.mp3', '');
-      // await prefs.remove('song_$songName');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Deleted ${songFile.path.split('/').last}')),
       );
@@ -162,7 +158,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           final song = playlist.songs[songIndex];
                           return ListTile(
                             title: Text(song.title),
-                            // Add more song details here
                           );
                         },
                       ),
@@ -206,7 +201,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           ],
                         ),
                         onTap: () {
-                          // Play the song on tap.
                           final songObj = Song(
                             title: songName,
                             artist: 'Unknown Artist',
