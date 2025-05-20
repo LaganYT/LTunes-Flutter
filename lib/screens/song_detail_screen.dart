@@ -164,6 +164,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       'artist': song.artist,
       'album': song.album,
       'releaseDate': song.releaseDate,
+      'albumArtUrl': song.albumArtUrl,
       'localFilePath': song.localFilePath,
     });
     await prefs.setString('song_${song.title}', songData);
