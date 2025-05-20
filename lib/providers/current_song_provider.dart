@@ -15,7 +15,6 @@ class CurrentSongProvider with ChangeNotifier {
       _currentSong = song;
       final sourceUrl = song.effectiveAudioUrl;
       if (sourceUrl.isNotEmpty) {
-        // Use appropriate source based on whether the song is downloaded
         if (song.isDownloaded) {
           await _audioPlayer.play(DeviceFileSource(sourceUrl));
         } else {
@@ -29,7 +28,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error playing song: $e');
-      stopSong(); // Stop playback on error
+      stopSong();
     }
   }
 
