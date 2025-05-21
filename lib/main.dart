@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'screens/library_screen.dart';
 import './screens/settings_screen.dart';
-import './screens/radio_screen.dart'; // Import the new RadioScreen
 import './screens/search_screen.dart'; // Import the new SearchScreen
 import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';
@@ -49,7 +48,6 @@ class _TabViewState extends State<TabView> {
   int _selectedIndex = 0;
 
   static final List<Widget> _widgetOptions = <Widget>[
-    const RadioScreen(), // Radio next
     const SearchScreen(), // Search in the middle
     const LibraryScreen(), // Library to the right of Search
     const SettingsScreen(), // Settings remains at the end
@@ -77,10 +75,6 @@ class _TabViewState extends State<TabView> {
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed, // Ensure icons and labels align properly
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.radio, size: 28), // Move radio to the second position
-            label: 'Radio',
-          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.search, size: 28), // Place search in the middle
             label: 'Search',

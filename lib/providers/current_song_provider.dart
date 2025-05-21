@@ -242,5 +242,44 @@ class CurrentSongProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  void playStream(String streamUrl, {required String stationName, String? stationFavicon}) {
+    _currentSong = Song(
+      id: DateTime.now().toString(),
+      title: stationName,
+      artist: 'Radio Station',
+      albumArtUrl: stationFavicon ?? '',
+      audioUrl: streamUrl,
+      localFilePath: null,
+      isDownloaded: false,
+    );
+    notifyListeners();
+
+    _audioPlayer.play(UrlSource(streamUrl));
+    _isPlaying = true;
+    notifyListeners();
+
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (state == PlayerState.completed) {
+        if (_isLooping) {
+          playStream(streamUrl, stationName: stationName, stationFavicon: stationFavicon);
+        } else {
+          stopSong();
+        }
+      }
+    });
+  }
+
+  void playUrl(String url) {
+    // Implement the logic to play the audio from the given URL
+    print('Playing URL: $url');
+    // Notify listeners if needed
+    notifyListeners();
+  }
+
+  void setCurrentSong(Song song) {
+    _currentSong = song;
+    notifyListeners();
+  }
 }
 

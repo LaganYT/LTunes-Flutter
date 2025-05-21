@@ -25,6 +25,11 @@ class _PlaybarState extends State<Playbar> {
     });
   }
 
+  void playUrl(String url) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    currentSongProvider.playUrl(url);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
