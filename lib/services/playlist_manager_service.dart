@@ -34,26 +34,37 @@ class PlaylistManagerService {
   List<Playlist> get playlists => List.unmodifiable(_playlists);
 
   void addPlaylist(Playlist playlist) {
-    _playlists.add(playlist);
+    // Prevent adding playlist with duplicate ID or name (optional, based on requirements)
+    if (!_playlists.any((p) => p.id == playlist.id || p.name == playlist.name)) {
+      _playlists.add(playlist);
+      savePlaylists(); // Save after adding
+    }
   }
 
   void removePlaylist(Playlist playlist) {
-    _playlists.remove(playlist);
+    _playlists.removeWhere((p) => p.id == playlist.id);
+    savePlaylists(); // Save after removing
   }
   
   void renamePlaylist(String id, String newName) {
     final playlist = _playlists.firstWhere((p) => p.id == id, orElse: () => throw Exception('Playlist not found'));
+    // Optionally check if another playlist with newName already exists
     playlist.rename(newName);
+    savePlaylists(); // Save after renaming
   }
   
   void addSongToPlaylist(Playlist playlist, Song song) {
-    if (!playlist.songs.any((s) => s.title == song.title && s.artist == song.artist)) {
-      playlist.songs.add(song);
+    final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id, orElse: () => throw Exception('Playlist not found'));
+    if (!targetPlaylist.songs.any((s) => s.id == song.id)) {
+      targetPlaylist.songs.add(song);
+      savePlaylists(); // Save after adding song
     }
   }
 
   void removeSongFromPlaylist(Playlist playlist, Song song) {
-    playlist.songs.removeWhere((s) => s.title == song.title && s.artist == song.artist);
+    final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id, orElse: () => throw Exception('Playlist not found'));
+    targetPlaylist.songs.removeWhere((s) => s.id == song.id);
+    savePlaylists(); // Save after removing song
   }
   
   Future<void> downloadAllSongsInPlaylist(Playlist playlist) async {
@@ -65,15 +76,5 @@ class PlaylistManagerService {
       }
     }
     await savePlaylists();
-  }
-}
-
-class PlaylistManager {
-  List<Playlist> playlists = [];
-
-  Future<void> loadPlaylists() async {
-    // Mock implementation for loading playlists
-    playlists = [
-    ];
   }
 }

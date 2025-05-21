@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
+import '../models/playlist.dart'; // Import Playlist model
 import '../providers/current_song_provider.dart';
+import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 
 class FullScreenPlayer extends StatelessWidget {
   const FullScreenPlayer({super.key});
@@ -88,9 +90,79 @@ class FullScreenPlayer extends StatelessWidget {
                           },
                         ),
                 ),
+                if (provider.queue.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextButton.icon(
+                      icon: Icon(Icons.clear_all, color: colorScheme.error),
+                      label: Text('Clear Queue', style: TextStyle(color: colorScheme.error)),
+                      onPressed: () {
+                        provider.clearQueue();
+                        // Optionally pop the sheet after clearing
+                        // Navigator.pop(context); 
+                      },
+                    ),
+                  ),
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showAddToPlaylistDialog(BuildContext context, Song songToAdd) async {
+    final playlistManager = PlaylistManagerService();
+    // Explicitly load playlists to ensure the list is up-to-date.
+    await playlistManager.loadPlaylists(); 
+    final List<Playlist> playlists = playlistManager.playlists;
+
+    if (playlists.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No playlists available. Create one in the Library.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext ctx) {
+        return Container(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  'Add "${songToAdd.title}" to playlist:',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: playlists.length,
+                  itemBuilder: (context, index) {
+                    final playlist = playlists[index];
+                    final bool alreadyInPlaylist = playlist.songs.any((s) => s.id == songToAdd.id);
+                    return ListTile(
+                      title: Text(playlist.name),
+                      trailing: alreadyInPlaylist ? const Icon(Icons.check, color: Colors.green) : null,
+                      onTap: alreadyInPlaylist ? null : () {
+                        playlistManager.addSongToPlaylist(playlist, songToAdd);
+                        // savePlaylists() is called within addSongToPlaylist
+                        Navigator.pop(ctx); // Close the bottom sheet
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Added "${songToAdd.title}" to "${playlist.name}"')),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -307,15 +379,10 @@ class FullScreenPlayer extends StatelessWidget {
                                     },
                                   ),
                                   IconButton(
-                                    icon: Icon(Icons.playlist_add, color: colorScheme.onSurfaceVariant), // Changed icon
-                                    tooltip: "Add to playlist", // Changed tooltip
+                                    icon: Icon(Icons.playlist_add, color: colorScheme.onSurfaceVariant),
+                                    tooltip: "Add to playlist",
                                     onPressed: () {
-                                      // Placeholder for "Add to playlist" functionality
-                                      // In a real app, this would call a provider method
-                                      // currentSongProvider.addToPlaylist(currentSong);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('${currentSong.title} added to playlist (feature coming soon)')),
-                                      );
+                                      _showAddToPlaylistDialog(context, currentSong);
                                     },
                                   ),
                                   IconButton( // New "View Queue" button

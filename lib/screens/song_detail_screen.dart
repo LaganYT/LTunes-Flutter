@@ -4,6 +4,7 @@ import 'dart:io';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../services/api_service.dart';
+import '../services/playlist_manager_service.dart'; // Use PlaylistManagerService
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -24,15 +25,15 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   double _downloadProgress = 0;
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-  @override
-  void initState() {
-    super.initState();
-  }
+  // @override // initState and dispose are fine
+  // void initState() {
+  //   super.initState();
+  // }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
+  // @override
+  // void dispose() {
+  //   super.dispose();
+  // }
 
   Future<void> _downloadSong() async {
     setState(() => _isDownloading = true);
@@ -54,7 +55,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/${widget.song.title}.mp3';
+      // Sanitize the song title to create a valid filename (consistent with CurrentSongProvider)
+      final String sanitizedTitle = widget.song.title
+          .replaceAll(RegExp(r'[^\w\s.-]'), '_') // Replace invalid chars with underscore
+          .replaceAll(RegExp(r'\s+'), '_'); // Replace spaces with underscore for cleaner names
+      final filePath = '${directory.path}/$sanitizedTitle.mp3';
       final url = audioUrl;
 
       final request = http.Request('GET', Uri.parse(url));
@@ -81,7 +86,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               widget.song.isDownloaded = true;
             });
           }
-          await _saveSongMetadata(widget.song);
+          // Save comprehensive metadata using the song's original ID
+          await _saveSongMetadata(widget.song.copyWith(id: widget.song.id, localFilePath: filePath, isDownloaded: true));
           scaffoldMessengerKey.currentState?.showSnackBar(
             const SnackBar(content: Text('Download complete!')),
           );
@@ -144,20 +150,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   Future<void> _removeSongMetadata(Song song) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('song_${song.title}');
+    await prefs.remove('song_${song.id}'); // Use song.id for unique key
   }
 
   Future<void> _saveSongMetadata(Song song) async {
     final prefs = await SharedPreferences.getInstance();
-    final songData = jsonEncode({
-      'title': song.title,
-      'artist': song.artist,
-      'album': song.album,
-      'releaseDate': song.releaseDate,
-      'albumArtUrl': song.albumArtUrl,
-      'localFilePath': song.localFilePath,
-    });
-    await prefs.setString('song_${song.title}', songData);
+    // Ensure all relevant fields are in toJson() and saved
+    final songData = jsonEncode(song.toJson()); 
+    await prefs.setString('song_${song.id}', songData); // Use song.id for unique key
   }
 
   @override
@@ -167,112 +167,176 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     final bool isPlayingThisSong = isCurrentSongInProvider && currentSongProvider.isPlaying;
     final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return ScaffoldMessenger(
       key: scaffoldMessengerKey,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Song Details'),
+          title: Text(widget.song.album ?? 'Song Details'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
         ),
-        body: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: widget.song.albumArtUrl.isNotEmpty
+                    ? Image.network(
+                        widget.song.albumArtUrl,
+                        width: MediaQuery.of(context).size.width * 0.7,
+                        height: MediaQuery.of(context).size.width * 0.7,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: MediaQuery.of(context).size.width * 0.7,
+                          height: MediaQuery.of(context).size.width * 0.7,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.music_note,
+                            size: 100,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: MediaQuery.of(context).size.width * 0.7,
+                        height: MediaQuery.of(context).size.width * 0.7,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.music_note,
+                          size: 100,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                widget.song.title,
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.song.artist.isNotEmpty ? widget.song.artist : 'Unknown Artist',
+                style: textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (widget.song.album != null && widget.song.album!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.song.album!,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 32),
+              
+              // Play/Pause Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: isLoadingThisSong
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Icon(isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 28),
+                  label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: isLoadingThisSong
+                      ? null
+                      : () {
+                          if (isPlayingThisSong) {
+                            currentSongProvider.pauseSong();
+                          } else {
+                            if (isCurrentSongInProvider) {
+                              currentSongProvider.resumeSong();
+                            } else {
+                              currentSongProvider.playSong(widget.song);
+                            }
+                          }
+                        },
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Download/Delete Button
+              if (_isDownloading) ...[
+                LinearProgressIndicator(value: _downloadProgress, color: colorScheme.secondary),
+                const SizedBox(height: 4),
+                Text(
+                  'Downloading... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                  style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ] else if (widget.song.isDownloaded && widget.song.localFilePath != null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
+                    label: Text('Delete Download', style: textTheme.labelLarge?.copyWith(color: colorScheme.error)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: colorScheme.error.withOpacity(0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _deleteSong,
+                  ),
+                ),
+              ] else ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    icon: const Icon(Icons.download_rounded),
+                    label: Text('Download Song', style: textTheme.labelLarge),
+                     style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _downloadSong,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+
+              // Action Row: Add to Playlist & More Info
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text(
-                    widget.song.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  TextButton.icon(
+                    icon: Icon(Icons.playlist_add_rounded, color: colorScheme.secondary),
+                    label: Text('Add to Playlist', style: TextStyle(color: colorScheme.secondary)),
+                    onPressed: () => _showAddToPlaylistDialog(context, widget.song),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Artist: ${widget.song.artist}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Album: ${widget.song.album ?? 'N/A'}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Release Date: ${widget.song.releaseDate ?? 'N/A'}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      widget.song.albumArtUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.music_note,
-                        size: 150,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (_isDownloading) ...[
-                    LinearProgressIndicator(value: _downloadProgress),
-                    Text(
-                      'Downloading... ${(_downloadProgress * 100).toStringAsFixed(2)}%',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                    ),
-                  ] else if (widget.song.isDownloaded) ...[
-                    Text('Song downloaded!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                    ElevatedButton(
-                      onPressed: _deleteSong,
-                      child: const Text('Delete Song'),
-                    ),
-                  ] else ...[
-                    ElevatedButton(
-                      onPressed: _downloadSong,
-                      child: const Text('Download Song'),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton(
-                        onPressed: isLoadingThisSong
-                            ? null
-                            : () {
-                                if (isPlayingThisSong) {
-                                  currentSongProvider.pauseSong();
-                                } else {
-                                  if (isCurrentSongInProvider) {
-                                    currentSongProvider.resumeSong();
-                                  } else {
-                                    currentSongProvider.playSong(widget.song);
-                                  }
-                                }
-                              },
-                        child: isLoadingThisSong
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white), 
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(isPlayingThisSong ? 'Pause Song' : 'Play Song'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
+                  TextButton.icon(
+                    icon: Icon(Icons.info_outline_rounded, color: colorScheme.secondary),
+                    label: Text('More Info', style: TextStyle(color: colorScheme.secondary)),
                     onPressed: () {
                       showDialog(
                         context: context,
@@ -283,10 +347,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('Title: ${widget.song.title}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                                Text('Artist: ${widget.song.artist}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                                Text('Album: ${widget.song.album ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                                Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                                Text('Title: ${widget.song.title}', style: TextStyle(color: colorScheme.onSurface)),
+                                Text('Artist: ${widget.song.artist}', style: TextStyle(color: colorScheme.onSurface)),
+                                Text('Album: ${widget.song.album ?? 'N/A'}', style: TextStyle(color: colorScheme.onSurface)),
+                                Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}', style: TextStyle(color: colorScheme.onSurface)),
                               ],
                             ),
                             actions: <Widget>[
@@ -296,30 +360,17 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                                   Navigator.of(context).pop();
                                 },
                               ),
-                              TextButton(
-                                child: const Text('Add to Playlist'),
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _showAddToPlaylistDialog(context, widget.song);
-                                },
-                              ),
                             ],
                           );
                         },
                       );
                     },
-                    child: const Text('More Song Info'),
                   ),
                 ],
               ),
-            ),
-            // Removed the overlay for _isDownloading as it's not for audio playback loading
-            // if (_isDownloading)
-            //   Container(
-            //     color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7),
-            //     child: const Center(child: CircularProgressIndicator()),
-            //   ),
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
@@ -346,6 +397,7 @@ class AddToPlaylistDialog extends StatefulWidget {
 
 class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   List<Playlist> _playlists = [];
+  final PlaylistManagerService _playlistManagerService = PlaylistManagerService(); // Use singleton
 
   @override
   void initState() {
@@ -354,17 +406,16 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   }
 
   Future<void> _loadPlaylists() async {
-    final prefs = await SharedPreferences.getInstance();
-    final playlistJson = prefs.getStringList('playlists') ?? [];
+    // No need to load manually if PlaylistManagerService handles it internally and provides getter
+    // await _playlistManagerService.loadPlaylists(); // Ensure it's loaded if not already
     setState(() {
-      _playlists = playlistJson.map((json) => Playlist.fromJson(jsonDecode(json))).toList();
+      _playlists = _playlistManagerService.playlists;
     });
   }
 
   Future<void> _savePlaylists() async {
-    final prefs = await SharedPreferences.getInstance();
-    final playlistJson = _playlists.map((playlist) => jsonEncode(playlist.toJson())).toList();
-    await prefs.setStringList('playlists', playlistJson);
+    // PlaylistManagerService handles saving
+    await _playlistManagerService.savePlaylists();
   }
 
   @override
@@ -399,24 +450,24 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                 icon: const Icon(Icons.delete, color: Colors.red),
                 tooltip: 'Delete Playlist',
                 onPressed: () async {
-                  setState(() {
-                    _playlists.removeAt(index);
+                  final playlistToDelete = _playlists[index];
+                  _playlistManagerService.removePlaylist(playlistToDelete);
+                  await _savePlaylists(); // Save changes
+                  setState(() { // Refresh local list
+                    _playlists = _playlistManagerService.playlists;
                   });
-                  await _savePlaylists();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Deleted playlist "${playlist.name}"')),
+                    SnackBar(content: Text('Deleted playlist "${playlistToDelete.name}"')),
                   );
                 },
               ),
               onTap: () {
-                // Prevent duplicates
-                if (!playlist.songs.any((s) =>
-                    s.title == widget.song.title &&
-                        s.artist == widget.song.artist)) {
-                  setState(() {
-                    playlist.songs.add(widget.song);
-                  });
-                  _savePlaylists();
+                final playlist = _playlists[index];
+                // Prevent duplicates using song.id
+                if (!playlist.songs.any((s) => s.id == widget.song.id)) {
+                  _playlistManagerService.addSongToPlaylist(playlist, widget.song);
+                  _savePlaylists(); // Save changes
+                  // No need to setState for playlist.songs directly if _playlistManagerService handles it
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Added to ${playlist.name}')),
@@ -466,10 +517,12 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
               onPressed: () {
                 final playlistName = playlistNameController.text.trim();
                 if (playlistName.isNotEmpty) {
-                  setState(() {
-                    _playlists.add(Playlist(id: DateTime.now().toString(), name: playlistName, songs: []));
+                  final newPlaylist = Playlist(id: DateTime.now().millisecondsSinceEpoch.toString(), name: playlistName, songs: []);
+                  _playlistManagerService.addPlaylist(newPlaylist);
+                  _savePlaylists(); // Save the new playlist
+                  setState(() { // Refresh local list
+                     _playlists = _playlistManagerService.playlists;
                   });
-                  _savePlaylists();
                 }
                 Navigator.of(context).pop();
               },

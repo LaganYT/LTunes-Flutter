@@ -15,7 +15,7 @@ class CurrentSongProvider with ChangeNotifier {
   bool _isLooping = false;
   bool _isShuffling = false;
   List<Song> _queue = [];
-  int _currentIndex = -1;
+  int _currentIndex = -1; // Index in the _queue
   final Map<String, String> _urlCache = {}; // Cache for song URLs
   bool _isDownloadingSong = false; // Renamed from isLoading
   bool _isLoadingAudio = false; // New property for audio loading
@@ -34,7 +34,7 @@ class CurrentSongProvider with ChangeNotifier {
   Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Stream for playback position
 
   CurrentSongProvider() {
-    _loadCurrentSongFromStorage(); // Load the last playing song on initialization
+    _loadCurrentSongFromStorage(); // Load the last playing song and queue on initialization
     _audioPlayer.onDurationChanged.listen((duration) {
       _totalDuration = duration;
       notifyListeners();
@@ -42,19 +42,14 @@ class CurrentSongProvider with ChangeNotifier {
 
     _audioPlayer.onPlayerComplete.listen((_) {
       // Handle song completion: play next, loop, or stop
-      if (_isPlaying) { // Ensure action is taken only if it was playing
+      if (_isPlaying) { 
         if (_isLooping && _currentSong != null) {
-          // Replay the current song
-          playSong(_currentSong!); 
-        } else if (_currentIndex != -1 && _currentIndex < _queue.length - 1 && !_isLooping) {
-          // Play next song if not looping and not at the end of the queue
+          playSong(_currentSong!, isResumingOrLooping: true); 
+        } else if (_queue.isNotEmpty) {
           playNext();
         } else {
-          // If no loop, no shuffle, and at the end of queue, or no queue
           _isPlaying = false;
           _isLoadingAudio = false;
-          // Optionally, call stopSong() or just update UI
-          // For now, just update state and notify. If stopSong() is desired, ensure it doesn't clear essential state for UI.
           notifyListeners(); 
         }
       }
@@ -62,9 +57,16 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> _saveCurrentSongToStorage() async {
+    final prefs = await SharedPreferences.getInstance();
     if (_currentSong != null) {
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('current_song', jsonEncode(_currentSong!.toJson()));
+      await prefs.setInt('current_index', _currentIndex);
+      List<String> queueJson = _queue.map((song) => jsonEncode(song.toJson())).toList();
+      await prefs.setStringList('current_queue', queueJson);
+    } else {
+      await prefs.remove('current_song');
+      await prefs.remove('current_index');
+      await prefs.remove('current_queue');
     }
   }
 
@@ -74,61 +76,126 @@ class CurrentSongProvider with ChangeNotifier {
     if (songJson != null) {
       try {
         _currentSong = Song.fromJson(jsonDecode(songJson));
+        _currentIndex = prefs.getInt('current_index') ?? -1;
+        List<String>? queueJson = prefs.getStringList('current_queue');
+        if (queueJson != null) {
+          _queue = queueJson.map((sJson) => Song.fromJson(jsonDecode(sJson))).toList();
+        }
+        // Do not auto-play, just load the state. UI can decide to show it.
+        // If _currentSong is not null, we might want to prepare the player or show info.
+        // For now, just loading the data.
         notifyListeners();
       } catch (e) {
-        debugPrint('Error loading current song: $e');
+        debugPrint('Error loading current song/queue from storage: $e');
+        // Clear potentially corrupted data
+        await prefs.remove('current_song');
+        await prefs.remove('current_index');
+        await prefs.remove('current_queue');
       }
     }
   }
 
-  void playSong(Song song) async {
+  void playSong(Song song, {bool isResumingOrLooping = false}) async {
     _isLoadingAudio = true;
-    _totalDuration = null; // Reset duration for the new song
+    if (!isResumingOrLooping) {
+      _totalDuration = null;
+    }
     notifyListeners();
 
     try {
       _currentSong = song;
-      String sourceUrl = _urlCache[song.id] ?? song.effectiveAudioUrl;
-
-      if (sourceUrl.isEmpty) {
-        // Fetch and cache the URL if not already cached
-        sourceUrl = await fetchSongUrl(song);
-        _urlCache[song.id] = sourceUrl;
+      
+      if (!isResumingOrLooping) {
+        final indexInQueue = _queue.indexWhere((s) => s.id == song.id);
+        if (indexInQueue != -1) {
+          _currentIndex = indexInQueue;
+        } else {
+          // If song is not in queue, _currentIndex might be -1 or point to an old index.
+          // Consider if queue should be reset or song added. For now, matches existing.
+        }
       }
 
-      // Validate the URL
-      final parsedUri = Uri.tryParse(sourceUrl);
-      if (parsedUri == null || !parsedUri.hasAbsolutePath) {
-        throw Exception('Invalid audio URL: $sourceUrl');
-      }
+      String pathOrUrlToPlay;
+      Source playerSource;
 
-      if (song.isDownloaded) {
-        await _audioPlayer.play(DeviceFileSource(sourceUrl));
+      bool playFromValidLocalFile = song.isDownloaded &&
+                                  song.localFilePath != null &&
+                                  song.localFilePath!.isNotEmpty &&
+                                  !song.localFilePath!.startsWith('http://') &&
+                                  !song.localFilePath!.startsWith('https://');
+
+      if (playFromValidLocalFile) {
+        pathOrUrlToPlay = song.localFilePath!;
+        playerSource = DeviceFileSource(pathOrUrlToPlay);
       } else {
-        await _audioPlayer.play(UrlSource(sourceUrl));
+        if (song.isDownloaded && (song.localFilePath == null || song.localFilePath!.isEmpty || song.localFilePath!.startsWith('http'))) {
+          debugPrint("Warning: Song '${song.title}' is marked downloaded but localFilePath is invalid or a URL ('${song.localFilePath}'). Attempting to stream.");
+          // Potentially mark song.isDownloaded = false here and save state if this is a persistent issue.
+        }
+
+        // Attempt to play from URL
+        pathOrUrlToPlay = _urlCache[song.id] ?? '';
+
+        if (pathOrUrlToPlay.isEmpty || !(Uri.tryParse(pathOrUrlToPlay)?.isAbsolute ?? false)) {
+          if (song.audioUrl.isNotEmpty && (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false)) {
+            pathOrUrlToPlay = song.audioUrl;
+          } else {
+            // Fallback to fetching (which might hit API)
+            // fetchSongUrl will be updated to better handle this.
+            pathOrUrlToPlay = await fetchSongUrl(song);
+          }
+          
+          if (pathOrUrlToPlay.isNotEmpty && (Uri.tryParse(pathOrUrlToPlay)?.isAbsolute ?? false)) {
+            _urlCache[song.id] = pathOrUrlToPlay; // Cache the determined URL
+          }
+        }
+        
+        final parsedUri = Uri.tryParse(pathOrUrlToPlay);
+        if (pathOrUrlToPlay.isEmpty || parsedUri == null || !parsedUri.isAbsolute || !parsedUri.hasScheme) {
+          throw Exception('Invalid or missing audio URL for streaming: $pathOrUrlToPlay');
+        }
+        playerSource = UrlSource(pathOrUrlToPlay);
       }
+
+      await _audioPlayer.play(playerSource);
 
       _isPlaying = true;
       _isLoadingAudio = false;
-      // Duration will be updated by onDurationChanged listener
       notifyListeners();
 
-      // Pre-fetch the next 3 songs in the queue
       _prefetchNextSongs();
-      _saveCurrentSongToStorage(); // Save the current song when it starts playing
+      _saveCurrentSongToStorage();
     } catch (e) {
-      debugPrint('Error playing song: $e');
+      debugPrint('Error playing song (${_currentSong?.title}): $e');
       _isLoadingAudio = false;
-      _totalDuration = null;
-      stopSong(); // stopSong will also notifyListeners
-      // Notify the user about the error
-      // notifyListeners(); // Already notified by stopSong or explicitly if stopSong doesn't
+      _isPlaying = false;
+      _totalDuration = null; // Reset duration for the failed song
+      // Avoid calling stopSong() which clears current song and queue entirely.
+      // Let the UI decide how to handle playback failure for the current item.
+      notifyListeners();
     }
   }
 
   Future<String> fetchSongUrl(Song song) async {
-    // Simulate fetching the song URL (replace with actual API call if needed)
-    return song.audioUrl;
+    // If song is downloaded and localFilePath is a valid, non-URL path
+    if (song.isDownloaded &&
+        song.localFilePath != null &&
+        song.localFilePath!.isNotEmpty &&
+        !song.localFilePath!.startsWith('http://') &&
+        !song.localFilePath!.startsWith('https://')) {
+      return song.localFilePath!;
+    }
+
+    // If not downloaded, or localFilePath is invalid (e.g., a URL, empty)
+    // Try direct audioUrl if it's a valid absolute URL
+    if (song.audioUrl.isNotEmpty && (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false)) {
+      return song.audioUrl;
+    }
+
+    // Fallback: try to fetch from API
+    final apiService = ApiService();
+    final fetchedUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+    return fetchedUrl ?? '';
   }
 
   void _prefetchNextSongs() async {
@@ -165,6 +232,8 @@ class CurrentSongProvider with ChangeNotifier {
       } catch (e) {
         debugPrint('Error resuming song: $e');
         _isLoadingAudio = false;
+        // Potentially try to play the song from start if resume fails
+        // playSong(currentSong!, isResumingOrLooping: true);
         notifyListeners();
       }
     }
@@ -175,11 +244,16 @@ class CurrentSongProvider with ChangeNotifier {
     _currentSong = null;
     _isPlaying = false;
     _isLoadingAudio = false;
-    _totalDuration = null; // Clear duration when song stops
+    _totalDuration = null; 
+    _currentIndex = -1; // Reset current index
+    // _queue = []; // Optionally clear queue on stop, or retain for later
     notifyListeners();
 
+    // Clear the saved song, index, and queue when playback stops explicitly
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('current_song'); // Clear the saved song when playback stops
+    await prefs.remove('current_song');
+    await prefs.remove('current_index');
+    await prefs.remove('current_queue');
   }
 
   void toggleLoop() {
@@ -195,15 +269,44 @@ class CurrentSongProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void setQueue(List<Song> songs) {
-    _queue = songs;
-    _currentIndex = songs.isNotEmpty ? 0 : -1;
+  void setQueue(List<Song> songs, {int initialIndex = 0}) {
+    _queue = List.from(songs); // Make a copy
+    if (_queue.isNotEmpty && initialIndex < _queue.length && initialIndex >= 0) {
+      _currentIndex = initialIndex;
+      // Optionally, play the song at initialIndex if not already playing or if it's different
+      // if (_currentSong == null || _currentSong!.id != _queue[_currentIndex].id) {
+      //   playSong(_queue[_currentIndex]);
+      // }
+    } else if (_queue.isEmpty) {
+      _currentIndex = -1;
+      // if (_currentSong != null) stopSong(); // Stop if queue becomes empty
+    } else {
+       _currentIndex = _queue.isNotEmpty ? 0 : -1; // Default to first song or -1
+    }
     notifyListeners();
+    _saveCurrentSongToStorage(); // Save queue when it's set
   }
 
   void playPrevious() {
-    if (_queue.isNotEmpty && _currentIndex > 0) {
-      _currentIndex--;
+    if (_queue.isNotEmpty) {
+      if (_isShuffling) {
+        // Simple shuffle: pick a random song that's not the current one
+        if (_queue.length > 1) {
+          int newIndex;
+          do {
+            newIndex = (DateTime.now().millisecondsSinceEpoch % _queue.length);
+          } while (newIndex == _currentIndex);
+          _currentIndex = newIndex;
+        } else {
+          _currentIndex = 0; // Only one song, play it
+        }
+      } else { // Sequential
+        if (_currentIndex > 0) {
+          _currentIndex--;
+        } else {
+          _currentIndex = _queue.length - 1; // Loop to end
+        }
+      }
       playSong(_queue[_currentIndex]);
     }
   }
@@ -211,24 +314,39 @@ class CurrentSongProvider with ChangeNotifier {
   void playNext() {
     if (_queue.isNotEmpty) {
       if (_isShuffling) {
-        // Implement shuffle logic if desired, e.g., pick a random index
-        // For now, let's stick to sequential for simplicity or assume shuffle modifies queue order
-        if (_currentIndex < _queue.length - 1) {
-           _currentIndex++;
+        if (_queue.length > 1) {
+          int newIndex;
+          do {
+            newIndex = (DateTime.now().millisecondsSinceEpoch % _queue.length);
+          } while (newIndex == _currentIndex);
+          _currentIndex = newIndex;
         } else {
-          _currentIndex = 0; // Loop back or stop, depending on desired shuffle behavior
+           _currentIndex = 0; // Only one song
         }
-      } else {
+      } else { // Sequential
         if (_currentIndex < _queue.length - 1) {
           _currentIndex++;
         } else {
-          // Reached end of queue, optionally stop or loop to beginning
-          // For now, do nothing if at the end and not looping/shuffling
-          // The onPlayerComplete listener will handle this better.
-          return; 
+          _currentIndex = 0; // Loop to start
         }
       }
-      playSong(_queue[_currentIndex]);
+      if (_currentIndex < _queue.length && _currentIndex >= 0) {
+        playSong(_queue[_currentIndex]);
+      } else if (_queue.isNotEmpty) { // Fallback if index somehow got out of bounds
+        _currentIndex = 0;
+        playSong(_queue[_currentIndex]);
+      } else {
+        // Queue is empty, or became empty. Stop playback.
+        _isPlaying = false;
+        _isLoadingAudio = false;
+        _currentSong = null;
+        notifyListeners();
+      }
+    } else {
+        _isPlaying = false;
+        _isLoadingAudio = false;
+        _currentSong = null;
+        notifyListeners();
     }
   }
 
@@ -242,8 +360,38 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void addToQueue(Song song) {
-    _queue.add(song);
+    if (!_queue.any((s) => s.id == song.id)) {
+      _queue.add(song);
+      if (_currentIndex == -1 && _queue.length == 1) { // If queue was empty, this is now the current song
+        _currentIndex = 0;
+        // Optionally play it if nothing is playing
+        // if (!_isPlaying && _currentSong == null) playSong(song);
+      }
+      notifyListeners();
+      _saveCurrentSongToStorage(); // Save queue when modified
+    }
+  }
+
+  Future<void> clearQueue() async {
+    _queue.clear();
+    _currentIndex = -1;
+    // Optionally stop the current song if it's no longer in any logical queue context
+    // For now, we'll let it continue playing if it was, but it won't be part of "next"
+    // Or, uncomment to stop:
+    // if (_currentSong != null && !_queue.any((s) => s.id == _currentSong!.id)) {
+    //   await _audioPlayer.stop();
+    //   _currentSong = null;
+    //   _isPlaying = false;
+    //   _isLoadingAudio = false;
+    //   _totalDuration = null;
+    // }
     notifyListeners();
+    // Clear queue from storage
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('current_queue');
+    await prefs.remove('current_index'); // Also clear index as queue is empty
+    // Decide if current_song should also be cleared if queue is cleared.
+    // For now, keeping current_song, but it won't have a queue context.
   }
 
   Future<void> downloadSongInBackground(Song song) async {
@@ -268,7 +416,11 @@ class CurrentSongProvider with ChangeNotifier {
 
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/${song.title}.mp3';
+      // Sanitize the song title to create a valid filename
+      final String sanitizedTitle = song.title
+          .replaceAll(RegExp(r'[^\w\s.-]'), '_') // Replace invalid chars with underscore
+          .replaceAll(RegExp(r'\s+'), '_'); // Replace spaces with underscore for cleaner names
+      final filePath = '${directory.path}/$sanitizedTitle.mp3';
       final url = audioUrl;
 
       final request = http.Request('GET', Uri.parse(url));
@@ -280,7 +432,7 @@ class CurrentSongProvider with ChangeNotifier {
         (List<int> newBytes) {
           bytes.addAll(newBytes);
           if (totalBytes != null) {
-            _downloadProgress[song.title] = bytes.length / totalBytes;
+            _downloadProgress[song.id] = bytes.length / totalBytes; // Use song.id as key
             notifyListeners(); // Notify listeners to update UI
           }
         },
@@ -289,14 +441,30 @@ class CurrentSongProvider with ChangeNotifier {
           await file.writeAsBytes(bytes);
           song.localFilePath = filePath;
           song.isDownloaded = true;
-          _downloadProgress.remove(song.title);
+          _downloadProgress.remove(song.id); // Use song.id as key
           _isDownloadingSong = false;
+
+          // Persist the updated song metadata to SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('song_${song.id}', jsonEncode(song.toJson()));
+
+          // Update the song in the queue if it exists
+          final indexInQueue = _queue.indexWhere((s) => s.id == song.id);
+          if (indexInQueue != -1) {
+            _queue[indexInQueue] = song;
+          }
+          // If it's the current song, update it too
+          if (_currentSong?.id == song.id) {
+            _currentSong = song;
+          }
+
           notifyListeners();
           debugPrint('Download complete!');
+          _saveCurrentSongToStorage(); // Save if current song or queue was updated
         },
         onError: (e) {
           debugPrint('Download failed: $e');
-          _downloadProgress.remove(song.title);
+          _downloadProgress.remove(song.id); // Use song.id as key
           _isDownloadingSong = false;
           notifyListeners();
         },
@@ -304,7 +472,7 @@ class CurrentSongProvider with ChangeNotifier {
       );
     } catch (e) {
       debugPrint('Error downloading song: $e');
-      _downloadProgress.remove(song.title);
+      _downloadProgress.remove(song.id); // Use song.id as key
       _isDownloadingSong = false;
       notifyListeners();
     }
@@ -312,11 +480,12 @@ class CurrentSongProvider with ChangeNotifier {
 
   void playStream(String streamUrl, {required String stationName, String? stationFavicon}) {
     _isLoadingAudio = true;
-    _totalDuration = null; // Radio streams might not have a fixed duration or it might be irrelevant
+    _totalDuration = null; 
     notifyListeners();
 
-    _currentSong = Song(
-      id: DateTime.now().toString(),
+    // ignore: unused_local_variable
+    Song radioSong = Song(
+      id: 'radio_${stationName.hashCode}_${streamUrl.hashCode}', // More unique ID for radio
       title: stationName,
       artist: 'Radio Station',
       albumArtUrl: stationFavicon ?? '',

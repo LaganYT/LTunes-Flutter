@@ -5,7 +5,7 @@ class Song {
   final String albumArtUrl;
   final String? album;
   final String? releaseDate;
-  final String audioUrl; // changed from String? to String
+  final String audioUrl; // Ensure non-nullable, default to empty
 
   // Add these fields
   bool isDownloaded;
@@ -18,13 +18,14 @@ class Song {
     required this.albumArtUrl,
     this.album,
     this.releaseDate,
-    this.audioUrl = '', // default to empty string
+    this.audioUrl = '', // Default to empty string
     this.isDownloaded = false,
-    this.localFilePath, // Changed from required
+    this.localFilePath,
   });
 
   Song copyWith({
     String? title,
+    String? id, // Allow copying ID if necessary, though typically fixed
     String? artist,
     String? albumArtUrl,
     String? album,
@@ -35,7 +36,7 @@ class Song {
   }) {
     return Song(
       title: title ?? this.title,
-      id: id, // ID should not be changed
+      id: id ?? this.id, // Keep original ID unless explicitly overridden
       artist: artist ?? this.artist,
       albumArtUrl: albumArtUrl ?? this.albumArtUrl,
       album: album ?? this.album,
@@ -50,6 +51,7 @@ class Song {
     try {
       // Ensure the title field is correctly parsed
       final title = json['title'] ?? json['name'] ?? 'Unknown Title';
+      final id = json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(); // Ensure ID is present
 
       // Handle album field based on its type.
       String albumName;
@@ -72,7 +74,7 @@ class Song {
       final artistName = artists is List && artists.isNotEmpty ? artists[0]['name'] ?? '' : '';
       return Song(
         title: title,
-        id: json['id'] ?? '',
+        id: id, // Use the parsed or generated ID
         artist: artistName,
         albumArtUrl: albumArtUrl,
         album: albumName.isNotEmpty ? albumName : null,
@@ -88,7 +90,7 @@ class Song {
 
   Map<String, dynamic> toJson() => {
         'title': title,
-        'id': id,
+        'id': id, // Ensure ID is saved
         'artist': artist,
         'albumArtUrl': albumArtUrl,
         'album': album,

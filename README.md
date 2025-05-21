@@ -3,7 +3,6 @@
 ## Features to Implement
 - Implement slide-to-queue feature on the search and downloads screens.
 - Create a default playlist called "Liked Songs" with a heart button to add songs to it.
-- Prevent duplicate songs when adding to a playlist.
 - Add listening history.
 - Add lyrics (save lyrics when downloading the song too).
 - Add explicit content filter.
@@ -20,7 +19,8 @@
 - Ensure the full-screen player still shows the navigation bar at the bottom.
 
 ## Metadata and Downloads
-- Save song metadata (e.g., icon, artist name) as a JSON file when downloading songs.
+- Save song metadata (e.g., icon, artist name, ID, audioUrl) as a JSON file when downloading songs.
+- Display full metadata for downloaded songs in Library.
 
 ## Lock Screen and Notifications
 - Integrate iOS/Android lock screen and notification media controls:
