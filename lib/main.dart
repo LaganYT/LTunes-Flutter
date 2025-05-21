@@ -89,7 +89,7 @@ class _TabViewState extends State<TabView> {
           ),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
+        selectedItemColor: Theme.of(context).colorScheme.primary, // Use theme's primary color
         unselectedItemColor: Colors.grey, // Add unselected color for better contrast
         onTap: _onItemTapped,
         showUnselectedLabels: true, // Ensure labels are visible for all items
