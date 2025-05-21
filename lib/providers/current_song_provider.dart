@@ -47,16 +47,24 @@ class CurrentSongProvider with ChangeNotifier {
     });
 
     _audioPlayer.onPlayerComplete.listen((_) {
-      // Handle song completion: play next, loop, or stop
-      if (_isPlaying) { 
+      if (_isPlaying) { // Check if it was playing before completion
         if (_isLooping && _currentSong != null) {
-          playSong(_currentSong!, isResumingOrLooping: true); 
-        } else if (_queue.isNotEmpty) {
+          if (_currentSong!.id.startsWith('radio_')) { // Check if it's a radio stream
+            // Re-play the stream using its stored audioUrl, title, and albumArtUrl
+            playStream(_currentSong!.audioUrl, stationName: _currentSong!.title, stationFavicon: _currentSong!.albumArtUrl);
+          } else { // It's a regular song
+            playSong(_currentSong!, isResumingOrLooping: true);
+          }
+        } else if (!_isLooping && _queue.isNotEmpty && _currentIndex != -1 && (_currentSong != null && !_currentSong!.id.startsWith('radio_'))) {
+          // If not looping, and it's a song from a queue (not a radio stream), play next
           playNext();
         } else {
+          // Not looping, and either no queue, or it's a radio stream that finished (and not set to loop)
           _isPlaying = false;
           _isLoadingAudio = false;
-          notifyListeners(); 
+          // Optionally, clear _currentSong if it was a radio stream that ended and isn't looping.
+          // For now, keep it as the last played item.
+          notifyListeners();
         }
       }
     });
@@ -561,44 +569,51 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
-  void playStream(String streamUrl, {required String stationName, String? stationFavicon}) {
-    _stationName = stationName;
-    _stationFavicon = stationFavicon;
+  void playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
     _isLoadingAudio = true;
-    _totalDuration = null; 
-    notifyListeners();
+    _totalDuration = null; // Radio streams don't have a fixed duration typically
+    _isPlaying = false; // Set to false while preparing the new stream
 
-    // ignore: unused_local_variable
+    // Create a Song object to represent the radio stream
     Song radioSong = Song(
-      id: 'radio_${stationName.hashCode}_${streamUrl.hashCode}', // More unique ID for radio
+      id: 'radio_${stationName.hashCode}_${streamUrl.hashCode}', // Unique ID for radio stream
       title: stationName,
-      artist: 'Radio Station',
-      albumArtUrl: stationFavicon ?? '',
+      artist: 'Radio Station', // Consistent artist for radio streams
+      albumArtUrl: stationFavicon ?? '', // Use provided favicon, default to empty string if null
       audioUrl: streamUrl,
       localFilePath: null,
       isDownloaded: false,
     );
-    notifyListeners();
 
-    _audioPlayer.play(UrlSource(streamUrl));
-    _isPlaying = true;
-    _isLoadingAudio = false;
-    // For streams, onDurationChanged might not fire or might give irrelevant data.
-    // _totalDuration remains null or could be set to a conventional value if needed.
-    notifyListeners();
+    _currentSong = radioSong;
+    _stationName = stationName; // Keep these synced, though UI might primarily use _currentSong
+    _stationFavicon = stationFavicon ?? '';
 
-    // The global onPlayerComplete listener should handle stream completion/errors if applicable
-    // The specific listener below might be redundant or could be specialized for streams
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (state == PlayerState.completed) {
-        if (_isLooping) {
-          playStream(streamUrl, stationName: stationName, stationFavicon: stationFavicon);
-        } else {
-          // Let global onPlayerComplete handle this, or stop explicitly
-          // stopSong(); 
-        }
-      }
-    });
+    notifyListeners(); // Notify UI: loading started, current song (stream) updated
+
+    try {
+      // Stop any existing playback before starting a new stream.
+      // The play method itself should handle this, but explicit stop can be safer.
+      // await _audioPlayer.stop(); 
+      await _audioPlayer.play(UrlSource(streamUrl));
+
+      _isPlaying = true;
+      _isLoadingAudio = false;
+      notifyListeners(); // Notify UI: playback started
+      _saveCurrentSongToStorage(); // Persist the radio stream as the current playing item
+    } catch (e) {
+      debugPrint('Error playing stream ($stationName): $e');
+      _isLoadingAudio = false;
+      _isPlaying = false;
+      // Optionally clear current song or set an error state
+      // _currentSong = null; 
+      // _stationName = null;
+      // _stationFavicon = null;
+      notifyListeners(); // Notify UI about the error
+    }
+
+    // The local onPlayerStateChanged listener is removed.
+    // Looping/completion is handled by the global onPlayerComplete listener.
   }
 
   void playUrl(String url) {

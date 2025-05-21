@@ -36,8 +36,6 @@ class _PlaybarState extends State<Playbar> {
     final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
-    final stationName = currentSongProvider.stationName;
-    final stationFavicon = currentSongProvider.stationFavicon;
 
     return GestureDetector(
       onTap: () {
@@ -82,15 +80,7 @@ class _PlaybarState extends State<Playbar> {
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurface),
                           )
-                        : (stationFavicon != null && stationFavicon.isNotEmpty)
-                            ? Image.network(
-                                stationFavicon,
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => const Icon(Icons.radio, size: 50),
-                              )
-                            : Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurface),
+                        : Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurface),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -99,7 +89,7 @@ class _PlaybarState extends State<Playbar> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          (currentSong.title.isNotEmpty) ? currentSong.title : (stationName != null && stationName.isNotEmpty) ? stationName : 'Unknown Title',
+                          (currentSong.title.isNotEmpty) ? currentSong.title : 'Unknown Title',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).colorScheme.onSurface,
