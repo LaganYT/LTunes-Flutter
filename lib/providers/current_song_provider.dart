@@ -101,60 +101,104 @@ class CurrentSongProvider with ChangeNotifier {
     if (!isResumingOrLooping) {
       _totalDuration = null;
     }
+    // Update _currentSong with the new song instance.
+    // This ensures that any modifications to 'song' (like download status)
+    // are reflected in _currentSong if it's the same logical song.
+    _currentSong = song;
     notifyListeners();
 
     try {
-      _currentSong = song;
+      // _currentSong is now set to the song instance passed to this method.
       
       if (!isResumingOrLooping) {
-        final indexInQueue = _queue.indexWhere((s) => s.id == song.id);
+        final indexInQueue = _queue.indexWhere((s) => s.id == _currentSong!.id);
         if (indexInQueue != -1) {
           _currentIndex = indexInQueue;
         } else {
-          // If song is not in queue, _currentIndex might be -1 or point to an old index.
-          // Consider if queue should be reset or song added. For now, matches existing.
+          // Song not in queue, _currentIndex might be -1 or stale.
         }
       }
 
       String pathOrUrlToPlay;
       Source playerSource;
 
-      bool playFromValidLocalFile = song.isDownloaded &&
-                                  song.localFilePath != null &&
-                                  song.localFilePath!.isNotEmpty &&
-                                  !song.localFilePath!.startsWith('http://') &&
-                                  !song.localFilePath!.startsWith('https://');
+      bool playFromValidLocalFile = _currentSong!.isDownloaded &&
+                                  _currentSong!.localFilePath != null &&
+                                  _currentSong!.localFilePath!.isNotEmpty &&
+                                  !_currentSong!.localFilePath!.startsWith('http://') &&
+                                  !_currentSong!.localFilePath!.startsWith('https://');
 
       if (playFromValidLocalFile) {
-        pathOrUrlToPlay = song.localFilePath!;
-        playerSource = DeviceFileSource(pathOrUrlToPlay);
+        pathOrUrlToPlay = _currentSong!.localFilePath!;
+        final file = File(pathOrUrlToPlay);
+        if (await file.exists()) {
+          debugPrint("Local file exists: $pathOrUrlToPlay. Using DeviceFileSource for song '${_currentSong!.title}'.");
+          playerSource = DeviceFileSource(pathOrUrlToPlay);
+        } else {
+          // File is missing, this is a critical error in data consistency.
+          debugPrint("CRITICAL ERROR: Song '${_currentSong!.title}' is marked as downloaded, but file is MISSING at $pathOrUrlToPlay.");
+          debugPrint("This indicates a data inconsistency. Please check download and deletion logic.");
+          
+          // Correct the metadata for _currentSong
+          // Create a new Song instance with corrected data
+          Song correctedSong = _currentSong!.copyWith(isDownloaded: false, localFilePath: null);
+          // _currentSong = correctedSong; // Update _currentSong to the corrected version
+          // No, we pass correctedSong to the recursive call. The original 'song' parameter for this call
+          // will be updated to correctedSong at the beginning of the *next* call to playSong.
+
+          // Persist this correction immediately
+          await _persistSongMetadata(correctedSong);
+          
+          // Also update it in the queue if it's there
+          final indexInQueueIfPresent = _queue.indexWhere((s) => s.id == correctedSong.id);
+          if (indexInQueueIfPresent != -1) {
+            _queue[indexInQueueIfPresent] = correctedSong;
+          }
+          // Update in PlaylistManagerService
+          PlaylistManagerService().updateSongInPlaylists(correctedSong);
+
+          // Notify UI about the metadata change before retrying
+          // We need to update _currentSong here if it was the one being played,
+          // so the UI reflects the change *before* the retry potentially shows loading again.
+          if (_currentSong?.id == correctedSong.id) {
+            _currentSong = correctedSong;
+          }
+          notifyListeners(); // Notify for metadata change
+
+          // Retry playing the song with corrected metadata (it will now stream)
+          debugPrint("Retrying playback for '${correctedSong.title}' after metadata correction.");
+          // The playSong call will set _isLoadingAudio = true again.
+          // It will also update _currentSong = correctedSong at its start.
+          playSong(correctedSong, isResumingOrLooping: isResumingOrLooping);
+          return; // Exit this execution path as a new one has started.
+        }
       } else {
-        if (song.isDownloaded && (song.localFilePath == null || song.localFilePath!.isEmpty || song.localFilePath!.startsWith('http'))) {
-          debugPrint("Warning: Song '${song.title}' is marked downloaded but localFilePath is invalid or a URL ('${song.localFilePath}'). Attempting to stream.");
-          // Potentially mark song.isDownloaded = false here and save state if this is a persistent issue.
+        // Logic for streaming if not a valid local file
+        if (_currentSong!.isDownloaded && (_currentSong!.localFilePath == null || _currentSong!.localFilePath!.isEmpty || _currentSong!.localFilePath!.startsWith('http'))) {
+          debugPrint("Warning: Song '${_currentSong!.title}' is marked downloaded but localFilePath is invalid ('${_currentSong!.localFilePath}'). Attempting to stream.");
+          // This state is problematic. Consider correcting metadata here too.
+          // For now, it proceeds to stream. If this also fails, the error below will be caught.
         }
 
-        // Attempt to play from URL
-        pathOrUrlToPlay = _urlCache[song.id] ?? '';
+        pathOrUrlToPlay = _urlCache[_currentSong!.id] ?? '';
 
         if (pathOrUrlToPlay.isEmpty || !(Uri.tryParse(pathOrUrlToPlay)?.isAbsolute ?? false)) {
-          if (song.audioUrl.isNotEmpty && (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false)) {
-            pathOrUrlToPlay = song.audioUrl;
+          if (_currentSong!.audioUrl.isNotEmpty && (Uri.tryParse(_currentSong!.audioUrl)?.isAbsolute ?? false)) {
+            pathOrUrlToPlay = _currentSong!.audioUrl;
           } else {
-            // Fallback to fetching (which might hit API)
-            // fetchSongUrl will be updated to better handle this.
-            pathOrUrlToPlay = await fetchSongUrl(song);
+            pathOrUrlToPlay = await fetchSongUrl(_currentSong!);
           }
           
           if (pathOrUrlToPlay.isNotEmpty && (Uri.tryParse(pathOrUrlToPlay)?.isAbsolute ?? false)) {
-            _urlCache[song.id] = pathOrUrlToPlay; // Cache the determined URL
+            _urlCache[_currentSong!.id] = pathOrUrlToPlay;
           }
         }
         
         final parsedUri = Uri.tryParse(pathOrUrlToPlay);
         if (pathOrUrlToPlay.isEmpty || parsedUri == null || !parsedUri.isAbsolute || !parsedUri.hasScheme) {
-          throw Exception('Invalid or missing audio URL for streaming: $pathOrUrlToPlay');
+          throw Exception('Invalid or missing audio URL for streaming for song "${_currentSong!.title}": "$pathOrUrlToPlay"');
         }
+        debugPrint("Attempting to play from URL: $pathOrUrlToPlay for song '${_currentSong!.title}'");
         playerSource = UrlSource(pathOrUrlToPlay);
       }
 
@@ -170,9 +214,7 @@ class CurrentSongProvider with ChangeNotifier {
       debugPrint('Error playing song (${_currentSong?.title}): $e');
       _isLoadingAudio = false;
       _isPlaying = false;
-      _totalDuration = null; // Reset duration for the failed song
-      // Avoid calling stopSong() which clears current song and queue entirely.
-      // Let the UI decide how to handle playback failure for the current item.
+      _totalDuration = null;
       notifyListeners();
     }
   }
