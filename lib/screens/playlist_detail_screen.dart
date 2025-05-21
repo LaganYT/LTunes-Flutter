@@ -23,10 +23,6 @@ class PlaylistDetailScreen extends StatelessWidget {
             pinned: true,
             stretch: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                playlist.name,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(blurRadius: 2, color: Colors.black54)]),
-              ),
               background: Stack(
                 fit: StackFit.expand,
                 children: [
