@@ -11,6 +11,7 @@ class FullScreenPlayer extends StatelessWidget {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
     final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
+    final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -109,14 +110,30 @@ class FullScreenPlayer extends StatelessWidget {
                           },
                         ),
                         IconButton(
-                          icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 64, color: Theme.of(context).colorScheme.primary),
-                          onPressed: () {
-                            if (isPlaying) {
-                              currentSongProvider.pauseSong();
-                            } else {
-                              currentSongProvider.playSong(currentSong);
-                            }
-                          },
+                          icon: isLoadingAudio
+                              ? SizedBox(
+                                  width: 36, // Adjust size to fit context
+                                  height: 36,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3.0,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                                  ),
+                                )
+                              : Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 64, color: Theme.of(context).colorScheme.primary),
+                          onPressed: isLoadingAudio
+                            ? null // Disable button while loading
+                            : () {
+                                if (isPlaying) {
+                                  currentSongProvider.pauseSong();
+                                } else {
+                                  // If it's the same song and paused, resume it. Otherwise, play.
+                                  if (currentSongProvider.currentSong == currentSong) {
+                                    currentSongProvider.resumeSong();
+                                  } else {
+                                     currentSongProvider.playSong(currentSong);
+                                  }
+                                }
+                              },
                         ),
                         IconButton(
                           icon: Icon(Icons.skip_next, size: 36, color: Theme.of(context).colorScheme.onSurface),
@@ -130,7 +147,7 @@ class FullScreenPlayer extends StatelessWidget {
                     Container(
                       height: 100,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                       ),
                       child: ListView.builder(
@@ -187,8 +204,6 @@ class FullScreenPlayer extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (currentSongProvider.isLoading)
-                  Center(child: CircularProgressIndicator())
               ],
             )
           : Center(

@@ -4,7 +4,6 @@ import 'dart:io';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../services/api_service.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -24,23 +23,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   bool _isDownloading = false;
   double _downloadProgress = 0;
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-  final AudioPlayer audioPlayer = AudioPlayer();
-  bool isPlaying = false;
-  final bool _isLoadingAudio = false;
 
   @override
   void initState() {
     super.initState();
-    audioPlayer.onPlayerComplete.listen((event) {
-      setState(() {
-        isPlaying = false;
-      });
-    });
   }
 
   @override
   void dispose() {
-    audioPlayer.dispose();
     super.dispose();
   }
 
@@ -170,13 +160,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     await prefs.setString('song_${song.title}', songData);
   }
 
-  Future<void> _playSong() async {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    currentSongProvider.playSong(widget.song);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context); // Listen to changes
+    final bool isCurrentSongInProvider = currentSongProvider.currentSong?.id == widget.song.id;
+    final bool isPlayingThisSong = isCurrentSongInProvider && currentSongProvider.isPlaying;
+    final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
+
     return ScaffoldMessenger(
       key: scaffoldMessengerKey,
       child: Scaffold(
@@ -255,17 +245,29 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton(
-                        onPressed: _playSong,
-                        child: _isLoadingAudio
+                        onPressed: isLoadingThisSong
+                            ? null
+                            : () {
+                                if (isPlayingThisSong) {
+                                  currentSongProvider.pauseSong();
+                                } else {
+                                  if (isCurrentSongInProvider) {
+                                    currentSongProvider.resumeSong();
+                                  } else {
+                                    currentSongProvider.playSong(widget.song);
+                                  }
+                                }
+                              },
+                        child: isLoadingThisSong
                             ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                            : Text(isPlaying ? 'Pause Song' : 'Play Song'),
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white), 
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(isPlayingThisSong ? 'Pause Song' : 'Play Song'),
                       ),
                     ],
                   ),
@@ -311,11 +313,12 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                 ],
               ),
             ),
-            if (_isDownloading)
-              Container(
-                color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7),
-                child: const Center(child: CircularProgressIndicator()),
-              ),
+            // Removed the overlay for _isDownloading as it's not for audio playback loading
+            // if (_isDownloading)
+            //   Container(
+            //     color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7),
+            //     child: const Center(child: CircularProgressIndicator()),
+            //   ),
           ],
         ),
       ),

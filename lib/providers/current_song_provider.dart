@@ -17,7 +17,8 @@ class CurrentSongProvider with ChangeNotifier {
   List<Song> _queue = [];
   int _currentIndex = -1;
   final Map<String, String> _urlCache = {}; // Cache for song URLs
-  bool isLoading = false;
+  bool _isDownloadingSong = false; // Renamed from isLoading
+  bool _isLoadingAudio = false; // New property for audio loading
   final Map<String, double> _downloadProgress = {}; // Track download progress
 
   Song? get currentSong => _currentSong;
@@ -26,6 +27,8 @@ class CurrentSongProvider with ChangeNotifier {
   bool get isShuffling => _isShuffling;
   List<Song> get queue => _queue;
   Map<String, double> get downloadProgress => _downloadProgress;
+  bool get isDownloadingSong => _isDownloadingSong; // Getter for renamed property
+  bool get isLoadingAudio => _isLoadingAudio; // Getter for new property
 
   CurrentSongProvider() {
     _loadCurrentSongFromStorage(); // Load the last playing song on initialization
@@ -52,6 +55,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void playSong(Song song) async {
+    _isLoadingAudio = true;
+    notifyListeners();
+
     try {
       _currentSong = song;
       String sourceUrl = _urlCache[song.id] ?? song.effectiveAudioUrl;
@@ -75,6 +81,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
 
       _isPlaying = true;
+      _isLoadingAudio = false;
       notifyListeners();
 
       // Pre-fetch the next 3 songs in the queue
@@ -82,9 +89,10 @@ class CurrentSongProvider with ChangeNotifier {
       _saveCurrentSongToStorage(); // Save the current song when it starts playing
     } catch (e) {
       debugPrint('Error playing song: $e');
-      stopSong();
+      _isLoadingAudio = false;
+      stopSong(); // stopSong will also notifyListeners
       // Notify the user about the error
-      notifyListeners();
+      // notifyListeners(); // Already notified by stopSong or explicitly if stopSong doesn't
     }
   }
 
@@ -111,14 +119,24 @@ class CurrentSongProvider with ChangeNotifier {
   void pauseSong() async {
     await _audioPlayer.pause();
     _isPlaying = false;
+    _isLoadingAudio = false; // No longer loading when paused
     notifyListeners();
   }
 
   void resumeSong() async {
     if (currentSong != null) {
-      await _audioPlayer.resume();
-      _isPlaying = true;
+      _isLoadingAudio = true;
       notifyListeners();
+      try {
+        await _audioPlayer.resume();
+        _isPlaying = true;
+        _isLoadingAudio = false;
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Error resuming song: $e');
+        _isLoadingAudio = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -126,6 +144,7 @@ class CurrentSongProvider with ChangeNotifier {
     await _audioPlayer.stop();
     _currentSong = null;
     _isPlaying = false;
+    _isLoadingAudio = false;
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
@@ -166,11 +185,11 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void downloadSong(Song song) {
-    isLoading = true;
+    _isDownloadingSong = true;
     notifyListeners();
     // Implement download logic here
     debugPrint('Downloading song: ${song.title}');
-    isLoading = false;
+    _isDownloadingSong = false;
     notifyListeners();
   }
 
@@ -180,7 +199,7 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> downloadSongInBackground(Song song) async {
-    isLoading = true;
+    _isDownloadingSong = true;
     notifyListeners();
     String? audioUrl;
     try {
@@ -188,13 +207,13 @@ class CurrentSongProvider with ChangeNotifier {
       audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
       if (audioUrl == null) {
         debugPrint('Failed to fetch audio URL.');
-        isLoading = false;
+        _isDownloadingSong = false;
         notifyListeners();
         return;
       }
     } catch (e) {
       debugPrint('Error fetching audio URL: $e');
-      isLoading = false;
+      _isDownloadingSong = false;
       notifyListeners();
       return;
     }
@@ -223,14 +242,14 @@ class CurrentSongProvider with ChangeNotifier {
           song.localFilePath = filePath;
           song.isDownloaded = true;
           _downloadProgress.remove(song.title);
-          isLoading = false;
+          _isDownloadingSong = false;
           notifyListeners();
           debugPrint('Download complete!');
         },
         onError: (e) {
           debugPrint('Download failed: $e');
           _downloadProgress.remove(song.title);
-          isLoading = false;
+          _isDownloadingSong = false;
           notifyListeners();
         },
         cancelOnError: true,
@@ -238,12 +257,15 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error downloading song: $e');
       _downloadProgress.remove(song.title);
-      isLoading = false;
+      _isDownloadingSong = false;
       notifyListeners();
     }
   }
 
   void playStream(String streamUrl, {required String stationName, String? stationFavicon}) {
+    _isLoadingAudio = true;
+    notifyListeners();
+
     _currentSong = Song(
       id: DateTime.now().toString(),
       title: stationName,
@@ -257,6 +279,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     _audioPlayer.play(UrlSource(streamUrl));
     _isPlaying = true;
+    _isLoadingAudio = false;
     notifyListeners();
 
     _audioPlayer.onPlayerStateChanged.listen((state) {

@@ -35,6 +35,7 @@ class _PlaybarState extends State<Playbar> {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
     final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
+    final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
 
     return GestureDetector(
       onTap: () {
@@ -91,14 +92,30 @@ class _PlaybarState extends State<Playbar> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 36, color: Theme.of(context).colorScheme.primary),
-                    onPressed: () {
-                      if (isPlaying) {
-                        currentSongProvider.pauseSong();
-                      } else {
-                        currentSongProvider.playSong(currentSong);
-                      }
-                    },
+                    icon: isLoadingAudio
+                        ? SizedBox(
+                            width: 24, // Standard icon button size constraint
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.0,
+                              valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                            ),
+                          )
+                        : Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 36, color: Theme.of(context).colorScheme.primary),
+                    onPressed: isLoadingAudio
+                        ? null // Disable button while loading
+                        : () {
+                            if (isPlaying) {
+                              currentSongProvider.pauseSong();
+                            } else {
+                              // If it's the same song and paused, resume it. Otherwise, play.
+                              if (currentSongProvider.currentSong == currentSong) {
+                                currentSongProvider.resumeSong();
+                              } else {
+                                currentSongProvider.playSong(currentSong);
+                              }
+                            }
+                          },
                   ),
                 ],
               )

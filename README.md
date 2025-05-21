@@ -1,12 +1,10 @@
 # TODO
 
 ## Features to Implement
-- Add loading animation that persists until the song starts playing.
 - Implement slide-to-queue feature on the search and downloads screens.
 - Create a default playlist called "Liked Songs" with a heart button to add songs to it.
 - Prevent duplicate songs when adding to a playlist.
 - Add listening history.
-- Add color themes (default: orange).
 - Add lyrics (save lyrics when downloading the song too).
 - Add explicit content filter.
 - Add Equalizer (EQ) presets (e.g., Bass Boost, Classical, Jazz, Custom).
