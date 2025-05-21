@@ -338,9 +338,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           String copiedFilePath = p.join(appDocDir.path, newFileName);
 
           try {
-            // File newFile = await File(originalPath).copy(copiedFilePath); // Keep this line if you still copy the file
-            // The line below is removed as per request
-            // Metadata metadata = await MetadataRetriever.fromFile(newFile);
+            // ignore: unused_local_variable
+            File newFile = await File(originalPath).copy(copiedFilePath); // Keep this line if you still copy the file
 
             String songId = _uuid.v4(); // Generate a unique ID for the song
             

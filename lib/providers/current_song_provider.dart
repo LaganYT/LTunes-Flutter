@@ -23,6 +23,11 @@ class CurrentSongProvider with ChangeNotifier {
   final Map<String, double> _downloadProgress = {}; // Track download progress
   Duration? _totalDuration; // To store the total duration of the current song
 
+  String? _stationName;
+  String? get stationName => _stationName;
+  String? _stationFavicon;
+  String? get stationFavicon => _stationFavicon;
+
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
   bool get isLooping => _isLooping;
@@ -105,6 +110,8 @@ class CurrentSongProvider with ChangeNotifier {
     // This ensures that any modifications to 'song' (like download status)
     // are reflected in _currentSong if it's the same logical song.
     _currentSong = song;
+    _stationName = song.title;
+    _stationFavicon = song.albumArtUrl;
     notifyListeners();
 
     try {
@@ -555,6 +562,8 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void playStream(String streamUrl, {required String stationName, String? stationFavicon}) {
+    _stationName = stationName;
+    _stationFavicon = stationFavicon;
     _isLoadingAudio = true;
     _totalDuration = null; 
     notifyListeners();
