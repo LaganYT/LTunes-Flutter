@@ -70,6 +70,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
   }
 
+  Future<void> _deleteAllDownloads() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    int deletedFilesCount = 0;
+    
+    List<String> keysToUpdate = [];
+    List<String> updatedJsonStrings = [];
+
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            // Check if the song is marked as downloaded and has a local file path
+            if (songMap['isDownloaded'] == true && songMap['localFilePath'] != null && (songMap['localFilePath'] as String).isNotEmpty) {
+              final filePath = songMap['localFilePath'] as String;
+              final file = File(filePath);
+              if (await file.exists()) {
+                await file.delete();
+                deletedFilesCount++;
+              }
+              // Update song metadata whether file existed or not, to ensure consistency
+              songMap['isDownloaded'] = false;
+              songMap['localFilePath'] = null; 
+              
+              keysToUpdate.add(key);
+              updatedJsonStrings.add(jsonEncode(songMap));
+            }
+          } catch (e) {
+            debugPrint("Error processing song $key for deletion: $e");
+            // Optionally, collect errors to show to the user or log more formally
+          }
+        }
+      }
+    }
+
+    // Perform SharedPreferences updates
+    for (int i = 0; i < keysToUpdate.length; i++) {
+      await prefs.setString(keysToUpdate[i], updatedJsonStrings[i]);
+    }
+
+    if (mounted) { // Check if the widget is still in the tree
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$deletedFilesCount downloaded song(s) deleted.')),
+      );
+      setState(() {}); // Refresh UI, e.g., storage calculation
+    }
+  }
+
   Future<void> _resetSettings() async {
     // Reset US Radio Only
     usRadioOnlyNotifier.value = true; // Default value
@@ -194,7 +244,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: ElevatedButton(
+                onPressed: () async {
+                  bool? confirmDelete = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Delete All Downloads?'),
+                        content: const Text('Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.'),
+                        actions: <Widget>[
+                          TextButton(
+                            child: const Text('Cancel'),
+                            onPressed: () {
+                              Navigator.of(context).pop(false);
+                            },
+                          ),
+                          TextButton(
+                            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                            onPressed: () {
+                              Navigator.of(context).pop(true);
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                  if (confirmDelete == true) {
+                    await _deleteAllDownloads();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                ),
+                child: const Text('Delete All Downloaded Songs'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), // Adjusted padding for consistency
               child: ElevatedButton(
                 onPressed: () async {
                   bool? confirmReset = await showDialog<bool>(
