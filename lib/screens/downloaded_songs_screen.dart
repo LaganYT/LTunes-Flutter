@@ -200,39 +200,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         isDownloaded: true,
                       );
 
-                      return Dismissible(
-                        key: Key(songObj.id),
-                        direction: DismissDirection.startToEnd,
-                        confirmDismiss: (direction) async {
-                          Provider.of<CurrentSongProvider>(context, listen: false).addToQueue(songObj);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${songObj.title} added to queue')),
-                          );
-                          return false; // Do not dismiss the item
+                      return ListTile(
+                        key: Key(songObj.id), // Keep key if needed for list updates, though less critical without Dismissible
+                        title: Text(songName),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Delete Download',
+                              onPressed: () => _deleteDownloadedSong(fileEntity),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
                         },
-                        background: Container(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                          child: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
-                        ),
-                        child: ListTile(
-                          title: Text(songName),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                tooltip: 'Delete Download',
-                                onPressed: () => _deleteDownloadedSong(fileEntity),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            // The existing onTap functionality to play the song
-                            Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-                          },
-                        ),
                       );
                     },
                   ),

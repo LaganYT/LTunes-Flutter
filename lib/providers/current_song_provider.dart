@@ -20,6 +20,7 @@ class CurrentSongProvider with ChangeNotifier {
   bool _isDownloadingSong = false; // Renamed from isLoading
   bool _isLoadingAudio = false; // New property for audio loading
   final Map<String, double> _downloadProgress = {}; // Track download progress
+  Duration? _totalDuration; // To store the total duration of the current song
 
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -29,9 +30,35 @@ class CurrentSongProvider with ChangeNotifier {
   Map<String, double> get downloadProgress => _downloadProgress;
   bool get isDownloadingSong => _isDownloadingSong; // Getter for renamed property
   bool get isLoadingAudio => _isLoadingAudio; // Getter for new property
+  Duration? get totalDuration => _totalDuration; // Getter for total duration
+  Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Stream for playback position
 
   CurrentSongProvider() {
     _loadCurrentSongFromStorage(); // Load the last playing song on initialization
+    _audioPlayer.onDurationChanged.listen((duration) {
+      _totalDuration = duration;
+      notifyListeners();
+    });
+
+    _audioPlayer.onPlayerComplete.listen((_) {
+      // Handle song completion: play next, loop, or stop
+      if (_isPlaying) { // Ensure action is taken only if it was playing
+        if (_isLooping && _currentSong != null) {
+          // Replay the current song
+          playSong(_currentSong!); 
+        } else if (_currentIndex != -1 && _currentIndex < _queue.length - 1 && !_isLooping) {
+          // Play next song if not looping and not at the end of the queue
+          playNext();
+        } else {
+          // If no loop, no shuffle, and at the end of queue, or no queue
+          _isPlaying = false;
+          _isLoadingAudio = false;
+          // Optionally, call stopSong() or just update UI
+          // For now, just update state and notify. If stopSong() is desired, ensure it doesn't clear essential state for UI.
+          notifyListeners(); 
+        }
+      }
+    });
   }
 
   Future<void> _saveCurrentSongToStorage() async {
@@ -56,6 +83,7 @@ class CurrentSongProvider with ChangeNotifier {
 
   void playSong(Song song) async {
     _isLoadingAudio = true;
+    _totalDuration = null; // Reset duration for the new song
     notifyListeners();
 
     try {
@@ -82,6 +110,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       _isPlaying = true;
       _isLoadingAudio = false;
+      // Duration will be updated by onDurationChanged listener
       notifyListeners();
 
       // Pre-fetch the next 3 songs in the queue
@@ -90,6 +119,7 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error playing song: $e');
       _isLoadingAudio = false;
+      _totalDuration = null;
       stopSong(); // stopSong will also notifyListeners
       // Notify the user about the error
       // notifyListeners(); // Already notified by stopSong or explicitly if stopSong doesn't
@@ -145,6 +175,7 @@ class CurrentSongProvider with ChangeNotifier {
     _currentSong = null;
     _isPlaying = false;
     _isLoadingAudio = false;
+    _totalDuration = null; // Clear duration when song stops
     notifyListeners();
 
     final prefs = await SharedPreferences.getInstance();
@@ -178,8 +209,25 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void playNext() {
-    if (_queue.isNotEmpty && _currentIndex < _queue.length - 1) {
-      _currentIndex++;
+    if (_queue.isNotEmpty) {
+      if (_isShuffling) {
+        // Implement shuffle logic if desired, e.g., pick a random index
+        // For now, let's stick to sequential for simplicity or assume shuffle modifies queue order
+        if (_currentIndex < _queue.length - 1) {
+           _currentIndex++;
+        } else {
+          _currentIndex = 0; // Loop back or stop, depending on desired shuffle behavior
+        }
+      } else {
+        if (_currentIndex < _queue.length - 1) {
+          _currentIndex++;
+        } else {
+          // Reached end of queue, optionally stop or loop to beginning
+          // For now, do nothing if at the end and not looping/shuffling
+          // The onPlayerComplete listener will handle this better.
+          return; 
+        }
+      }
       playSong(_queue[_currentIndex]);
     }
   }
@@ -264,6 +312,7 @@ class CurrentSongProvider with ChangeNotifier {
 
   void playStream(String streamUrl, {required String stationName, String? stationFavicon}) {
     _isLoadingAudio = true;
+    _totalDuration = null; // Radio streams might not have a fixed duration or it might be irrelevant
     notifyListeners();
 
     _currentSong = Song(
@@ -280,14 +329,19 @@ class CurrentSongProvider with ChangeNotifier {
     _audioPlayer.play(UrlSource(streamUrl));
     _isPlaying = true;
     _isLoadingAudio = false;
+    // For streams, onDurationChanged might not fire or might give irrelevant data.
+    // _totalDuration remains null or could be set to a conventional value if needed.
     notifyListeners();
 
+    // The global onPlayerComplete listener should handle stream completion/errors if applicable
+    // The specific listener below might be redundant or could be specialized for streams
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (state == PlayerState.completed) {
         if (_isLooping) {
           playStream(streamUrl, stationName: stationName, stationFavicon: stationFavicon);
         } else {
-          stopSong();
+          // Let global onPlayerComplete handle this, or stop explicitly
+          // stopSong(); 
         }
       }
     });
@@ -303,6 +357,11 @@ class CurrentSongProvider with ChangeNotifier {
   void setCurrentSong(Song song) {
     _currentSong = song;
     notifyListeners();
+  }
+
+  Future<void> seek(Duration position) async {
+    await _audioPlayer.seek(position);
+    // Position will update via onPositionChanged stream
   }
 }
 
