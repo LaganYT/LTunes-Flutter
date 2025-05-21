@@ -5,14 +5,14 @@ import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class SearchScreen extends StatefulWidget {
+  const SearchScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _SearchScreenState extends State<SearchScreen> {
   late Future<List<Song>> _songsFuture;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -42,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onSlideToQueue(Song song) {
-    // Logic to add the song to the queue
     final currentQueueProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     currentQueueProvider.addToQueue(song);
   }
@@ -95,7 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
               future: _songsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  // Show empty list, loading handled by overlay below
                   return ListView();
                 } else if (snapshot.hasError) {
                   return ListView(
@@ -180,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           try {
                             final apiService = ApiService();
                             final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
-                            Navigator.of(context, rootNavigator: true).pop(); // Remove loading dialog
+                            Navigator.of(context, rootNavigator: true).pop();
                             if (audioUrl != null && audioUrl.isNotEmpty) {
                               final songWithAudio = song.copyWith(audioUrl: audioUrl);
                               currentSongProvider.playSong(songWithAudio);
@@ -203,7 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ),
-          // Loading animation overlay
           FutureBuilder<List<Song>>(
             future: _songsFuture,
             builder: (context, snapshot) {
@@ -222,7 +219,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-// TODO: Integrate Chrome media player feature (Media Session API for Flutter web).
-// TODO: Integrate iOS/Android media controls using audio_session and platform media controls.
 }

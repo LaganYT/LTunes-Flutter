@@ -245,7 +245,7 @@ class _LibraryScreenState extends State<LibraryScreen> with TickerProviderStateM
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: _tabController.index == 0 ? const Text('Playlists') : const Text('Downloads'),
+        title: _tabController.index == 0 ? const Text('Library') : const Text('Library'),
         actions: [
           if (_tabController.index == 0)
             IconButton(
