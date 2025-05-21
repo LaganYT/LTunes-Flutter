@@ -7,6 +7,7 @@ import '../models/song.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
+import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 
 class CurrentSongProvider with ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -394,6 +395,35 @@ class CurrentSongProvider with ChangeNotifier {
     // For now, keeping current_song, but it won't have a queue context.
   }
 
+  // Helper to persist individual song metadata
+  Future<void> _persistSongMetadata(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('song_${song.id}', jsonEncode(song.toJson()));
+  }
+
+  void updateSongDetails(Song updatedSong) {
+    bool changedInProvider = false;
+    // Update in queue
+    final indexInQueue = _queue.indexWhere((s) => s.id == updatedSong.id);
+    if (indexInQueue != -1) {
+      _queue[indexInQueue] = updatedSong;
+      changedInProvider = true;
+    }
+    // Update current song if it's the one
+    if (_currentSong?.id == updatedSong.id) {
+      _currentSong = updatedSong;
+      changedInProvider = true;
+    }
+
+    if (changedInProvider) {
+      notifyListeners();
+      _saveCurrentSongToStorage(); // Persist changes to current song/queue state
+    }
+    // Also ensure the general song metadata in SharedPreferences is up-to-date
+    _persistSongMetadata(updatedSong);
+  }
+
+
   Future<void> downloadSongInBackground(Song song) async {
     _isDownloadingSong = true;
     notifyListeners();
@@ -439,24 +469,28 @@ class CurrentSongProvider with ChangeNotifier {
         onDone: () async {
           final file = File(filePath);
           await file.writeAsBytes(bytes);
+          
+          // Update the song instance directly
           song.localFilePath = filePath;
           song.isDownloaded = true;
-          _downloadProgress.remove(song.id); // Use song.id as key
+          
+          _downloadProgress.remove(song.id); 
           _isDownloadingSong = false;
 
-          // Persist the updated song metadata to SharedPreferences
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('song_${song.id}', jsonEncode(song.toJson()));
+          // Persist the updated song metadata
+          await _persistSongMetadata(song);
 
-          // Update the song in the queue if it exists
+          // Update the song in the provider's state (queue, currentSong)
           final indexInQueue = _queue.indexWhere((s) => s.id == song.id);
           if (indexInQueue != -1) {
             _queue[indexInQueue] = song;
           }
-          // If it's the current song, update it too
           if (_currentSong?.id == song.id) {
             _currentSong = song;
           }
+
+          // Notify PlaylistManagerService
+          PlaylistManagerService().updateSongInPlaylists(song);
 
           notifyListeners();
           debugPrint('Download complete!');

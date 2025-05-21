@@ -67,6 +67,22 @@ class PlaylistManagerService {
     savePlaylists(); // Save after removing song
   }
   
+  void updateSongInPlaylists(Song updatedSong) {
+    bool changed = false;
+    for (int i = 0; i < _playlists.length; i++) {
+      final playlist = _playlists[i];
+      final songIndex = playlist.songs.indexWhere((s) => s.id == updatedSong.id);
+      if (songIndex != -1) {
+        // Replace the song instance
+        playlist.songs[songIndex] = updatedSong;
+        changed = true;
+      }
+    }
+    if (changed) {
+      savePlaylists(); // Save if any playlist was modified
+    }
+  }
+
   Future<void> downloadAllSongsInPlaylist(Playlist playlist) async {
     for (var song in playlist.songs) {
       if (!song.isDownloaded) {

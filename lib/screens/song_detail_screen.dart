@@ -82,12 +82,25 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           if (mounted) {
             setState(() {
               _isDownloading = false;
+              // Update the song instance's properties. widget.song is final.
               widget.song.localFilePath = filePath;
               widget.song.isDownloaded = true;
             });
           }
-          // Save comprehensive metadata using the song's original ID
-          await _saveSongMetadata(widget.song.copyWith(id: widget.song.id, localFilePath: filePath, isDownloaded: true));
+          // Create an updated song instance for saving and propagation
+          final updatedSong = widget.song.copyWith(localFilePath: filePath, isDownloaded: true);
+          
+          await _saveSongMetadata(updatedSong); // Save comprehensive metadata
+
+          // Notify PlaylistManagerService
+          PlaylistManagerService().updateSongInPlaylists(updatedSong);
+
+          // Notify CurrentSongProvider
+          // Ensure context is available and mounted if this is in an async gap without a mounted check
+          if (mounted) {
+            Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(updatedSong);
+          }
+
           scaffoldMessengerKey.currentState?.showSnackBar(
             const SnackBar(content: Text('Download complete!')),
           );
@@ -132,25 +145,45 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   Future<void> _deleteSong() async {
     try {
-      final file = File(widget.song.localFilePath!);
-      await file.delete();
-      setState(() {
-        widget.song.isDownloaded = false;
-        widget.song.localFilePath = null;
-      });
-      await _removeSongMetadata(widget.song);
+      if (widget.song.localFilePath != null && widget.song.localFilePath!.isNotEmpty) {
+        final file = File(widget.song.localFilePath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
+      
+      Song updatedSong;
+      if (mounted) {
+        setState(() {
+          widget.song.isDownloaded = false;
+          widget.song.localFilePath = null;
+        });
+        updatedSong = widget.song.copyWith(isDownloaded: false, localFilePath: null);
+      } else {
+        // If not mounted, create a copy from the original widget.song state before modification attempt
+        updatedSong = widget.song.copyWith(isDownloaded: false, localFilePath: null);
+      }
+      
+      await _saveSongMetadata(updatedSong); // Save the updated state (isDownloaded: false, localFilePath: null)
+
+      // Notify PlaylistManagerService
+      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+
+      // Notify CurrentSongProvider
+      // Ensure context is available and mounted if this is in an async gap without a mounted check
+      // However, _deleteSong is usually called from a button press, so context should be valid.
+      // Adding a mounted check for safety if it could be called otherwise.
+      if (mounted) {
+         Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(updatedSong);
+      }
+
+
       scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(content: Text('Song deleted!')),
       );
     } catch (e) {
       _showErrorDialog('Error deleting song: $e');
     }
-  }
-
-
-  Future<void> _removeSongMetadata(Song song) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('song_${song.id}'); // Use song.id for unique key
   }
 
   Future<void> _saveSongMetadata(Song song) async {
