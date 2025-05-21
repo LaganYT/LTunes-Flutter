@@ -186,31 +186,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 : ListView.builder(
                     itemCount: _songs.length,
                     itemBuilder: (context, index) {
-                      final song = _songs[index];
-                      final songName = song.path.split('/').last;
-                      return ListTile(
-                        title: Text(songName),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              tooltip: 'Delete Download',
-                              onPressed: () => _deleteDownloadedSong(song),
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          final songObj = Song(
-                            title: songName,
-                            id: DateTime.now().toString(),
-                            artist: 'Unknown Artist',
-                            albumArtUrl: '',
-                            localFilePath: song.path,
-                            isDownloaded: true,
+                      final fileEntity = _songs[index];
+                      final filePath = fileEntity.path;
+                      final songName = filePath.split('/').last.replaceAll('.mp3', '');
+                      
+                      final songObj = Song(
+                        id: filePath, // Use file path as a unique ID
+                        title: songName,
+                        artist: 'Unknown Artist', // Or try to extract from metadata
+                        albumArtUrl: '', // No album art for local files unless extracted
+                        audioUrl: '', // Not strictly needed if localFilePath is set and used
+                        localFilePath: filePath,
+                        isDownloaded: true,
+                      );
+
+                      return Dismissible(
+                        key: Key(songObj.id),
+                        direction: DismissDirection.startToEnd,
+                        confirmDismiss: (direction) async {
+                          Provider.of<CurrentSongProvider>(context, listen: false).addToQueue(songObj);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('${songObj.title} added to queue')),
                           );
-                          Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                          return false; // Do not dismiss the item
                         },
+                        background: Container(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                          child: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                        ),
+                        child: ListTile(
+                          title: Text(songName),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                tooltip: 'Delete Download',
+                                onPressed: () => _deleteDownloadedSong(fileEntity),
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            // The existing onTap functionality to play the song
+                            Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                          },
+                        ),
                       );
                     },
                   ),

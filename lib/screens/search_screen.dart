@@ -140,67 +140,85 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
           separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final song = songs[index];
-            return ListTile(
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  song.albumArtUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
-                ),
-              ),
-              title: Text(
-                song.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-              ),
-              subtitle: Text(
-                song.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.info_outline),
-                color: Theme.of(context).colorScheme.onSurface,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SongDetailScreen(song: song),
-                    ),
-                  );
-                },
-              ),
-              onTap: () async {
+            return Dismissible(
+              key: Key(song.id),
+              direction: DismissDirection.startToEnd,
+              confirmDismiss: (direction) async {
                 final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                currentSongProvider.addToQueue(song);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${song.title} added to queue')),
                 );
-                try {
-                  final apiService = ApiService();
-                  final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
-                  Navigator.of(context, rootNavigator: true).pop();
-                  if (audioUrl != null && audioUrl.isNotEmpty) {
-                    final songWithAudio = song.copyWith(audioUrl: audioUrl);
-                    currentSongProvider.playSong(songWithAudio);
-                  } else {
+                return false; // Do not dismiss the item
+              },
+              background: Container(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+              ),
+              child: ListTile(
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    song.albumArtUrl,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
+                  ),
+                ),
+                title: Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                ),
+                subtitle: Text(
+                  song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.info_outline),
+                  color: Theme.of(context).colorScheme.onSurface,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SongDetailScreen(song: song),
+                      ),
+                    );
+                  },
+                ),
+                onTap: () async {
+                  final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(child: CircularProgressIndicator()),
+                  );
+                  try {
+                    final apiService = ApiService();
+                    final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+                    Navigator.of(context, rootNavigator: true).pop();
+                    if (audioUrl != null && audioUrl.isNotEmpty) {
+                      final songWithAudio = song.copyWith(audioUrl: audioUrl);
+                      currentSongProvider.playSong(songWithAudio);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to fetch audio URL.')),
+                      );
+                    }
+                  } catch (e) {
+                    Navigator.of(context, rootNavigator: true).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Failed to fetch audio URL.')),
+                      SnackBar(content: Text('Error fetching audio URL: $e')),
                     );
                   }
-                } catch (e) {
-                  Navigator.of(context, rootNavigator: true).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error fetching audio URL: $e')),
-                  );
-                }
-              },
+                },
+              ),
             );
           },
         );

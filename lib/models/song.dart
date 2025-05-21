@@ -20,7 +20,7 @@ class Song {
     this.releaseDate,
     this.audioUrl = '', // default to empty string
     this.isDownloaded = false,
-    required this.localFilePath,
+    this.localFilePath, // Changed from required
   });
 
   Song copyWith({
@@ -31,7 +31,7 @@ class Song {
     String? releaseDate,
     String? audioUrl,
     bool? isDownloaded,
-    String? localFilePath,
+    String? localFilePath, // Ensure this can be null
   }) {
     return Song(
       title: title ?? this.title,
@@ -79,7 +79,7 @@ class Song {
         releaseDate: releaseDate,
         audioUrl: json['audioUrl'] ?? '',
         isDownloaded: json['isDownloaded'] ?? false,
-        localFilePath: json['localFilePath'] ?? '',
+        localFilePath: json['localFilePath'] as String?, // Allow null
       );
     } catch (e) {
       throw FormatException('Invalid song JSON format: $e');
