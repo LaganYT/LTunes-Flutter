@@ -10,7 +10,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool usRadioOnly = false;
+  // Initialize with null to represent loading state
+  final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
 
   @override
   void initState() {
@@ -20,21 +21,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadUSRadioOnlySetting() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      usRadioOnly = prefs.getBool('usRadioOnly') ?? false; // Default to false
-    });
+    // Default to true if not set, as per original logic
+    usRadioOnlyNotifier.value = prefs.getBool('usRadioOnly') ?? true;
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('usRadioOnly', value);
-  }
-
-  Future<void> toggleUSRadio() async {
-    setState(() {
-      usRadioOnly = !usRadioOnly; // Toggle the value
-    });
-    await _saveUSRadioOnlySetting(usRadioOnly); // Save the updated value
   }
 
   @override
@@ -48,17 +41,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
-            ListTile(
-              title: const Text('United States Radio Only'),
-              trailing: Switch(
-                value: usRadioOnly,
-                onChanged: (bool value) async {
-                  setState(() {
-                    usRadioOnly = value; // Directly update the state
-                  });
-                  await _saveUSRadioOnlySetting(value); // Save the updated value
-                },
-              ),
+            ValueListenableBuilder<bool?>( // Listen to nullable bool
+              valueListenable: usRadioOnlyNotifier,
+              builder: (context, usRadioOnly, _) {
+                if (usRadioOnly == null) {
+                  // Setting is loading, show a placeholder
+                  return const ListTile(
+                    title: Text('United States Radio Only'),
+                    trailing: SizedBox(
+                      width: 50, // Approximate width of a Switch
+                      height: 30, // Approximate height of a Switch
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                    ),
+                  );
+                }
+                // Setting has loaded, show the Switch
+                return ListTile(
+                  title: const Text('United States Radio Only'),
+                  trailing: Switch(
+                    value: usRadioOnly, // usRadioOnly is now a non-null bool
+                    onChanged: (bool value) async {
+                      usRadioOnlyNotifier.value = value; // Update the notifier
+                      await _saveUSRadioOnlySetting(value); // Save the updated value
+                    },
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
             ListTile(
@@ -75,10 +83,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    usRadioOnlyNotifier.dispose();
+    super.dispose();
+  }
 }
 
 class ThemeProvider extends ChangeNotifier {
-  ThemeMode themeMode = ThemeMode.light;
+  ThemeMode themeMode = ThemeMode.dark; // Default to dark mode
 
   bool get isDarkMode => themeMode == ThemeMode.dark;
 
@@ -109,7 +123,7 @@ class ThemeProvider extends ChangeNotifier {
     if (themeString != null) {
       themeMode = ThemeMode.values.firstWhere(
         (element) => element.toString() == themeString,
-        orElse: () => ThemeMode.light,
+        orElse: () => ThemeMode.dark, // Default to dark mode
       );
       notifyListeners();
     }
