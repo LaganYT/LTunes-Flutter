@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -34,23 +35,11 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   }
 
   Future<List<dynamic>> _fetchRadioStations() async {
-    final url = Uri.parse('https://ltn-api.vercel.app/api/radio${_searchQuery.isNotEmpty ? '?name=$_searchQuery' : ''}');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        try {
-          return json.decode(response.body) as List<dynamic>;
-        } catch (e) {
-          throw Exception('Error decoding JSON: $e\nResponse body: ${response.body}');
-        }
-      } else if (response.statusCode == 404) {
-        return []; // Return an empty list if no stations are found
-      } else {
-        throw Exception('Failed to load radio stations. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error fetching radio stations: $e');
-    }
+    final prefs = await SharedPreferences.getInstance();
+    final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
+    final country = usRadioOnly ? 'United States' : ''; // Pass no country if usRadioOnly is off
+    // Fetch stations filtered by the selected country
+    return fetchStationsByCountry(country);
   }
 
   void _onSearch(String value) {
@@ -82,7 +71,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               onChanged: _onSearch,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
-                hintText: 'Search music or radio...',
+                hintText: 'Search...',
                 prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -280,5 +269,25 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         );
       },
     );
+  }
+
+  Future<List<dynamic>> fetchStationsByCountry(String country) async {
+    final url = Uri.parse('https://ltn-api.vercel.app/api/radio?country=$country');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        try {
+          return json.decode(response.body) as List<dynamic>;
+        } catch (e) {
+          throw Exception('Error decoding JSON: $e\nResponse body: ${response.body}');
+        }
+      } else if (response.statusCode == 404) {
+        return []; // Return an empty list if no stations are found
+      } else {
+        throw Exception('Failed to load radio stations. Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error fetching radio stations: $e');
+    }
   }
 }
