@@ -19,7 +19,6 @@ dependencies:
   audio_metadata_reader: ^1.4.1
   dio: ^5.8.0+1
   just_audio: ^0.10.3
-  flutter_media_metadata: ^1.0.0+1
 
 dev_dependencies:
   flutter_test:

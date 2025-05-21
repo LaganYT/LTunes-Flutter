@@ -7,7 +7,13 @@ plugins {
 
 android {
     namespace = "com.LTunes.android"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 33
+
+    defaultConfig {
+        minSdk = 21
+        targetSdk = 33 
+    }
+
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
