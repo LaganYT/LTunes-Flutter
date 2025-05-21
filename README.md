@@ -11,6 +11,8 @@
 - Add an option to clear listening history.
 - Add support to connect to smart speakers (AirPlay, Chromecast, etc.).
 
+- Allow giving app access to files/a folder to import other mp3s to the app
+
 ## UI/UX Improvements
 - Cache search results to avoid reloading when switching pages.
 
