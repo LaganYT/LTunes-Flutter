@@ -37,9 +37,9 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   Future<List<dynamic>> _fetchRadioStations() async {
     final prefs = await SharedPreferences.getInstance();
     final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
-    final country = usRadioOnly ? 'United States' : ''; // Pass no country if usRadioOnly is off
-    // Fetch stations filtered by the selected country
-    return fetchStationsByCountry(country);
+    final country = usRadioOnly ? 'United States' : '';
+    // Pass the current _searchQuery to filter by name if provided.
+    return fetchStationsByCountry(country, name: _searchQuery);
   }
 
   void _onSearch(String value) {
@@ -245,7 +245,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
 
         final stations = snapshot.data!;
         return ListView.builder(
-          itemCount: stations.length,
+          itemCount: stations.length, // removed client-side filtering here
           itemBuilder: (context, index) {
             final station = stations[index];
             return ListTile(
@@ -289,8 +289,12 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     );
   }
 
-  Future<List<dynamic>> fetchStationsByCountry(String country) async {
-    final url = Uri.parse('https://ltn-api.vercel.app/api/radio?country=$country');
+  Future<List<dynamic>> fetchStationsByCountry(String country, {String name = ''}) async {
+    // Build query parameters based on non-empty country and name values
+    final queryParams = <String, String>{};
+    if (country.isNotEmpty) queryParams['country'] = country;
+    if (name.isNotEmpty) queryParams['name'] = name;
+    final url = Uri.https('ltn-api.vercel.app', '/api/radio', queryParams);
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
