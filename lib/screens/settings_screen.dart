@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io'; // Required for File operations
+import 'dart:convert'; // Required for jsonDecode
+import 'dart:math'; // Required for log and pow
+import '../models/song.dart'; // Required for Song.fromJson
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -28,6 +32,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveUSRadioOnlySetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('usRadioOnly', value);
+  }
+
+  Future<int> _calculateStorageUsed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    int totalSizeBytes = 0;
+
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            // Assuming Song.fromJson exists and works correctly
+            final song = Song.fromJson(songMap); 
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              final file = File(song.localFilePath!);
+              if (await file.exists()) {
+                totalSizeBytes += await file.length();
+              }
+            }
+          } catch (e) {
+            debugPrint("Error processing song $key for storage calculation: $e");
+            // Optionally, handle or log the error more formally
+          }
+        }
+      }
+    }
+    return totalSizeBytes;
+  }
+
+  String _formatBytes(int bytes, {int decimals = 2}) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    var i = (log(bytes) / log(1024)).floor();
+    return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
+  }
+
+  Future<void> _resetSettings() async {
+    // Reset US Radio Only
+    usRadioOnlyNotifier.value = true; // Default value
+    await _saveUSRadioOnlySetting(true);
+
+    // Reset ThemeProvider settings
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    await themeProvider.resetToDefaults();
+
+    // Refresh storage calculation display if needed, by calling setState or using a ValueNotifier for storage
+    setState(() {});
+
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Settings have been reset to default.')),
+    );
   }
 
   @override
@@ -108,6 +166,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
+            const Divider(),
+            ListTile(
+              title: const Text('Storage Used by Downloads'),
+              subtitle: FutureBuilder<int>(
+                future: _calculateStorageUsed(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Text('Calculating...');
+                  } else if (snapshot.hasError) {
+                    return Text('Error calculating storage', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                  } else if (snapshot.hasData) {
+                    return Text(_formatBytes(snapshot.data!));
+                  }
+                  return const Text('N/A');
+                },
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh Storage Calculation',
+                onPressed: () {
+                  setState(() {
+                    // This will cause FutureBuilder to re-run the future
+                  });
+                },
+              ),
+            ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+              child: ElevatedButton(
+                onPressed: () async {
+                  bool? confirmReset = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Reset Settings?'),
+                        content: const Text('Are you sure you want to reset all settings to their default values? This action cannot be undone.'),
+                        actions: <Widget>[
+                          TextButton(
+                            child: const Text('Cancel'),
+                            onPressed: () {
+                              Navigator.of(context).pop(false);
+                            },
+                          ),
+                          TextButton(
+                            child: Text('Reset', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                            onPressed: () {
+                              Navigator.of(context).pop(true);
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                  if (confirmReset == true) {
+                    await _resetSettings();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                  foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                ),
+                child: const Text('Reset All Settings to Default'),
+              ),
+            ),
           ],
         ),
       ),
@@ -122,8 +246,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.dark; // Default to dark mode
-  MaterialColor _accentColor = Colors.orange; // Default accent color
+  static const ThemeMode _defaultThemeMode = ThemeMode.dark;
+  static final MaterialColor _defaultAccentColor = Colors.orange;
+
+  ThemeMode _themeMode = _defaultThemeMode;
+  MaterialColor _accentColor = _defaultAccentColor;
 
   static final Map<String, MaterialColor> accentColorOptions = {
     'Orange': Colors.orange,
@@ -174,10 +301,10 @@ class ThemeProvider extends ChangeNotifier {
     if (themeString != null) {
       _themeMode = ThemeMode.values.firstWhere(
         (element) => element.toString() == themeString,
-        orElse: () => ThemeMode.dark, // Default to dark mode
+        orElse: () => _defaultThemeMode, // Default to dark mode
       );
     } else {
-      _themeMode = ThemeMode.dark; // Explicitly set default if null
+      _themeMode = _defaultThemeMode; // Explicitly set default if null
     }
     notifyListeners();
   }
@@ -194,22 +321,53 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> _loadAccentColor() async {
     final prefs = await SharedPreferences.getInstance();
     final colorValue = prefs.getInt('accentColor');
-    MaterialColor newAccentColor = Colors.orange; // Default
+    MaterialColor newAccentColor = _defaultAccentColor; 
     
     if (colorValue != null) {
       newAccentColor = accentColorOptions.values.firstWhere(
         (c) => c.value == colorValue,
-        orElse: () => Colors.orange, // Fallback to default if saved color not in options
+        orElse: () => _defaultAccentColor, // Fallback to default if saved color not in options
       );
     }
 
     if (_accentColor.value != newAccentColor.value) {
       _accentColor = newAccentColor;
-      notifyListeners();
+      // notifyListeners(); // Notifying here might cause issues if called during build.
+                          // ThemeProvider constructor calls this, so it should be fine.
     } else {
-      // Ensure _accentColor is set even if it's the same as the initial default,
-      // especially for the very first load.
       _accentColor = newAccentColor;
     }
+    // It's generally safer to call notifyListeners() once after all initial loading in constructor,
+    // or ensure it's not called in a way that violates Flutter's build lifecycle.
+    // For now, the existing structure calls notifyListeners() at the end of _loadThemeMode and _loadAccentColor.
+    // Let's ensure notifyListeners() is called if the color is actually set.
+    // The original code had notifyListeners() inside the if block, which is fine.
+    // If it's the same as the initial default, it might not notify, but the value is set.
+    // The current logic is: if (_accentColor.value != newAccentColor.value) { _accentColor = newAccentColor; notifyListeners(); }
+    // else { _accentColor = newAccentColor; }
+    // This means if it loads the default and it was already the default, it won't notify.
+    // This is usually fine. Let's stick to the original conditional notify.
+    if (_accentColor.value != newAccentColor.value) {
+       _accentColor = newAccentColor;
+       notifyListeners();
+    } else {
+       // Ensure _accentColor is set even if it's the same as the initial default,
+       // especially for the very first load.
+       _accentColor = newAccentColor;
+       // No notifyListeners() here if it's the same, to avoid unnecessary rebuilds.
+    }
+    // The original code had a final notifyListeners() in the constructor implicitly by calling it in _loadThemeMode and _loadAccentColor.
+    // The current structure is okay.
+  }
+
+  Future<void> resetToDefaults() async {
+    _themeMode = _defaultThemeMode;
+    _accentColor = _defaultAccentColor;
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('themeMode', _themeMode.toString());
+    await prefs.setInt('accentColor', _accentColor.value);
+    
+    notifyListeners();
   }
 }

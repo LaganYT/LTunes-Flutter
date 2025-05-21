@@ -368,16 +368,17 @@ class FullScreenPlayer extends StatelessWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
-                                  IconButton(
-                                    icon: Icon(Icons.download_outlined, color: colorScheme.onSurfaceVariant),
-                                    tooltip: "Download",
-                                    onPressed: () {
-                                      currentSongProvider.downloadSongInBackground(currentSong);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Download started')),
-                                      );
-                                    },
-                                  ),
+                                  if (!currentSong.isDownloaded) // currentSong is non-null in this block
+                                    IconButton(
+                                      icon: Icon(Icons.download_outlined, color: colorScheme.onSurfaceVariant),
+                                      tooltip: "Download",
+                                      onPressed: () {
+                                        currentSongProvider.downloadSongInBackground(currentSong);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Download started')),
+                                        );
+                                      },
+                                    ),
                                   IconButton(
                                     icon: Icon(Icons.playlist_add, color: colorScheme.onSurfaceVariant),
                                     tooltip: "Add to playlist",
