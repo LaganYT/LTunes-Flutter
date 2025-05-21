@@ -1,5 +1,5 @@
 name: LTunes
-description: A simple Flutter frontend for a music app.
+description: A simple music player for Android and iOS, built with Flutter.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -19,6 +19,9 @@ dependencies:
   audio_metadata_reader: ^1.4.1
   dio: ^5.8.0+1
   just_audio: ^0.10.3
+  file_picker: ^10.1.9
+  path: ^1.9.1
+  uuid: ^3.0.7
 
 dev_dependencies:
   flutter_test:

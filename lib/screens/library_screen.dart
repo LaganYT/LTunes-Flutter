@@ -10,6 +10,12 @@ import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
 import 'playlist_detail_screen.dart'; // Import for navigation
 
+// Imports for file import functionality
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
+
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -26,6 +32,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   final TextEditingController _playlistNameController = TextEditingController();
   final PlaylistManagerService _playlistManager = PlaylistManagerService();
   TabController? _tabController; // Declare TabController
+  final Uuid _uuid = const Uuid(); // For generating unique IDs
 
   @override
   void initState() {
@@ -301,6 +308,86 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     }
   }
 
+  Future<void> _importSongs() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom, // Changed from FileType.audio
+        allowedExtensions: ['mp3'],
+        allowMultiple: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        Directory appDocDir = await getApplicationDocumentsDirectory();
+        final prefs = await SharedPreferences.getInstance();
+        int importCount = 0;
+
+        // Show a loading indicator
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Importing songs...')),
+        );
+
+        for (PlatformFile file in result.files) {
+          if (file.path == null) continue;
+
+          String originalPath = file.path!;
+          String originalFileName = p.basename(originalPath);
+          
+          // Create a unique name for the copied file to avoid conflicts
+          String uniquePrefix = _uuid.v4();
+          String newFileName = '${uniquePrefix}_$originalFileName';
+          String copiedFilePath = p.join(appDocDir.path, newFileName);
+
+          try {
+            // File newFile = await File(originalPath).copy(copiedFilePath); // Keep this line if you still copy the file
+            // The line below is removed as per request
+            // Metadata metadata = await MetadataRetriever.fromFile(newFile);
+
+            String songId = _uuid.v4(); // Generate a unique ID for the song
+            
+            Song newSong = Song(
+              id: songId,
+              title: p.basenameWithoutExtension(originalFileName), // Use filename as title
+              artist: 'Unknown Artist', // Default artist
+              album: null, // Default album to null or empty string
+              albumArtUrl: '', // Album art from local files is more complex, leave empty for now
+              audioUrl: '', // Not an online stream
+              localFilePath: copiedFilePath,
+              isDownloaded: true, // Mark as "downloaded" i.e., locally available
+              releaseDate: null, // Default releaseDate to null or empty string
+            );
+
+            await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
+            importCount++;
+          } catch (e) {
+            debugPrint('Error processing file $originalFileName: $e');
+            // Optionally, delete partially copied file if error occurs during metadata/saving
+            final tempFile = File(copiedFilePath);
+            if (await tempFile.exists()) {
+              await tempFile.delete();
+            }
+          }
+        }
+
+        await _loadDownloadedSongs(); // Refresh the list of downloaded songs
+
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$importCount song(s) imported successfully.')),
+        );
+      } else {
+        // User canceled the picker or no files selected
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No songs selected for import.')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error importing songs: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred during import: $e')),
+      );
+    }
+  }
+
   Widget _buildPlaylistsView() {
     if (_playlists.isEmpty) {
       return const Center(child: Text('No playlists yet. Create one using the "+" button!'));
@@ -388,6 +475,11 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       appBar: AppBar(
         title: const Text('Library'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined), // Icon for importing
+            tooltip: 'Import Songs',
+            onPressed: _importSongs, // Call the import function
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Create Playlist',
