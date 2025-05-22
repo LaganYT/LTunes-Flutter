@@ -5,6 +5,10 @@ import 'dart:io'; // Required for File operations
 import 'dart:convert'; // Required for jsonDecode
 import 'dart:math'; // Required for log and pow
 import '../models/song.dart'; // Required for Song.fromJson
+import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
+import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
+import '../services/api_service.dart'; // Import ApiService
+import '../models/update_info.dart';   // Import UpdateInfo
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -136,6 +140,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings have been reset to default.')),
     );
+  }
+
+  Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User must interact with the dialog
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Update Available'),
+          content: Text(updateInfo.message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Later'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Update Now'),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                final Uri url = Uri.parse(updateInfo.url);
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch ${updateInfo.url}')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _performUpdateCheck() async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Checking for updates...')),
+    );
+
+    try {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      String currentAppVersion = packageInfo.version;
+      final apiService = ApiService();
+      final updateInfo = await apiService.checkForUpdate(currentAppVersion);
+
+      if (!mounted) return;
+
+      if (updateInfo != null) {
+        _showUpdateDialog(updateInfo);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('App is up to date.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking for updates: $e')),
+        );
+      }
+      debugPrint("Error performing update check: $e");
+    }
   }
 
   @override
@@ -319,6 +392,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12.0),
                 ),
                 child: const Text('Reset All Settings to Default'),
+              ),
+            ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  _performUpdateCheck();
+                },
+                style: ElevatedButton.styleFrom(
+                  // Optional: Use a different color or style for this button
+                  // backgroundColor: Theme.of(context).colorScheme.primary,
+                  // foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                ),
+                child: const Text('Check for Updates'),
               ),
             ),
           ],
