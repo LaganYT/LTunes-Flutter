@@ -19,5 +19,5 @@
   - Handle play/pause/next/previous commands.
   - Ensure controls work with streaming audio URLs.
 
-## BUG FIX
-- Fix issue where downloads clear every update
+## Bug fixes
+- Fix the total song duration not showing up on ios when playing a song from a url
