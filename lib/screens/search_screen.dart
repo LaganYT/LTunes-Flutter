@@ -4,8 +4,6 @@ import 'song_detail_screen.dart';
 import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -15,38 +13,55 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin {
+class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late Future<List<Song>> _songsFuture;
   late Future<List<dynamic>> _stationsFuture;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late TabController _tabController;
+  final ApiService _apiService = ApiService();
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _fetchSongs();
-    _stationsFuture = _fetchRadioStations(); // Initialize _stationsFuture here
-    _tabController = TabController(length: 2, vsync: this, initialIndex: 0); // Set default tab to "Music"
+    _songsFuture = _getSongsFuture(); // Use new method
+    _stationsFuture = _fetchRadioStations();
+    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
   }
 
-  void _fetchSongs() {
-    _songsFuture = ApiService().fetchSongs(_searchQuery);
+  // Renamed from _fetchSongs and returns Future
+  Future<List<Song>> _getSongsFuture() {
+    return _apiService.fetchSongs(_searchQuery);
   }
 
   Future<List<dynamic>> _fetchRadioStations() async {
     final prefs = await SharedPreferences.getInstance();
     final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
     final country = usRadioOnly ? 'United States' : '';
-    // Pass the current _searchQuery to filter by name if provided.
-    return fetchStationsByCountry(country, name: _searchQuery);
+    return _apiService.fetchStationsByCountry(country, name: _searchQuery);
   }
 
-  void _onSearch(String value) {
+  void _onSearch(String value) async { // Made async
+    final newQuery = value.trim();
+    final oldQuery = _searchQuery;
+
+    if (newQuery.isEmpty && oldQuery.isNotEmpty) {
+      // Search was cleared, remove cache for oldQuery
+      _apiService.clearSongCache(oldQuery);
+
+      final prefs = await SharedPreferences.getInstance();
+      final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
+      final country = usRadioOnly ? 'United States' : '';
+      _apiService.clearRadioStationCache(country, oldQuery);
+    }
+
     setState(() {
-      _searchQuery = value.trim();
-      _fetchSongs();
-      _stationsFuture = _fetchRadioStations();
+      _searchQuery = newQuery;
+      _songsFuture = _getSongsFuture(); // Update future
+      _stationsFuture = _fetchRadioStations(); // Update future
     });
   }
 
@@ -57,8 +72,32 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
+  Future<void> _handleRefreshMusic() async {
+    _apiService.clearSongCache(_searchQuery); // Clear cache for the current query
+    final newSongsFuture = _getSongsFuture();
+    setState(() {
+      _songsFuture = newSongsFuture;
+    });
+    await newSongsFuture; // Await completion for RefreshIndicator
+  }
+
+  Future<void> _handleRefreshRadio() async {
+    final prefs = await SharedPreferences.getInstance();
+    final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
+    final country = usRadioOnly ? 'United States' : '';
+
+    _apiService.clearRadioStationCache(country, _searchQuery);
+    
+    final newStationsFuture = _fetchRadioStations();
+    setState(() {
+      _stationsFuture = newStationsFuture;
+    });
+    await newStationsFuture;
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Important for AutomaticKeepAliveClientMixin
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search'),
@@ -102,6 +141,10 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               Tab(text: 'Music'),
               Tab(text: 'Radio'),
             ],
+            onTap: (index) { // Optional: re-fetch if needed when tab becomes visible, though cache handles it
+              // if (index == 0 && _songsFuture == null) _fetchSongs(); // Example
+              // if (index == 1 && _stationsFuture == null) _stationsFuture = _fetchRadioStations(); // Example
+            },
           ),
           Expanded(
             child: TabBarView(
@@ -135,92 +178,95 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         }
 
         final songs = snapshot.data!;
-        return ListView.separated(
-          itemCount: songs.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final song = songs[index];
-            return Dismissible(
-              key: Key(song.id),
-              direction: DismissDirection.startToEnd,
-              confirmDismiss: (direction) async {
-                final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                currentSongProvider.addToQueue(song);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${song.title} added to queue')),
-                );
-                return false; // Do not dismiss the item
-              },
-              background: Container(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
-              ),
-              child: ListTile(
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    song.albumArtUrl,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
-                  ),
-                ),
-                title: Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                ),
-                subtitle: Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  color: Theme.of(context).colorScheme.onSurface,
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SongDetailScreen(song: song),
-                      ),
-                    );
-                  },
-                ),
-                onTap: () async {
+        return RefreshIndicator(
+          onRefresh: _handleRefreshMusic,
+          child: ListView.separated(
+            itemCount: songs.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final song = songs[index];
+              return Dismissible(
+                key: Key(song.id),
+                direction: DismissDirection.startToEnd,
+                confirmDismiss: (direction) async {
                   final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const Center(child: CircularProgressIndicator()),
+                  currentSongProvider.addToQueue(song);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${song.title} added to queue')),
                   );
-                  try {
-                    final apiService = ApiService();
-                    final audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
-                    Navigator.of(context, rootNavigator: true).pop();
-                    if (audioUrl != null && audioUrl.isNotEmpty) {
-                      final songWithAudio = song.copyWith(audioUrl: audioUrl);
-                      currentSongProvider.playSong(songWithAudio);
-                    } else {
+                  return false; // Do not dismiss the item
+                },
+                background: Container(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                ),
+                child: ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      song.albumArtUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
+                    ),
+                  ),
+                  title: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                  subtitle: Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.info_outline),
+                    color: Theme.of(context).colorScheme.onSurface,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongDetailScreen(song: song),
+                        ),
+                      );
+                    },
+                  ),
+                  onTap: () async {
+                    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => const Center(child: CircularProgressIndicator()),
+                    );
+                    try {
+                      // Use the existing _apiService instance
+                      final audioUrl = await _apiService.fetchAudioUrl(song.artist, song.title);
+                      Navigator.of(context, rootNavigator: true).pop();
+                      if (audioUrl != null && audioUrl.isNotEmpty) {
+                        final songWithAudio = song.copyWith(audioUrl: audioUrl);
+                        currentSongProvider.playSong(songWithAudio);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Failed to fetch audio URL.')),
+                        );
+                      }
+                    } catch (e) {
+                      Navigator.of(context, rootNavigator: true).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Failed to fetch audio URL.')),
+                        SnackBar(content: Text('Error fetching audio URL: $e')),
                       );
                     }
-                  } catch (e) {
-                    Navigator.of(context, rootNavigator: true).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error fetching audio URL: $e')),
-                    );
-                  }
-                },
-              ),
-            );
-          },
+                  },
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -244,72 +290,51 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         }
 
         final stations = snapshot.data!;
-        return ListView.builder(
-          itemCount: stations.length, // removed client-side filtering here
-          itemBuilder: (context, index) {
-            final station = stations[index];
-            return ListTile(
-              leading: station['favicon'] != null && station['favicon'].isNotEmpty
-                  ? Image.network(
-                      station['favicon'],
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.radio, size: 50),
-                    )
-                  : const Icon(Icons.radio, size: 50),
-              title: Text(
-                station['name'] ?? 'Unknown Station',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                station['country'] ?? 'Unknown Country',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () {
-                final url = station['url_resolved'];
-                if (url != null && url.isNotEmpty) {
-                  Provider.of<CurrentSongProvider>(context, listen: false).playStream(
-                    url,
-                    stationName: station['name'] ?? 'Unknown Station',
-                    stationFavicon: station['favicon'],
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Stream URL not available, try another station')),
-                  );
-                }
-              },
-            );
-          },
+        return RefreshIndicator(
+          onRefresh: _handleRefreshRadio,
+          child: ListView.builder(
+            itemCount: stations.length,
+            itemBuilder: (context, index) {
+              final station = stations[index];
+              return ListTile(
+                leading: station['favicon'] != null && station['favicon'].isNotEmpty
+                    ? Image.network(
+                        station['favicon'],
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.radio, size: 50),
+                      )
+                    : const Icon(Icons.radio, size: 50),
+                title: Text(
+                  station['name'] ?? 'Unknown Station',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  station['country'] ?? 'Unknown Country',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () {
+                  final url = station['url_resolved'];
+                  if (url != null && url.isNotEmpty) {
+                    Provider.of<CurrentSongProvider>(context, listen: false).playStream(
+                      url,
+                      stationName: station['name'] ?? 'Unknown Station',
+                      stationFavicon: station['favicon'],
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Stream URL not available, try another station')),
+                    );
+                  }
+                },
+              );
+            },
+          ),
         );
       },
     );
-  }
-
-  Future<List<dynamic>> fetchStationsByCountry(String country, {String name = ''}) async {
-    // Build query parameters based on non-empty country and name values
-    final queryParams = <String, String>{};
-    if (country.isNotEmpty) queryParams['country'] = country;
-    if (name.isNotEmpty) queryParams['name'] = name;
-    final url = Uri.https('ltn-api.vercel.app', '/api/radio', queryParams);
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        try {
-          return json.decode(response.body) as List<dynamic>;
-        } catch (e) {
-          throw Exception('Error decoding JSON: $e\nResponse body: ${response.body}');
-        }
-      } else if (response.statusCode == 404) {
-        return []; // Return an empty list if no stations are found
-      } else {
-        throw Exception('Failed to load radio stations. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error fetching radio stations: $e');
-    }
   }
 }
