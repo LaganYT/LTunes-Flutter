@@ -5,6 +5,10 @@ import './screens/settings_screen.dart';
 import './screens/search_screen.dart'; // Import the new SearchScreen
 import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';
+import 'services/api_service.dart'; // Import ApiService
+import 'models/update_info.dart';   // Import UpdateInfo
+import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
+import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
 
 void main() {
   runApp(
@@ -52,6 +56,71 @@ class _TabViewState extends State<TabView> {
     const LibraryScreen(), // Library to the right of Search
     const SettingsScreen(), // Settings remains at the end
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVersionAndCheckForUpdates();
+  }
+
+  Future<void> _initializeVersionAndCheckForUpdates() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    String version = packageInfo.version;
+
+    if (mounted) {
+      _checkForUpdates(version);
+    }
+  }
+
+  Future<void> _checkForUpdates(String currentAppVersion) async {
+    final apiService = ApiService();
+    try {
+      final updateInfo = await apiService.checkForUpdate(currentAppVersion);
+      if (updateInfo != null && mounted) {
+        _showUpdateDialog(updateInfo);
+      }
+    } catch (e) {
+      debugPrint("Error in _checkForUpdates: $e");
+    }
+  }
+
+  Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User must interact with the dialog
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Update Available'),
+          content: Text(updateInfo.message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Later'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Update Now'),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                final Uri url = Uri.parse(updateInfo.url);
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch ${updateInfo.url}')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _onItemTapped(int index) {
     setState(() {

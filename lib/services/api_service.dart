@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../models/song.dart';
+import '../models/update_info.dart'; // Import the new model
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -13,6 +14,7 @@ class ApiService {
   ApiService._internal(); // Private constructor
 
   static const String baseUrl = 'https://ltn-api.vercel.app/api/';
+  static const String updateUrl = 'https://ltn-api.vercel.app/updates/update.json';
 
   // Caches
   final Map<String, List<Song>> _songCache = {};
@@ -136,6 +138,41 @@ class ApiService {
     final String cacheKey = "${country}_${name}";
     _radioStationCache.remove(cacheKey);
     // debugPrint('Cleared radio station cache for key: $cacheKey');
+  }
+
+  // Method to compare versions (e.g., "1.0.1" vs "1.0.0")
+  // Returns > 0 if v1 is greater, < 0 if v2 is greater, 0 if equal
+  int _compareVersions(String v1, String v2) {
+    List<int> v1Parts = v1.split('.').map(int.parse).toList();
+    List<int> v2Parts = v2.split('.').map(int.parse).toList();
+
+    for (int i = 0; i < v1Parts.length || i < v2Parts.length; i++) {
+      int part1 = (i < v1Parts.length) ? v1Parts[i] : 0;
+      int part2 = (i < v2Parts.length) ? v2Parts[i] : 0;
+
+      if (part1 < part2) return -1;
+      if (part1 > part2) return 1;
+    }
+    return 0;
+  }
+
+  Future<UpdateInfo?> checkForUpdate(String currentAppVersion) async {
+    try {
+      final response = await http.get(Uri.parse(updateUrl));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final updateInfo = UpdateInfo.fromJson(data);
+
+        if (_compareVersions(updateInfo.version, currentAppVersion) > 0) {
+          return updateInfo;
+        }
+      } else {
+        debugPrint('Failed to fetch update info: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error checking for update: $e');
+    }
+    return null;
   }
 }
 
