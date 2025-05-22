@@ -15,6 +15,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart'; // Import for metadata
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -382,20 +383,56 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
           try {
             // Copy the file to the app's documents directory
-            await File(originalPath).copy(copiedFilePath); // Ensure file is copied
+            File copiedFile = await File(originalPath).copy(copiedFilePath); // Ensure file is copied
+
+            // Extract metadata
+            AudioMetadata? metadata;
+            try {
+              // getImage: true to attempt to load album art
+              metadata = await readMetadata(copiedFile, getImage: true); 
+            } catch (e) {
+              debugPrint('Error reading metadata for $originalFileName: $e');
+              // Proceed with default values if metadata reading fails
+            }
 
             String songId = _uuid.v4(); // Generate a unique ID for the song
+            String albumArtPath = '';
+
+            if (metadata?.pictures.isNotEmpty ?? false) {
+              final picture = (metadata?.pictures.isNotEmpty ?? false) ? metadata!.pictures.first : null;
+              if (picture != null && picture.bytes.isNotEmpty) { // Replace 'imageData' with 'bytes'
+                // Determine file extension from mime type or default to .jpg
+                String extension = '.jpg'; // Default extension
+                if (picture.mimetype.endsWith('png')) {
+                  extension = '.png';
+                } else if (picture.mimetype.endsWith('jpeg') || picture.mimetype.endsWith('jpg')) {
+                  extension = '.jpg';
+                }
+                // Add more formats as needed
+                
+                String albumArtFileName = 'albumart_${songId}$extension';
+                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName);
+                
+                try {
+                  await File(fullAlbumArtPath).writeAsBytes(picture.bytes);
+                  albumArtPath = fullAlbumArtPath; // Store local file path
+                } catch (e) {
+                  debugPrint('Error saving album art for $originalFileName: $e');
+                }
+              }
+            }
             
             Song newSong = Song(
               id: songId,
-              title: p.basenameWithoutExtension(originalFileName), // Use filename as title
-              artist: 'Unknown Artist', // Default artist
-              album: null, // Default album to null or empty string
-              albumArtUrl: '', // Album art from local files is more complex, leave empty for now
+              title: metadata?.title ?? p.basenameWithoutExtension(originalFileName), // Use metadata title or filename
+              artist: metadata?.artist ?? 'Unknown Artist', // Use metadata artist or default
+              album: metadata?.album, // Use metadata album or null
+              albumArtUrl: albumArtPath, // Store local path to album art or empty string
               audioUrl: '', // Not an online stream
               localFilePath: copiedFilePath,
               isDownloaded: true, // Mark as "downloaded" i.e., locally available
               releaseDate: null, // Default releaseDate to null or empty string
+                                 // metadata.year could be used if available and parsed
             );
 
             await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
@@ -494,20 +531,47 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       itemCount: _songs.length,
       itemBuilder: (context, index) {
         final songObj = _songs[index];
-        return ListTile(
-          key: Key(songObj.id),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
-            child: songObj.albumArtUrl.isNotEmpty
-                ? Image.network(
-                    songObj.albumArtUrl,
+        Widget leadingWidget;
+        if (songObj.albumArtUrl.isNotEmpty) {
+          // Check if it's a local file path or a network URL
+          if (songObj.albumArtUrl.startsWith('http') || songObj.albumArtUrl.startsWith('https')) {
+            leadingWidget = Image.network(
+              songObj.albumArtUrl,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.music_note, size: 40),
+            );
+          } else {
+            // Assume it's a local file path
+            File artFile = File(songObj.albumArtUrl);
+            leadingWidget = FutureBuilder<bool>(
+              future: artFile.exists(),
+              builder: (context, snapshot) {
+                if (snapshot.data == true) {
+                  return Image.file(
+                    artFile,
                     width: 40,
                     height: 40,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) =>
                         const Icon(Icons.music_note, size: 40),
-                  )
-                : const Icon(Icons.music_note, size: 40),
+                  );
+                }
+                return const Icon(Icons.music_note, size: 40); // Fallback if file doesn't exist or still loading
+              }
+            );
+          }
+        } else {
+          leadingWidget = const Icon(Icons.music_note, size: 40);
+        }
+
+        return ListTile(
+          key: Key(songObj.id),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(4.0),
+            child: leadingWidget,
           ),
           title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
