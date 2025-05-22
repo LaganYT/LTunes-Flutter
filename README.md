@@ -13,7 +13,6 @@
 - Album and artist search.
 - Download all songs from album, skipping already downloaded songs.
 - Download all songs from playlist, skipping already downloaded songs.
-- Find alternative method to get metadata from imported songs.
 
 ## Lock Screen & Notifications
 - Integrate iOS/Android lock screen and notification media controls:
