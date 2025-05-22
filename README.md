@@ -19,6 +19,3 @@
 - Integrate iOS/Android lock screen and notification media controls:
   - Handle play/pause/next/previous commands.
   - Ensure controls work with streaming audio URLs.
-
-## Updates
-- Add update available notification using this url as a way to fetch update info ([API](https://ltn-api.vercel.app/updates/update.json)).
