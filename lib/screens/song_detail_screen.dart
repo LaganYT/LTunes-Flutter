@@ -200,6 +200,15 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     final bool isPlayingThisSong = isCurrentSongInProvider && currentSongProvider.isPlaying;
     final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
 
+    // Determine the song instance whose download status should be displayed.
+    // Prioritize the one from CurrentSongProvider if it's the same song.
+    final Song songForDownloadStatus;
+    if (isCurrentSongInProvider && currentSongProvider.currentSong != null) {
+      songForDownloadStatus = currentSongProvider.currentSong!;
+    } else {
+      songForDownloadStatus = widget.song;
+    }
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -328,14 +337,15 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   'Downloading... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
                   style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
-              ] else if (widget.song.isDownloaded && widget.song.localFilePath != null) ...[
+              ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
-                    label: Text('Delete Download', style: textTheme.labelLarge?.copyWith(color: colorScheme.error)),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: colorScheme.error.withOpacity(0.5)),
+                  child: FilledButton.tonalIcon(
+                    icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
+                    label: Text('Delete Download', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.errorContainer,
+                      foregroundColor: colorScheme.onErrorContainer,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
