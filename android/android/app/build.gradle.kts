@@ -6,13 +6,8 @@ plugins {
 }
 
 android {
-    namespace = "com.LTunes.android"
-    compileSdk = 33
-
-    defaultConfig {
-        minSdk = 21
-        targetSdk = 33 
-    }
+    namespace = "com.LTunes" // Changed to consistent namespace
+    compileSdk = flutter.compileSdkVersion // Changed to use flutter property
 
     ndkVersion = flutter.ndkVersion
 
@@ -26,10 +21,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.LTunes.android"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Ensure this Application ID is consistent across all builds and with your Play Store listing.
+        applicationId = "com.LTunes" // Changed to the primary applicationId
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
