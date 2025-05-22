@@ -12,7 +12,6 @@
 - Import playlists from XLSX files.
 - Album and artist search.
 - Downloading for albums and playlists.
-- Disable download button in song detail screen if song is already downloaded.
 - Find alternative method to get metadata from imported songs.
 
 ## UI/UX
