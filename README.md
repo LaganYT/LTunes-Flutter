@@ -18,3 +18,6 @@
 - Integrate iOS/Android lock screen and notification media controls:
   - Handle play/pause/next/previous commands.
   - Ensure controls work with streaming audio URLs.
+
+## BUG FIX
+- Fix issue where downloads clear every update
