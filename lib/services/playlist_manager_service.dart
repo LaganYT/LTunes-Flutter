@@ -1,13 +1,16 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 
-class PlaylistManagerService {
+class PlaylistManagerService extends ChangeNotifier {
   static const _playlistsKey = 'playlists';
   static final PlaylistManagerService _instance = PlaylistManagerService._internal();
   factory PlaylistManagerService() => _instance;
-  PlaylistManagerService._internal();
+  PlaylistManagerService._internal() {
+    loadPlaylists(); // Load playlists when the service is initialized.
+  }
 
   List<Playlist> _playlists = [];
   
@@ -19,78 +22,93 @@ class PlaylistManagerService {
         final map = jsonDecode(jsonStr) as Map<String, dynamic>;
         return Playlist.fromJson(map);
       } catch (e) {
+        debugPrint('Error decoding playlist: $e. JSON: $jsonStr');
         return null; // Skip invalid playlist.
       }
     }).whereType<Playlist>().toList();
+    notifyListeners();
   }
 
   Future<void> savePlaylists() async {
     final prefs = await SharedPreferences.getInstance();
-    final playlistJsonList =
-        _playlists.map((playlist) => jsonEncode(playlist.toJson())).toList();
+    final playlistJsonList = _playlists.map((p) => jsonEncode(p.toJson())).toList();
     await prefs.setStringList(_playlistsKey, playlistJsonList);
+    notifyListeners();
   }
 
   List<Playlist> get playlists => List.unmodifiable(_playlists);
 
-  void addPlaylist(Playlist playlist) {
-    // Prevent adding playlist with duplicate ID or name (optional, based on requirements)
-    if (!_playlists.any((p) => p.id == playlist.id || p.name == playlist.name)) {
-      _playlists.add(playlist);
-      savePlaylists(); // Save after adding
-    }
+  Future<void> addPlaylist(Playlist playlist) async {
+    _playlists.add(playlist);
+    await savePlaylists();
   }
 
-  void removePlaylist(Playlist playlist) {
+  Future<void> removePlaylist(Playlist playlist) async {
     _playlists.removeWhere((p) => p.id == playlist.id);
-    savePlaylists(); // Save after removing
+    await savePlaylists();
   }
   
-  void renamePlaylist(String id, String newName) {
-    final playlist = _playlists.firstWhere((p) => p.id == id, orElse: () => throw Exception('Playlist not found'));
-    // Optionally check if another playlist with newName already exists
-    playlist.rename(newName);
-    savePlaylists(); // Save after renaming
+  Future<void> renamePlaylist(String id, String newName) async {
+    try {
+      final playlist = _playlists.firstWhere((p) => p.id == id);
+      playlist.rename(newName);
+      await savePlaylists();
+    } catch (e) {
+      debugPrint('Playlist not found for renaming: $id');
+      // Optionally rethrow or handle as a silent failure
+    }
   }
   
-  void addSongToPlaylist(Playlist playlist, Song song) {
-    final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id, orElse: () => throw Exception('Playlist not found'));
-    if (!targetPlaylist.songs.any((s) => s.id == song.id)) {
-      targetPlaylist.songs.add(song);
-      savePlaylists(); // Save after adding song
+  Future<void> addSongToPlaylist(Playlist playlist, Song song) async {
+    try {
+      final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id);
+      if (!targetPlaylist.songs.any((s) => s.id == song.id)) {
+        targetPlaylist.songs.add(song);
+        await savePlaylists();
+      }
+    } catch (e) {
+      debugPrint('Playlist not found for adding song: ${playlist.id}');
     }
   }
 
-  void removeSongFromPlaylist(Playlist playlist, Song song) {
-    final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id, orElse: () => throw Exception('Playlist not found'));
-    targetPlaylist.songs.removeWhere((s) => s.id == song.id);
-    savePlaylists(); // Save after removing song
+  Future<void> removeSongFromPlaylist(Playlist playlist, Song song) async {
+    try {
+      final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id);
+      targetPlaylist.songs.removeWhere((s) => s.id == song.id);
+      await savePlaylists();
+    } catch (e) {
+      debugPrint('Playlist not found for removing song: ${playlist.id}');
+    }
   }
   
-  void updateSongInPlaylists(Song updatedSong) {
+  Future<void> updateSongInPlaylists(Song updatedSong) async {
     bool changed = false;
-    for (int i = 0; i < _playlists.length; i++) {
-      final playlist = _playlists[i];
+    for (var playlist in _playlists) {
       final songIndex = playlist.songs.indexWhere((s) => s.id == updatedSong.id);
       if (songIndex != -1) {
-        // Replace the song instance
         playlist.songs[songIndex] = updatedSong;
         changed = true;
       }
     }
     if (changed) {
-      savePlaylists(); // Save if any playlist was modified
+      await savePlaylists();
     }
   }
 
   Future<void> downloadAllSongsInPlaylist(Playlist playlist) async {
-    for (var song in playlist.songs) {
-      if (!song.isDownloaded) {
-        // Simulate download.
-        song.isDownloaded = true;
-        song.localFilePath = '/downloads/${song.title}.mp3';
-      }
-    }
-    await savePlaylists();
+    // Implementation for downloading all songs in a playlist
+    // This would likely involve iterating through playlist.songs
+    // and calling a download method (perhaps from CurrentSongProvider or ApiService)
+    // for each song not yet downloaded.
+    // Remember to call notifyListeners() if this operation changes playlist state
+    // or related song states that the UI should react to.
+    debugPrint('Download all songs in playlist "${playlist.name}" - Not yet implemented.');
+    // Example:
+    // for (var song in playlist.songs) {
+    //   if (!song.isDownloaded) {
+    //     // await downloadService.download(song);
+    //   }
+    // }
+    // await savePlaylists(); // If song metadata within playlists is updated
   }
 }

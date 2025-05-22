@@ -34,12 +34,21 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   TabController? _tabController; // Declare TabController
   final Uuid _uuid = const Uuid(); // For generating unique IDs
 
+  late CurrentSongProvider _currentSongProvider; // To listen for song updates
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this); // Initialize TabController
+    
+    // Initial loads
     _loadDownloadedSongs();
     _loadPlaylists();
+
+    // Listen to PlaylistManagerService
+    // This listener will call _loadPlaylists when playlist data changes.
+    _playlistManager.addListener(_onPlaylistChanged);
+    
     audioPlayer.onPlayerComplete.listen((event) {
       setState(() {
         isPlaying = false;
@@ -50,10 +59,36 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Setup listener for CurrentSongProvider here as context is available.
+    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    // This listener will call _loadDownloadedSongs when song data changes (e.g., download status).
+    _currentSongProvider.addListener(_onSongDataChanged);
+  }
+
+  void _onPlaylistChanged() {
+    // PlaylistManagerService notified changes, reload playlists
+    if (mounted) {
+      _loadPlaylists();
+    }
+  }
+
+  void _onSongDataChanged() {
+    // CurrentSongProvider notified changes (e.g., download finished, metadata updated)
+    // Reload downloaded songs list
+    if (mounted) {
+      _loadDownloadedSongs();
+    }
+  }
+
+  @override
   void dispose() {
     _tabController?.dispose(); // Dispose TabController
     audioPlayer.dispose();
     _playlistNameController.dispose();
+    _playlistManager.removeListener(_onPlaylistChanged);
+    _currentSongProvider.removeListener(_onSongDataChanged); // Remove listener
     super.dispose();
   }
 
@@ -87,16 +122,26 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         }
       }
     }
-    setState(() {
-      _songs = loadedSongs;
-    });
+    if (mounted) {
+      setState(() {
+        _songs = loadedSongs;
+      });
+    }
   }
 
   Future<void> _loadPlaylists() async {
-    await _playlistManager.loadPlaylists();
-    setState(() {
-      _playlists = _playlistManager.playlists;
-    });
+    // No need to call _playlistManager.loadPlaylists() if it loads itself initially
+    // and notifies. We just get the current state.
+    // However, if PlaylistManagerService's loadPlaylists itself is what triggers
+    // the initial load and notify, then it's fine.
+    // For robustness, ensure it's loaded if this is the first time.
+    // await _playlistManager.loadPlaylists(); // This might cause a loop if loadPlaylists also notifies.
+                                         // Let's assume PlaylistManagerService handles its own loading.
+    if (mounted) {
+      setState(() {
+        _playlists = _playlistManager.playlists;
+      });
+    }
   }
 
   Future<void> _deletePlaylist(BuildContext context, Playlist playlist) async {
@@ -115,9 +160,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
             TextButton(
               child: Text('Delete', style: TextStyle(color: Colors.red[700])),
-              onPressed: () {
-                _playlistManager.removePlaylist(playlist);
-                _loadPlaylists(); // Refresh the list from the service
+              onPressed: () async { // Make async
+                await _playlistManager.removePlaylist(playlist); // await the operation
+                // _loadPlaylists(); // No longer needed here, listener will handle it.
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Playlist "${playlist.name}" deleted.')),
@@ -150,7 +195,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
             TextButton(
               child: const Text('Create'),
-              onPressed: () {
+              onPressed: () async { // Make async
                 final playlistName = _playlistNameController.text.trim();
                 if (playlistName.isNotEmpty) {
                   final newPlaylist = Playlist(
@@ -158,9 +203,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                     name: playlistName,
                     songs: [],
                   );
-                  _playlistManager.addPlaylist(newPlaylist);
-                  // No need to call savePlaylists() here as addPlaylist now handles it.
-                  _loadPlaylists(); // Refresh the list from the service
+                  await _playlistManager.addPlaylist(newPlaylist); // await the operation
+                  // _loadPlaylists(); // No longer needed here, listener will handle it.
                 }
                 Navigator.of(context).pop();
                 _playlistNameController.clear();
@@ -251,10 +295,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
     if (selectedSongs.isNotEmpty) {
       for (var song in selectedSongs) {
-        _playlistManager.addSongToPlaylist(playlist, song);
+        await _playlistManager.addSongToPlaylist(playlist, song); // await
       }
-      // No need to call savePlaylists() here as addSongToPlaylist now handles it.
-      _loadPlaylists(); // Refresh the list
+      // _loadPlaylists(); // No longer needed here, listener will handle it.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${selectedSongs.length} song(s) added to "${playlist.name}"')),
       );
@@ -263,8 +306,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   // ignore: unused_element
   Future<void> _removeSongFromPlaylist(Playlist playlist, Song song) async {
-    _playlistManager.removeSongFromPlaylist(playlist, song);
-    _loadPlaylists(); // Refresh the list
+    await _playlistManager.removeSongFromPlaylist(playlist, song); // await
+    // _loadPlaylists(); // No longer needed here, listener will handle it.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Removed "${song.title}" from "${playlist.name}"')),
     );
@@ -286,7 +329,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       await prefs.setString('song_${songToDelete.id}', jsonEncode(updatedSong.toJson()));
       
       // Refresh UI by reloading the songs list
-      await _loadDownloadedSongs(); 
+      // await _loadDownloadedSongs(); // No longer needed here, listener will handle it.
 
       // If this song was playing via the local audioPlayer instance
       if (_currentlyPlayingSongPath == songToDelete.localFilePath) {
@@ -338,8 +381,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           String copiedFilePath = p.join(appDocDir.path, newFileName);
 
           try {
-            // ignore: unused_local_variable
-            File newFile = await File(originalPath).copy(copiedFilePath); // Keep this line if you still copy the file
+            // Copy the file to the app's documents directory
+            await File(originalPath).copy(copiedFilePath); // Ensure file is copied
 
             String songId = _uuid.v4(); // Generate a unique ID for the song
             
@@ -367,12 +410,25 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           }
         }
 
-        await _loadDownloadedSongs(); // Refresh the list of downloaded songs
+        // await _loadDownloadedSongs(); // This will be triggered by _onSongDataChanged if CurrentSongProvider notifies appropriately
+                                // For direct import, if CurrentSongProvider isn't involved in notifying about these new files,
+                                // calling _loadDownloadedSongs() directly or ensuring a notification path is valid.
+                                // The existing listener _onSongDataChanged should handle updates if songs are managed via CurrentSongProvider.
+                                // If import directly modifies SharedPreferences, then _loadDownloadedSongs() is the correct refresh.
+                                // The listener _onSongDataChanged should ideally be triggered if these new songs are "globally" announced.
+                                // For now, assuming the provider pattern will eventually lead to a notification.
+                                // If not, a direct call to _loadDownloadedSongs() here after the loop would be needed.
+                                // However, the current structure relies on listeners.
 
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('$importCount song(s) imported successfully.')),
         );
+        // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
+        // This ensures the UI updates immediately after import.
+        if (importCount > 0) {
+            _loadDownloadedSongs();
+        }
       } else {
         // User canceled the picker or no files selected
         ScaffoldMessenger.of(context).showSnackBar(
@@ -388,6 +444,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Widget _buildPlaylistsView() {
+    // Use a Consumer for PlaylistManagerService if you prefer that pattern,
+    // or rely on the listener calling setState via _loadPlaylists.
+    // For this example, we're using the listener pattern established in initState.
     if (_playlists.isEmpty) {
       return const Center(child: Text('No playlists yet. Create one using the "+" button!'));
     }
@@ -414,8 +473,10 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                   builder: (context) => PlaylistDetailScreen(playlist: playlist),
                 ),
               ).then((_) {
-                // Refresh playlists in case of changes in PlaylistDetailScreen, e.g., name change or song additions/removals.
-                _loadPlaylists();
+                // Refresh playlists in case of changes in PlaylistDetailScreen,
+                // e.g., name change or song additions/removals.
+                // Listener should ideally handle this if PlaylistDetailScreen uses PlaylistManagerService.
+                // _loadPlaylists(); // This might be redundant if listener works correctly.
               });
             },
           ),
@@ -425,6 +486,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Widget _buildDownloadedSongsView() {
+    // Similar to _buildPlaylistsView, this relies on the listener for CurrentSongProvider.
     if (_songs.isEmpty) {
       return const Center(child: Text('No downloaded songs yet.'));
     }

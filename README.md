@@ -17,9 +17,6 @@
 ## UI/UX
 - Shuffle queue consistency improvements.
 
-## Playlists
-- Playlists auto-refresh fix.
-
 ## Lock Screen & Notifications
 - Integrate iOS/Android lock screen and notification media controls:
   - Handle play/pause/next/previous commands.
