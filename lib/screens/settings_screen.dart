@@ -20,11 +20,25 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // Initialize with null to represent loading state
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
+  String _currentAppVersion = 'Loading...';
+  String _latestKnownVersion = 'N/A';
 
   @override
   void initState() {
     super.initState();
     _loadUSRadioOnlySetting();
+    _loadCurrentAppVersion();
+  }
+
+  Future<void> _loadCurrentAppVersion() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _currentAppVersion = packageInfo.version;
+        // Initialize _latestKnownVersion to current until an update check is performed
+        _latestKnownVersion = _currentAppVersion; 
+      });
+    }
   }
 
   Future<void> _loadUSRadioOnlySetting() async {
@@ -196,10 +210,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (updateInfo != null) {
         _showUpdateDialog(updateInfo);
+        setState(() {
+          // Assuming UpdateInfo has a 'version' field for the new version string
+          _latestKnownVersion = updateInfo.version; 
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('App is up to date.')),
         );
+        setState(() {
+          _latestKnownVersion = _currentAppVersion; // App is up to date
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -208,6 +229,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
       debugPrint("Error performing update check: $e");
+      // Optionally, reset _latestKnownVersion or indicate error
+      setState(() {
+        _latestKnownVersion = 'Error';
+      });
     }
   }
 
@@ -408,6 +433,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12.0),
                 ),
                 child: const Text('Check for Updates'),
+              ),
+            ),
+            ListTile(
+              title: const Text('Version Information'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Current Version: $_currentAppVersion'),
+                  Text('Latest Available Version: $_latestKnownVersion'),
+                ],
               ),
             ),
           ],
