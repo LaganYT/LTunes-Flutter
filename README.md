@@ -15,7 +15,6 @@
 - Find alternative method to get metadata from imported songs.
 
 ## UI/UX
-- Cache search results to avoid reloads when switching pages.
 - Shuffle queue consistency improvements.
 
 ## Playlists
