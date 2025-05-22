@@ -17,8 +17,6 @@
 ## UI/UX
 - Cache search results to avoid reloads when switching pages.
 - Shuffle queue consistency improvements.
-- Swipe to close playbar.
-- More vibrant accent colors.
 
 ## Playlists
 - Playlists auto-refresh fix.
