@@ -14,9 +14,6 @@
 - Downloading for albums and playlists.
 - Find alternative method to get metadata from imported songs.
 
-## UI/UX
-- Shuffle queue consistency improvements.
-
 ## Lock Screen & Notifications
 - Integrate iOS/Android lock screen and notification media controls:
   - Handle play/pause/next/previous commands.
