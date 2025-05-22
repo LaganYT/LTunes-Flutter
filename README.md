@@ -21,4 +21,4 @@
   - Ensure controls work with streaming audio URLs.
 
 ## Updates
-- Add updater ([API](https://ltn-api.vercel.app/updates/update.json)).
+- Add update available notification using this url as a way to fetch update info ([API](https://ltn-api.vercel.app/updates/update.json)).
