@@ -1,23 +1,33 @@
 # TODO
 
-## Features to Implement
-- Add listening history.
-- Add lyrics (save lyrics when downloading the song too).
-- Add explicit content filter.
-- Add Equalizer (EQ) presets (e.g., Bass Boost, Classical, Jazz, Custom).
-- Add crossfade duration (smooth transition between songs).
-- Add volume normalization (level all songs to similar volume).
-- Add sleep timer (stop playback after a set time).
-- Add an option to clear listening history.
-- Add support to connect to smart speakers (AirPlay, Chromecast, etc.).
+## Features
+- Listening history (with option to clear).
+- Lyrics support (save lyrics when downloading songs).
+- Explicit content filter.
+- Equalizer (EQ) presets (Bass Boost, Classical, Jazz, Custom).
+- Crossfade duration (smooth song transitions).
+- Volume normalization (level all songs).
+- Sleep timer (stop playback after set time).
+- Smart speaker support (AirPlay, Chromecast, etc.).
+- Import playlists from XLSX files.
+- Album and artist search.
+- Downloading for albums and playlists.
+- Disable download button in song detail screen if song is already downloaded.
+- Find alternative method to get metadata from imported songs.
 
-## UI/UX Improvements
-- Cache search results to avoid reloading when switching pages.
+## UI/UX
+- Cache search results to avoid reloads when switching pages.
+- Shuffle queue consistency improvements.
+- Swipe to close playbar.
+- More vibrant accent colors.
 
-## Lock Screen and Notifications
+## Playlists
+- Playlists auto-refresh fix.
+
+## Lock Screen & Notifications
 - Integrate iOS/Android lock screen and notification media controls:
-  - Handle play/pause/next/previous commands from media controls.
-  - Ensure media controls work seamlessly with streaming audio URLs.
+  - Handle play/pause/next/previous commands.
+  - Ensure controls work with streaming audio URLs.
 
 ## Updates
-- Add an updater. API to fetch update details: [https://ltn-api.vercel.app/updates/update.json](https://ltn-api.vercel.app/updates/update.json).
+- Add updater ([API](https://ltn-api.vercel.app/updates/update.json)).
