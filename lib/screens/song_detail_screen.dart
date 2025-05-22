@@ -282,6 +282,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               if (widget.song.album != null && widget.song.album!.isNotEmpty) ...[
                 const SizedBox(height: 4),
+                if (widget.song.releaseDate != null && widget.song.releaseDate!.isNotEmpty)
+                  Text(
+                    widget.song.releaseDate!,
+                    style: textTheme.bodyLarge?.copyWith(
+                      color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 Text(
                   widget.song.album!,
                   style: textTheme.bodyLarge?.copyWith(
@@ -378,34 +386,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                     onPressed: () => _showAddToPlaylistDialog(context, widget.song),
                   ),
                   TextButton.icon(
-                    icon: Icon(Icons.info_outline_rounded, color: colorScheme.secondary),
-                    label: Text('More Info', style: TextStyle(color: colorScheme.secondary)),
+                    icon: Icon(Icons.queue_music, color: colorScheme.secondary),
+                    label: Text('Add to Queue', style: TextStyle(color: colorScheme.secondary)),
                     onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('Song Information'),
-                            content: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('Title: ${widget.song.title}', style: TextStyle(color: colorScheme.onSurface)),
-                                Text('Artist: ${widget.song.artist}', style: TextStyle(color: colorScheme.onSurface)),
-                                Text('Album: ${widget.song.album ?? 'N/A'}', style: TextStyle(color: colorScheme.onSurface)),
-                                Text('Release Date: ${widget.song.releaseDate ?? 'N/A'}', style: TextStyle(color: colorScheme.onSurface)),
-                              ],
-                            ),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('Close'),
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                              ),
-                            ],
-                          );
-                        },
+                      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                      currentSongProvider.addToQueue(widget.song);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${widget.song.title} added to queue')),
                       );
                     },
                   ),
