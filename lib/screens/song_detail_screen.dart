@@ -282,16 +282,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               if (widget.song.album != null && widget.song.album!.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                if (widget.song.releaseDate != null && widget.song.releaseDate!.isNotEmpty)
-                  Text(
-                    widget.song.releaseDate!,
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
                 Text(
-                  widget.song.album!,
+                  '${widget.song.album!} ${widget.song.releaseDate != null && widget.song.releaseDate!.isNotEmpty ? "(${widget.song.releaseDate!})" : ""}',
                   style: textTheme.bodyLarge?.copyWith(
                     color: colorScheme.onSurfaceVariant.withOpacity(0.8),
                   ),
