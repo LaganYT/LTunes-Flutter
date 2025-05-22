@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/playlist.dart';
 import '../models/song.dart'; // Ensure Song model is imported
 import '../providers/current_song_provider.dart';
+import 'dart:io'; // Required for File
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -107,6 +108,42 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     final bool hasSongs = widget.playlist.songs.isNotEmpty;
     final String? firstSongArtUrl = hasSongs ? widget.playlist.songs.first.albumArtUrl : null;
 
+    Widget appBarBackground;
+    if (firstSongArtUrl != null && firstSongArtUrl.isNotEmpty) {
+      if (firstSongArtUrl.startsWith('http')) {
+        appBarBackground = Image.network(
+          firstSongArtUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[800]),
+        );
+      } else {
+        appBarBackground = FutureBuilder<bool>(
+          future: File(firstSongArtUrl).exists(),
+          builder: (context, snapshot) {
+            if (snapshot.data == true) {
+              return Image.file(
+                File(firstSongArtUrl),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[800]),
+              );
+            }
+            return Container(color: Colors.grey[800]); // Placeholder
+          },
+        );
+      }
+    } else {
+      appBarBackground = Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      );
+    }
+
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -118,22 +155,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (firstSongArtUrl != null && firstSongArtUrl.isNotEmpty)
-                    Image.network(
-                      firstSongArtUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[800]),
-                    )
-                  else
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                    ),
+                  appBarBackground,
                   if (firstSongArtUrl != null && firstSongArtUrl.isNotEmpty) // Apply blur only if image exists
                     BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
@@ -239,20 +261,44 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final song = widget.playlist.songs[index]; // Use widget.playlist
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: song.albumArtUrl.isNotEmpty
-                          ? Image.network(
-                              song.albumArtUrl,
+                  Widget listItemLeading;
+                  if (song.albumArtUrl.isNotEmpty) {
+                    if (song.albumArtUrl.startsWith('http')) {
+                      listItemLeading = Image.network(
+                        song.albumArtUrl,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      );
+                    } else {
+                      listItemLeading = FutureBuilder<bool>(
+                        future: File(song.albumArtUrl).exists(),
+                        builder: (context, snapshot) {
+                          if (snapshot.data == true) {
+                            return Image.file(
+                              File(song.albumArtUrl),
                               width: 50,
                               height: 50,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
                                   Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                            )
-                          : Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            );
+                          }
+                          return Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
+                        },
+                      );
+                    }
+                  } else {
+                    listItemLeading = Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
+                  }
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: listItemLeading,
                     ),
                     title: Text(
                       song.title,

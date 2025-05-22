@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io'; // Required for File
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -185,6 +186,40 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final song = songs[index];
+              Widget leadingImage;
+              // Album art for search results will likely always be network URLs from the API
+              // but we include the check for robustness or future changes.
+              if (song.albumArtUrl.isNotEmpty) {
+                if (song.albumArtUrl.startsWith('http')) {
+                  leadingImage = Image.network(
+                    song.albumArtUrl,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
+                  );
+                } else {
+                  // This case is less likely for search results from an API, but included for completeness
+                  leadingImage = FutureBuilder<bool>(
+                    future: File(song.albumArtUrl).exists(),
+                    builder: (context, snapshot) {
+                      if (snapshot.data == true) {
+                        return Image.file(
+                          File(song.albumArtUrl),
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
+                        );
+                      }
+                      return const Icon(Icons.music_note, size: 40); // Placeholder
+                    },
+                  );
+                }
+              } else {
+                leadingImage = const Icon(Icons.music_note, size: 40);
+              }
+
               return Dismissible(
                 key: Key(song.id),
                 direction: DismissDirection.startToEnd,
@@ -205,13 +240,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                 child: ListTile(
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      song.albumArtUrl,
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
-                    ),
+                    child: leadingImage,
                   ),
                   title: Text(
                     song.title,

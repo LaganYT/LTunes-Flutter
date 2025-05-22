@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
@@ -37,127 +38,134 @@ class _PlaybarState extends State<Playbar> {
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
 
+    if (currentSong == null) {
+      return const SizedBox.shrink(); // Don't show playbar if no song is loaded
+    }
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    Widget leadingWidget;
+    if (currentSong.albumArtUrl.isNotEmpty) {
+      if (currentSong.albumArtUrl.startsWith('http')) {
+        leadingWidget = Image.network(
+          currentSong.albumArtUrl,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
+        );
+      } else {
+        // Assume it's a local file path
+        File artFile = File(currentSong.albumArtUrl);
+        leadingWidget = FutureBuilder<bool>(
+          future: artFile.exists(),
+          builder: (context, snapshot) {
+            if (snapshot.data == true) {
+              return Image.file(
+                artFile,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
+              );
+            }
+            // Show placeholder while checking or if file doesn't exist
+            return Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
+          },
+        );
+      }
+    } else {
+      leadingWidget = Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
+    }
+
     return GestureDetector(
       onTap: () {
-        if (currentSong != null) {
-          Navigator.push(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                const begin = Offset(0.0, 1.0);
-                const end = Offset.zero;
-                const curve = Curves.ease;
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              const begin = Offset(0.0, 1.0);
+              const end = Offset.zero;
+              const curve = Curves.ease;
 
-                final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                final offsetAnimation = animation.drive(tween);
+              final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+              final offsetAnimation = animation.drive(tween);
 
-                return SlideTransition(
-                  position: offsetAnimation,
-                  child: child,
-                );
-              },
-            ),
-          );
-        }
+              return SlideTransition(
+                position: offsetAnimation,
+                child: child,
+              );
+            },
+          ),
+        );
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
-        ),
-        padding: const EdgeInsets.all(8.0),
-        child: currentSong != null
-            ? Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: (currentSong.albumArtUrl.isNotEmpty)
-                        ? Image.network(
-                            currentSong.albumArtUrl,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurface),
-                          )
-                        : Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurface),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          (currentSong.title.isNotEmpty) ? currentSong.title : 'Unknown Title',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+      child: Material(
+        color: theme.cardColor, // Changed from colorScheme.surfaceContainerHighest
+        elevation: 4.0, // Reduced from 8.0
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+          height: 64.0, // Fixed height for the playbar
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4.0),
+                child: leadingWidget,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      currentSong.title.isNotEmpty ? currentSong.title : 'Unknown Title',
+                      style: textTheme.titleSmall?.copyWith(color: colorScheme.onSurface),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                  ),
-                  IconButton(
-                    icon: isLoadingAudio
-                        ? SizedBox(
-                            width: 24, // Standard icon button size constraint
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.0,
-                              valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
-                            ),
-                          )
-                        : Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 36, color: Theme.of(context).colorScheme.primary),
-                    onPressed: isLoadingAudio
-                        ? null // Disable button while loading
-                        : () {
-                            if (isPlaying) {
-                              currentSongProvider.pauseSong();
-                            } else {
-                              // If it's the same song and paused, resume it. Otherwise, play.
-                              if (currentSongProvider.currentSong == currentSong) {
-                                currentSongProvider.resumeSong();
-                              } else {
-                                currentSongProvider.playSong(currentSong);
-                              }
-                            }
-                          },
-                  ),
-                ],
-              )
-            : const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Card(
-                  color: Color(0xFFF5F5F5),
-                  elevation: 0,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    child: Row(
-                      children: [
-                        Icon(Icons.music_note, size: 32, color: Colors.grey),
-                        SizedBox(width: 12),
-                        Text(
-                          'No song selected', // This will show if no song was saved
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist',
+                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                  ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 8),
+              if (isLoadingAudio)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.0, color: colorScheme.primary),
+                )
+              else
+                IconButton(
+                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: colorScheme.onSurface),
+                  iconSize: 32.0,
+                  onPressed: () {
+                    if (isPlaying) {
+                      currentSongProvider.pauseSong();
+                    } else {
+                      currentSongProvider.resumeSong();
+                    }
+                  },
+                ),
+              IconButton(
+                icon: Icon(Icons.skip_next, color: colorScheme.onSurface.withOpacity(0.7)),
+                iconSize: 28.0,
+                onPressed: () {
+                  currentSongProvider.playNext();
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

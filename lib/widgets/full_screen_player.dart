@@ -1,3 +1,4 @@
+import 'dart:io'; // Required for File
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
@@ -56,19 +57,42 @@ class FullScreenPlayer extends StatelessWidget {
                           itemBuilder: (context, index) {
                             final song = provider.queue[index];
                             bool isCurrentlyPlaying = song.id == currentSong?.id;
-                            return ListTile(
-                              tileColor: isCurrentlyPlaying ? colorScheme.primaryContainer.withOpacity(0.3) : null,
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: song.albumArtUrl.isNotEmpty
-                                    ? Image.network(
-                                        song.albumArtUrl,
+                            Widget leadingImage;
+                            if (song.albumArtUrl.isNotEmpty) {
+                              if (song.albumArtUrl.startsWith('http')) {
+                                leadingImage = Image.network(
+                                  song.albumArtUrl,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant),
+                                );
+                              } else {
+                                leadingImage = FutureBuilder<bool>(
+                                  future: File(song.albumArtUrl).exists(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.data == true) {
+                                      return Image.file(
+                                        File(song.albumArtUrl),
                                         width: 50,
                                         height: 50,
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant),
-                                      )
-                                    : Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant),
+                                      );
+                                    }
+                                    return Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant);
+                                  },
+                                );
+                              }
+                            } else {
+                              leadingImage = Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant);
+                            }
+
+                            return ListTile(
+                              tileColor: isCurrentlyPlaying ? colorScheme.primaryContainer.withOpacity(0.3) : null,
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: leadingImage,
                               ),
                               title: Text(
                                 song.title.isNotEmpty ? song.title : 'Unknown Title',
@@ -224,18 +248,44 @@ class FullScreenPlayer extends StatelessWidget {
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: currentSong.albumArtUrl.isNotEmpty
-                                      ? Image.network(
-                                          currentSong.albumArtUrl,
-                                          width: MediaQuery.of(context).size.width * 0.75,
-                                          height: MediaQuery.of(context).size.width * 0.75,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => Container(
-                                            width: MediaQuery.of(context).size.width * 0.75,
-                                            height: MediaQuery.of(context).size.width * 0.75,
-                                            color: colorScheme.surfaceContainerHighest,
-                                            child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
-                                          ),
-                                        )
+                                      ? (currentSong.albumArtUrl.startsWith('http')
+                                          ? Image.network(
+                                              currentSong.albumArtUrl,
+                                              width: MediaQuery.of(context).size.width * 0.75,
+                                              height: MediaQuery.of(context).size.width * 0.75,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                width: MediaQuery.of(context).size.width * 0.75,
+                                                height: MediaQuery.of(context).size.width * 0.75,
+                                                color: colorScheme.surfaceContainerHighest,
+                                                child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
+                                              ),
+                                            )
+                                          : FutureBuilder<bool>(
+                                              future: File(currentSong.albumArtUrl).exists(),
+                                              builder: (context, snapshot) {
+                                                if (snapshot.data == true) {
+                                                  return Image.file(
+                                                    File(currentSong.albumArtUrl),
+                                                    width: MediaQuery.of(context).size.width * 0.75,
+                                                    height: MediaQuery.of(context).size.width * 0.75,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) => Container(
+                                                      width: MediaQuery.of(context).size.width * 0.75,
+                                                      height: MediaQuery.of(context).size.width * 0.75,
+                                                      color: colorScheme.surfaceContainerHighest,
+                                                      child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
+                                                    ),
+                                                  );
+                                                }
+                                                return Container( // Placeholder while checking or if file doesn't exist
+                                                  width: MediaQuery.of(context).size.width * 0.75,
+                                                  height: MediaQuery.of(context).size.width * 0.75,
+                                                  color: colorScheme.surfaceContainerHighest,
+                                                  child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
+                                                );
+                                              },
+                                            ))
                                       : Container(
                                           width: MediaQuery.of(context).size.width * 0.75,
                                           height: MediaQuery.of(context).size.width * 0.75,
@@ -409,8 +459,7 @@ class FullScreenPlayer extends StatelessWidget {
                             // const SizedBox(height: 20), // Adjust or remove spacing as needed
                           ],
                         ),
-                      ),
-                    ));
+                      )));
                 },
               )
             : Center( // Fallback if no song is selected

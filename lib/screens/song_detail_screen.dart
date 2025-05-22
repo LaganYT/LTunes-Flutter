@@ -230,25 +230,65 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: widget.song.albumArtUrl.isNotEmpty
-                    ? Image.network(
-                        widget.song.albumArtUrl,
-                        width: MediaQuery.of(context).size.width * 0.7,
-                        height: MediaQuery.of(context).size.width * 0.7,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: MediaQuery.of(context).size.width * 0.7,
-                          height: MediaQuery.of(context).size.width * 0.7,
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceVariant,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.music_note,
-                            size: 100,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      )
+                    ? (widget.song.albumArtUrl.startsWith('http')
+                        ? Image.network(
+                            widget.song.albumArtUrl,
+                            width: MediaQuery.of(context).size.width * 0.7,
+                            height: MediaQuery.of(context).size.width * 0.7,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              width: MediaQuery.of(context).size.width * 0.7,
+                              height: MediaQuery.of(context).size.width * 0.7,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceVariant,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Icon(
+                                Icons.music_note,
+                                size: 100,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : FutureBuilder<bool>(
+                            future: File(widget.song.albumArtUrl).exists(),
+                            builder: (context, snapshot) {
+                              if (snapshot.data == true) {
+                                return Image.file(
+                                  File(widget.song.albumArtUrl),
+                                  width: MediaQuery.of(context).size.width * 0.7,
+                                  height: MediaQuery.of(context).size.width * 0.7,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    width: MediaQuery.of(context).size.width * 0.7,
+                                    height: MediaQuery.of(context).size.width * 0.7,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Icon(
+                                      Icons.music_note,
+                                      size: 100,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return Container( // Placeholder
+                                width: MediaQuery.of(context).size.width * 0.7,
+                                height: MediaQuery.of(context).size.width * 0.7,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceVariant,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  Icons.music_note,
+                                  size: 100,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              );
+                            },
+                          ))
                     : Container(
                         width: MediaQuery.of(context).size.width * 0.7,
                         height: MediaQuery.of(context).size.width * 0.7,
