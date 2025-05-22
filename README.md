@@ -22,4 +22,3 @@
 
 ## Bug fixes
 - Fix the total song duration not showing up on ios when playing a song from a url
-- Fix issue where downloads disapear everytime i install an update or install a new build

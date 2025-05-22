@@ -2,14 +2,14 @@ class Song {
   final String title;
   final String id; 
   final String artist;
-  final String albumArtUrl;
+  final String albumArtUrl; // Can be network URL or local filename (relative to docs dir)
   final String? album;
   final String? releaseDate;
   final String audioUrl; // Ensure non-nullable, default to empty
 
   // Add these fields
   bool isDownloaded;
-  String? localFilePath;
+  String? localFilePath; // Stores filename only (relative to docs dir) if downloaded
 
   Song({
     required this.title,
@@ -38,12 +38,12 @@ class Song {
       title: title ?? this.title,
       id: id ?? this.id, // Keep original ID unless explicitly overridden
       artist: artist ?? this.artist,
-      albumArtUrl: albumArtUrl ?? this.albumArtUrl,
+      albumArtUrl: albumArtUrl ?? this.albumArtUrl, // Handled by consumers
       album: album ?? this.album,
       releaseDate: releaseDate ?? this.releaseDate,
       audioUrl: audioUrl ?? this.audioUrl,
       isDownloaded: isDownloaded ?? this.isDownloaded,
-      localFilePath: localFilePath ?? this.localFilePath,
+      localFilePath: localFilePath, // Consumers ensure this is a filename
     );
   }
 
@@ -69,7 +69,7 @@ class Song {
       final id = _asString(json['id'], DateTime.now().millisecondsSinceEpoch.toString());
 
       String artist = _asString(json['artist']);
-      String albumArtUrl = _asString(json['albumArtUrl']);
+      String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
       String audioUrl = _asString(json['audioUrl']);
       
       String? albumName;
@@ -87,11 +87,11 @@ class Song {
       if (albumField is Map) {
         albumName = _asNullableString(albumField['name']);
         releaseDate = _asNullableString(albumField['release_date']) ?? releaseDate;
-        if (albumArtUrl.isEmpty && albumField.containsKey('images')) {
+        if (albumArtUrlFromJson.isEmpty && albumField.containsKey('images')) {
           final images = albumField['images'] as List?;
           if (images != null && images.isNotEmpty) {
             final firstImageMap = images.first as Map?;
-            albumArtUrl = _asString(firstImageMap?['url']);
+            albumArtUrlFromJson = _asString(firstImageMap?['url']);
           }
         }
       } else { // albumField is not a Map (could be String, null, or other type to convert)
@@ -102,12 +102,12 @@ class Song {
         title: title,
         id: id,
         artist: artist,
-        albumArtUrl: albumArtUrl,
+        albumArtUrl: albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
         releaseDate: releaseDate, // releaseDate is already String?
         audioUrl: audioUrl,
         isDownloaded: json['isDownloaded'] as bool? ?? false, // Assuming isDownloaded is boolean
-        localFilePath: _asNullableString(json['localFilePath']),
+        localFilePath: _asNullableString(json['localFilePath']), // Store as is; migration/usage logic handles interpretation
       );
     } catch (e) {
       // For debugging purposes, it can be helpful to print the problematic JSON.
@@ -120,12 +120,12 @@ class Song {
         'title': title,
         'id': id, // Ensure ID is saved
         'artist': artist,
-        'albumArtUrl': albumArtUrl,
+        'albumArtUrl': albumArtUrl, // Will save filename if correctly set by app logic
         'album': album,
         'releaseDate': releaseDate,
         'audioUrl': audioUrl,
         'isDownloaded': isDownloaded,
-        'localFilePath': localFilePath,
+        'localFilePath': localFilePath, // Will save filename if correctly set by app logic
       };
 
   // New getter to safely provide a valid audio URL

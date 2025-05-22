@@ -9,6 +9,8 @@ import 'package:package_info_plus/package_info_plus.dart'; // Import package_inf
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import '../services/api_service.dart'; // Import ApiService
 import '../models/update_info.dart';   // Import UpdateInfo
+import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
+import 'package:path/path.dart' as p; // For path joining
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -56,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
     int totalSizeBytes = 0;
+    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
@@ -66,7 +69,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Assuming Song.fromJson exists and works correctly
             final song = Song.fromJson(songMap); 
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              final file = File(song.localFilePath!);
+              // song.localFilePath is now a filename
+              final fullPath = p.join(appDocDir.path, song.localFilePath!);
+              final file = File(fullPath);
               if (await file.exists()) {
                 totalSizeBytes += await file.length();
               }
@@ -92,6 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
     int deletedFilesCount = 0;
+    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
     
     List<String> keysToUpdate = [];
     List<String> updatedJsonStrings = [];
@@ -104,8 +110,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
             // Check if the song is marked as downloaded and has a local file path
             if (songMap['isDownloaded'] == true && songMap['localFilePath'] != null && (songMap['localFilePath'] as String).isNotEmpty) {
-              final filePath = songMap['localFilePath'] as String;
-              final file = File(filePath);
+              final String fileName = songMap['localFilePath'] as String; // This is a filename
+              final fullPath = p.join(appDocDir.path, fileName);
+              final file = File(fullPath);
               if (await file.exists()) {
                 await file.delete();
                 deletedFilesCount++;

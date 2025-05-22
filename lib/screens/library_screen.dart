@@ -12,8 +12,8 @@ import 'playlist_detail_screen.dart'; // Import for navigation
 
 // Imports for file import functionality
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart'; // Required for getApplicationDocumentsDirectory
+import 'package:path/path.dart' as p; // Required for path manipulation
 import 'package:uuid/uuid.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart'; // Import for metadata
 
@@ -97,25 +97,78 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     final prefs = await SharedPreferences.getInstance();
     final Set<String> keys = prefs.getKeys();
     final List<Song> loadedSongs = [];
+    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
         final String? songJson = prefs.getString(key);
         if (songJson != null) {
           try {
-            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
-            final song = Song.fromJson(songMap);
+            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            Song song = Song.fromJson(songMap);
+            bool metadataUpdated = false;
+
+            // Migration and validation for localFilePath
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              final file = File(song.localFilePath!);
-              if (await file.exists()) {
-                loadedSongs.add(song);
-              } else {
-                // File doesn't exist, update metadata
-                song.isDownloaded = false;
-                song.localFilePath = null;
-                await prefs.setString(key, jsonEncode(song.toJson()));
+              String fileName = song.localFilePath!;
+              if (song.localFilePath!.contains(Platform.pathSeparator)) { // It's a full path, needs migration
+                fileName = p.basename(song.localFilePath!);
+              }
+              final fullPath = p.join(appDocDir.path, fileName);
+              
+              if (await File(fullPath).exists()) {
+                if (song.localFilePath != fileName) { // Was a full path, now migrated
+                  song = song.copyWith(localFilePath: fileName);
+                  songMap['localFilePath'] = fileName; // Update map for saving
+                  metadataUpdated = true;
+                }
+              } else { // File doesn't exist
+                song = song.copyWith(isDownloaded: false, localFilePath: null);
+                songMap['isDownloaded'] = false;
+                songMap['localFilePath'] = null;
+                metadataUpdated = true;
+              }
+            } else if (song.isDownloaded) { // Marked downloaded but path is null/empty
+                song = song.copyWith(isDownloaded: false, localFilePath: null);
+                songMap['isDownloaded'] = false;
+                songMap['localFilePath'] = null;
+                metadataUpdated = true;
+            }
+
+            // Migration and validation for albumArtUrl (if local)
+            if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+                String artFileName = song.albumArtUrl;
+                if (song.albumArtUrl.contains(Platform.pathSeparator)) { // Full path, needs migration
+                    artFileName = p.basename(song.albumArtUrl);
+                }
+                final fullArtPath = p.join(appDocDir.path, artFileName);
+
+                if (await File(fullArtPath).exists()) {
+                    if (song.albumArtUrl != artFileName) {
+                        song = song.copyWith(albumArtUrl: artFileName);
+                        songMap['albumArtUrl'] = artFileName;
+                        metadataUpdated = true;
+                    }
+                } else { // Local album art file missing
+                    // Optionally clear it or use a placeholder indicator.
+                    // For now, we keep the potentially broken filename if it was already a filename.
+                    // If it was a full path and file is missing, it effectively becomes "broken".
+                    // Consider if song = song.copyWith(albumArtUrl: ''); is desired here.
+                }
+            }
+            
+            if (metadataUpdated) {
+              await prefs.setString(key, jsonEncode(songMap));
+            }
+
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              // Re-check after potential modifications if file truly exists with the (potentially migrated) filename
+              final checkFile = File(p.join(appDocDir.path, song.localFilePath!));
+              if (await checkFile.exists()){
+                  loadedSongs.add(song);
               }
             }
+
           } catch (e) {
             debugPrint('Error decoding song from SharedPreferences for key $key: $e');
             // Optionally remove corrupted data: await prefs.remove(key);
@@ -317,7 +370,10 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   Future<void> _deleteDownloadedSong(Song songToDelete) async {
     try {
       if (songToDelete.localFilePath != null && songToDelete.localFilePath!.isNotEmpty) {
-        final file = File(songToDelete.localFilePath!);
+        // localFilePath is a filename
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final fullPath = p.join(appDocDir.path, songToDelete.localFilePath!);
+        final file = File(fullPath);
         if (await file.exists()) {
           await file.delete();
         }
@@ -377,9 +433,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           String originalFileName = p.basename(originalPath);
           
           // Create a unique name for the copied file to avoid conflicts
-          String uniquePrefix = _uuid.v4();
-          String newFileName = '${uniquePrefix}_$originalFileName';
-          String copiedFilePath = p.join(appDocDir.path, newFileName);
+          // String uniquePrefix = _uuid.v4(); // Not needed if newFileName is used directly
+          String newFileName = '${_uuid.v4()}_$originalFileName'; // This is just the filename
+          String copiedFilePath = p.join(appDocDir.path, newFileName); // Full path for copy destination
 
           try {
             // Copy the file to the app's documents directory
@@ -396,7 +452,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             }
 
             String songId = _uuid.v4(); // Generate a unique ID for the song
-            String albumArtPath = '';
+            String albumArtFileName = ''; // Will store just the filename
 
             if (metadata?.pictures.isNotEmpty ?? false) {
               final picture = (metadata?.pictures.isNotEmpty ?? false) ? metadata!.pictures.first : null;
@@ -410,14 +466,15 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 }
                 // Add more formats as needed
                 
-                String albumArtFileName = 'albumart_${songId}$extension';
-                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName);
+                albumArtFileName = 'albumart_${songId}$extension'; // Just the filename
+                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); // Full path for writing
                 
                 try {
                   await File(fullAlbumArtPath).writeAsBytes(picture.bytes);
-                  albumArtPath = fullAlbumArtPath; // Store local file path
+                  // albumArtPath = fullAlbumArtFullPath; // No, store filename
                 } catch (e) {
                   debugPrint('Error saving album art for $originalFileName: $e');
+                  albumArtFileName = ''; // Clear if saving failed
                 }
               }
             }
@@ -427,9 +484,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
               title: metadata?.title ?? p.basenameWithoutExtension(originalFileName), // Use metadata title or filename
               artist: metadata?.artist ?? 'Unknown Artist', // Use metadata artist or default
               album: metadata?.album, // Use metadata album or null
-              albumArtUrl: albumArtPath, // Store local path to album art or empty string
+              albumArtUrl: albumArtFileName, // Store filename for local album art
               audioUrl: '', // Not an online stream
-              localFilePath: copiedFilePath,
+              localFilePath: newFileName, // Store filename of the copied audio file
               isDownloaded: true, // Mark as "downloaded" i.e., locally available
               releaseDate: null, // Default releaseDate to null or empty string
                                  // metadata.year could be used if available and parsed
@@ -533,8 +590,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         final songObj = _songs[index];
         Widget leadingWidget;
         if (songObj.albumArtUrl.isNotEmpty) {
-          // Check if it's a local file path or a network URL
-          if (songObj.albumArtUrl.startsWith('http') || songObj.albumArtUrl.startsWith('https')) {
+          if (songObj.albumArtUrl.startsWith('http')) {
             leadingWidget = Image.network(
               songObj.albumArtUrl,
               width: 40,
@@ -544,14 +600,13 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                   const Icon(Icons.music_note, size: 40),
             );
           } else {
-            // Assume it's a local file path
-            File artFile = File(songObj.albumArtUrl);
-            leadingWidget = FutureBuilder<bool>(
-              future: artFile.exists(),
+            // Assume it's a local file (filename)
+            leadingWidget = FutureBuilder<String>(
+              future: _getResolvedLocalPath(songObj.albumArtUrl), // Resolve filename to full path
               builder: (context, snapshot) {
-                if (snapshot.data == true) {
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                   return Image.file(
-                    artFile,
+                    File(snapshot.data!), // Use resolved full path
                     width: 40,
                     height: 40,
                     fit: BoxFit.cover,
@@ -627,5 +682,25 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         ],
       ),
     );
+  }
+
+  // Helper to resolve a local filename (stored in song.albumArtUrl or song.localFilePath) to a full path
+  Future<String> _getResolvedLocalPath(String? fileName) async {
+    if (fileName == null || fileName.isEmpty) return '';
+    // If it's already an absolute path or URL (e.g. http), return as is (though local files should be filenames)
+    if (fileName.startsWith('http') || fileName.contains(Platform.pathSeparator)) {
+        // This case should ideally not happen for local files if migration is correct
+        // but as a fallback, check existence if it looks like an absolute path
+        if (!fileName.startsWith('http') && await File(fileName).exists()) return fileName;
+        if (fileName.startsWith('http')) return fileName; // It's a URL
+        return ''; // Absolute path but file doesn't exist
+    }
+    // It's a filename, resolve it
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(appDocDir.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return ''; // File not found with filename
   }
 }

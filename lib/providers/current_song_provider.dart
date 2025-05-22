@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import 'package:path/path.dart' as p; // Import path package
 
 class CurrentSongProvider with ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -89,11 +90,65 @@ class CurrentSongProvider with ChangeNotifier {
     final songJson = prefs.getString('current_song');
     if (songJson != null) {
       try {
-        _currentSong = Song.fromJson(jsonDecode(songJson));
+        Map<String, dynamic> songMap = jsonDecode(songJson);
+        Song loadedSong = Song.fromJson(songMap);
+
+        // Migration logic for localFilePath
+        if (loadedSong.isDownloaded && loadedSong.localFilePath != null && loadedSong.localFilePath!.contains(Platform.pathSeparator)) {
+          final appDocDir = await getApplicationDocumentsDirectory();
+          String fileName = p.basename(loadedSong.localFilePath!);
+          String newFullPath = p.join(appDocDir.path, fileName);
+          if (await File(newFullPath).exists()) {
+            loadedSong = loadedSong.copyWith(localFilePath: fileName); // Update to filename
+            // Persist migrated path
+            songMap['localFilePath'] = fileName;
+            await prefs.setString('current_song', jsonEncode(songMap));
+          } else { // File not found at migrated path, mark as not downloaded
+            loadedSong = loadedSong.copyWith(isDownloaded: false, localFilePath: null);
+            songMap['isDownloaded'] = false;
+            songMap['localFilePath'] = null;
+            await prefs.setString('current_song', jsonEncode(songMap));
+          }
+        }
+        // Migration logic for albumArtUrl (if local)
+        if (loadedSong.albumArtUrl.isNotEmpty && !loadedSong.albumArtUrl.startsWith('http') && loadedSong.albumArtUrl.contains(Platform.pathSeparator)) {
+            final appDocDir = await getApplicationDocumentsDirectory();
+            String fileName = p.basename(loadedSong.albumArtUrl);
+            String newFullPath = p.join(appDocDir.path, fileName);
+            if (await File(newFullPath).exists()) {
+                loadedSong = loadedSong.copyWith(albumArtUrl: fileName);
+                songMap['albumArtUrl'] = fileName;
+                await prefs.setString('current_song', jsonEncode(songMap));
+            } else { // Album art file not found, clear it or handle as needed
+                // loadedSong = loadedSong.copyWith(albumArtUrl: ''); // Example: clear if not found
+                // songMap['albumArtUrl'] = '';
+                // await prefs.setString('current_song', jsonEncode(songMap));
+            }
+        }
+
+
+        _currentSong = loadedSong;
         _currentIndex = prefs.getInt('current_index') ?? -1;
         List<String>? queueJson = prefs.getStringList('current_queue');
         if (queueJson != null) {
-          _queue = queueJson.map((sJson) => Song.fromJson(jsonDecode(sJson))).toList();
+          _queue = queueJson.map((sJson) {
+            Map<String, dynamic> itemMap = jsonDecode(sJson);
+            Song qSong = Song.fromJson(itemMap);
+            // Apply migration to queue items as well
+            if (qSong.isDownloaded && qSong.localFilePath != null && qSong.localFilePath!.contains(Platform.pathSeparator)) {
+              String fileName = p.basename(qSong.localFilePath!);
+              // Assume if current_song's path was valid, queue items would be too.
+              // For simplicity, just update to filename. Robust check would involve getApplicationDocumentsDirectory and File.exists.
+              qSong = qSong.copyWith(localFilePath: fileName);
+            }
+            if (qSong.albumArtUrl.isNotEmpty && !qSong.albumArtUrl.startsWith('http') && qSong.albumArtUrl.contains(Platform.pathSeparator)) {
+                qSong = qSong.copyWith(albumArtUrl: p.basename(qSong.albumArtUrl));
+            }
+            return qSong;
+          }).toList();
+          // Persist migrated queue
+          List<String> updatedQueueJson = _queue.map((song) => jsonEncode(song.toJson())).toList();
+          await prefs.setStringList('current_queue', updatedQueueJson);
         }
         // Do not auto-play, just load the state. UI can decide to show it.
         // If _currentSong is not null, we might want to prepare the player or show info.
@@ -118,8 +173,8 @@ class CurrentSongProvider with ChangeNotifier {
     // This ensures that any modifications to 'song' (like download status)
     // are reflected in _currentSong if it's the same logical song.
     _currentSong = song;
-    _stationName = song.title;
-    _stationFavicon = song.albumArtUrl;
+    _stationName = song.title; // This might be a regular song title or radio station name
+    _stationFavicon = song.albumArtUrl; // This might be album art URL/filename or radio favicon URL
     notifyListeners();
 
     try {
@@ -144,7 +199,9 @@ class CurrentSongProvider with ChangeNotifier {
                                   !_currentSong!.localFilePath!.startsWith('https://');
 
       if (playFromValidLocalFile) {
-        pathOrUrlToPlay = _currentSong!.localFilePath!;
+        // localFilePath is now a filename
+        final appDocDir = await getApplicationDocumentsDirectory();
+        pathOrUrlToPlay = p.join(appDocDir.path, _currentSong!.localFilePath!);
         final file = File(pathOrUrlToPlay);
         if (await file.exists()) {
           debugPrint("Local file exists: $pathOrUrlToPlay. Using DeviceFileSource for song '${_currentSong!.title}'.");
@@ -235,13 +292,14 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<String> fetchSongUrl(Song song) async {
-    // If song is downloaded and localFilePath is a valid, non-URL path
+    // If song is downloaded and localFilePath is a valid filename
     if (song.isDownloaded &&
         song.localFilePath != null &&
         song.localFilePath!.isNotEmpty &&
-        !song.localFilePath!.startsWith('http://') &&
+        !song.localFilePath!.startsWith('http://') && // Should be filename, so this check is redundant but safe
         !song.localFilePath!.startsWith('https://')) {
-      return song.localFilePath!;
+      final appDocDir = await getApplicationDocumentsDirectory();
+      return p.join(appDocDir.path, song.localFilePath!);
     }
 
     // If not downloaded, or localFilePath is invalid (e.g., a URL, empty)
@@ -507,7 +565,8 @@ class CurrentSongProvider with ChangeNotifier {
       final String sanitizedTitle = song.title
           .replaceAll(RegExp(r'[^\w\s.-]'), '_') // Replace invalid chars with underscore
           .replaceAll(RegExp(r'\s+'), '_'); // Replace spaces with underscore for cleaner names
-      final filePath = '${directory.path}/$sanitizedTitle.mp3';
+      final String fileName = '$sanitizedTitle.mp3'; // Store filename only
+      final filePath = p.join(directory.path, fileName); // Full path for writing
       final url = audioUrl;
 
       final request = http.Request('GET', Uri.parse(url));
@@ -528,7 +587,7 @@ class CurrentSongProvider with ChangeNotifier {
           await file.writeAsBytes(bytes);
           
           // Update the song instance directly
-          song.localFilePath = filePath;
+          song.localFilePath = fileName; // Store filename
           song.isDownloaded = true;
           
           _downloadProgress.remove(song.id); 
@@ -579,7 +638,7 @@ class CurrentSongProvider with ChangeNotifier {
       id: 'radio_${stationName.hashCode}_${streamUrl.hashCode}', // Unique ID for radio stream
       title: stationName,
       artist: 'Radio Station', // Consistent artist for radio streams
-      albumArtUrl: stationFavicon ?? '', // Use provided favicon, default to empty string if null
+      albumArtUrl: stationFavicon ?? '', // Use provided favicon, default to empty string if null. Assumed to be URL.
       audioUrl: streamUrl,
       localFilePath: null,
       isDownloaded: false,

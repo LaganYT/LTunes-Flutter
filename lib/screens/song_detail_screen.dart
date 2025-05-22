@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
+import 'package:path/path.dart' as p; // Import path package
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -59,7 +60,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       final String sanitizedTitle = widget.song.title
           .replaceAll(RegExp(r'[^\w\s.-]'), '_') // Replace invalid chars with underscore
           .replaceAll(RegExp(r'\s+'), '_'); // Replace spaces with underscore for cleaner names
-      final filePath = '${directory.path}/$sanitizedTitle.mp3';
+      final String fileName = '$sanitizedTitle.mp3'; // Store filename only
+      final filePath = p.join(directory.path, fileName); // Full path for writing
       final url = audioUrl;
 
       final request = http.Request('GET', Uri.parse(url));
@@ -83,12 +85,12 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
             setState(() {
               _isDownloading = false;
               // Update the song instance's properties. widget.song is final.
-              widget.song.localFilePath = filePath;
+              widget.song.localFilePath = fileName; // Store filename
               widget.song.isDownloaded = true;
             });
           }
           // Create an updated song instance for saving and propagation
-          final updatedSong = widget.song.copyWith(localFilePath: filePath, isDownloaded: true);
+          final updatedSong = widget.song.copyWith(localFilePath: fileName, isDownloaded: true); // Use filename
           
           await _saveSongMetadata(updatedSong); // Save comprehensive metadata
 
@@ -146,7 +148,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _deleteSong() async {
     try {
       if (widget.song.localFilePath != null && widget.song.localFilePath!.isNotEmpty) {
-        final file = File(widget.song.localFilePath!);
+        // localFilePath is now just a filename
+        final directory = await getApplicationDocumentsDirectory();
+        final fullPath = p.join(directory.path, widget.song.localFilePath!);
+        final file = File(fullPath);
         if (await file.exists()) {
           await file.delete();
         }
@@ -200,6 +205,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     final bool isPlayingThisSong = isCurrentSongInProvider && currentSongProvider.isPlaying;
     final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
 
+    final Song songForDisplay; // Use a different variable for clarity
+    if (isCurrentSongInProvider && currentSongProvider.currentSong != null) {
+      songForDisplay = currentSongProvider.currentSong!;
+    } else {
+      songForDisplay = widget.song;
+    }
+    
     // Determine the song instance whose download status should be displayed.
     // Prioritize the one from CurrentSongProvider if it's the same song.
     final Song songForDownloadStatus;
@@ -250,12 +262,12 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                               ),
                             ),
                           )
-                        : FutureBuilder<bool>(
-                            future: File(widget.song.albumArtUrl).exists(),
+                        : FutureBuilder<String>( // Changed to FutureBuilder<String> to resolve full path
+                            future: _getLocalImagePath(widget.song.albumArtUrl), // Helper to get full path
                             builder: (context, snapshot) {
-                              if (snapshot.data == true) {
+                              if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                                 return Image.file(
-                                  File(widget.song.albumArtUrl),
+                                  File(snapshot.data!), // Use resolved full path
                                   width: MediaQuery.of(context).size.width * 0.7,
                                   height: MediaQuery.of(context).size.width * 0.7,
                                   fit: BoxFit.cover,
@@ -305,7 +317,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                widget.song.title,
+                songForDisplay.title, // Use songForDisplay
                 style: textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
@@ -314,16 +326,16 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                widget.song.artist.isNotEmpty ? widget.song.artist : 'Unknown Artist',
+                songForDisplay.artist.isNotEmpty ? songForDisplay.artist : 'Unknown Artist', // Use songForDisplay
                 style: textTheme.titleMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
-              if (widget.song.album != null && widget.song.album!.isNotEmpty) ...[
+              if (songForDisplay.album != null && songForDisplay.album!.isNotEmpty) ...[ // Use songForDisplay
                 const SizedBox(height: 4),
                 Text(
-                  '${widget.song.album!} ${widget.song.releaseDate != null && widget.song.releaseDate!.isNotEmpty ? "(${widget.song.releaseDate!})" : ""}',
+                  '${songForDisplay.album!} ${songForDisplay.releaseDate != null && songForDisplay.releaseDate!.isNotEmpty ? "(${songForDisplay.releaseDate!})" : ""}', // Use songForDisplay
                   style: textTheme.bodyLarge?.copyWith(
                     color: colorScheme.onSurfaceVariant.withOpacity(0.8),
                   ),
@@ -436,6 +448,16 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<String> _getLocalImagePath(String imageFileName) async {
+    if (imageFileName.isEmpty || imageFileName.startsWith('http')) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, imageFileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return '';
   }
 
   void _showAddToPlaylistDialog(BuildContext context, Song song) {
