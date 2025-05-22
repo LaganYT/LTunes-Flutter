@@ -15,10 +15,5 @@
 - Download all songs from playlist, skipping already downloaded songs.
 - When downloading from the song detail screen, make sure it downloads in background
 
-## Lock Screen & Notifications
-- Integrate iOS/Android lock screen and notification media controls:
-  - Handle play/pause/next/previous commands.
-  - Ensure controls work with streaming audio URLs.
-
 ## Bug fixes
 - Fix the total song duration not showing up on ios when playing a song from a url
