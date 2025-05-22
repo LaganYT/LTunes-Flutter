@@ -47,63 +47,67 @@ class Song {
     );
   }
 
+  // Helper function to safely convert a dynamic value to String, or return a default.
+  static String _asString(dynamic value, [String defaultValue = '']) {
+    if (value is String) return value;
+    if (value != null) return value.toString();
+    return defaultValue;
+  }
+
+  // Helper function to safely convert a dynamic value to String?, or return null.
+  // Treats empty strings as valid strings, not null.
+  static String? _asNullableString(dynamic value) {
+    if (value is String) return value;
+    if (value != null) return value.toString();
+    return null;
+  }
+
   factory Song.fromJson(Map<String, dynamic> json) {
     try {
-      // Ensure the title field is correctly parsed
-      final title = json['title'] ?? json['name'] ?? 'Unknown Title';
-      final id = json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(); // Ensure ID is present
+      // Use helpers for safer parsing
+      final title = _asString(json['title'] ?? json['name'], 'Unknown Title');
+      final id = _asString(json['id'], DateTime.now().millisecondsSinceEpoch.toString());
 
-      // Prioritize direct fields (as saved by toJson)
-      String artist = json['artist'] as String? ?? '';
-      String albumArtUrl = json['albumArtUrl'] as String? ?? '';
-      String audioUrl = json['audioUrl'] as String? ?? '';
+      String artist = _asString(json['artist']);
+      String albumArtUrl = _asString(json['albumArtUrl']);
+      String audioUrl = _asString(json['audioUrl']);
       
-      // Initialize albumName to null. It will be populated by the albumField logic.
-      String? albumName; 
-      // releaseDate can be directly in json or within the album map.
-      String? releaseDate = json['releaseDate'] as String?;
+      String? albumName;
+      String? releaseDate = _asNullableString(json['releaseDate']);
 
-      // Fallback for artist if not directly available (e.g., from fresh API response)
       if (artist.isEmpty && json.containsKey('artists')) {
         final artistsList = json['artists'] as List?;
         if (artistsList != null && artistsList.isNotEmpty) {
           final firstArtistMap = artistsList.first as Map?;
-          artist = firstArtistMap?['name'] as String? ?? '';
+          artist = _asString(firstArtistMap?['name']);
         }
       }
 
-      // Fallback for album info and albumArtUrl if not directly available or album is an object
       final albumField = json['album'];
       if (albumField is Map) {
-        // If albumField is a map, get 'name' from it for albumName.
-        albumName = albumField['name'] as String?; 
-        // Prioritize release_date from album map if available and not null.
-        // If albumField['release_date'] is null, the existing value of releaseDate (from json['releaseDate']) is kept.
-        releaseDate = albumField['release_date'] as String? ?? releaseDate; 
+        albumName = _asNullableString(albumField['name']);
+        releaseDate = _asNullableString(albumField['release_date']) ?? releaseDate;
         if (albumArtUrl.isEmpty && albumField.containsKey('images')) {
           final images = albumField['images'] as List?;
           if (images != null && images.isNotEmpty) {
             final firstImageMap = images.first as Map?;
-            albumArtUrl = firstImageMap?['url'] as String? ?? '';
+            albumArtUrl = _asString(firstImageMap?['url']);
           }
         }
-      } else if (albumField is String) {
-        // If albumField is a string, use it directly as albumName.
-        albumName = albumField;
+      } else { // albumField is not a Map (could be String, null, or other type to convert)
+        albumName = _asNullableString(albumField);
       }
-      // If albumField is null or not a Map/String, albumName remains null.
-
 
       return Song(
         title: title,
-        id: id, // Use the parsed or generated ID
+        id: id,
         artist: artist,
         albumArtUrl: albumArtUrl,
-        album: albumName?.isNotEmpty == true ? albumName : null,
-        releaseDate: releaseDate,
-        audioUrl: audioUrl, // Defaulted to '' if json['audioUrl'] is null
-        isDownloaded: json['isDownloaded'] ?? false,
-        localFilePath: json['localFilePath'] as String?, // Allow null
+        album: albumName, // albumName is already String?
+        releaseDate: releaseDate, // releaseDate is already String?
+        audioUrl: audioUrl,
+        isDownloaded: json['isDownloaded'] as bool? ?? false, // Assuming isDownloaded is boolean
+        localFilePath: _asNullableString(json['localFilePath']),
       );
     } catch (e) {
       // For debugging purposes, it can be helpful to print the problematic JSON.

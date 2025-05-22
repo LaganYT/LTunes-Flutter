@@ -13,6 +13,7 @@
 - Album and artist search.
 - Download all songs from album, skipping already downloaded songs.
 - Download all songs from playlist, skipping already downloaded songs.
+- When downloading from the song detail screen, make sure it downloads in background
 
 ## Lock Screen & Notifications
 - Integrate iOS/Android lock screen and notification media controls:
@@ -21,3 +22,4 @@
 
 ## Bug fixes
 - Fix the total song duration not showing up on ios when playing a song from a url
+- Fix issue where downloads disapear everytime i install an update or install a new build
