@@ -12,6 +12,7 @@
 - Import playlists from XLSX files.
 - Album and artist search.
 - Downloading for albums and playlists.
+- Remove songs from playlists.
 - Find alternative method to get metadata from imported songs.
 
 ## Lock Screen & Notifications
