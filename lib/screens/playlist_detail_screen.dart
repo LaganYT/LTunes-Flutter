@@ -168,7 +168,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(height: 40), // Adjust for appbar title
-                        Icon(Icons.playlist_play, size: 70, color: Colors.white.withOpacity(0.8)),
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
