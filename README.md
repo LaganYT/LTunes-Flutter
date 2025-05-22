@@ -17,3 +17,6 @@
 
 ## Bug fixes
 - Fix the total song duration not showing up on ios when playing a song from a url
+
+## Do next
+- #fetch https://pub.dev/packages/audio_service #codebase can you add background playback?
