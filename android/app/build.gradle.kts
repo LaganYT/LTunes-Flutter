@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.LTunes"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion // Changed from hardcoded to flutter.ndkVersion
+    ndkVersion = "27.0.12077973" // Changed from flutter.ndkVersion to specific version
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
