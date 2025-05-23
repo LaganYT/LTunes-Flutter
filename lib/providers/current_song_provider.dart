@@ -84,17 +84,33 @@ class CurrentSongProvider with ChangeNotifier {
 
     // Add listener for playback position changes
     _audioPlayer.onPositionChanged.listen((position) {
-      // If the current song is a radio stream, update totalDuration to match current position.
-      // This makes the "total duration" appear to increase with playback time for radio.
-      if (_currentSong != null && _currentSong!.id.startsWith('radio_')) {
-        // Check if _totalDuration needs updating to avoid excessive notifications
-        if (_totalDuration != position) {
-          _totalDuration = position; // Set total duration to current position for radio
-          notifyListeners(); // Notify listeners because _totalDuration changed
+      if (_currentSong != null) {
+        bool isRadioStream = _currentSong!.id.startsWith('radio_');
+        
+        // A song is considered to be streaming with a potentially unknown or not-yet-loaded duration if:
+        // 1. It's an explicit radio stream.
+        // 2. Or, it's not marked as downloaded AND its _totalDuration is currently null or zero.
+        //    This handles cases where onDurationChanged hasn't fired or reported a valid non-zero duration yet.
+        bool streamHasUnknownOrPendingDuration = isRadioStream ||
+            (!_currentSong!.isDownloaded && (_totalDuration == null || _totalDuration == Duration.zero));
+
+        if (streamHasUnknownOrPendingDuration) {
+          // If the duration is unknown/pending and we're streaming,
+          // update _totalDuration to match the current position.
+          // This makes the "total duration" appear to increase with playback time.
+          if (_totalDuration != position) {
+            _totalDuration = position;
+            notifyListeners();
+          }
         }
+        // If onDurationChanged eventually provides a valid, non-zero duration, 
+        // the condition `(_totalDuration == null || _totalDuration == Duration.zero)` will become false,
+        // and _totalDuration will stop being updated by `position`, correctly reflecting the fixed duration.
       }
-      // For regular songs, the UI listens to the `onPositionChanged` stream directly
-      // to update the current playback position, and _totalDuration is set by onDurationChanged.
+      // For regular songs with a known, fixed duration (e.g., downloaded files, or streamed songs
+      // where onDurationChanged has already reported a valid non-zero duration),
+      // _totalDuration is primarily set by the onDurationChanged listener, and this
+      // onPositionChanged listener does not need to modify it further for that purpose.
     });
   }
 
@@ -343,6 +359,12 @@ class CurrentSongProvider with ChangeNotifier {
       }
 
       await _audioPlayer.play(playerSource);
+
+     // Fetch actual duration once playback begins (e.g. for HTTP streams)
+     Duration? actualDuration = await _audioPlayer.getDuration();
+     if (actualDuration != null && actualDuration.inMilliseconds > 0) {
+       _totalDuration = actualDuration;
+     }
 
       _isPlaying = true;
       _isLoadingAudio = false;
@@ -747,6 +769,12 @@ class CurrentSongProvider with ChangeNotifier {
       // The play method itself should handle this, but explicit stop can be safer.
       // await _audioPlayer.stop(); 
       await _audioPlayer.play(UrlSource(streamUrl));
+
+     // Also fetch duration for radio streams if the player can report one
+     Duration? actualDuration = await _audioPlayer.getDuration();
+     if (actualDuration != null && actualDuration.inMilliseconds > 0) {
+       _totalDuration = actualDuration;
+     }
 
       _isPlaying = true;
       _isLoadingAudio = false;

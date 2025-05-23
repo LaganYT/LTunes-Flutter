@@ -338,6 +338,9 @@ class FullScreenPlayer extends StatelessWidget {
                                   builder: (context, snapshot) {
                                     final position = snapshot.data ?? Duration.zero;
                                     final duration = currentSongProvider.totalDuration ?? Duration.zero;
+                                    final isRadio = currentSong.id.startsWith('radio_');
+                                    // For radio, use live current position as total duration
+                                    final effectiveDuration = isRadio ? position : duration;
 
                                     return Column(
                                       children: [
@@ -352,11 +355,11 @@ class FullScreenPlayer extends StatelessWidget {
                                             overlayColor: colorScheme.primary.withOpacity(0.2),
                                           ),
                                           child: Slider(
-                                            value: (duration.inMilliseconds > 0 && position.inMilliseconds <= duration.inMilliseconds)
+                                            value: (effectiveDuration.inMilliseconds > 0 && position.inMilliseconds <= effectiveDuration.inMilliseconds)
                                                 ? position.inMilliseconds.toDouble()
                                                 : 0.0,
                                             min: 0.0,
-                                            max: duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1.0,
+                                            max: effectiveDuration.inMilliseconds > 0 ? effectiveDuration.inMilliseconds.toDouble() : 1.0,
                                             onChanged: (value) {
                                               currentSongProvider.seek(Duration(milliseconds: value.round()));
                                             },
@@ -368,7 +371,7 @@ class FullScreenPlayer extends StatelessWidget {
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
                                               Text(_formatDuration(position), style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-                                              Text(_formatDuration(duration), style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+                                              Text(isRadio ? 'Live' : _formatDuration(effectiveDuration), style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
                                             ],
                                           ),
                                         ),
