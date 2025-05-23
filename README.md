@@ -18,3 +18,4 @@
 ## Do next
 - #fetch https://pub.dev/packages/audio_service #codebase can you add background playback?
 - Fix song duration display (showing 00:00 instead of actual duration).
+- When playing from search results, still check if a song is downloaded, if so then play that verison of the song.
