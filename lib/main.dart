@@ -9,13 +9,36 @@ import 'services/api_service.dart'; // Import ApiService
 import 'models/update_info.dart';   // Import UpdateInfo
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
+import 'package:audio_service/audio_service.dart'; // Import audio_service
+import 'services/audio_handler.dart'; // Import your AudioPlayerHandler
 
-void main() {
+// Global instance of the AudioPlayerHandler
+late AudioHandler _audioHandler;
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Required for audio_service
+  _audioHandler = await AudioService.init(
+    builder: () => AudioPlayerHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.mycompany.myapp.channel.audio', // Replace with your app's ID
+      androidNotificationChannelName: 'LTunes Audio Playback',
+      androidNotificationOngoing: true,
+      // Other configurations as needed:
+      // androidStopForegroundOnPause: true,
+      // androidNotificationIcon: 'mipmap/ic_launcher', // default is 'mipmap/ic_launcher'
+    ),
+  );
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        ChangeNotifierProvider(create: (context) => CurrentSongProvider()), // Ensure this is initialized
+        // Provide the _audioHandler instance to CurrentSongProvider
+        ChangeNotifierProvider(
+          create: (context) => CurrentSongProvider(_audioHandler),
+        ),
+        // You can also provide _audioHandler directly if other widgets need it:
+        // Provider<AudioHandler>.value(value: _audioHandler),
       ],
       child: const LTunesApp(),
     ),

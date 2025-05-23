@@ -13,8 +13,6 @@
 - When downloading from the song detail screen, make sure it downloads in background
 
 ## Bug Fixes
-- Fix song duration display (showing 00:00 instead of actual duration). - IOS
-- When playing from search results, still check if a song is downloaded, if so then play that verison of the song.
 - When a radio station is playing disable the skip, previous, shuffle, loop, queue, download, and add to playlist buttons.
 
 ## Add background playback
