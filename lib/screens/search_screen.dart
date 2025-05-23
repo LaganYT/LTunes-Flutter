@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io'; // Required for File
+import 'package:path_provider/path_provider.dart'; // Added import
+import 'package:path/path.dart' as p; // Added import
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -94,6 +96,17 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       _stationsFuture = newStationsFuture;
     });
     await newStationsFuture;
+  }
+
+  // Helper method to resolve local album art path
+  Future<String> _resolveLocalArtPath(String fileName) async {
+    if (fileName.isEmpty) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return '';
   }
 
   @override
@@ -200,12 +213,12 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                   );
                 } else {
                   // This case is less likely for search results from an API, but included for completeness
-                  leadingImage = FutureBuilder<bool>(
-                    future: File(song.albumArtUrl).exists(),
+                  leadingImage = FutureBuilder<String>(
+                    future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
                     builder: (context, snapshot) {
-                      if (snapshot.data == true) {
+                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                         return Image.file(
-                          File(song.albumArtUrl),
+                          File(snapshot.data!),
                           width: 56,
                           height: 56,
                           fit: BoxFit.cover,
@@ -365,5 +378,4 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         );
       },
     );
-  }
-}
+  }}

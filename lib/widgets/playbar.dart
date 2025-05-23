@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart'; // Ensure this is the correct path to CurrentSongProvider
 import '../widgets/full_screen_player.dart';
+import 'package:path_provider/path_provider.dart'; // Added import
+import 'package:path/path.dart' as p; // Added import
 
 
 class Playbar extends StatefulWidget {
@@ -29,6 +31,17 @@ class _PlaybarState extends State<Playbar> {
   void playUrl(String url) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     currentSongProvider.playUrl(url);
+  }
+
+  // Helper method to resolve local album art path
+  Future<String> _resolveLocalArtPath(String fileName) async {
+    if (fileName.isEmpty) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return '';
   }
 
   @override
@@ -58,14 +71,13 @@ class _PlaybarState extends State<Playbar> {
               Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
         );
       } else {
-        // Assume it's a local file path
-        File artFile = File(currentSong.albumArtUrl);
-        leadingWidget = FutureBuilder<bool>(
-          future: artFile.exists(),
+        // Assume it's a local file path (filename)
+        leadingWidget = FutureBuilder<String>(
+          future: _resolveLocalArtPath(currentSong.albumArtUrl),
           builder: (context, snapshot) {
-            if (snapshot.data == true) {
+            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
               return Image.file(
-                artFile,
+                File(snapshot.data!),
                 width: 48,
                 height: 48,
                 fit: BoxFit.cover,
@@ -73,7 +85,7 @@ class _PlaybarState extends State<Playbar> {
                     Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
               );
             }
-            // Show placeholder while checking or if file doesn't exist
+            // Show placeholder while checking or if file doesn't exist/path is empty
             return Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
           },
         );

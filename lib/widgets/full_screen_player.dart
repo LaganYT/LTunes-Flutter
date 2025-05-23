@@ -5,6 +5,8 @@ import '../models/song.dart';
 import '../models/playlist.dart'; // Import Playlist model
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import 'package:path_provider/path_provider.dart'; // Added import
+import 'package:path/path.dart' as p; // Added import
 
 class FullScreenPlayer extends StatelessWidget {
   const FullScreenPlayer({super.key});
@@ -15,6 +17,17 @@ class FullScreenPlayer extends StatelessWidget {
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
     return "$minutes:$seconds";
+  }
+
+  // Helper method to resolve local album art path
+  Future<String> _resolveLocalArtPath(String fileName) async {
+    if (fileName.isEmpty) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return '';
   }
 
   void _showQueueBottomSheet(BuildContext context, CurrentSongProvider provider) {
@@ -68,12 +81,12 @@ class FullScreenPlayer extends StatelessWidget {
                                   errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant),
                                 );
                               } else {
-                                leadingImage = FutureBuilder<bool>(
-                                  future: File(song.albumArtUrl).exists(),
+                                leadingImage = FutureBuilder<String>(
+                                  future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
                                   builder: (context, snapshot) {
-                                    if (snapshot.data == true) {
+                                    if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                                       return Image.file(
-                                        File(song.albumArtUrl),
+                                        File(snapshot.data!),
                                         width: 50,
                                         height: 50,
                                         fit: BoxFit.cover,
@@ -261,12 +274,12 @@ class FullScreenPlayer extends StatelessWidget {
                                                 child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
                                               ),
                                             )
-                                          : FutureBuilder<bool>(
-                                              future: File(currentSong.albumArtUrl).exists(),
+                                          : FutureBuilder<String>(
+                                              future: _resolveLocalArtPath(currentSong.albumArtUrl), // Use helper
                                               builder: (context, snapshot) {
-                                                if (snapshot.data == true) {
+                                                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                                                   return Image.file(
-                                                    File(currentSong.albumArtUrl),
+                                                    File(snapshot.data!),
                                                     width: MediaQuery.of(context).size.width * 0.75,
                                                     height: MediaQuery.of(context).size.width * 0.75,
                                                     fit: BoxFit.cover,
@@ -325,6 +338,7 @@ class FullScreenPlayer extends StatelessWidget {
                                   builder: (context, snapshot) {
                                     final position = snapshot.data ?? Duration.zero;
                                     final duration = currentSongProvider.totalDuration ?? Duration.zero;
+
                                     return Column(
                                       children: [
                                         SliderTheme(

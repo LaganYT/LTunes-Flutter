@@ -5,6 +5,8 @@ import '../models/playlist.dart';
 import '../models/song.dart'; // Ensure Song model is imported
 import '../providers/current_song_provider.dart';
 import 'dart:io'; // Required for File
+import 'package:path_provider/path_provider.dart'; // Added import
+import 'package:path/path.dart' as p; // Added import
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -16,6 +18,18 @@ class PlaylistDetailScreen extends StatefulWidget {
 }
 
 class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
+
+  // Helper method to resolve local album art path
+  Future<String> _resolveLocalArtPath(String fileName) async {
+    if (fileName.isEmpty) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return '';
+  }
+
   Future<void> _showRemoveSongDialog(Song songToRemove, int originalIndexInPlaylist) async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     // Capture mounted state outside async gap if used across await
@@ -117,12 +131,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[800]),
         );
       } else {
-        appBarBackground = FutureBuilder<bool>(
-          future: File(firstSongArtUrl).exists(),
+        appBarBackground = FutureBuilder<String>(
+          future: _resolveLocalArtPath(firstSongArtUrl), // Use helper
           builder: (context, snapshot) {
-            if (snapshot.data == true) {
+            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
               return Image.file(
-                File(firstSongArtUrl),
+                File(snapshot.data!),
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[800]),
               );
@@ -272,12 +286,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       );
                     } else {
-                      listItemLeading = FutureBuilder<bool>(
-                        future: File(song.albumArtUrl).exists(),
+                      listItemLeading = FutureBuilder<String>(
+                        future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
                         builder: (context, snapshot) {
-                          if (snapshot.data == true) {
+                          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                             return Image.file(
-                              File(song.albumArtUrl),
+                              File(snapshot.data!),
                               width: 50,
                               height: 50,
                               fit: BoxFit.cover,

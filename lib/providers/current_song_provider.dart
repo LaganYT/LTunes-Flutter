@@ -43,6 +43,11 @@ class CurrentSongProvider with ChangeNotifier {
   CurrentSongProvider() {
     _loadCurrentSongFromStorage(); // Load the last playing song and queue on initialization
     _audioPlayer.onDurationChanged.listen((duration) {
+      // Add diagnostic print to observe the duration reported by the plugin
+      debugPrint('[CurrentSongProvider] onDurationChanged: $duration, Current Song: ${_currentSong?.title}');
+      // For non-radio streams, this sets the actual total duration.
+      // For radio streams, this might set it to zero or some initial value,
+      // but the onPositionChanged listener below will continuously update it.
       _totalDuration = duration;
       notifyListeners();
     });
@@ -65,9 +70,24 @@ class CurrentSongProvider with ChangeNotifier {
           _isLoadingAudio = false;
           // Optionally, clear _currentSong if it was a radio stream that ended and isn't looping.
           // For now, keep it as the last played item.
+          if (_currentSong != null && _currentSong!.id.startsWith('radio_')) {
+            _totalDuration = Duration.zero; // Ensure duration is zero for ended radio
+          }
           notifyListeners();
         }
       }
+    });
+
+    // Add listener for playback position changes
+    _audioPlayer.onPositionChanged.listen((position) {
+      // If the current song is a radio stream, update totalDuration to match current position.
+      // This makes the "total duration" appear to increase with playback time for radio.
+      if (_currentSong != null && _currentSong!.id.startsWith('radio_')) {
+        _totalDuration = Duration.zero; // Set to zero to hide progress
+        notifyListeners(); // Notify listeners because _totalDuration changed
+      }
+      // For regular songs, the UI listens to the `onPositionChanged` stream directly
+      // to update the current playback position, and _totalDuration is set by onDurationChanged.
     });
   }
 
