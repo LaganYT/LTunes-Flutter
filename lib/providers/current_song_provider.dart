@@ -45,11 +45,15 @@ class CurrentSongProvider with ChangeNotifier {
     _audioPlayer.onDurationChanged.listen((duration) {
       // Add diagnostic print to observe the duration reported by the plugin
       debugPrint('[CurrentSongProvider] onDurationChanged: $duration, Current Song: ${_currentSong?.title}');
-      // For non-radio streams, this sets the actual total duration.
-      // For radio streams, this might set it to zero or some initial value,
-      // but the onPositionChanged listener below will continuously update it.
-      _totalDuration = duration;
-      notifyListeners();
+      
+      // Only update and notify if there's an active song and the duration has actually changed.
+      // This prevents late events from stopped songs from altering _totalDuration and avoids redundant notifications.
+      if (_currentSong != null && _totalDuration != duration) {
+        _totalDuration = duration;
+        notifyListeners();
+      }
+      // If _currentSong is null, _totalDuration should have been handled by methods like stopSong().
+      // If _totalDuration is already equal to the new duration, no notification is needed.
     });
 
     _audioPlayer.onPlayerComplete.listen((_) {
@@ -83,8 +87,11 @@ class CurrentSongProvider with ChangeNotifier {
       // If the current song is a radio stream, update totalDuration to match current position.
       // This makes the "total duration" appear to increase with playback time for radio.
       if (_currentSong != null && _currentSong!.id.startsWith('radio_')) {
-        _totalDuration = Duration.zero; // Set to zero to hide progress
-        notifyListeners(); // Notify listeners because _totalDuration changed
+        // Check if _totalDuration needs updating to avoid excessive notifications
+        if (_totalDuration != position) {
+          _totalDuration = position; // Set total duration to current position for radio
+          notifyListeners(); // Notify listeners because _totalDuration changed
+        }
       }
       // For regular songs, the UI listens to the `onPositionChanged` stream directly
       // to update the current playback position, and _totalDuration is set by onDurationChanged.
@@ -268,28 +275,69 @@ class CurrentSongProvider with ChangeNotifier {
         // Logic for streaming if not a valid local file
         if (_currentSong!.isDownloaded && (_currentSong!.localFilePath == null || _currentSong!.localFilePath!.isEmpty || _currentSong!.localFilePath!.startsWith('http'))) {
           debugPrint("Warning: Song '${_currentSong!.title}' is marked downloaded but localFilePath is invalid ('${_currentSong!.localFilePath}'). Attempting to stream.");
-          // This state is problematic. Consider correcting metadata here too.
-          // For now, it proceeds to stream. If this also fails, the error below will be caught.
         }
 
         pathOrUrlToPlay = _urlCache[_currentSong!.id] ?? '';
+        bool pathWasFetchedFromApi = false;
 
-        if (pathOrUrlToPlay.isEmpty || !(Uri.tryParse(pathOrUrlToPlay)?.isAbsolute ?? false)) {
-          if (_currentSong!.audioUrl.isNotEmpty && (Uri.tryParse(_currentSong!.audioUrl)?.isAbsolute ?? false)) {
-            pathOrUrlToPlay = _currentSong!.audioUrl;
-          } else {
-            pathOrUrlToPlay = await fetchSongUrl(_currentSong!);
-          }
-          
-          if (pathOrUrlToPlay.isNotEmpty && (Uri.tryParse(pathOrUrlToPlay)?.isAbsolute ?? false)) {
-            _urlCache[_currentSong!.id] = pathOrUrlToPlay;
-          }
+        // Check if cached URL is valid, otherwise try to resolve it
+        final cachedUri = Uri.tryParse(pathOrUrlToPlay);
+        if (pathOrUrlToPlay.isEmpty || cachedUri == null || !cachedUri.isAbsolute || !(cachedUri.scheme == 'http' || cachedUri.scheme == 'https')) {
+            // Cached URL is not valid or empty, try song.audioUrl or fetch from API
+            pathOrUrlToPlay = ''; // Reset pathOrUrlToPlay
+
+            final currentSongAudioUri = Uri.tryParse(_currentSong!.audioUrl);
+            if (currentSongAudioUri != null && currentSongAudioUri.isAbsolute &&
+                (currentSongAudioUri.scheme == 'http' || currentSongAudioUri.scheme == 'https')) {
+                pathOrUrlToPlay = _currentSong!.audioUrl;
+            } else {
+                // song.audioUrl is not a direct streamable URL, fetch from API
+                final apiService = ApiService();
+                String? fetchedApiUrl = await apiService.fetchAudioUrl(_currentSong!.artist, _currentSong!.title);
+                if (fetchedApiUrl != null && fetchedApiUrl.isNotEmpty) {
+                    final parsedApiUri = Uri.tryParse(fetchedApiUrl);
+                    if (parsedApiUri != null && parsedApiUri.isAbsolute &&
+                        (parsedApiUri.scheme == 'http' || parsedApiUri.scheme == 'https')) {
+                        pathOrUrlToPlay = fetchedApiUrl;
+                        pathWasFetchedFromApi = true;
+                    } else {
+                        debugPrint("API for '${_currentSong!.title}' returned an invalid/non-HTTP URL: $fetchedApiUrl");
+                    }
+                }
+            }
         }
         
-        final parsedUri = Uri.tryParse(pathOrUrlToPlay);
-        if (pathOrUrlToPlay.isEmpty || parsedUri == null || !parsedUri.isAbsolute || !parsedUri.hasScheme) {
-          throw Exception('Invalid or missing audio URL for streaming for song "${_currentSong!.title}": "$pathOrUrlToPlay"');
+        final parsedUriToPlay = Uri.tryParse(pathOrUrlToPlay);
+        if (pathOrUrlToPlay.isEmpty || parsedUriToPlay == null || !parsedUriToPlay.isAbsolute || !(parsedUriToPlay.scheme == 'http' || parsedUriToPlay.scheme == 'https')) {
+          _isLoadingAudio = false;
+          _isPlaying = false;
+          notifyListeners();
+          throw Exception('Failed to obtain a valid streamable URL for song "${_currentSong!.title}". Attempted URL: "$pathOrUrlToPlay"');
         }
+
+        // If pathOrUrlToPlay is a valid streamable URL, and it's different from _currentSong.audioUrl,
+        // or if _currentSong.audioUrl was deficient, update _currentSong.audioUrl.
+        bool originalAudioUrlWasDeficient = true;
+        final originalSongUri = Uri.tryParse(_currentSong!.audioUrl);
+        if (originalSongUri != null && originalSongUri.isAbsolute && (originalSongUri.scheme == 'http' || originalSongUri.scheme == 'https')) {
+            originalAudioUrlWasDeficient = false;
+        }
+
+        if (pathOrUrlToPlay != _currentSong!.audioUrl && (pathWasFetchedFromApi || originalAudioUrlWasDeficient)) {
+            debugPrint("Updating song '${_currentSong!.title}' audioUrl from '${_currentSong!.audioUrl}' to '$pathOrUrlToPlay'");
+            Song updatedSong = _currentSong!.copyWith(audioUrl: pathOrUrlToPlay);
+            _currentSong = updatedSong;
+
+            final indexInQueueIfPresent = _queue.indexWhere((s) => s.id == updatedSong.id);
+            if (indexInQueueIfPresent != -1) {
+                _queue[indexInQueueIfPresent] = updatedSong;
+            }
+            await _persistSongMetadata(updatedSong);
+            PlaylistManagerService().updateSongInPlaylists(updatedSong);
+            // _saveCurrentSongToStorage() called later will persist the updated _currentSong and _queue.
+        }
+        
+        _urlCache[_currentSong!.id] = pathOrUrlToPlay; // Cache the final URL to play
         debugPrint("Attempting to play from URL: $pathOrUrlToPlay for song '${_currentSong!.title}'");
         playerSource = UrlSource(pathOrUrlToPlay);
       }
@@ -341,9 +389,33 @@ class CurrentSongProvider with ChangeNotifier {
       final nextIndex = _currentIndex + i;
       if (nextIndex < _queue.length) {
         final nextSong = _queue[nextIndex];
-        if (!_urlCache.containsKey(nextSong.id)) {
-          final url = await fetchSongUrl(nextSong);
-          _urlCache[nextSong.id] = url;
+        // Only prefetch streamable URLs for non-downloaded songs not already in cache
+        if (!_urlCache.containsKey(nextSong.id) && !nextSong.isDownloaded) {
+          String streamUrl = '';
+          final songAudioUri = Uri.tryParse(nextSong.audioUrl);
+
+          if (songAudioUri != null && songAudioUri.isAbsolute && 
+              (songAudioUri.scheme == 'http' || songAudioUri.scheme == 'https')) {
+            streamUrl = nextSong.audioUrl;
+          } else {
+            // Fetch from API if song.audioUrl is not a direct streamable URL
+            final apiService = ApiService();
+            String? apiUrl = await apiService.fetchAudioUrl(nextSong.artist, nextSong.title);
+            if (apiUrl != null && apiUrl.isNotEmpty) {
+                 final parsedApiUrl = Uri.tryParse(apiUrl);
+                 if (parsedApiUrl != null && parsedApiUrl.isAbsolute && 
+                     (parsedApiUrl.scheme == 'http' || parsedApiUrl.scheme == 'https')) {
+                    streamUrl = apiUrl;
+                 } else {
+                    debugPrint("Prefetch: API for '${nextSong.title}' returned invalid URL: $apiUrl");
+                 }
+            }
+          }
+          
+          if (streamUrl.isNotEmpty) {
+            _urlCache[nextSong.id] = streamUrl;
+            debugPrint("Prefetched URL for '${nextSong.title}': $streamUrl");
+          }
         }
       }
     }
