@@ -17,8 +17,6 @@ dependencies:
   dart_tags: ^0.4.1
   audio_metadata_reader: ^1.4.1
   dio: ^5.8.0+1
-  just_audio: ^0.10.3
-  just_audio_background: ^0.0.1-beta.17
   file_picker: ^10.1.9
   path: ^1.9.1
   uuid: ^3.0.7
