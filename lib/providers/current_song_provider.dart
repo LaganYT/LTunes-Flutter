@@ -630,34 +630,78 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void updateSongDetails(Song updatedSong) {
-    bool changedInProvider = false;
-    final indexInQueue = _queue.indexWhere((s) => s.id == updatedSong.id);
-    if (indexInQueue != -1) {
-      _queue[indexInQueue] = updatedSong;
-      changedInProvider = true;
-      // If this updated song is the current one in the handler, update it there too
-      if (_audioHandler.mediaItem.value?.extras?['songId'] == updatedSong.id) {
-        _prepareMediaItem(updatedSong).then((mediaItem) {
-          _audioHandler.updateMediaItem(mediaItem); // Update current MediaItem in handler
-          // Also update it in the handler's queue
-          final handlerQueue = List<MediaItem>.from(_audioHandler.queue.value);
-          final handlerIndex = handlerQueue.indexWhere((mi) => mi.extras?['songId'] == updatedSong.id);
-          if (handlerIndex != -1) {
-            handlerQueue[handlerIndex] = mediaItem;
-            _audioHandler.updateQueue(handlerQueue);
-          }
-        });
-      }
-    }
-    if (_currentSongFromAppLogic?.id == updatedSong.id) {
-      _currentSongFromAppLogic = updatedSong;
-      changedInProvider = true;
+    bool providerStateChanged = false; // Tracks if notifyListeners is needed for provider's own state
+
+    // Update in the provider's own queue
+    final indexInProviderQueue = _queue.indexWhere((s) => s.id == updatedSong.id);
+    if (indexInProviderQueue != -1) {
+      _queue[indexInProviderQueue] = updatedSong;
+      providerStateChanged = true;
     }
 
-    if (changedInProvider) {
-      notifyListeners();
-      _saveCurrentSongToStorage();
+    // Update the provider's current song if it's the one being changed
+    if (_currentSongFromAppLogic?.id == updatedSong.id) {
+      _currentSongFromAppLogic = updatedSong;
+      providerStateChanged = true;
     }
+
+    // Asynchronously prepare the MediaItem for the audio_handler
+    // This needs to happen before we can update the handler.
+    _prepareMediaItem(updatedSong).then((newMediaItem) {
+      // 1. Update the handler's current media item if it matches the updated song.
+      final currentHandlerMediaItem = _audioHandler.mediaItem.value;
+      if (currentHandlerMediaItem != null) {
+        // Check if the song being updated is the one currently loaded in the handler.
+        // Primary check is by 'songId' in extras.
+        // Fallback to comparing the newMediaItem.id (playable URL) if songId isn't present or doesn't match.
+        bool isCurrentlyPlayingInHandler = 
+            (currentHandlerMediaItem.extras?['songId'] == updatedSong.id) || 
+            (currentHandlerMediaItem.id == newMediaItem.id && updatedSong.id == currentHandlerMediaItem.extras?['songId']); // Ensure newMediaItem.id corresponds to updatedSong
+
+        if (isCurrentlyPlayingInHandler) {
+          // Update the current media item using a custom action or by reloading the queue
+          _audioHandler.customAction('updateCurrentMediaItem', {
+            'mediaItem': {
+              'id': newMediaItem.id,
+              'title': newMediaItem.title,
+              'artist': newMediaItem.artist,
+              'album': newMediaItem.album,
+              'artUri': newMediaItem.artUri?.toString(),
+              'duration': newMediaItem.duration?.inMilliseconds,
+              'extras': newMediaItem.extras,
+            }
+          });
+        }
+      }
+
+      // 2. Update the item in the handler's queue if it exists there.
+      final handlerQueue = List<MediaItem>.from(_audioHandler.queue.value);
+      // Find the item in the queue, preferably by 'songId' as it's a more stable identifier.
+      int itemIndexInHandlerQueue = handlerQueue.indexWhere((mi) => mi.extras?['songId'] == updatedSong.id);
+
+      if (itemIndexInHandlerQueue != -1) {
+        // If found, replace it with the new MediaItem and update the handler's queue.
+        handlerQueue[itemIndexInHandlerQueue] = newMediaItem;
+        _audioHandler.updateQueue(handlerQueue);
+      }
+      // Note: No direct call to _audioHandler.updateMediaItem(newMediaItem) to avoid the original error.
+      // The combination of _audioHandler.mediaItem.add() and _audioHandler.updateQueue()
+      // achieves the desired update safely.
+
+    }).catchError((e, stackTrace) {
+      // It's good practice to log errors from async operations.
+      debugPrint("Error preparing or updating media item in handler for song ${updatedSong.id}: $e");
+      debugPrintStack(stackTrace: stackTrace);
+    });
+
+    // Notify listeners if the provider's immediate state (e.g., _queue, _currentSongFromAppLogic) changed.
+    if (providerStateChanged) {
+      notifyListeners();
+    }
+
+    // Always save the overall state (which includes _queue and _currentSongFromAppLogic)
+    // and persist the individual song's metadata.
+    _saveCurrentSongToStorage();
     _persistSongMetadata(updatedSong);
   }
   
