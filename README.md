@@ -15,8 +15,6 @@
 - Download all songs from playlist, skipping already downloaded songs.
 - When downloading from the song detail screen, make sure it downloads in background
 
-## Bug fixes
-- Fix the total song duration not showing up on ios when playing a song from a url
-
 ## Do next
 - #fetch https://pub.dev/packages/audio_service #codebase can you add background playback?
+- Fix song duration display (showing 00:00 instead of actual duration).
