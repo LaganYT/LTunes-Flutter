@@ -14,14 +14,13 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
     title: song.title,
     artist: song.artist,
     album: song.album,
-    // Removed invalid parameter 'updatePosition'
     artUri: song.albumArtUrl.isNotEmpty ? Uri.tryParse(song.albumArtUrl) : null,
     extras: {
       'songId': song.id, // Original song ID from your app's model
       'isLocal': song.isDownloaded,
-      // Store the original albumArtUrl if it was a local filename,
-      // as artUri might be null if it couldn't be parsed as a Uri.
-      'localArtFileName': !song.albumArtUrl.startsWith('http') ? song.albumArtUrl : null,
+      'localArtFileName': !song.albumArtUrl.startsWith('http') && song.albumArtUrl.isNotEmpty ? song.albumArtUrl : null,
+      // Add other necessary extras, like 'isRadio' if applicable
+      // 'isRadio': song.isRadioStream, // Example
     },
   );
 }
@@ -42,25 +41,52 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // For now, queue is managed by CurrentSongProvider sending updates.
   }
 
-  // ignore: unused_element
-  Future<String> _resolveArtUri(MediaItem item) async {
-    if (item.artUri != null && item.artUri.toString().startsWith('http')) {
-      return item.artUri.toString();
+  // Renamed and repurposed _resolveArtUri to _resolveArtForItem
+  // This method tries to resolve art URI for local files if it's not already a file URI.
+  Future<MediaItem> _resolveArtForItem(MediaItem item) async {
+    String? artFileNameToResolve;
+    bool isHttp = item.artUri?.toString().startsWith('http') ?? false;
+    bool isFileUri = item.artUri?.isScheme('file') ?? false;
+
+    if (item.artUri != null && !isHttp && !isFileUri) {
+        // artUri is present but is not http and not a file URI, implies it might be a relative path
+        artFileNameToResolve = item.artUri.toString();
+    } else if (item.artUri == null && item.extras?['localArtFileName'] != null) {
+        // artUri is null, but localArtFileName is available
+        artFileNameToResolve = item.extras!['localArtFileName'] as String;
     }
-    if (item.extras?['localArtFileName'] != null) {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, item.extras!['localArtFileName'] as String);
-      if (await File(fullPath).exists()) {
-        return Uri.file(fullPath).toString();
-      }
+
+    if (artFileNameToResolve != null && artFileNameToResolve.isNotEmpty && (item.extras?['isLocal'] as bool? ?? false)) {
+        try {
+            final directory = await getApplicationDocumentsDirectory();
+            final fullPath = p.join(directory.path, artFileNameToResolve);
+            if (await File(fullPath).exists()) {
+                return item.copyWith(artUri: Uri.file(fullPath));
+            } else {
+                debugPrint("Local art file not found: $fullPath");
+                return item.copyWith(artUri: null); // Art not found, clear URI
+            }
+        } catch (e) {
+            debugPrint("Error resolving local art URI for ${artFileNameToResolve}: $e");
+            return item.copyWith(artUri: null); // Error, clear URI
+        }
     }
-    return item.artUri?.toString() ?? '';
+    return item; // Return original item if no resolution needed/possible or if it's an HTTP URI
   }
 
 
   void _notifyAudioHandlerAboutPlaybackEvents() {
     _audioPlayer.onPlayerStateChanged.listen((state) async {
       final playing = state == PlayerState.playing;
+      // Get current position safely
+      Duration currentPosition = Duration.zero;
+      try {
+        currentPosition = await _audioPlayer.getCurrentPosition() ?? Duration.zero;
+      } catch (e) {
+        // Handle error, e.g. player not initialized
+        debugPrint("Error getting current position: $e");
+      }
+
       playbackState.add(playbackState.value.copyWith(
         controls: [
           MediaControl.skipToPrevious,
@@ -82,25 +108,26 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           PlayerState.disposed: AudioProcessingState.idle, // Or handle appropriately
         }[state] ?? AudioProcessingState.loading, // Default to loading or error
         playing: playing,
-        updatePosition: await _audioPlayer.getCurrentPosition() ?? Duration.zero,
+        updatePosition: currentPosition, // Use fetched position
         bufferedPosition: Duration.zero, // Placeholder as audioplayers does not provide bufferedPosition
-        speed: _audioPlayer.playbackRate,
+        speed: _audioPlayer.playbackRate, // Consider safety if player can be uninitialized
         queueIndex: _currentIndex,
       ));
     });
 
     _audioPlayer.onDurationChanged.listen((duration) {
-      if (mediaItem.value != null && mediaItem.value!.duration != duration) {
-        mediaItem.add(mediaItem.value!.copyWith(duration: duration));
+      // Ensure mediaItem.value is not null before accessing its properties
+      final currentMediaItem = mediaItem.value;
+      if (currentMediaItem != null && currentMediaItem.duration != duration) {
+        mediaItem.add(currentMediaItem.copyWith(duration: duration));
       }
-      playbackState.add(playbackState.value.copyWith(
-      ));
+      // playbackState update might not be needed here unless duration affects other state fields
     });
 
     _audioPlayer.onPositionChanged.listen((position) {
-       if (_isRadioStream && mediaItem.value != null) {
-         // For radio streams, update duration to reflect elapsed time
-         mediaItem.add(mediaItem.value!.copyWith(duration: position));
+       final currentMediaItem = mediaItem.value;
+       if (_isRadioStream && currentMediaItem != null) {
+         mediaItem.add(currentMediaItem.copyWith(duration: position));
        }
       playbackState.add(playbackState.value.copyWith(
         updatePosition: position,
@@ -126,26 +153,26 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> addQueueItems(List<MediaItem> mediaItems) async {
     _playlist.addAll(mediaItems);
-    queue.add(_playlist);
+    queue.add(List.unmodifiable(_playlist)); // Broadcast an unmodifiable copy
   }
 
   @override
   Future<void> addQueueItem(MediaItem item) async {
     _playlist.add(item);
-    queue.add(_playlist);
+    queue.add(List.unmodifiable(_playlist));
   }
 
   @override
   Future<void> insertQueueItem(int index, MediaItem item) async {
     _playlist.insert(index, item);
-    queue.add(_playlist);
+    queue.add(List.unmodifiable(_playlist));
   }
 
   @override
   Future<void> updateQueue(List<MediaItem> newQueue) async {
     _playlist.clear();
     _playlist.addAll(newQueue);
-    queue.add(_playlist);
+    queue.add(List.unmodifiable(_playlist));
     // If current index is out of bounds, reset it
     if (_currentIndex >= _playlist.length) {
         _currentIndex = _playlist.isNotEmpty ? 0 : -1;
@@ -156,7 +183,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> removeQueueItemAt(int index) async {
     if (index < 0 || index >= _playlist.length) return;
     _playlist.removeAt(index);
-    queue.add(_playlist);
+    queue.add(List.unmodifiable(_playlist));
     if (_currentIndex == index) {
       if (_playlist.isEmpty) {
         _currentIndex = -1;
@@ -178,20 +205,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
+    // If no current index or playlist is empty, try starting from the first item.
+    if (_currentIndex < 0 && _playlist.isNotEmpty) {
+      _currentIndex = 0;
+    }
+    // Proceed if current index is valid.
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-      final itemToPlay = _playlist[_currentIndex];
-      mediaItem.add(itemToPlay); // Broadcast current item
-      _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
-
-      Source source;
-      if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
-        // item.id is already the full local path
-        source = DeviceFileSource(itemToPlay.id);
-      } else {
-        source = UrlSource(itemToPlay.id);
-      }
-      await _audioPlayer.play(source);
-      playbackState.add(playbackState.value.copyWith(playing: true));
+      await skipToQueueItem(_currentIndex); // skipToQueueItem handles art resolution and playback
+    } else {
+      // Optionally handle empty playlist scenario, e.g., log or update UI
+      debugPrint("Play called on empty or invalid queue index.");
     }
   }
 
@@ -207,12 +230,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> stop() async {
     await _audioPlayer.stop();
-    _currentIndex = -1;
-    mediaItem.add(null);
+    // _currentIndex = -1; // Keep current index to allow resume from same spot? Or reset.
+                         // Resetting is common for a full stop.
+    mediaItem.add(null); // Clear the current media item
     playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.idle,
         playing: false,
-        queueIndex: _currentIndex
+        // queueIndex: _currentIndex // Keep or reset queueIndex based on desired UX for stop
     ));
   }
 
@@ -220,53 +244,110 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> skipToNext() async {
     if (_playlist.isEmpty) return;
     
+    int newIndex = _currentIndex; // Start with current index
+
     if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all && _playlist.length > 1) {
-        // Basic shuffle: pick a random different index
-        int newIndex;
+        int tempIndex;
         do {
-            newIndex = DateTime.now().millisecondsSinceEpoch % _playlist.length;
-        } while (newIndex == _currentIndex);
-        _currentIndex = newIndex;
+            tempIndex = DateTime.now().millisecondsSinceEpoch % _playlist.length;
+        } while (tempIndex == _currentIndex && _playlist.length > 1); // Ensure different if possible
+        newIndex = tempIndex;
     } else {
-        _currentIndex = (_currentIndex + 1) % _playlist.length;
+        newIndex++; // Move to next
     }
     
-    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-        mediaItem.add(_playlist[_currentIndex]);
-        playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
-        await play();
+    if (newIndex >= _playlist.length) {
+        if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+            newIndex = 0; // Wrap around for repeat all
+        } else {
+            // Reached end of queue, not repeating all.
+            // Optionally, stop playback or mark as completed.
+            // For now, let's stop, consistent with onPlayerComplete behavior for non-repeating queue end.
+            await _audioPlayer.stop(); // Stop the player
+            playbackState.add(playbackState.value.copyWith(
+                processingState: AudioProcessingState.completed, // Or idle if stopping
+                playing: false));
+            // mediaItem.add(null); // Optionally clear media item
+            return; // Do not proceed to play
+        }
     }
+    await skipToQueueItem(newIndex);
   }
 
   @override
   Future<void> skipToPrevious() async {
     if (_playlist.isEmpty) return;
 
+    int newIndex = _currentIndex; // Start with current index
+
     if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all && _playlist.length > 1) {
-        // Basic shuffle: pick a random different index
-        int newIndex;
+        int tempIndex;
         do {
-            newIndex = DateTime.now().millisecondsSinceEpoch % _playlist.length;
-        } while (newIndex == _currentIndex);
-        _currentIndex = newIndex;
+            tempIndex = DateTime.now().millisecondsSinceEpoch % _playlist.length;
+        } while (tempIndex == _currentIndex && _playlist.length > 1);
+        newIndex = tempIndex;
     } else {
-        _currentIndex = (_currentIndex - 1 + _playlist.length) % _playlist.length;
+        newIndex--; // Move to previous
     }
 
-    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-        mediaItem.add(_playlist[_currentIndex]);
-        playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
-        await play();
+    if (newIndex < 0) {
+        if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+            newIndex = _playlist.length - 1; // Wrap around for repeat all
+        } else {
+            // Reached beginning of queue, not repeating all.
+            // Behavior can vary: stop, go to first item and pause, or seek to 0 of current.
+            // For now, let's stop.
+            await _audioPlayer.stop();
+            playbackState.add(playbackState.value.copyWith(
+                processingState: AudioProcessingState.completed, // Or idle
+                playing: false));
+            // mediaItem.add(null);
+            return; // Do not proceed to play
+        }
     }
+    await skipToQueueItem(newIndex);
   }
   
   @override
   Future<void> skipToQueueItem(int index) async {
-    if (index < 0 || index >= _playlist.length) return;
+    if (index < 0 || index >= _playlist.length) {
+      debugPrint("skipToQueueItem: Index out of bounds.");
+      return;
+    }
     _currentIndex = index;
-    mediaItem.add(_playlist[_currentIndex]);
-    playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
-    await play(); // Start playing the new item
+    
+    MediaItem itemToPlay = _playlist[_currentIndex];
+    itemToPlay = await _resolveArtForItem(itemToPlay); // Resolve art URI
+    _playlist[_currentIndex] = itemToPlay; // Update playlist with resolved item
+
+    mediaItem.add(itemToPlay); // Broadcast the (potentially updated) current item
+    
+    // Update playback state with the new queue index BEFORE playing.
+    // The playing state will be updated by the onPlayerStateChanged listener.
+    playbackState.add(playbackState.value.copyWith(
+        queueIndex: _currentIndex,
+        // Reset processing state to loading/buffering if needed, or let onPlayerStateChanged handle it
+    ));
+
+    _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
+
+    Source source;
+    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
+      source = DeviceFileSource(itemToPlay.id); // item.id is the full local path
+    } else {
+      source = UrlSource(itemToPlay.id); // item.id is the URL
+    }
+    
+    try {
+      await _audioPlayer.play(source);
+      // onPlayerStateChanged will update playing state to true
+    } catch (e) {
+      debugPrint("Error playing source ${itemToPlay.id}: $e");
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.error,
+        playing: false,
+      ));
+    }
   }
 
   @override
@@ -290,23 +371,31 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
+    // If you have custom shuffle logic for the queue itself, apply it here.
+    // For example, if shuffleMode is on, you might reorder _playlist.
+    // However, typical shuffle behavior is often just picking a random next track.
   }
 
   // Handle playing a specific media item, potentially adding it to queue
   @override
   Future<void> playMediaItem(MediaItem item) async {
-    // Check if item is already in queue
+    // The passed 'item' might have an unresolved artUri.
+    // It will be resolved by skipToQueueItem after being placed in the playlist.
     int index = _playlist.indexWhere((element) => element.id == item.id);
+    
     if (index == -1) {
-      // If not in queue, add it. Decide if it replaces queue or adds to it.
-      // For simplicity, let's say it becomes the new queue of one.
-      // Or, CurrentSongProvider should manage the queue and call updateQueue.
-      // For now, let's assume this means "play this item now, it's the current focus".
+      // Item not in queue. For simplicity, clear current queue and add this item.
+      // App specific logic might differ (e.g. add to end, play next, etc.)
       _playlist.clear();
-      _playlist.add(item);
-      queue.add(_playlist); // Broadcast new queue
-      index = 0;
+      _playlist.add(item); // Add the original item (art will be resolved by skipToQueueItem)
+      queue.add(List.unmodifiable(_playlist)); // Broadcast new queue
+      index = 0; // It's now the first (and only) item
+    } else {
+      // Item already in queue. We could update it if 'item' has new metadata.
+      _playlist[index] = item; // Replace existing item with potentially new metadata
+                               // Art will be resolved by skipToQueueItem.
     }
+    
     await skipToQueueItem(index);
   }
 
@@ -319,13 +408,19 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     if (index != -1) {
       await skipToQueueItem(index);
     } else {
-      // If not in queue, we might need to fetch details and create a MediaItem.
-      // This part depends on how your app resolves media IDs.
-      // For simplicity, if it's a URL, create a basic MediaItem.
       if (Uri.tryParse(mediaId)?.isAbsolute ?? false) {
-        final newItem = MediaItem(id: mediaId, title: mediaId.split('/').last, artist: "Unknown Artist");
-        await addQueueItem(newItem);
-        await skipToQueueItem(_playlist.length - 1);
+        final newItem = MediaItem(
+          id: mediaId, 
+          title: extras?['title'] as String? ?? mediaId.split('/').last, 
+          artist: extras?['artist'] as String? ?? "Unknown Artist",
+          album: extras?['album'] as String?,
+          artUri: extras?['artUri'] is String ? Uri.tryParse(extras!['artUri']) : null,
+          extras: extras, // Pass along all extras
+        );
+        // Add to queue (art will be resolved by skipToQueueItem)
+        _playlist.add(newItem);
+        queue.add(List.unmodifiable(_playlist));
+        await skipToQueueItem(_playlist.length - 1); // Play the newly added item
       } else {
         debugPrint("AudioPlayerHandler: Cannot play from mediaId '$mediaId' - not found in queue and not a URL.");
       }
