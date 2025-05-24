@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import '../models/song.dart';
 import '../models/playlist.dart';
-import '../services/api_service.dart';
 import '../services/playlist_manager_service.dart'; // Use PlaylistManagerService
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
@@ -22,8 +20,6 @@ class SongDetailScreen extends StatefulWidget {
 }
 
 class _SongDetailScreenState extends State<SongDetailScreen> {
-  bool _isDownloading = false;
-  double _downloadProgress = 0;
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
   // @override // initState and dispose are fine
@@ -36,91 +32,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   //   super.dispose();
   // }
 
-  Future<void> _downloadSong() async {
-    setState(() => _isDownloading = true);
-    String? audioUrl;
-    try {
-      final apiService = ApiService();
-      audioUrl = await apiService.fetchAudioUrl(widget.song.artist, widget.song.title);
-      if (audioUrl == null) {
-        _showErrorDialog('Failed to fetch audio URL.');
-        setState(() => _isDownloading = false);
-        return;
-      }
-      // print('Fetching audio URL from: $audioUrl');
-    } catch (e) {
-      _showErrorDialog('Error fetching audio URL: $e');
-      setState(() => _isDownloading = false);
-      return;
-    }
-
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      // Sanitize the song title to create a valid filename (consistent with CurrentSongProvider)
-      final String sanitizedTitle = widget.song.title
-          .replaceAll(RegExp(r'[^\w\s.-]'), '_') // Replace invalid chars with underscore
-          .replaceAll(RegExp(r'\s+'), '_'); // Replace spaces with underscore for cleaner names
-      final String fileName = '$sanitizedTitle.mp3'; // Store filename only
-      final filePath = p.join(directory.path, fileName); // Full path for writing
-      final url = audioUrl;
-
-      final request = http.Request('GET', Uri.parse(url));
-      final response = await http.Client().send(request);
-      final totalBytes = response.contentLength;
-      List<int> bytes = [];
-
-      response.stream.listen(
-        (List<int> newBytes) {
-          bytes.addAll(newBytes);
-          if (mounted) {
-            setState(() {
-              _downloadProgress = bytes.length / (totalBytes ?? 1);
-            });
-          }
-        },
-        onDone: () async {
-          final file = File(filePath);
-          await file.writeAsBytes(bytes);
-          if (mounted) {
-            setState(() {
-              _isDownloading = false;
-              // Update the song instance's properties. widget.song is final.
-              widget.song.localFilePath = fileName; // Store filename
-              widget.song.isDownloaded = true;
-            });
-          }
-          // Create an updated song instance for saving and propagation
-          final updatedSong = widget.song.copyWith(localFilePath: fileName, isDownloaded: true); // Use filename
-          
-          await _saveSongMetadata(updatedSong); // Save comprehensive metadata
-
-          // Notify PlaylistManagerService
-          PlaylistManagerService().updateSongInPlaylists(updatedSong);
-
-          // Notify CurrentSongProvider
-          // Ensure context is available and mounted if this is in an async gap without a mounted check
-          if (mounted) {
-            Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(updatedSong);
-          }
-
-          scaffoldMessengerKey.currentState?.showSnackBar(
-            const SnackBar(content: Text('Download complete!')),
-          );
-        },
-        onError: (e) {
-          if (mounted) {
-            setState(() => _isDownloading = false);
-          }
-          _showErrorDialog('Download failed: $e');
-        },
-        cancelOnError: true,
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isDownloading = false);
-      }
-      _showErrorDialog('Error downloading song: $e');
-    }
+  void _downloadSong() {
+    // No longer async, just triggers the provider's background download
+    Provider.of<CurrentSongProvider>(context, listen: false).downloadSongInBackground(widget.song);
+    // Optionally, show a snackbar that download has started
+    // scaffoldMessengerKey.currentState?.showSnackBar(
+    //   SnackBar(content: Text('Starting download for ${widget.song.title}...')),
+    // );
   }
 
   void _showErrorDialog(String message) {
@@ -382,11 +300,15 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               const SizedBox(height: 16),
 
               // Download/Delete Button
-              if (_isDownloading) ...[
-                LinearProgressIndicator(value: _downloadProgress, color: colorScheme.secondary),
+              // Check if the specific song is being downloaded by the provider
+              if (currentSongProvider.isDownloadingSong && currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id)) ...[
+                LinearProgressIndicator(
+                  value: currentSongProvider.downloadProgress[songForDownloadStatus.id],
+                  color: colorScheme.secondary
+                ),
                 const SizedBox(height: 4),
                 Text(
-                  'Downloading... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                  'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
                   style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
               ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
