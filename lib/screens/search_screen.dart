@@ -261,6 +261,9 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               return Dismissible(
                 key: Key(song.id),
                 direction: DismissDirection.startToEnd,
+                dismissThresholds: const { // Add this property
+                  DismissDirection.startToEnd: 0.25, // Adjust this value as needed (e.g., 0.2 for 20%)
+                },
                 confirmDismiss: (direction) async {
                   final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
                   currentSongProvider.addToQueue(song);
@@ -400,4 +403,5 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         );
       },
     );
-  }}
+  }
+}
