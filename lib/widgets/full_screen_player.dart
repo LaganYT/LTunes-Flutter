@@ -184,6 +184,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
     String displayAlbumArtUrl = currentSong?.albumArtUrl ?? currentSongProvider.stationFavicon ?? "";
     String displayAlbum = currentSong?.album ?? (isRadio ? "Live Stream" : "");
 
+    // final bool hasAlbumArt = displayAlbumArtUrl.isNotEmpty; // No longer needed for background logic
 
     Widget albumArtWidget;
     if (displayAlbumArtUrl.isNotEmpty) {
@@ -259,21 +260,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
       ),
       body: Stack(
         children: [
-          // Background Image (Blurred Album Art)
+          // Background
           Container(
-            decoration: BoxDecoration(
-              image: displayAlbumArtUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: (displayAlbumArtUrl.startsWith('http')
-                          ? NetworkImage(displayAlbumArtUrl)
-                          : FileImage(File(displayAlbumArtUrl))) as ImageProvider, // Requires path resolution for FileImage
-                      fit: BoxFit.cover,
-                    )
-                  : null, // No background image if no art
-              color: Colors.black, // Fallback color
+            decoration: BoxDecoration( // Always use gradient
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer.withOpacity(0.7),
+                  Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.7),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+              filter: ImageFilter.blur(
+                sigmaX: 0.0, // No blur
+                sigmaY: 0.0, // No blur
+              ),
               child: Container(
                 color: Colors.black.withOpacity(0.6), // Darken the background
               ),
