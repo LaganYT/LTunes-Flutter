@@ -60,10 +60,10 @@ class _PlaybarState extends State<Playbar> {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    Widget leadingWidget;
+    Widget albumArtContent;
     if (currentSong.albumArtUrl.isNotEmpty) {
       if (currentSong.albumArtUrl.startsWith('http')) {
-        leadingWidget = Image.network(
+        albumArtContent = Image.network(
           currentSong.albumArtUrl,
           width: 48,
           height: 48,
@@ -73,7 +73,7 @@ class _PlaybarState extends State<Playbar> {
         );
       } else {
         // Assume it's a local file path (filename)
-        leadingWidget = FutureBuilder<String>(
+        albumArtContent = FutureBuilder<String>(
           future: _resolveLocalArtPath(currentSong.albumArtUrl),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
@@ -92,14 +92,42 @@ class _PlaybarState extends State<Playbar> {
         );
       }
     } else {
-      leadingWidget = Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
+      albumArtContent = Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
     }
+
+    Widget leadingWidget = Hero(
+      tag: 'current-song-art',
+      child: SizedBox( // Ensure consistent size for the Hero child content
+        width: 48,
+        height: 48,
+        child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
+          borderRadius: BorderRadius.circular(4.0),
+          child: albumArtContent,
+        ),
+      ),
+    );
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
+            transitionDuration: const Duration(milliseconds: 350), // Adjust duration as needed
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              const begin = Offset(0.0, 1.0); // Slide from bottom
+              const end = Offset.zero; // Slide to center
+              final curve = Curves.easeOutQuint; // Smoother curve
+
+              final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+              final offsetAnimation = animation.drive(tween);
+
+              return SlideTransition(
+                position: offsetAnimation,
+                child: child,
+              );
+            },
+          ),
         );
       },
       child: GestureDetector( // Added GestureDetector for horizontal swipes
