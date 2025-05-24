@@ -19,8 +19,12 @@
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
 
-- Make it so you dont have to swipe so far to add a song to queue.
+### Bug fixes
 
 - Fix animations for closing the full screen player, it should show it move from top down instead of to the side
 
 - make the animation for skipping using gestures look better
+
+- When switching from radio to music, it wont load the streaming music for some reason
+
+- Downloads randomly disapear.
