@@ -20,7 +20,7 @@ Future<void> main() async {
   _audioHandler = await AudioService.init(
     builder: () => AudioPlayerHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.mycompany.myapp.channel.audio', // Replace with your app's ID
+      androidNotificationChannelId: 'com.LTunes.channel.audio', // Updated package name
       androidNotificationChannelName: 'LTunes Audio Playback',
       androidNotificationOngoing: true,
       // Other configurations as needed:
