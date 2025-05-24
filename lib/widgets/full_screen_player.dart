@@ -6,6 +6,9 @@ import '../models/song.dart';
 import 'dart:io'; // For File
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
+// ignore: unused_import
+import '../services/playlist_manager_service.dart';
+import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 
 class FullScreenPlayer extends StatefulWidget {
   // Removed song parameter as Provider will supply the current song
@@ -171,6 +174,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
     );
   }
 
+  // Added method to show "Add to Playlist" dialog
+  void _showAddToPlaylistDialog(BuildContext context, Song song) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        // Assuming AddToPlaylistDialog is accessible and correctly defined
+        // in song_detail_screen.dart or a shared widgets file.
+        return AddToPlaylistDialog(song: song);
+      },
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +248,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
         ),
       );
     }
+
+    // Add "Add to Playlist" button conditionally
+    if (!isRadio && currentSong != null) {
+      appBarActions.add(
+        IconButton(
+          icon: const Icon(Icons.playlist_add_rounded),
+          tooltip: 'Add to Playlist',
+          onPressed: () => _showAddToPlaylistDialog(context, currentSong),
+          color: Colors.white, // Ensure icon color is suitable for transparent AppBar
+        ),
+      );
+    }
+
     if (!isRadio) {
       // Add queue button (conditionally enabled based on isRadio)
       appBarActions.add(
