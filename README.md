@@ -21,7 +21,7 @@
 
 ### Bug fixes
 
-- make the animation for skipping using gestures look better
+- Make the animation for skipping using gestures look better
 
 - When switching from radio to music, it wont load the streaming music for some reason
 
