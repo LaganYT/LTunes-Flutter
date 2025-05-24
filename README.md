@@ -22,7 +22,7 @@
 
 ### Bug fixes
 
-- Downloads randomly disapear.
+- Downloads randomly disapear, please fix
 
 - For the animation of skipping a song, have it just animate the icon to slide in, the names should fade in
 
@@ -31,3 +31,5 @@
 - Add a setting to disable animation, default = animation on
 
 - Update link won't open on android, fix this
+
+- Add an add to playlist button to the full screen player+
