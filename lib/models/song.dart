@@ -10,6 +10,7 @@ class Song {
   // Add these fields
   bool isDownloaded;
   String? localFilePath; // Stores filename only (relative to docs dir) if downloaded
+  bool get isLocal => !albumArtUrl.startsWith('http');
 
   Song({
     required this.title,
@@ -33,6 +34,7 @@ class Song {
     String? audioUrl,
     bool? isDownloaded,
     String? localFilePath, // Ensure this can be null
+    
   }) {
     return Song(
       title: title ?? this.title,

@@ -20,11 +20,7 @@
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
-- For the background of the full-screen player, use a gradient color extracted from the icon.
-
-### Queue Management
-- Add back the clear queue button.
-- Improve shuffle/loop buttons appearance.
+- For the background of the full-screen player, use a gradient color extracted from the song icon.
 
 ### Radio Stations
 - Hide all buttons except the play/pause button for radio stations.

@@ -1,7 +1,7 @@
 import 'dart:ui'; // For ImageFilter
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/current_song_provider.dart';
+import '../providers/current_song_provider.dart'; // Imports LoopMode enum now
 import '../models/song.dart';
 import 'dart:io'; // For File
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
@@ -70,10 +70,29 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'Up Next',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0), // Adjusted padding
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Up Next',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        if (queue.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              currentSongProvider.clearQueue();
+                              Navigator.pop(context); // Close the bottom sheet
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Queue cleared')),
+                              );
+                            },
+                            child: Text(
+                              'Clear Queue',
+                              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   if (queue.isEmpty)
@@ -190,6 +209,38 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
       albumArtWidget = _placeholderArt(context, isRadio); // Placeholder if no URL
     }
 
+    // Prepare actions for AppBar dynamically
+    List<Widget> appBarActions = [];
+
+    // Add download button conditionally
+    if (!isRadio && currentSong != null && !currentSong.isDownloaded) {
+      appBarActions.add(
+        IconButton(
+          icon: const Icon(Icons.download_rounded, color: Colors.white),
+          tooltip: 'Download',
+          onPressed: () { // No need for null check here as condition is already met
+            Provider.of<CurrentSongProvider>(context, listen: false)
+                .downloadSongInBackground(currentSong);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Downloading ${currentSong.title}'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    // Add queue button (conditionally enabled based on isRadio)
+    appBarActions.add(
+      IconButton(
+        icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
+        tooltip: 'Queue',
+        onPressed: isRadio ? null : () => _showQueueBottomSheet(context),
+      ),
+    );
+
     return Scaffold(
       extendBodyBehindAppBar: true, // Make body extend behind AppBar
       appBar: AppBar(
@@ -204,13 +255,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
           style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
-            tooltip: 'Queue',
-            onPressed: isRadio ? null : () => _showQueueBottomSheet(context),
-          ),
-        ],
+        actions: appBarActions,
       ),
       body: Stack(
         children: [
@@ -341,7 +386,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       IconButton(
-                        icon: Icon(currentSongProvider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded, color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.secondary : Colors.white),
+                        icon: Icon(
+                          currentSongProvider.isShuffling ? Icons.shuffle_rounded : Icons.shuffle_rounded,
+                          color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.primary : Colors.white,
+                          fill: currentSongProvider.isShuffling ? 1.0 : 0.0, // Ensures the icon looks filled
+                        ),
                         iconSize: 28,
                         tooltip: 'Shuffle',
                         onPressed: isRadio ? null : () => currentSongProvider.toggleShuffle(),
@@ -381,9 +430,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                         onPressed: isRadio ? null : () => currentSongProvider.playNext(),
                       ),
                       IconButton(
-                        icon: Icon(currentSongProvider.isLooping ? Icons.repeat_one_on_rounded : Icons.repeat_rounded, color: currentSongProvider.isLooping ? Theme.of(context).colorScheme.secondary : Colors.white),
+                        icon: Icon(
+                          currentSongProvider.loopMode == LoopMode.song 
+                            ? Icons.repeat_one_rounded 
+                            : Icons.repeat_rounded,
+                          color: currentSongProvider.loopMode != LoopMode.none 
+                            ? Theme.of(context).colorScheme.primary 
+                            : Colors.white,
+                        ),
                         iconSize: 28,
-                        tooltip: 'Loop',
+                        tooltip: currentSongProvider.loopMode == LoopMode.none 
+                            ? 'Loop Off' 
+                            : currentSongProvider.loopMode == LoopMode.queue 
+                                ? 'Loop Queue' 
+                                : 'Loop Song',
                         onPressed: isRadio ? null : () => currentSongProvider.toggleLoop(),
                       ),
                     ],

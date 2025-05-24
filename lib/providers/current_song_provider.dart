@@ -13,13 +13,15 @@ import 'package:audio_service/audio_service.dart';
 import '../services/audio_handler.dart'; // Assumed path to your audio_handler.dart
 import 'dart:async';
 
+// Define LoopMode enum
+enum LoopMode { none, queue, song }
 
 class CurrentSongProvider with ChangeNotifier {
   // final AudioPlayer _audioPlayer = AudioPlayer(); // Removed
   final AudioHandler _audioHandler;
   Song? _currentSongFromAppLogic; // Represents the song our app thinks is current
   bool _isPlaying = false;
-  // bool _isLooping = false; // Handled by audio_handler's repeatMode
+  // bool _isLooping = false; // Replaced by LoopMode logic derived from audio_handler
   // bool _isShuffling = false; // Handled by audio_handler's shuffleMode
   List<Song> _queue = [];
   int _currentIndexInAppQueue = -1; // Index in the _queue (app's perspective)
@@ -45,12 +47,20 @@ class CurrentSongProvider with ChangeNotifier {
 
   Song? get currentSong => _currentSongFromAppLogic;
   bool get isPlaying => _isPlaying;
-  // bool get isLooping => _audioHandler.playbackState.value.repeatMode != AudioServiceRepeatMode.none; // Get from handler
-  // bool get isShuffling => _audioHandler.playbackState.value.shuffleMode != AudioServiceShuffleMode.none; // Get from handler
-  
-  bool get isLooping {
-    final currentRepeatMode = _audioHandler.playbackState.value.repeatMode;
-    return currentRepeatMode == AudioServiceRepeatMode.one || currentRepeatMode == AudioServiceRepeatMode.all;
+
+  // Getter for LoopMode based on AudioHandler's state
+  LoopMode get loopMode {
+    final currentAudioHandlerMode = _audioHandler.playbackState.value.repeatMode;
+    switch (currentAudioHandlerMode) {
+      case AudioServiceRepeatMode.none:
+        return LoopMode.none;
+      case AudioServiceRepeatMode.all:
+        return LoopMode.queue;
+      case AudioServiceRepeatMode.one:
+        return LoopMode.song;
+      default: // group or other unhandled states
+        return LoopMode.none;
+    }
   }
 
   bool get isShuffling {
@@ -225,11 +235,26 @@ class CurrentSongProvider with ChangeNotifier {
       await prefs.remove('current_index_v2');
       await prefs.remove('current_queue_v2');
     }
+    // Save loop mode
+    await prefs.setInt('loop_mode_v2', _audioHandler.playbackState.value.repeatMode.index);
+    // Save shuffle mode
+    await prefs.setBool('shuffle_mode_v2', _audioHandler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all);
   }
 
   Future<void> _loadCurrentSongFromStorage() async {
     final prefs = await SharedPreferences.getInstance();
     final songJson = prefs.getString('current_song_v2');
+    
+    // Load and set loop mode
+    final savedLoopModeIndex = prefs.getInt('loop_mode_v2');
+    if (savedLoopModeIndex != null && savedLoopModeIndex < AudioServiceRepeatMode.values.length) {
+      await _audioHandler.setRepeatMode(AudioServiceRepeatMode.values[savedLoopModeIndex]);
+    }
+
+    // Load and set shuffle mode
+    final savedShuffleMode = prefs.getBool('shuffle_mode_v2') ?? false;
+    await _audioHandler.setShuffleMode(savedShuffleMode ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none);
+
     if (songJson != null) {
       try {
         Map<String, dynamic> songMap = jsonDecode(songJson);
@@ -395,19 +420,39 @@ class CurrentSongProvider with ChangeNotifier {
     _currentIndexInAppQueue = -1;
     // _queue.clear(); // Decide if stopping clears the queue
     // await _audioHandler.updateQueue([]);
+
+    // Reset modes to default on explicit stop, or retain user preference
+    // For now, let's retain user preference as it's saved/loaded separately.
+    // If you want to reset them:
+    // await _audioHandler.setRepeatMode(AudioServiceRepeatMode.none);
+    // await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
+
     notifyListeners();
-    _saveCurrentSongToStorage(); // Save cleared state
+    _saveCurrentSongToStorage(); // Save cleared state (and current modes)
   }
 
   void toggleLoop() {
     final currentMode = _audioHandler.playbackState.value.repeatMode;
-    if (currentMode == AudioServiceRepeatMode.one) {
-      _audioHandler.setRepeatMode(AudioServiceRepeatMode.none);
-    } else {
-      _audioHandler.setRepeatMode(AudioServiceRepeatMode.one);
+    AudioServiceRepeatMode nextMode;
+    switch (currentMode) {
+      case AudioServiceRepeatMode.none:
+        nextMode = AudioServiceRepeatMode.all; // -> Loop Queue
+        break;
+      case AudioServiceRepeatMode.all:
+        nextMode = AudioServiceRepeatMode.one; // -> Loop Song
+        break;
+      case AudioServiceRepeatMode.one:
+        nextMode = AudioServiceRepeatMode.none; // -> Loop Off
+        break;
+      default: // group or other unhandled states
+        nextMode = AudioServiceRepeatMode.none;
+        break;
     }
-    // UI will update based on listening to playbackState.value.repeatMode
-    notifyListeners();
+    _audioHandler.setRepeatMode(nextMode);
+    // No need to call notifyListeners() here if UI listens to _audioHandler.playbackState
+    // However, if FullScreenPlayer relies on provider's loopMode getter, then notify.
+    notifyListeners(); 
+    _saveCurrentSongToStorage(); // Save the new mode
   }
 
   void toggleShuffle() {
