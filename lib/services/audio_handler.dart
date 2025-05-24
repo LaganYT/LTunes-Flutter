@@ -9,18 +9,29 @@ import '../models/song.dart'; // Assuming Song model can give necessary info
 
 // Helper function to convert Song to MediaItem
 MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
+  Uri? artUri;
+  if (song.albumArtUrl.isNotEmpty) {
+    // If albumArtUrl is an absolute URL (http/https), parse it.
+    // Otherwise, treat it as a potential local file identifier.
+    // _resolveArtForItem will handle turning local identifiers into full file URIs.
+    artUri = Uri.tryParse(song.albumArtUrl);
+  }
+
   return MediaItem(
     id: playableUrl, // This MUST be the playable URL or local file path
     title: song.title,
     artist: song.artist,
     album: song.album,
-    artUri: song.albumArtUrl.isNotEmpty ? Uri.tryParse(song.albumArtUrl) : null,
+    artUri: artUri, // Use the parsed URI
+    duration: duration, // Pass the duration if available
     extras: {
       'songId': song.id, // Original song ID from your app's model
       'isLocal': song.isDownloaded,
-      'localArtFileName': !song.albumArtUrl.startsWith('http') && song.albumArtUrl.isNotEmpty ? song.albumArtUrl : null,
-      // Add other necessary extras, like 'isRadio' if applicable
-      // 'isRadio': song.isRadioStream, // Example
+      // Only set localArtFileName if albumArtUrl is not an http/https URL and is not empty.
+      'localArtFileName': (!song.albumArtUrl.startsWith('http') && song.albumArtUrl.isNotEmpty)
+          ? song.albumArtUrl
+          : null,
+      'isRadio': song.isRadio, // Use the new getter from Song model
     },
   );
 }
@@ -112,6 +123,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         bufferedPosition: Duration.zero, // Placeholder as audioplayers does not provide bufferedPosition
         speed: _audioPlayer.playbackRate, // Consider safety if player can be uninitialized
         queueIndex: _currentIndex,
+        // Removed invalid 'duration' parameter
       ));
     });
 
@@ -121,10 +133,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         // Update the MediaItem with the new duration
         mediaItem.add(currentItem.copyWith(duration: duration));
       }
-      // Update playbackState with the new duration
-      // This ensures that any UI components listening to playbackState also get the duration.
-      // The MediaItem.duration is primary for the notification.
-      playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
+      // removed: playbackState.add(playbackState.value.copyWith(updatePosition: duration));
     });
 
     _audioPlayer.onPositionChanged.listen((position) {
@@ -140,6 +149,17 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     _audioPlayer.onPlayerComplete.listen((_) async {
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.one) {
         seek(Duration.zero);
+        // No need to call play() if ReleaseMode.loop is set, but if it's handled manually:
+        // play(); 
+        // However, with ReleaseMode.loop, audioplayers handles the looping.
+        // If play() is called, ensure state is correctly managed.
+        // For simplicity, if ReleaseMode.loop is effective, this explicit play might be redundant
+        // or could conflict. Let's assume audioplayer's loop is sufficient.
+        // If manual looping is preferred (e.g. for cross-platform consistency independent of audioplayers):
+        // await _audioPlayer.seek(Duration.zero); // Seek to start
+        // await _audioPlayer.resume(); // Resume playback
+        // And ensure ReleaseMode is not .loop for this case.
+        // Given current setRepeatMode, ReleaseMode.loop is used for .one, so manual play() here is okay.
         play();
       } else {
         if (_currentIndex + 1 < _playlist.length || playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
@@ -239,6 +259,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.idle,
         playing: false,
+        // Explicitly clear duration on stop (removed invalid parameter)
+        updatePosition: Duration.zero // Reset position on stop
         // queueIndex: _currentIndex // Keep or reset queueIndex based on desired UX for stop
     ));
   }
@@ -313,40 +335,40 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   
   @override
   Future<void> skipToQueueItem(int index) async {
-    if (index < 0 || index >= _playlist.length) {
-      // Optionally, handle out-of-bounds index, e.g., stop or loop.
-      // For now, just return if index is invalid.
-      return;
-    }
+    if (index < 0 || index >= _playlist.length) return;
     _currentIndex = index;
-    
-    MediaItem itemToPlay = _playlist[_currentIndex];
-    // Duration might be null here if not known beforehand.
-    // onDurationChanged will update it once playback starts and duration is available.
-    itemToPlay = await _resolveArtForItem(itemToPlay); // Resolve art URI
-    _playlist[_currentIndex] = itemToPlay; // Update playlist with resolved item
 
-    mediaItem.add(itemToPlay); // Broadcast the (potentially updated) current item
-    
+    MediaItem itemToPlay = _playlist[_currentIndex];
+    itemToPlay = await _resolveArtForItem(itemToPlay);
+    _playlist[_currentIndex] = itemToPlay;
+    mediaItem.add(itemToPlay);
+
     // Update playback state with the new queue index BEFORE playing.
     // The playing state will be updated by the onPlayerStateChanged listener.
     playbackState.add(playbackState.value.copyWith(
         queueIndex: _currentIndex,
+        // Removed invalid 'duration' parameter
         // Reset processing state to loading/buffering if needed, or let onPlayerStateChanged handle it
     ));
 
     _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
+    Source source = (itemToPlay.extras?['isLocal'] as bool? ?? false)
+        ? DeviceFileSource(itemToPlay.id)
+        : UrlSource(itemToPlay.id);
 
-    Source source;
-    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
-      source = DeviceFileSource(itemToPlay.id); // item.id is the full local path
-    } else {
-      source = UrlSource(itemToPlay.id); // item.id is the URL
-    }
-    
     try {
       await _audioPlayer.play(source);
-      // onPlayerStateChanged will update playing state to true
+      // onPlayerStateChanged will update playing state
+      // immediately fetch the duration if available
+      final initialDur = await _audioPlayer.getDuration();
+      if (initialDur != null && initialDur > Duration.zero) {
+        final cur = mediaItem.value;
+        if (cur != null && cur.duration != initialDur) {
+          final updated = cur.copyWith(duration: initialDur);
+          _playlist[_currentIndex] = updated;
+          mediaItem.add(updated);
+        }
+      }
     } catch (e) {
       debugPrint("Error playing source ${itemToPlay.id}: $e");
       playbackState.add(playbackState.value.copyWith(

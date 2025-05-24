@@ -13,6 +13,9 @@ class Song {
   bool get isLocal => !albumArtUrl.startsWith('http');
   final Map<String, dynamic>? extras; // Added extras field
 
+  // Add a getter for isRadio
+  bool get isRadio => extras?['isRadio'] as bool? ?? false;
+
   Song({
     required this.title,
     required this.id,

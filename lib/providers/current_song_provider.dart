@@ -93,68 +93,74 @@ class CurrentSongProvider with ChangeNotifier {
     _playbackStateSubscription = _audioHandler.playbackState.listen((playbackState) {
       final oldIsPlaying = _isPlaying;
       final oldIsLoading = _isLoadingAudio;
-      final oldTotalDuration = _totalDuration;
 
       _isPlaying = playbackState.playing;
       _isLoadingAudio = playbackState.processingState == AudioProcessingState.loading ||
                         playbackState.processingState == AudioProcessingState.buffering;
       
-      // Update total duration from playbackState if available
-      // MediaItem's duration is the primary source, but playbackState might update it too.
-      final mediaItem = _audioHandler.mediaItem.value;
-      if (mediaItem?.duration != null && mediaItem!.duration != Duration.zero) {
-        _totalDuration = mediaItem.duration;
-      }
-
-
-      if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio || oldTotalDuration != _totalDuration) {
+      // _totalDuration is managed by _mediaItemSubscription and _positionSubscription (for radio)
+      if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
         notifyListeners();
       }
     });
 
     _mediaItemSubscription = _audioHandler.mediaItem.listen((mediaItem) async {
-      if (mediaItem == null) {
-        _currentSongFromAppLogic = null;
-        _totalDuration = null; // Clear duration when no media item
-        _stationName = null;
-        _stationFavicon = null;
-      } else {
-        // Update total duration from MediaItem if available and different
-        if (mediaItem.duration != null && mediaItem.duration != _totalDuration) {
-            _totalDuration = mediaItem.duration;
+      bool needsNotification = false;
+
+      // Update _totalDuration
+      // For non-radio, _totalDuration comes from mediaItem.duration.
+      // For radio, _totalDuration is handled by _positionSubscription to be "live".
+      if (!(mediaItem?.extras?['isRadio'] as bool? ?? false)) {
+        if (_totalDuration != mediaItem?.duration) {
+          _totalDuration = mediaItem?.duration;
+          needsNotification = true;
         }
+      }
+
+      // Update _currentSongFromAppLogic, _stationName, _stationFavicon
+      if (mediaItem == null) {
+        if (_currentSongFromAppLogic != null) { _currentSongFromAppLogic = null; needsNotification = true; }
+        // _totalDuration already handled above or by radio logic in _positionSubscription
+        if (_stationName != null) { _stationName = null; needsNotification = true; }
+        if (_stationFavicon != null) { _stationFavicon = null; needsNotification = true; }
+      } else {
+        Song? newCurrentSongLogicCandidate;
+        String? newStationNameCandidate;
+        String? newStationFaviconCandidate;
 
         if (mediaItem.extras?['isRadio'] as bool? ?? false) {
-            _currentSongFromAppLogic = Song(
-                id: mediaItem.extras!['songId'] as String? ?? mediaItem.id,
+            final radioSongId = mediaItem.extras!['songId'] as String? ?? mediaItem.id;
+            newCurrentSongLogicCandidate = Song(
+                id: radioSongId,
                 title: mediaItem.title,
                 artist: mediaItem.artist ?? 'Radio',
                 albumArtUrl: mediaItem.artUri?.toString() ?? '',
-                audioUrl: mediaItem.id, // For radio, id is the stream URL
-                isDownloaded: false
+                audioUrl: mediaItem.id, 
+                isDownloaded: false,
+                extras: {'isRadio': true}
             );
-            _stationName = _currentSongFromAppLogic?.title;
-            _stationFavicon = _currentSongFromAppLogic?.albumArtUrl;
+            newStationNameCandidate = newCurrentSongLogicCandidate.title;
+            newStationFaviconCandidate = newCurrentSongLogicCandidate.albumArtUrl;
+            // For radio, _totalDuration is handled in _positionSubscription
         } else{
             final songId = mediaItem.extras?['songId'] as String?;
             if (songId != null) {
-                _currentSongFromAppLogic = _queue.firstWhere((s) => s.id == songId,
+                newCurrentSongLogicCandidate = _queue.firstWhere((s) => s.id == songId,
                     orElse: () {
-                        return Song( // Fallback if not in queue (e.g., played from notification)
+                        return Song( 
                             id: songId,
                             title: mediaItem.title,
                             artist: mediaItem.artist ?? 'Unknown Artist',
                             album: mediaItem.album,
-                            albumArtUrl: mediaItem.artUri?.toString() ?? '', // Use artUri directly for fallback
-                            audioUrl: mediaItem.id, // id is the playable URL/path
+                            albumArtUrl: mediaItem.artUri?.toString() ?? '', 
+                            audioUrl: mediaItem.id, 
                             isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
                             localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
                         );
                     });
             } else {
-                 // If no songId in extras, construct a basic Song object
-                _currentSongFromAppLogic = Song(
-                    id: mediaItem.id, // Use mediaItem.id as a fallback song ID
+                newCurrentSongLogicCandidate = Song(
+                    id: mediaItem.id, 
                     title: mediaItem.title,
                     artist: mediaItem.artist ?? 'Unknown Artist',
                     album: mediaItem.album,
@@ -164,31 +170,44 @@ class CurrentSongProvider with ChangeNotifier {
                     localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
                 );
             }
-            _stationName = null;
-            _stationFavicon = null;
+            newStationNameCandidate = null;
+            newStationFaviconCandidate = null;
         }
+
+        if (_currentSongFromAppLogic?.id != newCurrentSongLogicCandidate.id ||
+            _currentSongFromAppLogic?.title != newCurrentSongLogicCandidate.title ||
+            _currentSongFromAppLogic?.artist != newCurrentSongLogicCandidate.artist ||
+            _currentSongFromAppLogic?.albumArtUrl != newCurrentSongLogicCandidate.albumArtUrl) {
+            _currentSongFromAppLogic = newCurrentSongLogicCandidate;
+            needsNotification = true;
+        }
+        if (_stationName != newStationNameCandidate) { _stationName = newStationNameCandidate; needsNotification = true; }
+        if (_stationFavicon != newStationFaviconCandidate) { _stationFavicon = newStationFaviconCandidate; needsNotification = true; }
       }
-      notifyListeners();
+      
+      if (needsNotification) {
+        notifyListeners();
+      }
     });
 
-    // Listen to queue changes from audio_handler (e.g. if modified by notification controls)
-    // This part can be complex to keep app's queue and handler's queue in sync.
-    // For now, we assume CurrentSongProvider is the main source of truth for queue modification.
-    // _queueSubscription = _audioHandler.queue.listen((handlerQueue) { ... });
-
-
-    // Position stream for UI slider
     _positionSubscription = AudioService.position.listen((position) {
+      bool needsNotifyForTotalDuration = false;
       if (_currentPosition != position) {
         _currentPosition = position;
-        // If it's a radio stream, we might update totalDuration to reflect elapsed time
-        if (_currentSongFromAppLogic != null && (_currentSongFromAppLogic!.id.startsWith('radio_') || (_audioHandler.mediaItem.value?.extras?['isRadio'] as bool? ?? false))) {
-            if (_totalDuration != position) {
-                 _totalDuration = position; // Make duration "live" for radio
-                 // notifyListeners(); // This can cause too many rebuilds, UI should listen to AudioService.position directly
-            }
+        // UI listening directly to AudioService.position will update the current seek time.
+        // No need to call notifyListeners() just for _currentPosition change if UI handles it.
+      }
+
+      // Handle "live" duration for radio streams
+      if (isCurrentlyPlayingRadio) {
+        if (_totalDuration != position) {
+          _totalDuration = position;
+          needsNotifyForTotalDuration = true; // _totalDuration changed, FullScreenPlayer needs this
         }
-        // notifyListeners(); // Let UI listen to AudioService.position directly for slider updates
+      }
+      
+      if (needsNotifyForTotalDuration) {
+        notifyListeners();
       }
     });
   }
