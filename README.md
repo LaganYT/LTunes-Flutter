@@ -10,7 +10,3 @@
 - Show artists in search results
 - Download all songs from album, skipping already downloaded songs.
 - Download all songs from playlist, skipping already downloaded songs.
-
-
-## Bug Fixes
-- When a radio station is playing disable the skip, previous, shuffle, loop, queue, download, and add to playlist buttons.
