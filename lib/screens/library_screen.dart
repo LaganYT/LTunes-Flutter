@@ -579,13 +579,44 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   Widget _buildDownloadedSongsView() {
     // Similar to _buildPlaylistsView, this relies on the listener for CurrentSongProvider.
-    if (_songs.isEmpty) {
+    // Access CurrentSongProvider to get active downloads and progress
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context);
+    final activeTasks = currentSongProvider.activeDownloadTasks; // Map<String, Song>
+    final progressMap = currentSongProvider.downloadProgress; // Map<String, double>
+    final completedSongs = _songs; // List<Song> from local state
+
+    final List<Song> allSongsToShow = [];
+    final Set<String> addedSongIds = {};
+
+    // Add active downloads first
+    for (final song in activeTasks.values) {
+      allSongsToShow.add(song);
+      addedSongIds.add(song.id);
+    }
+
+    // Add completed downloads, avoiding duplicates
+    for (final song in completedSongs) {
+      if (!addedSongIds.contains(song.id)) {
+        allSongsToShow.add(song);
+        addedSongIds.add(song.id);
+      }
+    }
+
+    // Sort songs by title (optional, but good for consistency)
+    allSongsToShow.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+
+
+    if (allSongsToShow.isEmpty) {
       return const Center(child: Text('No downloaded songs yet.'));
     }
+
     return ListView.builder(
-      itemCount: _songs.length,
+      itemCount: allSongsToShow.length,
       itemBuilder: (context, index) {
-        final songObj = _songs[index];
+        final songObj = allSongsToShow[index];
+        final double? progress = progressMap[songObj.id];
+        final bool isDownloading = activeTasks.containsKey(songObj.id) && progress != null;
+
         Widget leadingWidget;
         if (songObj.albumArtUrl.isNotEmpty) {
           if (songObj.albumArtUrl.startsWith('http')) {
@@ -620,29 +651,74 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           leadingWidget = const Icon(Icons.music_note, size: 40);
         }
 
-        return ListTile(
-          key: Key(songObj.id),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
-            child: leadingWidget,
-          ),
-          title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                tooltip: 'Delete Download',
-                onPressed: () => _deleteDownloadedSong(songObj),
-              ),
-            ],
-          ),
-          onTap: () {
-            Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-            Provider.of<CurrentSongProvider>(context, listen: false).setQueue(_songs, initialIndex: index);
-          },
-        );
+        if (isDownloading) {
+          return ListTile(
+            key: Key("downloading_${songObj.id}"),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(4.0),
+              child: leadingWidget,
+            ),
+            title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: Colors.grey[300],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Downloading... ${(progress * 100).toStringAsFixed(0)}%',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
+              tooltip: 'Cancel Download (Not Implemented)',
+              onPressed: () {
+                // TODO: Implement cancel download functionality in CurrentSongProvider
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cancel download not yet implemented.')),
+                );
+              },
+            ),
+            onTap: null, // Or navigate to a detail page that also shows progress
+          );
+        } else {
+          // Completed download
+          return ListTile(
+            key: Key(songObj.id),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(4.0),
+              child: leadingWidget,
+            ),
+            title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Delete Download',
+                  onPressed: () => _deleteDownloadedSong(songObj),
+                ),
+              ],
+            ),
+            onTap: () {
+              // When tapping a completed song, play it and set the queue to all *completed* songs.
+              // Filter 'allSongsToShow' to only include non-downloading songs for the playback queue.
+              final playableSongs = allSongsToShow.where((s) => !activeTasks.containsKey(s.id)).toList();
+              int playableIndex = playableSongs.indexWhere((s) => s.id == songObj.id);
+              if (playableIndex != -1) {
+                 Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                 Provider.of<CurrentSongProvider>(context, listen: false).setQueue(playableSongs, initialIndex: playableIndex);
+              }
+            },
+          );
+        }
       },
     );
   }

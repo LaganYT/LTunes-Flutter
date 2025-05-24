@@ -24,7 +24,8 @@ class CurrentSongProvider with ChangeNotifier {
   List<Song> _queue = [];
   int _currentIndexInAppQueue = -1; // Index in the _queue (app's perspective)
 
-  bool _isDownloadingSong = false;
+  // bool _isDownloadingSong = false; // Removed
+  final Map<String, Song> _activeDownloads = {}; // Added
   bool _isLoadingAudio = false; // For UI feedback when initiating play
   final Map<String, double> _downloadProgress = {};
   Duration _currentPosition = Duration.zero;
@@ -59,7 +60,9 @@ class CurrentSongProvider with ChangeNotifier {
 
   List<Song> get queue => _queue;
   Map<String, double> get downloadProgress => _downloadProgress;
-  bool get isDownloadingSong => _isDownloadingSong;
+  // bool get isDownloadingSong => _isDownloadingSong; // Changed
+  bool get isDownloadingSong => _downloadProgress.isNotEmpty; // Changed
+  Map<String, Song> get activeDownloadTasks => Map.unmodifiable(_activeDownloads); // Added
   bool get isLoadingAudio => _isLoadingAudio;
   Duration? get totalDuration => _totalDuration;
   // Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Replaced
@@ -457,7 +460,8 @@ class CurrentSongProvider with ChangeNotifier {
 
 
   Future<void> downloadSongInBackground(Song song) async {
-    _isDownloadingSong = true;
+    // _isDownloadingSong = true; // Removed
+    _activeDownloads[song.id] = song; // Added
     _downloadProgress[song.id] = 0.0;
     notifyListeners();
     String? audioUrl;
@@ -472,14 +476,16 @@ class CurrentSongProvider with ChangeNotifier {
 
       if (audioUrl == null || audioUrl.isEmpty || !(Uri.tryParse(audioUrl)?.isAbsolute ?? false)) {
         debugPrint('Failed to fetch a valid audio URL for download.');
-        _isDownloadingSong = false;
+        // _isDownloadingSong = false; // Removed
+        _activeDownloads.remove(song.id); // Added
         _downloadProgress.remove(song.id);
         notifyListeners();
         return;
       }
     } catch (e) {
       debugPrint('Error fetching audio URL for download: $e');
-      _isDownloadingSong = false;
+      // _isDownloadingSong = false; // Removed
+      _activeDownloads.remove(song.id); // Added
       _downloadProgress.remove(song.id);
       notifyListeners();
       return;
@@ -513,7 +519,8 @@ class CurrentSongProvider with ChangeNotifier {
           Song updatedSong = song.copyWith(localFilePath: fileName, isDownloaded: true);
           
           _downloadProgress.remove(song.id); 
-          _isDownloadingSong = false;
+          // _isDownloadingSong = false; // Removed
+          _activeDownloads.remove(song.id); // Added
 
           await _persistSongMetadata(updatedSong);
           updateSongDetails(updatedSong); // This will notifyListeners and save state
@@ -534,7 +541,8 @@ class CurrentSongProvider with ChangeNotifier {
         onError: (e) {
           debugPrint('Download failed for ${song.title}: $e');
           _downloadProgress.remove(song.id);
-          _isDownloadingSong = false;
+          // _isDownloadingSong = false; // Removed
+          _activeDownloads.remove(song.id); // Added
           notifyListeners();
         },
         cancelOnError: true,
@@ -542,7 +550,8 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error downloading song ${song.title}: $e');
       _downloadProgress.remove(song.id);
-      _isDownloadingSong = false;
+      // _isDownloadingSong = false; // Removed
+      _activeDownloads.remove(song.id); // Added
       notifyListeners();
     }
   }
