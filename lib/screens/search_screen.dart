@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io'; // Required for File
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
+import 'dart:convert'; // Added import
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -107,6 +108,30 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       return fullPath;
     }
     return '';
+  }
+
+  // Helper method to get song with updated download status from SharedPreferences
+  Future<Song> _getSongWithDownloadStatusInternal(Song songFromApi) async {
+    final prefs = await SharedPreferences.getInstance();
+    final songJson = prefs.getString('song_${songFromApi.id}');
+    if (songJson != null) {
+      try {
+        final storedSongData = jsonDecode(songJson) as Map<String, dynamic>;
+        final storedSong = Song.fromJson(storedSongData);
+        if (storedSong.isDownloaded && storedSong.localFilePath != null && storedSong.localFilePath!.isNotEmpty) {
+          // Ensure the local file actually exists before claiming it's playable locally
+          final appDocDir = await getApplicationDocumentsDirectory();
+          final fullPath = p.join(appDocDir.path, storedSong.localFilePath!);
+          if (await File(fullPath).exists()) {
+            return storedSong; // Return the version from storage with download info
+          }
+        }
+      } catch (e) {
+        debugPrint('Error reading stored song data for ${songFromApi.id}: $e');
+        // Fall through to return songFromApi
+      }
+    }
+    return songFromApi; // Return original API song if not found in storage or not validly downloaded
   }
 
   @override
@@ -287,21 +312,18 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                       builder: (context) => const Center(child: CircularProgressIndicator()),
                     );
                     try {
-                      // Use the existing _apiService instance
-                      final audioUrl = await _apiService.fetchAudioUrl(song.artist, song.title);
-                      Navigator.of(context, rootNavigator: true).pop();
-                      if (audioUrl != null && audioUrl.isNotEmpty) {
-                        final songWithAudio = song.copyWith(audioUrl: audioUrl);
-                        currentSongProvider.playSong(songWithAudio);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Failed to fetch audio URL.')),
-                        );
-                      }
+                      // Get the song object, potentially updated with download info
+                      final songToPlay = await _getSongWithDownloadStatusInternal(song);
+                      
+                      Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading indicator
+                      
+                      // CurrentSongProvider.playSong will handle fetching URL (local or remote)
+                      currentSongProvider.playSong(songToPlay);
+
                     } catch (e) {
-                      Navigator.of(context, rootNavigator: true).pop();
+                      Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading indicator
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error fetching audio URL: $e')),
+                        SnackBar(content: Text('Error preparing song: $e')),
                       );
                     }
                   },
