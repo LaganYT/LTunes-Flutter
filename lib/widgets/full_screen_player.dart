@@ -318,7 +318,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                       position: Tween<Offset>(
                         begin: Offset(_slideOffsetX, 0.0),
                         end: Offset.zero,
-                      ).animate(animation),
+                      ).chain(CurveTween(curve: Curves.easeOutQuint)).animate(animation), // Added CurveTween
                       child: child,
                     );
                   },
@@ -441,7 +441,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                               icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
                               iconSize: 36,
                               tooltip: 'Previous',
-                              onPressed: () => currentSongProvider.playPrevious(), // isRadio check already handled by visibility
+                              onPressed: () {
+                                setState(() {
+                                  _slideOffsetX = -1.0;
+                                });
+                                currentSongProvider.playPrevious();
+                              }, // isRadio check already handled by visibility
                             ),
                           if (isLoading)
                             Container(
@@ -470,7 +475,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                               icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
                               iconSize: 36,
                               tooltip: 'Next',
-                              onPressed: () => currentSongProvider.playNext(), // isRadio check already handled by visibility
+                              onPressed: () {
+                                setState(() {
+                                  _slideOffsetX = 1.0;
+                                });
+                                currentSongProvider.playNext();
+                              }, // isRadio check already handled by visibility
                             ),
                           if (!isRadio)
                             IconButton(
