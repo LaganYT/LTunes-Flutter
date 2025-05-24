@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  audioplayers: ^6.4.0
   audio_service: ^0.18.18
   flutter_lints: ^5.0.0
   http: ^1.4.0
@@ -24,6 +23,7 @@ dependencies:
   uuid: ^4.5.1
   url_launcher: ^6.3.1
   package_info_plus: ^8.0.0
+  audioplayers: ^6.4.0
 
 dev_dependencies:
   flutter_test:
