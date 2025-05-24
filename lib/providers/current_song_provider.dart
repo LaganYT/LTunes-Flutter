@@ -399,6 +399,7 @@ class CurrentSongProvider with ChangeNotifier {
       _audioHandler.setRepeatMode(AudioServiceRepeatMode.one);
     }
     // UI will update based on listening to playbackState.value.repeatMode
+    notifyListeners();
   }
 
   void toggleShuffle() {
@@ -408,6 +409,7 @@ class CurrentSongProvider with ChangeNotifier {
     } else {
       _audioHandler.setShuffleMode(AudioServiceShuffleMode.all);
     }
+    notifyListeners();
   }
 
   Future<void> setQueue(List<Song> songs, {int initialIndex = 0}) async {
