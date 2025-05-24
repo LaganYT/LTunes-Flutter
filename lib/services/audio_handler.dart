@@ -87,6 +87,22 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         debugPrint("Error getting current position: $e");
       }
 
+      // NEW: when a track starts playing, explicitly query its duration
+      if (playing) {
+        try {
+          final dur = await _audioPlayer.getDuration(); 
+          // getDuration() returns a Duration? in newer audioplayers
+          if (dur != null) {
+            final currentItem = mediaItem.value;
+            if (currentItem != null && currentItem.duration != dur) {
+              mediaItem.add(currentItem.copyWith(duration: dur));
+            }
+          }
+        } catch (e) {
+          debugPrint("Error fetching track duration: $e");
+        }
+      }
+
       playbackState.add(playbackState.value.copyWith(
         controls: [
           MediaControl.skipToPrevious,
@@ -121,10 +137,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         // Update the MediaItem with the new duration
         mediaItem.add(currentItem.copyWith(duration: duration));
       }
-      // Update playbackState with the new duration
-      // This ensures that any UI components listening to playbackState also get the duration.
-      // The MediaItem.duration is primary for the notification.
-      playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
     });
 
     _audioPlayer.onPositionChanged.listen((position) {

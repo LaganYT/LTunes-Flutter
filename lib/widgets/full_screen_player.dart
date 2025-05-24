@@ -362,15 +362,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                         stream: currentSongProvider.onPositionChanged,
                         builder: (context, snapshot) {
                           final position = snapshot.data ?? Duration.zero;
-                          final duration = currentSongProvider.totalDuration; // Can be null
-                          
-                          if (isLoading) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 32.0), // Adjust padding as needed
-                              child: Center(child: CircularProgressIndicator(color: Colors.white)),
-                            );
+                          final duration = currentSongProvider.totalDuration ?? Duration.zero;
+                          double sliderValue = 0.0;
+                          if (duration.inMilliseconds > 0) {
+                            sliderValue = position.inMilliseconds.toDouble() / duration.inMilliseconds.toDouble();
+                            sliderValue = sliderValue.clamp(0.0, 1.0); // Ensure value is within 0.0 and 1.0
                           }
-
+                          
                           // For radio, disable seeking and show live indicator or just current time
                           if (isRadio) {
                             return Padding(
@@ -389,14 +387,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                             );
                           }
 
-                          // For regular songs
-                          double sliderValue = 0.0;
-                          bool durationAvailable = duration != null && duration.inMilliseconds > 0;
-                          if (durationAvailable) {
-                            sliderValue = position.inMilliseconds.toDouble() / duration.inMilliseconds.toDouble();
-                            sliderValue = sliderValue.clamp(0.0, 1.0);
-                          }
-
                           return Column(
                             children: [
                               SliderTheme(
@@ -410,10 +400,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                                 ),
                                 child: Slider(
                                   value: sliderValue,
-                                  onChanged: durationAvailable ? (value) {
+                                  onChanged: (value) {
                                     final newPosition = Duration(milliseconds: (value * duration.inMilliseconds).round());
                                     currentSongProvider.seek(newPosition);
-                                  } : null, // Disable slider if duration is not available
+                                  },
                                 ),
                               ),
                               Padding(
@@ -422,7 +412,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(_formatDuration(position), style: TextStyle(color: Colors.white.withOpacity(0.8))),
-                                    Text(durationAvailable ? _formatDuration(duration) : "--:--", style: TextStyle(color: Colors.white.withOpacity(0.8))),
+                                    Text(_formatDuration(duration), style: TextStyle(color: Colors.white.withOpacity(0.8))),
                                   ],
                                 ),
                               ),
