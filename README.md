@@ -27,6 +27,6 @@
 
 - Try and optimize the code so it doesn't take up so much resources (make less laggy)
 
-- Add a setting to disable animation, default is4 animation is on
+- Add a setting to disable animation, default = animation on
 
-- Update link won't open on android
+- Update link won't open on android, fix this
