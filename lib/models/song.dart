@@ -11,6 +11,7 @@ class Song {
   bool isDownloaded;
   String? localFilePath; // Stores filename only (relative to docs dir) if downloaded
   bool get isLocal => !albumArtUrl.startsWith('http');
+  final Map<String, dynamic>? extras; // Added extras field
 
   Song({
     required this.title,
@@ -22,6 +23,7 @@ class Song {
     this.audioUrl = '', // Default to empty string
     this.isDownloaded = false,
     this.localFilePath,
+    this.extras, // Added extras to constructor
   });
 
   Song copyWith({
@@ -34,6 +36,7 @@ class Song {
     String? audioUrl,
     bool? isDownloaded,
     String? localFilePath, // Ensure this can be null
+    Map<String, dynamic>? extras, // Added extras to copyWith
     
   }) {
     return Song(
@@ -46,6 +49,7 @@ class Song {
       audioUrl: audioUrl ?? this.audioUrl,
       isDownloaded: isDownloaded ?? this.isDownloaded,
       localFilePath: localFilePath, // Consumers ensure this is a filename
+      extras: extras ?? this.extras, // Added extras logic
     );
   }
 
@@ -110,6 +114,7 @@ class Song {
         audioUrl: audioUrl,
         isDownloaded: json['isDownloaded'] as bool? ?? false, // Assuming isDownloaded is boolean
         localFilePath: _asNullableString(json['localFilePath']), // Store as is; migration/usage logic handles interpretation
+        extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
       );
     } catch (e) {
       // For debugging purposes, it can be helpful to print the problematic JSON.
@@ -128,6 +133,7 @@ class Song {
         'audioUrl': audioUrl,
         'isDownloaded': isDownloaded,
         'localFilePath': localFilePath, // Will save filename if correctly set by app logic
+        'extras': extras, // Added extras to JSON
       };
 
   // New getter to safely provide a valid audio URL

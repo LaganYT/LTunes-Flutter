@@ -260,6 +260,11 @@ class CurrentSongProvider with ChangeNotifier {
         Map<String, dynamic> songMap = jsonDecode(songJson);
         Song loadedSong = Song.fromJson(songMap);
         // Migration logic for file paths (if any) should be in Song.fromJson or here
+        
+        // Check if the loaded song is a radio stream
+        bool isRadioStream = loadedSong.id.startsWith('radio_') || (loadedSong.extras?['isRadio'] as bool? ?? false);
+
+
         _currentSongFromAppLogic = loadedSong;
         _currentIndexInAppQueue = prefs.getInt('current_index_v2') ?? -1;
         List<String>? queueJsonStrings = prefs.getStringList('current_queue_v2');
@@ -268,21 +273,36 @@ class CurrentSongProvider with ChangeNotifier {
         }
 
         // Restore state to audio_handler
-        if (_queue.isNotEmpty && _currentIndexInAppQueue != -1 && _currentIndexInAppQueue < _queue.length) {
-          final mediaItems = await Future.wait(_queue.map((s) async => songToMediaItem(s, await fetchSongUrl(s), null)).toList());
+        if (!isRadioStream && _queue.isNotEmpty && _currentIndexInAppQueue != -1 && _currentIndexInAppQueue < _queue.length) {
+          final mediaItems = await Future.wait(_queue.map((s) async => await _prepareMediaItem(s)).toList());
           await _audioHandler.updateQueue(mediaItems);
-          // Set the current item in the queue and then pause to prevent autoplay.
           await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
           await _audioHandler.pause(); 
 
-        } else if (_currentSongFromAppLogic != null) {
-            // Only a single song was saved, no queue
-            final playableUrl = await fetchSongUrl(_currentSongFromAppLogic!);
+        } else if (_currentSongFromAppLogic != null) { // Handles single song or radio stream
+            // For radio, fetchSongUrl will just return its existing audioUrl (the stream URL)
+            // For regular song, it will fetch if necessary.
+            final playableUrl = await fetchSongUrl(_currentSongFromAppLogic!); 
             final mediaItem = songToMediaItem(_currentSongFromAppLogic!, playableUrl, null);
-            await _audioHandler.updateQueue([mediaItem]);
-            // Set the current item (the only one in the queue) and then pause.
-            await _audioHandler.skipToQueueItem(0);
-            await _audioHandler.pause();
+            
+            // If it's a radio stream, set its specific properties from the loaded song
+            if (isRadioStream) {
+                _stationName = _currentSongFromAppLogic!.title;
+                _stationFavicon = _currentSongFromAppLogic!.albumArtUrl;
+                // Ensure mediaItem for radio has 'isRadio' extra
+                final radioExtras = Map<String, dynamic>.from(mediaItem.extras ?? {});
+                radioExtras['isRadio'] = true;
+                radioExtras['songId'] = _currentSongFromAppLogic!.id; // Ensure original radio songId is used
+                final radioMediaItem = mediaItem.copyWith(extras: radioExtras, id: _currentSongFromAppLogic!.audioUrl, title: _stationName ?? 'Unknown Station', artist: "Radio Station");
+                await _audioHandler.playMediaItem(radioMediaItem); // Use playMediaItem for consistency
+                await _audioHandler.pause();
+
+
+            } else {
+                 await _audioHandler.updateQueue([mediaItem]);
+                 await _audioHandler.skipToQueueItem(0);
+                 await _audioHandler.pause();
+            }
         }
         notifyListeners();
       } catch (e) {
@@ -295,17 +315,14 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<MediaItem> _prepareMediaItem(Song song) async {
-    _isLoadingAudio = true;
-    notifyListeners();
+    // _isLoadingAudio = true; // Removed: Handled by the calling context (e.g., playSong)
+    // notifyListeners(); // Removed: Handled by the calling context
 
     String playableUrl = await fetchSongUrl(song);
     if (playableUrl.isEmpty) {
-      _isLoadingAudio = false;
-      notifyListeners();
       throw Exception('Could not resolve playable URL for ${song.title}');
     }
     
-    // Attempt to get duration if local file
     Duration? songDuration;
     if (song.isDownloaded && song.localFilePath != null && !song.localFilePath!.startsWith('http')) {
         // For local files, audioplayers can get duration.
@@ -313,54 +330,96 @@ class CurrentSongProvider with ChangeNotifier {
     }
     // For streams, duration is often unknown until playback starts or comes from metadata.
 
+    Song songForMediaItem = song; // Start with the passed song instance
+
     // Update song.audioUrl if a new one was fetched and different
     if (playableUrl != song.audioUrl && !song.isDownloaded) {
-        song = song.copyWith(audioUrl: playableUrl);
+        songForMediaItem = song.copyWith(audioUrl: playableUrl);
         // Persist this updated URL
-        await _persistSongMetadata(song);
-        // Update in current queue if present
-        final qIndex = _queue.indexWhere((s) => s.id == song.id);
-        if (qIndex != -1) _queue[qIndex] = song;
+        await _persistSongMetadata(songForMediaItem);
+        
+        // Update this song in the main _queue if it exists there
+        final qIndex = _queue.indexWhere((s) => s.id == songForMediaItem.id);
+        if (qIndex != -1) {
+          _queue[qIndex] = songForMediaItem;
+        }
+        // If _currentSongFromAppLogic is this song, update it to the new version
+        if (_currentSongFromAppLogic?.id == songForMediaItem.id) {
+            _currentSongFromAppLogic = songForMediaItem;
+        }
+    }
+
+    // Ensure 'isRadio' extra is correctly set to false or absent for regular songs.
+    final extras = Map<String, dynamic>.from(songForMediaItem.extras ?? {});
+    extras['isRadio'] = false; 
+    extras['songId'] = songForMediaItem.id; // Ensure songId is the actual song ID
+    extras['isLocal'] = songForMediaItem.isDownloaded;
+    if (songForMediaItem.isDownloaded && songForMediaItem.localFilePath != null && !songForMediaItem.albumArtUrl.startsWith('http')) {
+        extras['localArtFileName'] = songForMediaItem.albumArtUrl;
     }
 
 
-    return songToMediaItem(song, playableUrl, songDuration);
+    return songToMediaItem(songForMediaItem, playableUrl, songDuration).copyWith(extras: extras);
   }
 
-  Future<void> playSong(Song song, {bool isResumingOrLooping = false}) async {
+  Future<void> playSong(Song songToPlay, {bool isResumingOrLooping = false}) async {
     _isLoadingAudio = true;
-    _currentSongFromAppLogic = song; // Update app's idea of current song
-    _stationName = null; // Not a radio stream
+    // Tentatively update _currentSongFromAppLogic. This might be refined if the song
+    // is found in _queue (and that instance is more up-to-date), or if _prepareMediaItem updates it.
+    if (!isResumingOrLooping || _currentSongFromAppLogic?.id != songToPlay.id) {
+        _currentSongFromAppLogic = songToPlay;
+    }
+    _stationName = null; 
     _stationFavicon = null;
-    notifyListeners();
+    notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info)
 
     try {
-      MediaItem mediaItem = await _prepareMediaItem(song);
-
       if (!isResumingOrLooping) {
-        final indexInQueue = _queue.indexWhere((s) => s.id == song.id);
-        if (indexInQueue == -1) {
-          _queue = [song];
+        int indexInExistingQueue = _queue.indexWhere((s) => s.id == songToPlay.id);
+
+        if (indexInExistingQueue != -1) {
+          // Song is part of the existing _queue. Play from this queue.
+          _currentIndexInAppQueue = indexInExistingQueue;
+          // Ensure _currentSongFromAppLogic points to the instance from _queue,
+          // as it might have been updated by a previous _prepareMediaItem call or other logic.
+          _currentSongFromAppLogic = _queue[_currentIndexInAppQueue]; 
+                                                                    
+          // Refresh the entire queue in AudioHandler.
+          // This ensures that if radio was playing, or if any song URLs needed re-fetching,
+          // the handler gets the latest set of MediaItems.
+          // _prepareMediaItem will be called for each song in _queue.
+          // If a song's URL is fetched, _prepareMediaItem updates that Song object within _queue
+          // and potentially _currentSongFromAppLogic if it's the current song.
+          List<MediaItem> fullQueueMediaItems = await Future.wait(
+            _queue.map((sInQueue) => _prepareMediaItem(sInQueue)).toList()
+          );
+          await _audioHandler.updateQueue(fullQueueMediaItems);
+          
+        } else { 
+          // Song not in current _queue, treat as a new single-item queue.
+          // _currentSongFromAppLogic was set to songToPlay.
+          // Call _prepareMediaItem for this song. It will update _currentSongFromAppLogic
+          // if its URL changes (due to the side effect in _prepareMediaItem).
+          MediaItem mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
+          // After _prepareMediaItem, _currentSongFromAppLogic is the definitive Song object.
+          _queue = [_currentSongFromAppLogic!]; 
           _currentIndexInAppQueue = 0;
           await _audioHandler.updateQueue([mediaItem]);
-        } else {
-          _currentIndexInAppQueue = indexInQueue;
-          // Queue is already set in audio_handler if loaded from storage or set via setQueue
         }
+        // _currentSongFromAppLogic should be correct now, pointing to the actual instance being played.
         await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
       }
-      // For resume/loop, skipToQueueItem is not needed if already current.
-      // The handler's play() will resume or restart the current item.
+
       await _audioHandler.play();
       _prefetchNextSongs();
-      _saveCurrentSongToStorage();
+      _saveCurrentSongToStorage(); // Save state including potentially updated queue/song
 
     } catch (e) {
-      debugPrint('Error playing song (${song.title}): $e');
+      // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
+      debugPrint('Error playing song (${_currentSongFromAppLogic?.title ?? songToPlay.title}): $e');
       _isLoadingAudio = false;
       notifyListeners();
     }
-    // _isLoadingAudio will be set to false by the playbackState listener when playing starts
   }
 
   Future<String> fetchSongUrl(Song song) async {
@@ -608,10 +667,10 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
     _isLoadingAudio = true;
-    _currentSongFromAppLogic = null; // Clear regular song
+    // _currentSongFromAppLogic = null; // Clear regular song // This will be set to the radio song object
     _stationName = stationName;
     _stationFavicon = stationFavicon ?? '';
-    notifyListeners();
+    
 
     final radioSongId = 'radio_${stationName.hashCode}_${streamUrl.hashCode}';
     final mediaItem = MediaItem(
@@ -619,18 +678,20 @@ class CurrentSongProvider with ChangeNotifier {
       title: stationName,
       artist: 'Radio Station',
       artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
-      extras: {'isRadio': true, 'songId': radioSongId},
+      extras: {'isRadio': true, 'songId': radioSongId}, // Ensure songId is set for radio
     );
     
     // Update app's notion of current song to this radio stream
     _currentSongFromAppLogic = Song(
-        id: radioSongId,
+        id: radioSongId, // Use the unique radioSongId
         title: stationName,
         artist: 'Radio Station',
         albumArtUrl: stationFavicon ?? '',
-        audioUrl: streamUrl,
-        isDownloaded: false
+        audioUrl: streamUrl, // Store the actual stream URL
+        isDownloaded: false,
+        extras: {'isRadio': true, 'songId': radioSongId} // Ensure extras are passed correctly
     );
+    notifyListeners(); // Notify after _currentSongFromAppLogic and station details are set
 
 
     // Update the queue in the handler to just this radio stream
@@ -678,6 +739,7 @@ class CurrentSongProvider with ChangeNotifier {
 
   void updateSongDetails(Song updatedSong) {
     bool providerStateChanged = false; // Tracks if notifyListeners is needed for provider's own state
+    bool currentSongWasUpdated = false;
 
     // Update in the provider's own queue
     final indexInProviderQueue = _queue.indexWhere((s) => s.id == updatedSong.id);
@@ -690,26 +752,35 @@ class CurrentSongProvider with ChangeNotifier {
     if (_currentSongFromAppLogic?.id == updatedSong.id) {
       _currentSongFromAppLogic = updatedSong;
       providerStateChanged = true;
+      currentSongWasUpdated = true;
     }
 
     // Asynchronously prepare the MediaItem for the audio_handler
     // This needs to happen before we can update the handler.
-    _prepareMediaItem(updatedSong).then((newMediaItem) {
+    _prepareMediaItem(updatedSong).then((newMediaItem) async { // made async
       // 1. Update the handler's current media item if it matches the updated song.
       final currentHandlerMediaItem = _audioHandler.mediaItem.value;
+      bool isCurrentlyPlayingInHandler = false;
       if (currentHandlerMediaItem != null) {
-        // Check if the song being updated is the one currently loaded in the handler.
-        // Primary check is by 'songId' in extras.
-        // Fallback to comparing the newMediaItem.id (playable URL) if songId isn't present or doesn't match.
-        bool isCurrentlyPlayingInHandler = 
-            (currentHandlerMediaItem.extras?['songId'] == updatedSong.id) || 
-            (currentHandlerMediaItem.id == newMediaItem.id && updatedSong.id == currentHandlerMediaItem.extras?['songId']); // Ensure newMediaItem.id corresponds to updatedSong
+        isCurrentlyPlayingInHandler = (currentHandlerMediaItem.extras?['songId'] == updatedSong.id);
+      }
 
-        if (isCurrentlyPlayingInHandler) {
-          // Update the current media item using a custom action or by reloading the queue
-          _audioHandler.customAction('updateCurrentMediaItem', {
-            'mediaItem': {
-              'id': newMediaItem.id,
+
+      if (isCurrentlyPlayingInHandler && currentSongWasUpdated) {
+          // If the currently playing song's details are updated,
+          // we might need to replace the media item in the handler.
+          // This can be complex if it means reloading the audio source.
+          // A custom action or re-evaluating playMediaItem might be needed.
+          // For now, let's assume metadata updates don't require reloading the stream itself
+          // unless the playable ID (URL) changes.
+          // If newMediaItem.id (playable URL) changed, more drastic action is needed.
+          // For now, we focus on metadata like title, artist, art.
+          
+          // Option 1: Custom action to update metadata of current item (if handler supports)
+          // This is safer if only non-critical metadata changes.
+           _audioHandler.customAction('updateCurrentMediaItemMetadata', {
+            'mediaItem': { // Send only metadata, not necessarily the full item if ID is same
+              'id': newMediaItem.id, // Keep same ID if URL hasn't changed
               'title': newMediaItem.title,
               'artist': newMediaItem.artist,
               'album': newMediaItem.album,
@@ -718,21 +789,20 @@ class CurrentSongProvider with ChangeNotifier {
               'extras': newMediaItem.extras,
             }
           });
-        }
+
+
       }
 
       // 2. Update the item in the handler's queue if it exists there.
       final handlerQueue = List<MediaItem>.from(_audioHandler.queue.value);
-      // Find the item in the queue, preferably by 'songId' as it's a more stable identifier.
       int itemIndexInHandlerQueue = handlerQueue.indexWhere((mi) => mi.extras?['songId'] == updatedSong.id);
 
       if (itemIndexInHandlerQueue != -1) {
-        // If found, replace it with the new MediaItem and update the handler's queue.
         handlerQueue[itemIndexInHandlerQueue] = newMediaItem;
-        _audioHandler.updateQueue(handlerQueue);
+        await _audioHandler.updateQueue(handlerQueue); // made await
       }
       // Note: No direct call to _audioHandler.updateMediaItem(newMediaItem) to avoid the original error.
-      // The combination of _audioHandler.mediaItem.add() and _audioHandler.updateQueue()
+      // The combination of custom action and _audioHandler.updateQueue()
       // achieves the desired update safely.
 
     }).catchError((e, stackTrace) {
