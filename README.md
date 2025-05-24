@@ -6,7 +6,6 @@
 - Listening history (with option to clear).
 - Sleep timer (stop playback after set time).
 - Volume normalization (level all songs).
-- Add swipe gestures for better navigation.
 
 ### Search and Library
 - Show albums in search results.
@@ -19,3 +18,5 @@
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
+
+- Make it so you dont have to swipe so far to add a song to queue.
