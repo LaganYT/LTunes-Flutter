@@ -1,17 +1,8 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.LTunes">
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- ADD THESE TWO PERMISSIONS -->
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <!-- ALSO ADD THIS PERMISSION IF TARGETING SDK 34 or higher -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="LTunes"
+        android:label="ltunes"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -39,23 +30,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <!-- ADD THIS "SERVICE" element -->
-        <service android:name="com.ryanheise.audioservice.AudioService"
-            android:foregroundServiceType="mediaPlayback"
-            android:exported="true" tools:ignore="Instantiatable">
-          <intent-filter>
-            <action android:name="android.media.browse.MediaBrowserService" />
-          </intent-filter>
-        </service>
-
-        <!-- ADD THIS "RECEIVER" element -->
-        <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver"
-            android:exported="true" tools:ignore="Instantiatable">
-          <intent-filter>
-            <action android:name="android.intent.action.MEDIA_BUTTON" />
-          </intent-filter>
-        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

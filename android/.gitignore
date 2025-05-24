@@ -12,13 +12,3 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
-
-# Files for the ART/Dalvik cache
-dalvik-cache/
-
-# Generated files
-bin/
-gen/
-
-# Gradle cache
-.gradle/
