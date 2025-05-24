@@ -21,8 +21,6 @@
 
 ### Bug fixes
 
-- Fix animations for closing the full screen player, it should show it move from top down instead of to the side
-
 - make the animation for skipping using gestures look better
 
 - When switching from radio to music, it wont load the streaming music for some reason
