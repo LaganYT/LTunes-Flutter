@@ -238,32 +238,18 @@ class CurrentSongProvider with ChangeNotifier {
         if (_queue.isNotEmpty && _currentIndexInAppQueue != -1 && _currentIndexInAppQueue < _queue.length) {
           final mediaItems = await Future.wait(_queue.map((s) async => songToMediaItem(s, await fetchSongUrl(s), null)).toList());
           await _audioHandler.updateQueue(mediaItems);
-          // Don't auto-play, just set the state. The UI/user will decide to play.
-          // await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
-          // Set the media item without playing
-          final currentMediaItem = mediaItems[_currentIndexInAppQueue];
-           _audioHandler.playMediaItem(currentMediaItem); // Update handler's current item
-           _audioHandler.customAction(
-             'updatePlaybackState',
-             {
-               'queueIndex': _currentIndexInAppQueue,
-               // Add other fields if necessary, depending on your custom action implementation
-             },
-           );
+          // Set the current item in the queue and then pause to prevent autoplay.
+          await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+          await _audioHandler.pause(); 
 
         } else if (_currentSongFromAppLogic != null) {
             // Only a single song was saved, no queue
             final playableUrl = await fetchSongUrl(_currentSongFromAppLogic!);
             final mediaItem = songToMediaItem(_currentSongFromAppLogic!, playableUrl, null);
             await _audioHandler.updateQueue([mediaItem]);
-             await _audioHandler.playMediaItem(mediaItem);
-             _audioHandler.customAction(
-               'updatePlaybackState',
-               {
-                 'queueIndex': 0,
-                 // Add other fields if necessary, depending on your custom action implementation
-               },
-             );
+            // Set the current item (the only one in the queue) and then pause.
+            await _audioHandler.skipToQueueItem(0);
+            await _audioHandler.pause();
         }
         notifyListeners();
       } catch (e) {
