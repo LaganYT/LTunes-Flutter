@@ -1,0 +1,5 @@
+
+module audioplayers_darwin.Swift {
+  header "audioplayers_darwin-Swift.h"
+  requires objc
+}

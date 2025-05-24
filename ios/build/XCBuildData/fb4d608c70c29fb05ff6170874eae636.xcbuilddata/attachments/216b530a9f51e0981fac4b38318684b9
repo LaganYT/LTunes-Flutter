@@ -1,0 +1,4 @@
+
+module audioplayers_darwin.__Swift {
+  exclude header "audioplayers_darwin-Swift.h"
+}

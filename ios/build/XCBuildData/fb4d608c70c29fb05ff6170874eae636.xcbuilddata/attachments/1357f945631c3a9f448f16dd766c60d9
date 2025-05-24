@@ -1,0 +1,40 @@
+{
+  "" : {
+    "const-values" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGif-master.swiftconstvalues",
+    "dependencies" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGif-master.d",
+    "diagnostics" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGif-master.dia",
+    "emit-module-dependencies" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGif-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGif-master-emit-module.dia",
+    "swift-dependencies" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGif-master.swiftdeps"
+  },
+  "/Users/loganlatham/Documents/LTunes Flutter/ios/Pods/SwiftyGif/SwiftyGif/NSImage+SwiftyGif.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/NSImage+SwiftyGif.o",
+    "llvm-bc" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/NSImage+SwiftyGif.bc",
+    "object" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/NSImage+SwiftyGif.o"
+  },
+  "/Users/loganlatham/Documents/LTunes Flutter/ios/Pods/SwiftyGif/SwiftyGif/NSImageView+SwiftyGif.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/NSImageView+SwiftyGif.o",
+    "llvm-bc" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/NSImageView+SwiftyGif.bc",
+    "object" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/NSImageView+SwiftyGif.o"
+  },
+  "/Users/loganlatham/Documents/LTunes Flutter/ios/Pods/SwiftyGif/SwiftyGif/ObjcAssociatedWeakObject.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/ObjcAssociatedWeakObject.o",
+    "llvm-bc" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/ObjcAssociatedWeakObject.bc",
+    "object" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/ObjcAssociatedWeakObject.o"
+  },
+  "/Users/loganlatham/Documents/LTunes Flutter/ios/Pods/SwiftyGif/SwiftyGif/SwiftyGifManager.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGifManager.o",
+    "llvm-bc" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGifManager.bc",
+    "object" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/SwiftyGifManager.o"
+  },
+  "/Users/loganlatham/Documents/LTunes Flutter/ios/Pods/SwiftyGif/SwiftyGif/UIImage+SwiftyGif.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/UIImage+SwiftyGif.o",
+    "llvm-bc" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/UIImage+SwiftyGif.bc",
+    "object" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/UIImage+SwiftyGif.o"
+  },
+  "/Users/loganlatham/Documents/LTunes Flutter/ios/Pods/SwiftyGif/SwiftyGif/UIImageView+SwiftyGif.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/UIImageView+SwiftyGif.o",
+    "llvm-bc" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/UIImageView+SwiftyGif.bc",
+    "object" : "/Users/loganlatham/Documents/LTunes Flutter/ios/build/Pods.build/Release-iphoneos/SwiftyGif.build/Objects-normal/arm64/UIImageView+SwiftyGif.o"
+  }
+}

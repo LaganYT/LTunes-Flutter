@@ -116,12 +116,15 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     });
 
     _audioPlayer.onDurationChanged.listen((duration) {
-      // Ensure mediaItem.value is not null before accessing its properties
-      final currentMediaItem = mediaItem.value;
-      if (currentMediaItem != null && currentMediaItem.duration != duration) {
-        mediaItem.add(currentMediaItem.copyWith(duration: duration));
+      final currentItem = mediaItem.value;
+      if (currentItem != null && currentItem.duration != duration) {
+        // Update the MediaItem with the new duration
+        mediaItem.add(currentItem.copyWith(duration: duration));
       }
-      // playbackState update might not be needed here unless duration affects other state fields
+      // Update playbackState with the new duration
+      // This ensures that any UI components listening to playbackState also get the duration.
+      // The MediaItem.duration is primary for the notification.
+      playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
     });
 
     _audioPlayer.onPositionChanged.listen((position) {
@@ -311,12 +314,15 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= _playlist.length) {
-      debugPrint("skipToQueueItem: Index out of bounds.");
+      // Optionally, handle out-of-bounds index, e.g., stop or loop.
+      // For now, just return if index is invalid.
       return;
     }
     _currentIndex = index;
     
     MediaItem itemToPlay = _playlist[_currentIndex];
+    // Duration might be null here if not known beforehand.
+    // onDurationChanged will update it once playback starts and duration is available.
     itemToPlay = await _resolveArtForItem(itemToPlay); // Resolve art URI
     _playlist[_currentIndex] = itemToPlay; // Update playlist with resolved item
 
