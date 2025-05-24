@@ -16,6 +16,8 @@ class FullScreenPlayer extends StatefulWidget {
 }
 
 class _FullScreenPlayerState extends State<FullScreenPlayer> {
+  double _slideOffsetX = 1.0; // To control slide direction
+
   Future<String> _resolveLocalArtPath(String? fileName) async {
     if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
       return '';
@@ -283,164 +285,199 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
             ),
           ),
           // Player UI
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(flex: 1),
-                  // Album Art
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12.0),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Hero(
-                        tag: 'current-song-art', // Ensure this tag is unique or managed
-                        child: albumArtWidget,
+          GestureDetector(
+            onHorizontalDragEnd: (details) {
+              if (isRadio) return; // Disable swipe for radio
+              if (details.primaryVelocity! > 0) {
+                // Swiped right (previous)
+                setState(() {
+                  _slideOffsetX = -1.0; // New content comes from left
+                });
+                currentSongProvider.playPrevious();
+              } else if (details.primaryVelocity! < 0) {
+                // Swiped left (next)
+                setState(() {
+                  _slideOffsetX = 1.0; // New content comes from right
+                });
+                currentSongProvider.playNext();
+              }
+            },
+            onVerticalDragEnd: (details) {
+              if (details.primaryVelocity! > 0) {
+                // Swiped down
+                Navigator.of(context).pop();
+              }
+            },
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: Offset(_slideOffsetX, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    );
+                  },
+                  child: Column(
+                    key: ValueKey<String>(currentSong?.id ?? 'no_song_playing'), // Key to trigger animation
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Spacer(flex: 1),
+                      // Album Art
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12.0),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Hero(
+                            tag: 'current-song-art', // Ensure this tag is unique or managed
+                            child: albumArtWidget,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // Song Title
-                  Text(
-                    displayTitle,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  // Artist Name
-                  Text(
-                    displayArtist,
-                    style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.8)),
-                    textAlign: TextAlign.center,
-                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const Spacer(flex: 2),
-                  // Seek Bar
-                  StreamBuilder<Duration>(
-                    stream: currentSongProvider.onPositionChanged,
-                    builder: (context, snapshot) {
-                      final position = snapshot.data ?? Duration.zero;
-                      final duration = currentSongProvider.totalDuration ?? Duration.zero;
-                      double sliderValue = 0.0;
-                      if (duration.inMilliseconds > 0) {
-                        sliderValue = position.inMilliseconds.toDouble() / duration.inMilliseconds.toDouble();
-                        sliderValue = sliderValue.clamp(0.0, 1.0); // Ensure value is within 0.0 and 1.0
-                      }
-                      
-                      // For radio, disable seeking and show live indicator or just current time
-                      if (isRadio) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                      const SizedBox(height: 32),
+                      // Song Title
+                      Text(
+                        displayTitle,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      // Artist Name
+                      Text(
+                        displayArtist,
+                        style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.8)),
+                        textAlign: TextAlign.center,
+                         maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(flex: 2),
+                      // Seek Bar
+                      StreamBuilder<Duration>(
+                        stream: currentSongProvider.onPositionChanged,
+                        builder: (context, snapshot) {
+                          final position = snapshot.data ?? Duration.zero;
+                          final duration = currentSongProvider.totalDuration ?? Duration.zero;
+                          double sliderValue = 0.0;
+                          if (duration.inMilliseconds > 0) {
+                            sliderValue = position.inMilliseconds.toDouble() / duration.inMilliseconds.toDouble();
+                            sliderValue = sliderValue.clamp(0.0, 1.0); // Ensure value is within 0.0 and 1.0
+                          }
+                          
+                          // For radio, disable seeking and show live indicator or just current time
+                          if (isRadio) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.wifi_tethering, color: Colors.white70, size: 16),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'LIVE: ${_formatDuration(position)}',
+                                    style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return Column(
                             children: [
-                              const Icon(Icons.wifi_tethering, color: Colors.white70, size: 16),
-                              const SizedBox(width: 8),
-                              Text(
-                                'LIVE: ${_formatDuration(position)}',
-                                style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                              SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  trackHeight: 3.0,
+                                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
+                                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+                                  activeTrackColor: Colors.white,
+                                  inactiveTrackColor: Colors.white.withOpacity(0.3),
+                                  thumbColor: Colors.white,
+                                ),
+                                child: Slider(
+                                  value: sliderValue,
+                                  onChanged: (value) {
+                                    final newPosition = Duration(milliseconds: (value * duration.inMilliseconds).round());
+                                    currentSongProvider.seek(newPosition);
+                                  },
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(_formatDuration(position), style: TextStyle(color: Colors.white.withOpacity(0.8))),
+                                    Text(_formatDuration(duration), style: TextStyle(color: Colors.white.withOpacity(0.8))),
+                                  ],
+                                ),
                               ),
                             ],
-                          ),
-                        );
-                      }
-
-                      return Column(
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Controls
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              trackHeight: 3.0,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
-                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-                              activeTrackColor: Colors.white,
-                              inactiveTrackColor: Colors.white.withOpacity(0.3),
-                              thumbColor: Colors.white,
+                          if (!isRadio)
+                            IconButton(
+                              icon: Icon(
+                                currentSongProvider.isShuffling ? Icons.shuffle_rounded : Icons.shuffle_rounded,
+                                color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.primary : Colors.white,
+                                fill: currentSongProvider.isShuffling ? 1.0 : 0.0, // Ensures the icon looks filled
+                              ),
+                              iconSize: 28,
+                              tooltip: 'Shuffle',
+                              onPressed: () => currentSongProvider.toggleShuffle(), // isRadio check already handled by visibility
                             ),
-                            child: Slider(
-                              value: sliderValue,
-                              onChanged: (value) {
-                                final newPosition = Duration(milliseconds: (value * duration.inMilliseconds).round());
-                                currentSongProvider.seek(newPosition);
+                          if (!isRadio)
+                            IconButton(
+                              icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
+                              iconSize: 36,
+                              tooltip: 'Previous',
+                              onPressed: () => currentSongProvider.playPrevious(), // isRadio check already handled by visibility
+                            ),
+                          if (isLoading)
+                            Container(
+                              width: 70, height: 70,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)),
+                            )
+                          else
+                            IconButton(
+                              icon: Icon(isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded, color: Colors.white),
+                              iconSize: 70,
+                              tooltip: isPlaying ? 'Pause' : 'Play',
+                              onPressed: () {
+                                if (isPlaying) {
+                                  currentSongProvider.pauseSong();
+                                } else {
+                                  currentSongProvider.resumeSong();
+                                }
                               },
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(_formatDuration(position), style: TextStyle(color: Colors.white.withOpacity(0.8))),
-                                Text(_formatDuration(duration), style: TextStyle(color: Colors.white.withOpacity(0.8))),
-                              ],
+                          if (!isRadio)
+                            IconButton(
+                              icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                              iconSize: 36,
+                              tooltip: 'Next',
+                              onPressed: () => currentSongProvider.playNext(), // isRadio check already handled by visibility
                             ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  // Controls
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      if (!isRadio)
-                        IconButton(
-                          icon: Icon(
-                            currentSongProvider.isShuffling ? Icons.shuffle_rounded : Icons.shuffle_rounded,
-                            color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.primary : Colors.white,
-                            fill: currentSongProvider.isShuffling ? 1.0 : 0.0, // Ensures the icon looks filled
-                          ),
-                          iconSize: 28,
-                          tooltip: 'Shuffle',
-                          onPressed: () => currentSongProvider.toggleShuffle(), // isRadio check already handled by visibility
-                        ),
-                      if (!isRadio)
-                        IconButton(
-                          icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
-                          iconSize: 36,
-                          tooltip: 'Previous',
-                          onPressed: () => currentSongProvider.playPrevious(), // isRadio check already handled by visibility
-                        ),
-                      if (isLoading)
-                        Container(
-                          width: 70, height: 70,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)),
-                        )
-                      else
-                        IconButton(
-                          icon: Icon(isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded, color: Colors.white),
-                          iconSize: 70,
-                          tooltip: isPlaying ? 'Pause' : 'Play',
-                          onPressed: () {
-                            if (isPlaying) {
-                              currentSongProvider.pauseSong();
-                            } else {
-                              currentSongProvider.resumeSong();
-                            }
-                          },
-                        ),
-                      if (!isRadio)
-                        IconButton(
-                          icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
-                          iconSize: 36,
-                          tooltip: 'Next',
-                          onPressed: () => currentSongProvider.playNext(), // isRadio check already handled by visibility
-                        ),
-                      if (!isRadio)
-                        IconButton(
-                          icon: Icon(
-                            currentSongProvider.loopMode == LoopMode.song 
-                              ? Icons.repeat_one_rounded 
-                              : Icons.repeat_rounded,
+                          if (!isRadio)
+                            IconButton(
+                              icon: Icon(
+                                currentSongProvider.loopMode == LoopMode.song 
+                                  ? Icons.repeat_one_rounded 
+                                  : Icons.repeat_rounded,
                             color: currentSongProvider.loopMode != LoopMode.none 
                               ? Theme.of(context).colorScheme.primary 
                               : Colors.white,
@@ -453,14 +490,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                                   : 'Loop Song',
                           onPressed: () => currentSongProvider.toggleLoop(), // isRadio check already handled by visibility
                         ),
-                    ],
-                  ),
-                  const Spacer(flex: 1),
-                ],
+                      ],
+                    ),
+                    const Spacer(flex: 1),
+                  ],
+                ),
               ),
             ),
           ),
-        ],
+      )],
       ),
     );
   }

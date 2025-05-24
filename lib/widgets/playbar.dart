@@ -99,85 +99,96 @@ class _PlaybarState extends State<Playbar> {
       onTap: () {
         Navigator.push(
           context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              const begin = Offset(0.0, 1.0);
-              const end = Offset.zero;
-              const curve = Curves.ease;
-
-              final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-              final offsetAnimation = animation.drive(tween);
-
-              return SlideTransition(
-                position: offsetAnimation,
-                child: child,
-              );
-            },
-          ),
+          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
         );
       },
-      child: Material(
-        color: theme.cardColor, // Changed from colorScheme.surfaceContainerHighest
-        elevation: 4.0, // Reduced from 8.0
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-          height: 64.0, // Fixed height for the playbar
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4.0),
-                child: leadingWidget,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      currentSong.title.isNotEmpty ? currentSong.title : 'Unknown Title',
-                      style: textTheme.titleSmall?.copyWith(color: colorScheme.onSurface),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+      child: GestureDetector( // Added GestureDetector for horizontal swipes
+        onHorizontalDragEnd: (details) {
+          // Swipe gestures on playbar can also trigger next/previous
+          if (details.primaryVelocity! > 0) {
+            // Swiped right (previous)
+            currentSongProvider.playPrevious();
+          } else if (details.primaryVelocity! < 0) {
+            // Swiped left (next)
+            currentSongProvider.playNext();
+          }
+        },
+        child: Material(
+          elevation: 8.0,
+          color: colorScheme.surfaceVariant.withOpacity(0.95),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 500),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeOutQuart)
+                  ),
+                  child: child,
+                ),
+              );
+            },
+            child: Container(
+              key: ValueKey<String>(currentSong.id), // Key to trigger animation
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              height: 64, // Standard height for a playbar
+              child: Row(
+                children: [
+                  leadingWidget,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          currentSong.title,
+                          style: textTheme.titleSmall?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        Text(
+                          currentSong.artist.isNotEmpty ? currentSong.artist : (isRadio ? "Radio Stream" : "Unknown Artist"),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ],
                     ),
-                    Text(
-                      currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist',
-                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+                  ),
+                  if (isLoadingAudio)
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.0),
+                    )
+                  else
+                    IconButton(
+                      icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 32),
+                      color: colorScheme.primary,
+                      onPressed: () {
+                        if (isPlaying) {
+                          currentSongProvider.pauseSong();
+                        } else {
+                          currentSongProvider.resumeSong();
+                        }
+                      },
                     ),
-                  ],
-                ),
+                  if (!isRadio) // Show next button only if not radio
+                    IconButton(
+                      icon: Icon(Icons.skip_next_rounded, size: 32),
+                      color: colorScheme.onSurfaceVariant,
+                      onPressed: () => currentSongProvider.playNext(),
+                    ),
+                ],
               ),
-              const SizedBox(width: 8),
-              if (isLoadingAudio)
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.0, color: colorScheme.primary),
-                )
-              else
-                IconButton(
-                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: colorScheme.onSurface),
-                  iconSize: 32.0,
-                  onPressed: () {
-                    if (isPlaying) {
-                      currentSongProvider.pauseSong();
-                    } else {
-                      currentSongProvider.resumeSong();
-                    }
-                  },
-                ),
-              if (!isRadio) // Conditionally show the skip_next button
-                IconButton(
-                  icon: Icon(Icons.skip_next, color: colorScheme.onSurface.withOpacity(0.7)),
-                  iconSize: 28.0,
-                  onPressed: () {
-                    currentSongProvider.playNext();
-                  },
-                ),
-            ],
+            ),
           ),
         ),
       ),
