@@ -68,6 +68,11 @@ class CurrentSongProvider with ChangeNotifier {
   // Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Replaced
   Stream<Duration> get onPositionChanged => AudioService.position;
 
+  bool get isCurrentlyPlayingRadio {
+    final mediaItem = _audioHandler.mediaItem.value;
+    return mediaItem?.extras?['isRadio'] as bool? ?? false;
+  }
+
 
   CurrentSongProvider(this._audioHandler) {
     _loadCurrentSongFromStorage(); // Load last playing song and queue

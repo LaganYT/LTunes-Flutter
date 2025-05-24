@@ -122,6 +122,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     final bool isCurrentSongInProvider = currentSongProvider.currentSong?.id == widget.song.id;
     final bool isPlayingThisSong = isCurrentSongInProvider && currentSongProvider.isPlaying;
     final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
+    final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
 
     final Song songForDisplay; // Use a different variable for clarity
     if (isCurrentSongInProvider && currentSongProvider.currentSong != null) {
@@ -336,7 +337,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    onPressed: _downloadSong,
+                    onPressed: isRadioPlayingGlobal ? null : _downloadSong,
                   ),
                 ),
               ],
@@ -347,20 +348,22 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   TextButton.icon(
-                    icon: Icon(Icons.playlist_add_rounded, color: colorScheme.secondary),
-                    label: Text('Add to Playlist', style: TextStyle(color: colorScheme.secondary)),
-                    onPressed: () => _showAddToPlaylistDialog(context, widget.song),
+                    icon: Icon(Icons.playlist_add_rounded, color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary),
+                    label: Text('Add to Playlist', style: TextStyle(color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary)),
+                    onPressed: isRadioPlayingGlobal ? null : () => _showAddToPlaylistDialog(context, widget.song),
                   ),
                   TextButton.icon(
-                    icon: Icon(Icons.queue_music, color: colorScheme.secondary),
-                    label: Text('Add to Queue', style: TextStyle(color: colorScheme.secondary)),
-                    onPressed: () {
-                      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                      currentSongProvider.addToQueue(widget.song);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${widget.song.title} added to queue')),
-                      );
-                    },
+                    icon: Icon(Icons.queue_music, color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary),
+                    label: Text('Add to Queue', style: TextStyle(color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary)),
+                    onPressed: isRadioPlayingGlobal
+                        ? null
+                        : () {
+                            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                            currentSongProvider.addToQueue(widget.song);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${widget.song.title} added to queue')),
+                            );
+                          },
                   ),
                 ],
               ),

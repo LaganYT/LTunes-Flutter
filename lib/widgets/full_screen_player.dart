@@ -1,146 +1,149 @@
-import 'dart:io'; // Required for File
+import 'dart:ui'; // For ImageFilter
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/song.dart';
-import '../models/playlist.dart'; // Import Playlist model
 import '../providers/current_song_provider.dart';
-import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
-import 'package:path_provider/path_provider.dart'; // Added import
-import 'package:path/path.dart' as p; // Added import
+import '../models/song.dart';
+import 'dart:io'; // For File
+import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
+import 'package:path/path.dart' as p; // For path joining
 
-class FullScreenPlayer extends StatelessWidget {
+class FullScreenPlayer extends StatefulWidget {
+  // Removed song parameter as Provider will supply the current song
   const FullScreenPlayer({super.key});
 
-  String _formatDuration(Duration? duration) {
-    if (duration == null) return "0:00";
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
-  }
+  @override
+  State<FullScreenPlayer> createState() => _FullScreenPlayerState();
+}
 
-  // Helper method to resolve local album art path
-  Future<String> _resolveLocalArtPath(String fileName) async {
-    if (fileName.isEmpty) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
+class _FullScreenPlayerState extends State<FullScreenPlayer> {
+  Future<String> _resolveLocalArtPath(String? fileName) async {
+    if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
+      return '';
+    }
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fullPath = p.join(directory.path, fileName);
+      if (await File(fullPath).exists()) {
+        return fullPath;
+      }
+    } catch (e) {
+      debugPrint("Error resolving local art path for full screen player: $e");
     }
     return '';
   }
 
-  void _showQueueBottomSheet(BuildContext context, CurrentSongProvider provider) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
-    final Song? currentSong = provider.currentSong;
+  String _formatDuration(Duration? duration) {
+    if (duration == null) return '0:00';
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return '${twoDigits(duration.inHours)}:$minutes:$seconds';
+    }
+    return '$minutes:$seconds';
+  }
+
+  void _showQueueBottomSheet(BuildContext context) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final queue = currentSongProvider.queue;
+    final currentSong = currentSongProvider.currentSong;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: colorScheme.surfaceContainerLowest,
-      isScrollControlled: true, // Allows for taller bottom sheet
-      builder: (BuildContext context) {
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent, // Make sheet background transparent
+      builder: (BuildContext bc) {
         return DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.5, // Start at 50% of screen height
-          minChildSize: 0.3,   // Minimum 30%
-          maxChildSize: 0.8,   // Maximum 80%
-          builder: (_, scrollController) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
-                  child: Text(
-                    'Up Next',
-                    style: textTheme.titleLarge?.copyWith(color: colorScheme.onSurface),
-                  ),
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
-                Expanded(
-                  child: provider.queue.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Queue is empty',
-                            style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-                          ),
-                        )
-                      : ListView.builder(
-                          controller: scrollController,
-                          itemCount: provider.queue.length,
-                          itemBuilder: (context, index) {
-                            final song = provider.queue[index];
-                            bool isCurrentlyPlaying = song.id == currentSong?.id;
-                            Widget leadingImage;
-                            if (song.albumArtUrl.isNotEmpty) {
-                              if (song.albumArtUrl.startsWith('http')) {
-                                leadingImage = Image.network(
-                                  song.albumArtUrl,
-                                  width: 50,
-                                  height: 50,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant),
-                                );
-                              } else {
-                                leadingImage = FutureBuilder<String>(
-                                  future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                                      return Image.file(
-                                        File(snapshot.data!),
-                                        width: 50,
-                                        height: 50,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant),
-                                      );
-                                    }
-                                    return Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant);
-                                  },
-                                );
-                              }
-                            } else {
-                              leadingImage = Icon(Icons.music_note, size: 50, color: colorScheme.onSurfaceVariant);
-                            }
-
-                            return ListTile(
-                              tileColor: isCurrentlyPlaying ? colorScheme.primaryContainer.withOpacity(0.3) : null,
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: leadingImage,
-                              ),
-                              title: Text(
-                                song.title.isNotEmpty ? song.title : 'Unknown Title',
-                                style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
-                                style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () {
-                                provider.playSong(song);
-                                // Navigator.pop(context); // Optionally close sheet on selection
-                              },
-                            );
-                          },
-                        ),
-                ),
-                if (provider.queue.isNotEmpty)
+              ),
+              child: Column(
+                children: [
                   Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: TextButton.icon(
-                      icon: Icon(Icons.clear_all, color: colorScheme.error),
-                      label: Text('Clear Queue', style: TextStyle(color: colorScheme.error)),
-                      onPressed: () {
-                        provider.clearQueue();
-                        // Optionally pop the sheet after clearing
-                        // Navigator.pop(context); 
-                      },
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Up Next',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ),
-              ],
+                  if (queue.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Queue is empty.',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        controller: controller,
+                        itemCount: queue.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final song = queue[index];
+                          final bool isCurrentlyPlaying = song.id == currentSong?.id;
+                          return ListTile(
+                            leading: FutureBuilder<String>(
+                              future: _resolveLocalArtPath(song.albumArtUrl),
+                              builder: (context, snapshot) {
+                                Widget imageWidget;
+                                if (song.albumArtUrl.startsWith('http')) {
+                                  imageWidget = Image.network(
+                                    song.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                                  );
+                                } else if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                  imageWidget = Image.file(
+                                    File(snapshot.data!), width: 40, height: 40, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                                  );
+                                } else {
+                                  imageWidget = const Icon(Icons.music_note, size: 40);
+                                }
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: imageWidget,
+                                );
+                              },
+                            ),
+                            title: Text(
+                              song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
+                                color: isCurrentlyPlaying ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            subtitle: Text(
+                              song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                             trailing: isCurrentlyPlaying
+                                ? Icon(Icons.bar_chart_rounded, color: Theme.of(context).colorScheme.primary)
+                                : null,
+                            onTap: () {
+                              currentSongProvider.playSong(song);
+                              Navigator.pop(context); // Close the bottom sheet
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
             );
           },
         );
@@ -148,343 +151,271 @@ class FullScreenPlayer extends StatelessWidget {
     );
   }
 
-  void _showAddToPlaylistDialog(BuildContext context, Song songToAdd) async {
-    final playlistManager = PlaylistManagerService();
-    // Explicitly load playlists to ensure the list is up-to-date.
-    await playlistManager.loadPlaylists(); 
-    final List<Playlist> playlists = playlistManager.playlists;
-
-    if (playlists.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No playlists available. Create one in the Library.')),
-      );
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext ctx) {
-        return Container(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  'Add "${songToAdd.title}" to playlist:',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: playlists.length,
-                  itemBuilder: (context, index) {
-                    final playlist = playlists[index];
-                    final bool alreadyInPlaylist = playlist.songs.any((s) => s.id == songToAdd.id);
-                    return ListTile(
-                      title: Text(playlist.name),
-                      trailing: alreadyInPlaylist ? const Icon(Icons.check, color: Colors.green) : null,
-                      onTap: alreadyInPlaylist ? null : () {
-                        playlistManager.addSongToPlaylist(playlist, songToAdd);
-                        // savePlaylists() is called within addSongToPlaylist
-                        Navigator.pop(ctx); // Close the bottom sheet
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Added "${songToAdd.title}" to "${playlist.name}"')),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
-    final Song? currentSong = currentSongProvider.currentSong;
+    final Song? currentSong = currentSongProvider.currentSong; // Can be null if nothing is playing or selected
     final bool isPlaying = currentSongProvider.isPlaying;
-    final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
+    final bool isLoading = currentSongProvider.isLoadingAudio;
+    final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio;
 
-    // ThemeData for easier access
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    // Determine display values based on whether it's a regular song or radio
+    String displayTitle = currentSong?.title ?? currentSongProvider.stationName ?? "Nothing Playing";
+    String displayArtist = currentSong?.artist ?? (isRadio ? "Radio" : "Unknown Artist");
+    String displayAlbumArtUrl = currentSong?.albumArtUrl ?? currentSongProvider.stationFavicon ?? "";
+    String displayAlbum = currentSong?.album ?? (isRadio ? "Live Stream" : "");
 
-    return GestureDetector( // Wrap Scaffold with GestureDetector
-      onVerticalDragEnd: (details) {
-        // Check if the swipe is downwards and with sufficient velocity
-        if (details.primaryVelocity != null && details.primaryVelocity! > 200) { // Threshold for swipe velocity
-          Navigator.pop(context);
-        }
-      },
-      child: Scaffold(
-        backgroundColor: colorScheme.surface,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent, // Make AppBar transparent
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.keyboard_arrow_down, color: colorScheme.onSurface, size: 30),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            currentSong?.album ?? 'Now Playing', // Display album name or default
-            style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface),
-            overflow: TextOverflow.ellipsis,
-          ),
-          centerTitle: true,
+
+    Widget albumArtWidget;
+    if (displayAlbumArtUrl.isNotEmpty) {
+      if (displayAlbumArtUrl.startsWith('http')) {
+        albumArtWidget = Image.network(
+          displayAlbumArtUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+        );
+      } else {
+        albumArtWidget = FutureBuilder<String>(
+          future: _resolveLocalArtPath(displayAlbumArtUrl),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return Image.file(File(snapshot.data!), fit: BoxFit.cover);
+            }
+            return _placeholderArt(context, isRadio); // Placeholder while loading or if error
+          },
+        );
+      }
+    } else {
+      albumArtWidget = _placeholderArt(context, isRadio); // Placeholder if no URL
+    }
+
+    return Scaffold(
+      extendBodyBehindAppBar: true, // Make body extend behind AppBar
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        body: currentSong != null
-            ? LayoutBuilder( // Added LayoutBuilder
-                builder: (context, constraints) {
-                  return SingleChildScrollView( // Added SingleChildScrollView
-                    child: ConstrainedBox( // Added ConstrainedBox
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight, // Ensure Column takes at least the viewport height
-                      ),
-                      child: Padding( // Existing Padding widget
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                        child: Column( // Existing Column
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          mainAxisSize: MainAxisSize.max, // Ensure Column tries to fill height
-                          children: [
-                            // Album Art and Song Info Section
-                            Column(
-                              children: [
-                                const SizedBox(height: 20),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: currentSong.albumArtUrl.isNotEmpty
-                                      ? (currentSong.albumArtUrl.startsWith('http')
-                                          ? Image.network(
-                                              currentSong.albumArtUrl,
-                                              width: MediaQuery.of(context).size.width * 0.75,
-                                              height: MediaQuery.of(context).size.width * 0.75,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => Container(
-                                                width: MediaQuery.of(context).size.width * 0.75,
-                                                height: MediaQuery.of(context).size.width * 0.75,
-                                                color: colorScheme.surfaceContainerHighest,
-                                                child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
-                                              ),
-                                            )
-                                          : FutureBuilder<String>(
-                                              future: _resolveLocalArtPath(currentSong.albumArtUrl), // Use helper
-                                              builder: (context, snapshot) {
-                                                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                                                  return Image.file(
-                                                    File(snapshot.data!),
-                                                    width: MediaQuery.of(context).size.width * 0.75,
-                                                    height: MediaQuery.of(context).size.width * 0.75,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder: (context, error, stackTrace) => Container(
-                                                      width: MediaQuery.of(context).size.width * 0.75,
-                                                      height: MediaQuery.of(context).size.width * 0.75,
-                                                      color: colorScheme.surfaceContainerHighest,
-                                                      child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
-                                                    ),
-                                                  );
-                                                }
-                                                return Container( // Placeholder while checking or if file doesn't exist
-                                                  width: MediaQuery.of(context).size.width * 0.75,
-                                                  height: MediaQuery.of(context).size.width * 0.75,
-                                                  color: colorScheme.surfaceContainerHighest,
-                                                  child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
-                                                );
-                                              },
-                                            ))
-                                      : Container(
-                                          width: MediaQuery.of(context).size.width * 0.75,
-                                          height: MediaQuery.of(context).size.width * 0.75,
-                                          color: colorScheme.surfaceContainerHighest,
-                                          child: Icon(Icons.music_note, size: 100, color: colorScheme.onSurfaceVariant),
-                                        ),
-                                ),
-                                const SizedBox(height: 30),
-                                Text(
-                                  currentSong.title.isNotEmpty ? currentSong.title : 'Unknown Title',
-                                  style: textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist',
-                                  style: textTheme.titleMedium?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ],
-                            ),
-
-                            // Progress Slider and Time
-                            Column(
-                              children: [
-                                StreamBuilder<Duration>(
-                                  stream: currentSongProvider.onPositionChanged,
-                                  builder: (context, snapshot) {
-                                    final position = snapshot.data ?? Duration.zero;
-                                    final duration = currentSongProvider.totalDuration ?? Duration.zero;
-                                    final isRadio = currentSong.id.startsWith('radio_');
-                                    // For radio, use live current position as total duration
-                                    final effectiveDuration = isRadio ? position : duration;
-
-                                    return Column(
-                                      children: [
-                                        SliderTheme(
-                                          data: SliderTheme.of(context).copyWith(
-                                            trackHeight: 3.0,
-                                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
-                                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 15.0),
-                                            activeTrackColor: colorScheme.primary,
-                                            inactiveTrackColor: colorScheme.onSurface.withOpacity(0.2),
-                                            thumbColor: colorScheme.primary,
-                                            overlayColor: colorScheme.primary.withOpacity(0.2),
-                                          ),
-                                          child: Slider(
-                                            value: (effectiveDuration.inMilliseconds > 0 && position.inMilliseconds <= effectiveDuration.inMilliseconds)
-                                                ? position.inMilliseconds.toDouble()
-                                                : 0.0,
-                                            min: 0.0,
-                                            max: effectiveDuration.inMilliseconds > 0 ? effectiveDuration.inMilliseconds.toDouble() : 1.0,
-                                            onChanged: (value) {
-                                              currentSongProvider.seek(Duration(milliseconds: value.round()));
-                                            },
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(_formatDuration(position), style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-                                              Text(isRadio ? 'Live' : _formatDuration(effectiveDuration), style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                                const SizedBox(height: 10), // Spacing before controls
-                                // Playback Controls
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.shuffle, color: currentSongProvider.isShuffling ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                                      iconSize: 28,
-                                      onPressed: () {
-                                        currentSongProvider.toggleShuffle();
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: Icon(Icons.skip_previous, color: colorScheme.onSurface),
-                                      iconSize: 40,
-                                      onPressed: () {
-                                        currentSongProvider.playPrevious();
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: isLoadingAudio
-                                          ? SizedBox(
-                                              width: 64,
-                                              height: 64,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 3.0,
-                                                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                                              ),
-                                            )
-                                          : Icon(isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, color: colorScheme.primary),
-                                      iconSize: 72,
-                                      onPressed: isLoadingAudio
-                                          ? null
-                                          : () {
-                                              if (isPlaying) {
-                                                currentSongProvider.pauseSong();
-                                              } else {
-                                                currentSongProvider.resumeSong(); // Assuming resumeSong handles playing if not already playing current
-                                              }
-                                            },
-                                    ),
-                                    IconButton(
-                                      icon: Icon(Icons.skip_next, color: colorScheme.onSurface),
-                                      iconSize: 40,
-                                      onPressed: () {
-                                        currentSongProvider.playNext();
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: Icon(Icons.repeat, color: currentSongProvider.isLooping ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                                      iconSize: 28,
-                                      onPressed: () {
-                                        currentSongProvider.toggleLoop();
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20), // Spacing after controls
-
-                                // Action Buttons (Download, Add to Queue)
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    if (!currentSong.isDownloaded) // currentSong is non-null in this block
-                                      IconButton(
-                                        icon: Icon(Icons.download_outlined, color: colorScheme.onSurfaceVariant),
-                                        tooltip: "Download",
-                                        onPressed: () {
-                                          currentSongProvider.downloadSongInBackground(currentSong);
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Download started')),
-                                          );
-                                        },
-                                      ),
-                                    IconButton(
-                                      icon: Icon(Icons.playlist_add, color: colorScheme.onSurfaceVariant),
-                                      tooltip: "Add to playlist",
-                                      onPressed: () {
-                                        _showAddToPlaylistDialog(context, currentSong);
-                                      },
-                                    ),
-                                    IconButton( // New "View Queue" button
-                                      icon: Icon(Icons.queue_music, color: colorScheme.onSurfaceVariant),
-                                      tooltip: "View queue",
-                                      onPressed: () {
-                                        _showQueueBottomSheet(context, currentSongProvider);
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            
-                            // Removed the old horizontal queue display here
-                            // const SizedBox(height: 20), // Adjust or remove spacing as needed
-                          ],
-                        ),
-                      )));
-                },
-              )
-            : Center( // Fallback if no song is selected
-                child: Text(
-                  'No song selected',
-                  style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-                ),
+        title: Text(
+          displayAlbum, // Show album name or "Live Stream"
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
+            tooltip: 'Queue',
+            onPressed: isRadio ? null : () => _showQueueBottomSheet(context),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Background Image (Blurred Album Art)
+          Container(
+            decoration: BoxDecoration(
+              image: displayAlbumArtUrl.isNotEmpty
+                  ? DecorationImage(
+                      image: (displayAlbumArtUrl.startsWith('http')
+                          ? NetworkImage(displayAlbumArtUrl)
+                          : FileImage(File(displayAlbumArtUrl))) as ImageProvider, // Requires path resolution for FileImage
+                      fit: BoxFit.cover,
+                    )
+                  : null, // No background image if no art
+              color: Colors.black, // Fallback color
+            ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+              child: Container(
+                color: Colors.black.withOpacity(0.6), // Darken the background
               ),
+            ),
+          ),
+          // Player UI
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Spacer(flex: 1),
+                  // Album Art
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12.0),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Hero(
+                        tag: 'current-song-art', // Ensure this tag is unique or managed
+                        child: albumArtWidget,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Song Title
+                  Text(
+                    displayTitle,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Artist Name
+                  Text(
+                    displayArtist,
+                    style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.8)),
+                    textAlign: TextAlign.center,
+                     maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(flex: 2),
+                  // Seek Bar
+                  StreamBuilder<Duration>(
+                    stream: currentSongProvider.onPositionChanged,
+                    builder: (context, snapshot) {
+                      final position = snapshot.data ?? Duration.zero;
+                      final duration = currentSongProvider.totalDuration ?? Duration.zero;
+                      double sliderValue = 0.0;
+                      if (duration.inMilliseconds > 0) {
+                        sliderValue = position.inMilliseconds.toDouble() / duration.inMilliseconds.toDouble();
+                        sliderValue = sliderValue.clamp(0.0, 1.0); // Ensure value is within 0.0 and 1.0
+                      }
+                      
+                      // For radio, disable seeking and show live indicator or just current time
+                      if (isRadio) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.wifi_tethering, color: Colors.white70, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                'LIVE: ${_formatDuration(position)}',
+                                style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: [
+                          SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: 3.0,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
+                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+                              activeTrackColor: Colors.white,
+                              inactiveTrackColor: Colors.white.withOpacity(0.3),
+                              thumbColor: Colors.white,
+                            ),
+                            child: Slider(
+                              value: sliderValue,
+                              onChanged: (value) {
+                                final newPosition = Duration(milliseconds: (value * duration.inMilliseconds).round());
+                                currentSongProvider.seek(newPosition);
+                              },
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(_formatDuration(position), style: TextStyle(color: Colors.white.withOpacity(0.8))),
+                                Text(_formatDuration(duration), style: TextStyle(color: Colors.white.withOpacity(0.8))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // Controls
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      IconButton(
+                        icon: Icon(currentSongProvider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded, color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.secondary : Colors.white),
+                        iconSize: 28,
+                        tooltip: 'Shuffle',
+                        onPressed: isRadio ? null : () => currentSongProvider.toggleShuffle(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
+                        iconSize: 36,
+                        tooltip: 'Previous',
+                        onPressed: isRadio ? null : () => currentSongProvider.playPrevious(),
+                      ),
+                      if (isLoading)
+                        Container(
+                          width: 70, height: 70,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)),
+                        )
+                      else
+                        IconButton(
+                          icon: Icon(isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded, color: Colors.white),
+                          iconSize: 70,
+                          tooltip: isPlaying ? 'Pause' : 'Play',
+                          onPressed: () {
+                            if (isPlaying) {
+                              currentSongProvider.pauseSong();
+                            } else {
+                              currentSongProvider.resumeSong();
+                            }
+                          },
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                        iconSize: 36,
+                        tooltip: 'Next',
+                        onPressed: isRadio ? null : () => currentSongProvider.playNext(),
+                      ),
+                      IconButton(
+                        icon: Icon(currentSongProvider.isLooping ? Icons.repeat_one_on_rounded : Icons.repeat_rounded, color: currentSongProvider.isLooping ? Theme.of(context).colorScheme.secondary : Colors.white),
+                        iconSize: 28,
+                        tooltip: 'Loop',
+                        onPressed: isRadio ? null : () => currentSongProvider.toggleLoop(),
+                      ),
+                    ],
+                  ),
+                  const Spacer(flex: 1),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholderArt(BuildContext context, bool isRadio) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).colorScheme.primaryContainer.withOpacity(0.7),
+            Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.7),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          isRadio ? Icons.radio_rounded : Icons.music_note_rounded,
+          size: 100,
+          color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
+        ),
       ),
     );
   }
