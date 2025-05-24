@@ -1,4 +1,4 @@
-package com.LTunes.ltunes
+package com.LTunes.LTunes
 
 import com.ryanheise.audioservice.AudioServiceActivity
 
