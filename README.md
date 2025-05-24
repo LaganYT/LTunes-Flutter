@@ -15,5 +15,4 @@
 ## Bug Fixes
 - When a radio station is playing disable the skip, previous, shuffle, loop, queue, download, and add to playlist buttons.
 - Add a download progress in the downloads menu
-- Don't autoplay songs on re-launch
 - Make sure to check if a song is downloaded when playing from search, if it is then play the downloaded version
