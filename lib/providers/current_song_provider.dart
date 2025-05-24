@@ -364,6 +364,7 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> playSong(Song songToPlay, {bool isResumingOrLooping = false}) async {
     _isLoadingAudio = true;
+    _totalDuration = null; // Reset duration for the new song
     // Tentatively update _currentSongFromAppLogic. This might be refined if the song
     // is found in _queue (and that instance is more up-to-date), or if _prepareMediaItem updates it.
     if (!isResumingOrLooping || _currentSongFromAppLogic?.id != songToPlay.id) {
@@ -667,6 +668,7 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
     _isLoadingAudio = true;
+    _totalDuration = null; // Reset duration for the new stream
     // _currentSongFromAppLogic = null; // Clear regular song // This will be set to the radio song object
     _stationName = stationName;
     _stationFavicon = stationFavicon ?? '';
