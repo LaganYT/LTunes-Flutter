@@ -10,3 +10,4 @@
 - Show artists in search results
 - Download all songs from album, skipping already downloaded songs.
 - Download all songs from playlist, skipping already downloaded songs.
+- For the background of the full screen player use a gradient color extracted from the icon
