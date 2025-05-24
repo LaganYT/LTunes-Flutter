@@ -6,7 +6,6 @@
 - Listening history (with option to clear).
 - Sleep timer (stop playback after set time).
 - Volume normalization (level all songs).
-- Fix loop functionality (no loop, loop queue, loop song).
 - Add swipe gestures for better navigation.
 
 ### Search and Library
@@ -20,7 +19,3 @@
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
-- For the background of the full-screen player, use a gradient color extracted from the song icon.
-
-### Radio Stations
-- Hide all buttons except the play/pause button for radio stations.

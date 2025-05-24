@@ -47,7 +47,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     final queue = currentSongProvider.queue;
     final currentSong = currentSongProvider.currentSong;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -231,15 +230,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
         ),
       );
     }
-
-    // Add queue button (conditionally enabled based on isRadio)
-    appBarActions.add(
-      IconButton(
-        icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
-        tooltip: 'Queue',
-        onPressed: isRadio ? null : () => _showQueueBottomSheet(context),
-      ),
-    );
+    if (!isRadio) {
+      // Add queue button (conditionally enabled based on isRadio)
+      appBarActions.add(
+        IconButton(
+          icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
+          tooltip: 'Queue',
+          onPressed: isRadio ? null : () => _showQueueBottomSheet(context),
+        ),
+      );
+    }
 
     return Scaffold(
       extendBodyBehindAppBar: true, // Make body extend behind AppBar
@@ -385,22 +385,24 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      IconButton(
-                        icon: Icon(
-                          currentSongProvider.isShuffling ? Icons.shuffle_rounded : Icons.shuffle_rounded,
-                          color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.primary : Colors.white,
-                          fill: currentSongProvider.isShuffling ? 1.0 : 0.0, // Ensures the icon looks filled
+                      if (!isRadio)
+                        IconButton(
+                          icon: Icon(
+                            currentSongProvider.isShuffling ? Icons.shuffle_rounded : Icons.shuffle_rounded,
+                            color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.primary : Colors.white,
+                            fill: currentSongProvider.isShuffling ? 1.0 : 0.0, // Ensures the icon looks filled
+                          ),
+                          iconSize: 28,
+                          tooltip: 'Shuffle',
+                          onPressed: () => currentSongProvider.toggleShuffle(), // isRadio check already handled by visibility
                         ),
-                        iconSize: 28,
-                        tooltip: 'Shuffle',
-                        onPressed: isRadio ? null : () => currentSongProvider.toggleShuffle(),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
-                        iconSize: 36,
-                        tooltip: 'Previous',
-                        onPressed: isRadio ? null : () => currentSongProvider.playPrevious(),
-                      ),
+                      if (!isRadio)
+                        IconButton(
+                          icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
+                          iconSize: 36,
+                          tooltip: 'Previous',
+                          onPressed: () => currentSongProvider.playPrevious(), // isRadio check already handled by visibility
+                        ),
                       if (isLoading)
                         Container(
                           width: 70, height: 70,
@@ -423,29 +425,31 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
                             }
                           },
                         ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
-                        iconSize: 36,
-                        tooltip: 'Next',
-                        onPressed: isRadio ? null : () => currentSongProvider.playNext(),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          currentSongProvider.loopMode == LoopMode.song 
-                            ? Icons.repeat_one_rounded 
-                            : Icons.repeat_rounded,
-                          color: currentSongProvider.loopMode != LoopMode.none 
-                            ? Theme.of(context).colorScheme.primary 
-                            : Colors.white,
+                      if (!isRadio)
+                        IconButton(
+                          icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                          iconSize: 36,
+                          tooltip: 'Next',
+                          onPressed: () => currentSongProvider.playNext(), // isRadio check already handled by visibility
                         ),
-                        iconSize: 28,
-                        tooltip: currentSongProvider.loopMode == LoopMode.none 
-                            ? 'Loop Off' 
-                            : currentSongProvider.loopMode == LoopMode.queue 
-                                ? 'Loop Queue' 
-                                : 'Loop Song',
-                        onPressed: isRadio ? null : () => currentSongProvider.toggleLoop(),
-                      ),
+                      if (!isRadio)
+                        IconButton(
+                          icon: Icon(
+                            currentSongProvider.loopMode == LoopMode.song 
+                              ? Icons.repeat_one_rounded 
+                              : Icons.repeat_rounded,
+                            color: currentSongProvider.loopMode != LoopMode.none 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.white,
+                          ),
+                          iconSize: 28,
+                          tooltip: currentSongProvider.loopMode == LoopMode.none 
+                              ? 'Loop Off' 
+                              : currentSongProvider.loopMode == LoopMode.queue 
+                                  ? 'Loop Queue' 
+                                  : 'Loop Song',
+                          onPressed: () => currentSongProvider.toggleLoop(), // isRadio check already handled by visibility
+                        ),
                     ],
                   ),
                   const Spacer(flex: 1),

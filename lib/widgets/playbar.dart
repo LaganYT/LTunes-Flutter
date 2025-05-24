@@ -50,6 +50,7 @@ class _PlaybarState extends State<Playbar> {
     final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
+    final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio; // Get radio status
 
     if (currentSong == null) {
       return const SizedBox.shrink(); // Don't show playbar if no song is loaded
@@ -168,13 +169,14 @@ class _PlaybarState extends State<Playbar> {
                     }
                   },
                 ),
-              IconButton(
-                icon: Icon(Icons.skip_next, color: colorScheme.onSurface.withOpacity(0.7)),
-                iconSize: 28.0,
-                onPressed: () {
-                  currentSongProvider.playNext();
-                },
-              ),
+              if (!isRadio) // Conditionally show the skip_next button
+                IconButton(
+                  icon: Icon(Icons.skip_next, color: colorScheme.onSurface.withOpacity(0.7)),
+                  iconSize: 28.0,
+                  onPressed: () {
+                    currentSongProvider.playNext();
+                  },
+                ),
             ],
           ),
         ),
