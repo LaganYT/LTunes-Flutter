@@ -32,4 +32,6 @@
 
 - Update link won't open on android, fix this
 
-- Add an add to playlist button to the full screen player+
+- Add an add to playlist button to the full screen player
+
+- Fix the total duration when streaming being 0:00
