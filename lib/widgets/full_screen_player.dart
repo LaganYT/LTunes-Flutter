@@ -1,4 +1,5 @@
 import 'dart:ui'; // For ImageFilter
+import 'dart:convert'; // For jsonEncode
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart'; // Imports LoopMode enum now
@@ -6,6 +7,7 @@ import '../models/song.dart';
 import 'dart:io'; // For File
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
+import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 // ignore: unused_import
 import '../services/playlist_manager_service.dart';
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
@@ -18,8 +20,161 @@ class FullScreenPlayer extends StatefulWidget {
   State<FullScreenPlayer> createState() => _FullScreenPlayerState();
 }
 
-class _FullScreenPlayerState extends State<FullScreenPlayer> {
-  double _slideOffsetX = 1.0; // To control slide direction
+class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProviderStateMixin {
+  double _slideOffsetX = 0.0; // To control slide direction, 0.0 means no slide (fade in art)
+  String? _previousSongId;
+  double _verticalDragAccumulator = 0.0; // For swipe down to close gesture
+
+  late AnimationController _textFadeController;
+  late Animation<double> _textFadeAnimation;
+
+  late AnimationController _albumArtSlideController;
+  late Animation<Offset> _albumArtSlideAnimation;
+
+  late CurrentSongProvider _currentSongProvider;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _textFadeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _textFadeAnimation = CurvedAnimation(
+      parent: _textFadeController,
+      curve: Curves.easeIn,
+    );
+
+    _albumArtSlideController = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      vsync: this,
+    );
+
+    // Initialize with a default slide animation (e.g., no slide initially)
+    _albumArtSlideAnimation = Tween<Offset>(
+      begin: Offset.zero, // Initial song won't slide with _slideOffsetX = 0.0
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _albumArtSlideController,
+      curve: Curves.easeInOut,
+    ));
+
+    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _previousSongId = _currentSongProvider.currentSong?.id;
+
+    // Trigger initial animations if a song is already playing
+    if (_currentSongProvider.currentSong != null) {
+      // Initial appearance: art fades/slides in from right, text fades in
+      _albumArtSlideAnimation = Tween<Offset>(
+        begin: const Offset(0.3, 0.0), // Slight slide from right for initial
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: _albumArtSlideController,
+        curve: Curves.easeInOut,
+      ));
+      _albumArtSlideController.forward();
+      _textFadeController.forward();
+    }
+    
+    _currentSongProvider.addListener(_onSongChanged);
+  }
+
+  void _onSongChanged() {
+    if (!mounted) return;
+
+    final newSongId = _currentSongProvider.currentSong?.id;
+    if (newSongId != _previousSongId) {
+      // Update slide animation based on _slideOffsetX
+      // If _slideOffsetX is 0.0, it means the art should just fade (or appear if no fade controller for art)
+      // For this implementation, if _slideOffsetX is 0, it means slide from a subtle default (e.g. slight scale/fade or no slide)
+      // Let's make it so that if _slideOffsetX is 0, it slides in from a default direction (e.g. right, subtly) or just fades.
+      // The user request is "icon to slide in", so it should always slide.
+      
+      double effectiveSlideOffsetX = _slideOffsetX;
+      if (_previousSongId == null && newSongId != null) { // First song loaded after screen init
+          effectiveSlideOffsetX = 0.3; // Default slide from right for first song
+      } else if (_slideOffsetX == 0.0 && newSongId != null) { // Song changed by non-skip action (e.g. queue end, direct selection)
+          effectiveSlideOffsetX = 0.3; // Default slide from right
+      }
+
+
+      _albumArtSlideAnimation = Tween<Offset>(
+        begin: Offset(effectiveSlideOffsetX, 0.0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: _albumArtSlideController,
+        curve: Curves.easeInOut,
+      ));
+
+      _albumArtSlideController.forward(from: 0.0);
+      _textFadeController.forward(from: 0.0);
+      
+      _previousSongId = newSongId;
+      _slideOffsetX = 0.0; // Reset for next non-skip change
+    }
+  }
+
+  @override
+  void dispose() {
+    _currentSongProvider.removeListener(_onSongChanged);
+    _textFadeController.dispose();
+    _albumArtSlideController.dispose();
+    super.dispose();
+  }
+
+  // Method for downloading the current song
+  Future<void> _downloadCurrentSong(Song song) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = '${song.id}.mp3'; // Use song ID as the file name
+      final fullPath = p.join(directory.path, fileName);
+
+      // Check if the file already exists
+      final file = File(fullPath);
+      if (await file.exists()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Song "${song.title}" is already downloaded.')),
+        );
+        return;
+      }
+
+      // Fetch the audio URL
+      final audioUrl = await song.fetchUrl();
+      if (audioUrl.isEmpty) {
+        throw Exception('Failed to fetch audio URL for "${song.title}".');
+      }
+
+      // Download the song
+      final response = await HttpClient().getUrl(Uri.parse(audioUrl));
+      final downloadedFile = await response.close();
+      await downloadedFile.pipe(file.openWrite());
+
+      // Update song metadata
+      final updatedSong = song.copyWith(isDownloaded: true, localFilePath: fileName);
+      await _saveSongMetadata(updatedSong);
+
+      // Notify PlaylistManagerService
+      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+
+      // Notify CurrentSongProvider
+      Provider.of<CurrentSongProvider>(context, listen: false).updateDownloadedSong(updatedSong);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Download completed for "${song.title}".')),
+      );
+    } catch (e) {
+      debugPrint('Error downloading song "${song.title}": $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to download "${song.title}".')),
+      );
+    }
+  }
+
+  Future<void> _saveSongMetadata(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('song_${song.id}', jsonEncode(song.toJson()));
+  }
 
   Future<String> _resolveLocalArtPath(String? fileName) async {
     if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
@@ -190,353 +345,346 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> {
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
-    final Song? currentSong = currentSongProvider.currentSong; // Can be null if nothing is playing or selected
+    final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoading = currentSongProvider.isLoadingAudio;
     final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio;
+    final LoopMode loopMode = currentSongProvider.loopMode;
 
-    // Determine display values based on whether it's a regular song or radio
-    String displayTitle = currentSong?.title ?? currentSongProvider.stationName ?? "Nothing Playing";
-    String displayArtist = currentSong?.artist ?? (isRadio ? "Radio" : "Unknown Artist");
-    String displayAlbumArtUrl = currentSong?.albumArtUrl ?? currentSongProvider.stationFavicon ?? "";
-    String displayAlbum = currentSong?.album ?? (isRadio ? "Live Stream" : "");
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
 
-    // final bool hasAlbumArt = displayAlbumArtUrl.isNotEmpty; // No longer needed for background logic
+    // Fallback UI if no song is loaded
+    if (currentSong == null) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'Close Player',
+          ),
+        ),
+        body: const Center(child: Text('No song selected.')),
+      );
+    }
 
     Widget albumArtWidget;
-    if (displayAlbumArtUrl.isNotEmpty) {
-      if (displayAlbumArtUrl.startsWith('http')) {
+    if (currentSong.albumArtUrl.isNotEmpty) {
+      if (currentSong.albumArtUrl.startsWith('http')) {
         albumArtWidget = Image.network(
-          displayAlbumArtUrl,
+          currentSong.albumArtUrl,
           fit: BoxFit.cover,
+          key: ValueKey<String>('art_${currentSong.id}_network'),
           errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
         );
       } else {
         albumArtWidget = FutureBuilder<String>(
-          future: _resolveLocalArtPath(displayAlbumArtUrl),
+          future: _resolveLocalArtPath(currentSong.albumArtUrl),
+          key: ValueKey<String>('art_${currentSong.id}_local'),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(File(snapshot.data!), fit: BoxFit.cover);
+              return Image.file(
+                File(snapshot.data!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+              );
             }
-            return _placeholderArt(context, isRadio); // Placeholder while loading or if error
+            return _placeholderArt(context, isRadio);
           },
         );
       }
     } else {
-      albumArtWidget = _placeholderArt(context, isRadio); // Placeholder if no URL
-    }
-
-    // Prepare actions for AppBar dynamically
-    List<Widget> appBarActions = [];
-
-    // Add download button conditionally
-    if (!isRadio && currentSong != null && !currentSong.isDownloaded) {
-      appBarActions.add(
-        IconButton(
-          icon: const Icon(Icons.download_rounded, color: Colors.white),
-          tooltip: 'Download',
-          onPressed: () { // No need for null check here as condition is already met
-            Provider.of<CurrentSongProvider>(context, listen: false)
-                .downloadSongInBackground(currentSong);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Downloading ${currentSong.title}'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    // Add "Add to Playlist" button conditionally
-    if (!isRadio && currentSong != null) {
-      appBarActions.add(
-        IconButton(
-          icon: const Icon(Icons.playlist_add_rounded),
-          tooltip: 'Add to Playlist',
-          onPressed: () => _showAddToPlaylistDialog(context, currentSong),
-          color: Colors.white, // Ensure icon color is suitable for transparent AppBar
-        ),
-      );
-    }
-
-    if (!isRadio) {
-      // Add queue button (conditionally enabled based on isRadio)
-      appBarActions.add(
-        IconButton(
-          icon: const Icon(Icons.queue_music_rounded, color: Colors.white),
-          tooltip: 'Queue',
-          onPressed: isRadio ? null : () => _showQueueBottomSheet(context),
-        ),
-      );
+      albumArtWidget = _placeholderArt(context, isRadio);
     }
 
     return Scaffold(
-      extendBodyBehindAppBar: true, // Make body extend behind AppBar
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
           onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Close Player',
         ),
-        title: Text(
-          displayAlbum, // Show album name or "Live Stream"
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: appBarActions,
-      ),
-      body: Stack(
-        children: [
-          // Background
-          Container(
-            decoration: BoxDecoration( // Always use gradient
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primaryContainer.withOpacity(0.7),
-                  Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.7),
+        title: isRadio 
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Playing From Radio', style: TextStyle(fontSize: 12)),
+                  if (currentSongProvider.stationName != null)
+                    Text(currentSongProvider.stationName!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              )
+            : null,
+        centerTitle: true,
+        actions: [
+          if (!isRadio) // "Queue" not applicable for radio
+          IconButton(
+            icon: const Icon(Icons.playlist_play_rounded),
+            onPressed: () => _showQueueBottomSheet(context),
+            tooltip: 'Show Queue',
+          ),
+          // Show download button only if not radio AND not already downloaded
+          if (!isRadio && currentSong.isDownloaded == false) 
+            IconButton(
+              icon: const Icon(Icons.download_rounded),
+              onPressed: () => _downloadCurrentSong(currentSong),
+              tooltip: 'Download Song',
             ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: 0.0, // No blur
-                sigmaY: 0.0, // No blur
-              ),
-              child: Container(
-                color: Colors.black.withOpacity(0.6), // Darken the background
-              ),
+          if (!isRadio) // "Add to Playlist" not applicable for radio
+            IconButton(
+              icon: const Icon(Icons.playlist_add_rounded),
+              onPressed: () => _showAddToPlaylistDialog(context, currentSong),
+              tooltip: 'Add to Playlist',
+            ),
+        ],
+            ),
+      body: GestureDetector( // GestureDetector for swipe down to close
+        onVerticalDragUpdate: (details) {
+          // Accumulate drag distance when dragging downwards
+          if (details.delta.dy > 0) {
+            _verticalDragAccumulator += details.delta.dy;
+          } else if (details.delta.dy < 0) {
+            // If dragging back upwards, reduce accumulator, but not below zero
+            _verticalDragAccumulator = (_verticalDragAccumulator + details.delta.dy).clamp(0.0, double.infinity);
+          }
+        },
+        onVerticalDragEnd: (details) {
+          final double screenHeight = MediaQuery.of(context).size.height;
+          // Threshold for closing: drag > 20% of screen height with sufficient velocity
+          if (_verticalDragAccumulator > screenHeight * 0.2 && (details.primaryVelocity ?? 0) > 250) {
+            Navigator.of(context).pop();
+          }
+          _verticalDragAccumulator = 0.0; // Reset accumulator
+        },
+        // Setting behavior to opaque to ensure it participates in hit testing across its area
+        // and doesn't let touches pass through to widgets below if it's layered.
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                colorScheme.primary.withOpacity(0.6),
+                colorScheme.primaryContainer.withOpacity(0.8),
+                colorScheme.background,
+              ],
+              stops: const [0.0, 0.35, 0.75],
             ),
           ),
-          // Player UI
-          GestureDetector(
-            onHorizontalDragEnd: (details) {
-              if (isRadio) return; // Disable swipe for radio
-              if (details.primaryVelocity! > 0) {
-                // Swiped right (previous)
-                setState(() {
-                  _slideOffsetX = -1.0; // New content comes from left
-                });
-                currentSongProvider.playPrevious();
-              } else if (details.primaryVelocity! < 0) {
-                // Swiped left (next)
-                setState(() {
-                  _slideOffsetX = 1.0; // New content comes from right
-                });
-                currentSongProvider.playNext();
-              }
-            },
-            onVerticalDragEnd: (details) {
-              if (details.primaryVelocity! > 0) {
-                // Swiped down
-                Navigator.of(context).pop();
-              }
-            },
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: Offset(_slideOffsetX, 0.0),
-                        end: Offset.zero,
-                      ).chain(CurveTween(curve: Curves.easeOutQuint)).animate(animation), // Added CurveTween
-                      child: child,
-                    );
-                  },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + kToolbarHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                // Album Art Section
+                Expanded(
+                  flex: 5,
+                  child: GestureDetector( // GestureDetector for horizontal swipe (song navigation) on Album Art
+                    onHorizontalDragEnd: (details) {
+                      if (details.primaryVelocity == null) return; // Should not happen
+
+                      // Swipe Left (finger moves from right to left) -> Next Song
+                      if (details.primaryVelocity! < -200) { // Negative velocity for left swipe
+                        _slideOffsetX = 1.0; // New art slides in from right
+                        currentSongProvider.playNext();
+                      }
+                      // Swipe Right (finger moves from left to right) -> Previous Song
+                      else if (details.primaryVelocity! > 200) { // Positive velocity for right swipe
+                        _slideOffsetX = -1.0; // New art slides in from left
+                        currentSongProvider.playPrevious();
+                      }
+                    },
+                    // Ensure this GestureDetector also claims the gesture space over the album art.
+                    behavior: HitTestBehavior.opaque,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: SlideTransition(
+                          position: _albumArtSlideAnimation,
+                          child: Hero(
+                            tag: 'albumArt_${currentSong.id}',
+                            child: Material(
+                              elevation: 12.0,
+                              borderRadius: BorderRadius.circular(16.0),
+                              shadowColor: Colors.black.withOpacity(0.5),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16.0),
+                                child: albumArtWidget,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Song Info Section
+                Expanded(
+                  flex: 3,
                   child: Column(
-                    key: ValueKey<String>(currentSong?.id ?? 'no_song_playing'), // Key to trigger animation
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Spacer(flex: 1),
-                      // Album Art
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12.0),
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: Hero(
-                            tag: 'current-song-art', // Ensure this tag is unique or managed
-                            child: albumArtWidget,
-                          ),
+                      FadeTransition(
+                        opacity: _textFadeAnimation,
+                        child: Text(
+                          currentSong.title,
+                          key: ValueKey<String>('title_${currentSong.id}'),
+                          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onBackground),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(height: 32),
-                      // Song Title
-                      Text(
-                        displayTitle,
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      // Artist Name
-                      Text(
-                        displayArtist,
-                        style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.8)),
-                        textAlign: TextAlign.center,
-                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      FadeTransition(
+                        opacity: _textFadeAnimation,
+                        child: Text(
+                          isRadio ? (currentSong.artist.isNotEmpty ? currentSong.artist : "Live Radio") : (currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist'),
+                          key: ValueKey<String>('artist_${currentSong.id}'),
+                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const Spacer(flex: 2),
-                      // Seek Bar
-                      StreamBuilder<Duration>(
-                        stream: currentSongProvider.onPositionChanged,
-                        builder: (context, snapshot) {
-                          final position = snapshot.data ?? Duration.zero;
-                          final duration = currentSongProvider.totalDuration ?? Duration.zero;
-                          double sliderValue = 0.0;
-                          if (duration.inMilliseconds > 0) {
-                            sliderValue = position.inMilliseconds.toDouble() / duration.inMilliseconds.toDouble();
-                            sliderValue = sliderValue.clamp(0.0, 1.0); // Ensure value is within 0.0 and 1.0
-                          }
-                          
-                          // For radio, disable seeking and show live indicator or just current time
-                          if (isRadio) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10.0),
+                    ],
+                  ),
+                ),
+
+                // Seek Bar Section
+                Column(
+                  children: [
+                    StreamBuilder<Duration>(
+                      stream: currentSongProvider.onPositionChanged,
+                      builder: (context, snapshot) {
+                        final position = snapshot.data ?? Duration.zero;
+                        final duration = currentSongProvider.totalDuration ?? Duration.zero;
+                        return Column(
+                          children: [
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3.0,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+                                activeTrackColor: colorScheme.secondary,
+                                inactiveTrackColor: colorScheme.onSurface.withOpacity(0.2),
+                                thumbColor: colorScheme.secondary,
+                                overlayColor: colorScheme.secondary.withOpacity(0.2),
+                              ),
+                              child: Slider(
+                                value: (duration.inMilliseconds > 0 && position.inMilliseconds <= duration.inMilliseconds)
+                                    ? position.inMilliseconds.toDouble()
+                                    : 0.0,
+                                min: 0.0,
+                                max: duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1.0,
+                                onChanged: isRadio ? null : (value) {
+                                  currentSongProvider.seek(Duration(milliseconds: value.round()));
+                                },
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(Icons.wifi_tethering, color: Colors.white70, size: 16),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'LIVE: ${_formatDuration(position)}',
-                                    style: TextStyle(color: Colors.white.withOpacity(0.8)),
-                                  ),
+                                  Text(_formatDuration(position), style: textTheme.bodySmall?.copyWith(color: colorScheme.onBackground.withOpacity(0.7))),
+                                  Text(_formatDuration(duration), style: textTheme.bodySmall?.copyWith(color: colorScheme.onBackground.withOpacity(0.7))),
                                 ],
                               ),
-                            );
-                          }
-
-                          return Column(
-                            children: [
-                              SliderTheme(
-                                data: SliderTheme.of(context).copyWith(
-                                  trackHeight: 3.0,
-                                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
-                                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-                                  activeTrackColor: Colors.white,
-                                  inactiveTrackColor: Colors.white.withOpacity(0.3),
-                                  thumbColor: Colors.white,
-                                ),
-                                child: Slider(
-                                  value: sliderValue,
-                                  onChanged: (value) {
-                                    final newPosition = Duration(milliseconds: (value * duration.inMilliseconds).round());
-                                    currentSongProvider.seek(newPosition);
-                                  },
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(_formatDuration(position), style: TextStyle(color: Colors.white.withOpacity(0.8))),
-                                    Text(_formatDuration(duration), style: TextStyle(color: Colors.white.withOpacity(0.8))),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      // Controls
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          if (!isRadio)
-                            IconButton(
-                              icon: Icon(
-                                currentSongProvider.isShuffling ? Icons.shuffle_rounded : Icons.shuffle_rounded,
-                                color: currentSongProvider.isShuffling ? Theme.of(context).colorScheme.primary : Colors.white,
-                                fill: currentSongProvider.isShuffling ? 1.0 : 0.0, // Ensures the icon looks filled
-                              ),
-                              iconSize: 28,
-                              tooltip: 'Shuffle',
-                              onPressed: () => currentSongProvider.toggleShuffle(), // isRadio check already handled by visibility
                             ),
-                          if (!isRadio)
-                            IconButton(
-                              icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
-                              iconSize: 36,
-                              tooltip: 'Previous',
-                              onPressed: () {
-                                setState(() {
-                                  _slideOffsetX = -1.0;
-                                });
-                                currentSongProvider.playPrevious();
-                              }, // isRadio check already handled by visibility
-                            ),
-                          if (isLoading)
-                            Container(
-                              width: 70, height: 70,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)),
-                            )
-                          else
-                            IconButton(
-                              icon: Icon(isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded, color: Colors.white),
-                              iconSize: 70,
-                              tooltip: isPlaying ? 'Pause' : 'Play',
-                              onPressed: () {
-                                if (isPlaying) {
-                                  currentSongProvider.pauseSong();
-                                } else {
-                                  currentSongProvider.resumeSong();
-                                }
-                              },
-                            ),
-                          if (!isRadio)
-                            IconButton(
-                              icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
-                              iconSize: 36,
-                              tooltip: 'Next',
-                              onPressed: () {
-                                setState(() {
-                                  _slideOffsetX = 1.0;
-                                });
-                                currentSongProvider.playNext();
-                              }, // isRadio check already handled by visibility
-                            ),
-                          if (!isRadio)
-                            IconButton(
-                              icon: Icon(
-                                currentSongProvider.loopMode == LoopMode.song 
-                                  ? Icons.repeat_one_rounded 
-                                  : Icons.repeat_rounded,
-                            color: currentSongProvider.loopMode != LoopMode.none 
-                              ? Theme.of(context).colorScheme.primary 
-                              : Colors.white,
-                          ),
-                          iconSize: 28,
-                          tooltip: currentSongProvider.loopMode == LoopMode.none 
-                              ? 'Loop Off' 
-                              : currentSongProvider.loopMode == LoopMode.queue 
-                                  ? 'Loop Queue' 
-                                  : 'Loop Song',
-                          onPressed: () => currentSongProvider.toggleLoop(), // isRadio check already handled by visibility
-                        ),
-                      ],
+                          ],
+                        );
+                      },
                     ),
-                    const Spacer(flex: 1),
                   ],
                 ),
-              ),
+                const SizedBox(height: 16),
+
+                // Controls Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        currentSongProvider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
+                        color: currentSongProvider.isShuffling ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
+                      ),
+                      iconSize: 26,
+                      onPressed: () => currentSongProvider.toggleShuffle(),
+                      tooltip: 'Shuffle',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.skip_previous_rounded),
+                      iconSize: 42,
+                      color: colorScheme.onBackground,
+                      onPressed: () {
+                       _slideOffsetX = -1.0; // Slide from left
+                       currentSongProvider.playPrevious();
+                      },
+                      tooltip: 'Previous Song',
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colorScheme.secondary,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.secondary.withOpacity(0.4),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          )
+                        ]
+                      ),
+                      child: IconButton(
+                        icon: isLoading 
+                            ? SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
+                            : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                        iconSize: 48,
+                        color: colorScheme.onSecondary,
+                        onPressed: isLoading ? null : () {
+                          if (isPlaying) {
+                            currentSongProvider.pauseSong();
+                          } else {
+                            currentSongProvider.resumeSong();
+                          }
+                        },
+                        tooltip: isPlaying ? 'Pause' : 'Play',
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.skip_next_rounded),
+                      iconSize: 42,
+                      color: colorScheme.onBackground,
+                      onPressed: () {
+                        _slideOffsetX = 1.0; // Slide from right
+                        currentSongProvider.playNext();
+                      },
+                      tooltip: 'Next Song',
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        loopMode == LoopMode.none ? Icons.repeat_rounded : 
+                        loopMode == LoopMode.queue ? Icons.repeat_on_rounded : Icons.repeat_one_on_rounded,
+                        color: loopMode != LoopMode.none ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
+                      ),
+                      iconSize: 26,
+                      onPressed: () => currentSongProvider.toggleLoop(),
+                      tooltip: loopMode == LoopMode.none ? 'Repeat Off' : 
+                               loopMode == LoopMode.queue ? 'Repeat Queue' : 'Repeat Song',
+                    ),
+                  ],
+                ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 16), // For bottom padding
+              ],
             ),
           ),
-      )],
+        ),
       ),
     );
   }

@@ -67,6 +67,13 @@ class CurrentSongProvider with ChangeNotifier {
     return _audioHandler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
   }
 
+void updateDownloadedSong(Song updatedSong) {
+    // Update the current song if it matches the updated song
+    if (currentSong?.id == updatedSong.id) {
+      _currentSongFromAppLogic = updatedSong;
+      notifyListeners();
+    }
+  }
 
   List<Song> get queue => _queue;
   Map<String, double> get downloadProgress => _downloadProgress;
