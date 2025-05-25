@@ -15,7 +15,6 @@
 ### Downloads
 - Download all songs from an album, skipping already downloaded songs.
 - Download all songs from a playlist, skipping already downloaded songs.
-- Show the number of downloaded songs in settings
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
