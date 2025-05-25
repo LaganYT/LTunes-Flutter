@@ -30,6 +30,35 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     return '';
   }
 
+  Future<void> _downloadAllSongs() async {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    if (widget.playlist.songs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Playlist is empty. Nothing to download.')),
+      );
+      return;
+    }
+
+    int songsToDownloadCount = 0;
+    for (final song in widget.playlist.songs) {
+      // Basic check, CurrentSongProvider will do a more thorough one
+      if (!song.isDownloaded) {
+        currentSongProvider.downloadSongInBackground(song);
+        songsToDownloadCount++;
+      }
+    }
+
+    if (songsToDownloadCount > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Starting download for $songsToDownloadCount song(s)...')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All songs in this playlist are already downloaded.')),
+      );
+    }
+  }
+
   Future<void> _showRemoveSongDialog(Song songToRemove, int originalIndexInPlaylist) async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     // Capture mounted state outside async gap if used across await
@@ -240,6 +269,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10), // Add some space
+                        // Download All Button
+                        if (hasSongs) // Show only if there are songs
+                          TextButton.icon(
+                            onPressed: _downloadAllSongs,
+                            icon: Icon(Icons.download_for_offline_outlined, color: Colors.white.withOpacity(0.9)),
+                            label: Text(
+                              'Download Playlist',
+                              style: TextStyle(color: Colors.white.withOpacity(0.9), shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                              ),
+                            ),
+                          ),
                         // Download All button can be added here if desired
                       ],
                     ),

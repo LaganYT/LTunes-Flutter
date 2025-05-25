@@ -601,8 +601,24 @@ void updateDownloadedSong(Song updatedSong) {
 
 
   Future<void> downloadSongInBackground(Song song) async {
-    // _isDownloadingSong = true; // Removed
-    _activeDownloads[song.id] = song; // Added
+    // Check if already downloaded
+    if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final filePath = p.join(appDocDir.path, song.localFilePath!);
+      if (await File(filePath).exists()) {
+        debugPrint('Song "${song.title}" is already downloaded. Skipping download.');
+        // Optionally notify or update UI if needed, but for batch downloads, silence is often better.
+        return;
+      }
+    }
+
+    // Check if download is already active for this song
+    if (_activeDownloads.containsKey(song.id)) {
+      debugPrint('Download for song "${song.title}" is already in progress. Skipping.');
+      return;
+    }
+
+    _activeDownloads[song.id] = song;
     _downloadProgress[song.id] = 0.0;
     notifyListeners();
     String? audioUrl;
