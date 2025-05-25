@@ -129,11 +129,20 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     _audioPlayer.onDurationChanged.listen((duration) {
       final currentItem = mediaItem.value;
-      if (currentItem != null && currentItem.duration != duration) {
-        // Update the MediaItem with the new duration
-        mediaItem.add(currentItem.copyWith(duration: duration));
+      // Only update duration from onDurationChanged if it's NOT a radio stream.
+      // For radio streams, duration is handled by onPositionChanged.
+      // Use currentItem.extras first, then fallback to handler's _isRadioStream as a secondary check.
+      bool isRadio = currentItem?.extras?['isRadio'] as bool? ?? _isRadioStream;
+      
+      if (!isRadio) {
+        if (currentItem != null && currentItem.duration != duration) {
+          // Update the MediaItem with the new duration
+          mediaItem.add(currentItem.copyWith(duration: duration));
+        }
       }
-      // removed: playbackState.add(playbackState.value.copyWith(updatePosition: duration));
+      // If it IS a radio stream, we let onPositionChanged handle setting the duration
+      // to the current position. This prevents potentially incorrect fixed durations (like 0:00)
+      // from stream metadata from being set on the MediaItem for radio.
     });
 
     _audioPlayer.onPositionChanged.listen((position) {
