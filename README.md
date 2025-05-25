@@ -14,7 +14,6 @@
 
 ### Downloads
 - Download all songs from an album, skipping already downloaded songs.
-- Download all songs from a playlist, skipping already downloaded songs.
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
