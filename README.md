@@ -35,3 +35,5 @@
 - Fix the total duration when streaming being 0:00
 
 - Fix needing to open the library tab before the add to playlist popup works
+
+- When I switch songs have it pause the song and start a loading animation until the newly selected song is loaded
