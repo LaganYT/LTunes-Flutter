@@ -22,8 +22,6 @@
 
 ### Bug fixes
 
-- Downloads randomly disapear, please fix
-
 - For the animation of skipping a song, have it just animate the icon to slide in, the names should fade in
 
 - Try and optimize the code so it doesn't take up so much resources (make less laggy)
