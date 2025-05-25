@@ -393,7 +393,7 @@ void updateDownloadedSong(Song updatedSong) {
     }
     _stationName = null; 
     _stationFavicon = null;
-    notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info)
+    notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info, show loading)
 
     try {
       if (!isResumingOrLooping) {
@@ -491,6 +491,7 @@ void updateDownloadedSong(Song updatedSong) {
       _isLoadingAudio = true; // UI feedback
       notifyListeners();
       await _audioHandler.play();
+      // _isLoadingAudio will be set to false by _listenToAudioHandler
     }
   }
 
@@ -499,6 +500,7 @@ void updateDownloadedSong(Song updatedSong) {
     _currentSongFromAppLogic = null;
     _totalDuration = null;
     _currentIndexInAppQueue = -1;
+    _isLoadingAudio = false; // Ensure loading is false on stop
     // _queue.clear(); // Decide if stopping clears the queue
     // await _audioHandler.updateQueue([]);
 
@@ -581,11 +583,19 @@ void updateDownloadedSong(Song updatedSong) {
 
   void playPrevious() {
     // The handler now manages shuffle/repeat logic for skipToPrevious
+    if (_queue.isNotEmpty) {
+        _isLoadingAudio = true;
+        notifyListeners();
+    }
     _audioHandler.skipToPrevious();
   }
 
   void playNext() {
     // The handler now manages shuffle/repeat logic for skipToNext
+    if (_queue.isNotEmpty) {
+        _isLoadingAudio = true;
+        notifyListeners();
+    }
     _audioHandler.skipToNext();
   }
 
@@ -695,13 +705,13 @@ void updateDownloadedSong(Song updatedSong) {
     
 
     final radioSongId = 'radio_${stationName.hashCode}_${streamUrl.hashCode}';
-    final mediaItem = MediaItem(
-      id: streamUrl, // Playable URL
-      title: stationName,
-      artist: 'Radio Station',
-      artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
-      extras: {'isRadio': true, 'songId': radioSongId}, // Ensure songId is set for radio
-    );
+    // final mediaItem = MediaItem( // This is defined later
+    //   id: streamUrl, // Playable URL
+    //   title: stationName,
+    //   artist: 'Radio Station',
+    //   artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
+    //   extras: {'isRadio': true, 'songId': radioSongId}, // Ensure songId is set for radio
+    // );
     
     // Update app's notion of current song to this radio stream
     _currentSongFromAppLogic = Song(
@@ -713,14 +723,23 @@ void updateDownloadedSong(Song updatedSong) {
         isDownloaded: false,
         extras: {'isRadio': true} // Add extras to Song model if it supports it, or handle this distinction another way
     );
-    notifyListeners(); // Notify after _currentSongFromAppLogic and station details are set
+    notifyListeners(); // Notify after _currentSongFromAppLogic and station details are set, and to show loading
 
 
     // Update the queue in the handler to just this radio stream
     // Or, if you want radio to be outside the main queue, handle accordingly.
     // For now, let's make it the current item.
+    // Re-create mediaItem here as it was commented out above for clarity of _isLoadingAudio and notifyListeners() timing
+    final mediaItem = MediaItem(
+      id: streamUrl, // Playable URL
+      title: stationName,
+      artist: 'Radio Station',
+      artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
+      extras: {'isRadio': true, 'songId': radioSongId}, 
+    );
     await _audioHandler.playMediaItem(mediaItem);
     _saveCurrentSongToStorage(); // Save that we are playing a radio stream
+    // _isLoadingAudio will be set to false by _listenToAudioHandler
   }
 
 
