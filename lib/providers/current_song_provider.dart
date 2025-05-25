@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// import 'package:audioplayers/audioplayers.dart'; // No longer directly used here
+import 'package:audioplayers/audioplayers.dart'; // Import AudioPlayer from audioplayers package
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -334,49 +334,45 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<MediaItem> _prepareMediaItem(Song song) async {
-    // _isLoadingAudio = true; // Removed: Handled by the calling context (e.g., playSong)
-    // notifyListeners(); // Removed: Handled by the calling context
-
     String playableUrl = await fetchSongUrl(song);
     if (playableUrl.isEmpty) {
-      throw Exception('Could not resolve playable URL for ${song.title}');
+        throw Exception('Could not resolve playable URL for ${song.title}');
     }
-    
-    Duration? songDuration;
-    if (song.isDownloaded && song.localFilePath != null && !song.localFilePath!.startsWith('http')) {
-        // For local files, audioplayers can get duration.
-        // We'll let the handler's onDurationChanged update it.
+
+    Duration? songDuration = song.duration;
+    if (songDuration == null || songDuration == Duration.zero) {
+        final audioPlayer = AudioPlayer();
+        try {
+            await audioPlayer.setSourceUrl(playableUrl);
+            songDuration = await audioPlayer.getDuration();
+        } catch (e) {
+            debugPrint("Error getting duration for ${song.title}: $e");
+            songDuration = Duration.zero;
+        } finally {
+            await audioPlayer.dispose();
+        }
     }
-    // For streams, duration is often unknown until playback starts or comes from metadata.
 
-    Song songForMediaItem = song; // Start with the passed song instance
-
-    // Update song.audioUrl if a new one was fetched and different
+    Song songForMediaItem = song;
     if (playableUrl != song.audioUrl && !song.isDownloaded) {
         songForMediaItem = song.copyWith(audioUrl: playableUrl);
-        // Persist this updated URL
         await _persistSongMetadata(songForMediaItem);
-        
-        // Update this song in the main _queue if it exists there
         final qIndex = _queue.indexWhere((s) => s.id == songForMediaItem.id);
         if (qIndex != -1) {
-          _queue[qIndex] = songForMediaItem;
+            _queue[qIndex] = songForMediaItem;
         }
-        // If _currentSongFromAppLogic is this song, update it to the new version
         if (_currentSongFromAppLogic?.id == songForMediaItem.id) {
             _currentSongFromAppLogic = songForMediaItem;
         }
     }
 
-    // Ensure 'isRadio' extra is correctly set to false or absent for regular songs.
     final extras = Map<String, dynamic>.from(songForMediaItem.extras ?? {});
-    extras['isRadio'] = false; 
-    extras['songId'] = songForMediaItem.id; // Ensure songId is the actual song ID
+    extras['isRadio'] = false;
+    extras['songId'] = songForMediaItem.id;
     extras['isLocal'] = songForMediaItem.isDownloaded;
     if (songForMediaItem.isDownloaded && songForMediaItem.localFilePath != null && !songForMediaItem.albumArtUrl.startsWith('http')) {
         extras['localArtFileName'] = songForMediaItem.albumArtUrl;
     }
-
 
     return songToMediaItem(songForMediaItem, playableUrl, songDuration).copyWith(extras: extras);
   }

@@ -6,6 +6,7 @@ class Song {
   final String? album;
   final String? releaseDate;
   final String audioUrl; // Ensure non-nullable, default to empty
+  final Duration? duration;
 
   // Add these fields
   bool isDownloaded;
@@ -27,6 +28,7 @@ class Song {
     this.isDownloaded = false,
     this.localFilePath,
     this.extras, // Added extras to constructor
+    this.duration, // Ensure duration is part of the constructor
   });
 
   Song copyWith({
@@ -40,6 +42,7 @@ class Song {
     bool? isDownloaded,
     String? localFilePath, // Ensure this can be null
     Map<String, dynamic>? extras, // Added extras to copyWith
+    Duration? duration, // Added duration to copyWith
     
   }) {
     return Song(
@@ -53,6 +56,7 @@ class Song {
       isDownloaded: isDownloaded ?? this.isDownloaded,
       localFilePath: localFilePath, // Consumers ensure this is a filename
       extras: extras ?? this.extras, // Added extras logic
+      duration: duration ?? this.duration, // Added duration logic
     );
   }
 
@@ -83,6 +87,10 @@ class Song {
       
       String? albumName;
       String? releaseDate = _asNullableString(json['releaseDate']);
+
+      // Parse duration_ms
+      final int? durationMs = json['duration_ms'] as int?;
+      final Duration? parsedDuration = durationMs != null ? Duration(milliseconds: durationMs) : null;
 
       if (artist.isEmpty && json.containsKey('artists')) {
         final artistsList = json['artists'] as List?;
@@ -118,6 +126,7 @@ class Song {
         isDownloaded: json['isDownloaded'] as bool? ?? false, // Assuming isDownloaded is boolean
         localFilePath: _asNullableString(json['localFilePath']), // Store as is; migration/usage logic handles interpretation
         extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
+        duration: parsedDuration, // Assign parsed duration
       );
     } catch (e) {
       // For debugging purposes, it can be helpful to print the problematic JSON.
@@ -137,6 +146,7 @@ class Song {
         'isDownloaded': isDownloaded,
         'localFilePath': localFilePath, // Will save filename if correctly set by app logic
         'extras': extras, // Added extras to JSON
+        'duration_ms': duration?.inMilliseconds, // Serialize duration to milliseconds
       };
 
   // New getter to safely provide a valid audio URL

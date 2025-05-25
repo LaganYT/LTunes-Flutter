@@ -12,8 +12,6 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
   Uri? artUri;
   if (song.albumArtUrl.isNotEmpty) {
     // If albumArtUrl is an absolute URL (http/https), parse it.
-    // Otherwise, treat it as a potential local file identifier.
-    // _resolveArtForItem will handle turning local identifiers into full file URIs.
     artUri = Uri.tryParse(song.albumArtUrl);
   }
 
@@ -22,8 +20,10 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
     title: song.title,
     artist: song.artist,
     album: song.album,
-    artUri: artUri, // Use the parsed URI
-    duration: duration, // Pass the duration if available
+    artUri: artUri,
+    duration: (duration != null && duration > Duration.zero)
+        ? duration
+        : song.duration, // Use song duration from API if not provided
     extras: {
       'songId': song.id, // Original song ID from your app's model
       'isLocal': song.isDownloaded,
@@ -127,17 +127,27 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       ));
     });
 
-    _audioPlayer.onDurationChanged.listen((duration) {
+    _audioPlayer.onDurationChanged.listen((newDuration) {
       final currentItem = mediaItem.value;
-      // Only update duration from onDurationChanged if it's NOT a radio stream.
-      // For radio streams, duration is handled by onPositionChanged.
+      
+      if (currentItem == null) return; // No current item to update
+
       // Use currentItem.extras first, then fallback to handler's _isRadioStream as a secondary check.
-      bool isRadio = currentItem?.extras?['isRadio'] as bool? ?? _isRadioStream;
+      bool isRadio = currentItem.extras?['isRadio'] as bool? ?? _isRadioStream;
       
       if (!isRadio) {
-        if (currentItem != null && currentItem.duration != duration) {
-          // Update the MediaItem with the new duration
-          mediaItem.add(currentItem.copyWith(duration: duration));
+        // Only update if duration is valid and different
+        if (newDuration > Duration.zero && currentItem.duration != newDuration) {
+          final updatedItem = currentItem.copyWith(duration: newDuration);
+          mediaItem.add(updatedItem); // Broadcast the change
+
+          // Update in _playlist if _currentIndex is valid and points to this item
+          if (_currentIndex >= 0 && _currentIndex < _playlist.length && 
+              _playlist[_currentIndex].id == updatedItem.id) {
+            _playlist[_currentIndex] = updatedItem;
+          }
+        
+          
         }
       }
       // If it IS a radio stream, we let onPositionChanged handle setting the duration
@@ -147,8 +157,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     _audioPlayer.onPositionChanged.listen((position) {
        final currentMediaItem = mediaItem.value;
+
        if (_isRadioStream && currentMediaItem != null) {
-         mediaItem.add(currentMediaItem.copyWith(duration: position));
+         final updatedItem = currentMediaItem.copyWith(duration: position);
+         mediaItem.add(updatedItem);
+
+         // Update in _playlist if _currentIndex is valid and points to this item
+         if (_currentIndex >= 0 && _currentIndex < _playlist.length &&
+             _playlist[_currentIndex].id == updatedItem.id) {
+           _playlist[_currentIndex] = updatedItem;
+         }
        }
       playbackState.add(playbackState.value.copyWith(
         updatePosition: position,
@@ -370,7 +388,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       // onPlayerStateChanged will update playing state
       // immediately fetch the duration if available
       final initialDur = await _audioPlayer.getDuration();
-      if (initialDur != null && initialDur > Duration.zero) {
+      if (!_isRadioStream && initialDur != null && initialDur > Duration.zero) {
         final cur = mediaItem.value;
         if (cur != null && cur.duration != initialDur) {
           final updated = cur.copyWith(duration: initialDur);
