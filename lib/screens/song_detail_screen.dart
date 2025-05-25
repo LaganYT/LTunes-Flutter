@@ -5,10 +5,10 @@ import '../models/song.dart';
 import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart'; // Use PlaylistManagerService
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart'; // Ensure this is imported
+import 'package:path/path.dart' as p; // Ensure this is imported
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
-import 'package:path/path.dart' as p; // Import path package
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -405,91 +405,190 @@ class AddToPlaylistDialog extends StatefulWidget {
 }
 
 class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
-  List<Playlist> _playlists = [];
-  final PlaylistManagerService _playlistManagerService = PlaylistManagerService(); // Use singleton
+  List<Playlist> _allPlaylists = [];
+  List<Playlist> _filteredPlaylists = [];
+  final PlaylistManagerService _playlistManagerService = PlaylistManagerService();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadPlaylists();
+    _loadAndPreparePlaylists();
+    _searchController.addListener(_filterAndSortPlaylists);
   }
 
-  Future<void> _loadPlaylists() async {
-    // No need to load manually if PlaylistManagerService handles it internally and provides getter
-    // await _playlistManagerService.loadPlaylists(); // Ensure it's loaded if not already
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAndPreparePlaylists() async {
+    // PlaylistManagerService loads playlists on instantiation or through its own logic.
+    // We fetch the current list.
+    // await _playlistManagerService.loadPlaylists(); // This might be redundant if service handles it.
     setState(() {
-      _playlists = _playlistManagerService.playlists;
+      _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists);
+      _filteredPlaylists = List<Playlist>.from(_allPlaylists);
+      // _sortPlaylists(); // Initial sort // Removed
     });
   }
 
-  Future<void> _savePlaylists() async {
-    // PlaylistManagerService handles saving
-    await _playlistManagerService.savePlaylists();
+  void _filterAndSortPlaylists() {
+    final searchQuery = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredPlaylists = _allPlaylists.where((playlist) {
+        return playlist.name.toLowerCase().contains(searchQuery);
+      }).toList();
+      // _sortPlaylists(); // Removed
+    });
   }
+
+  Future<String> _resolveLocalArtPathForDialog(String? fileName) async {
+    if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
+      return '';
+    }
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fullPath = p.join(directory.path, fileName);
+      if (await File(fullPath).exists()) {
+        return fullPath;
+      }
+    } catch (e) {
+      debugPrint("Error resolving local art path for dialog: $e");
+    }
+    return '';
+  }
+
+  Widget _buildPlaylistArt(Playlist playlist, BuildContext context) {
+    String? artUrl = playlist.songs.isNotEmpty ? playlist.songs.first.albumArtUrl : null;
+    Widget placeholder = Icon(Icons.music_note, size: 24, color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+    if (artUrl != null && artUrl.isNotEmpty) {
+      if (artUrl.startsWith('http')) {
+        return Image.network(
+          artUrl,
+          width: 48, height: 48, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => placeholder,
+        );
+      } else {
+        return FutureBuilder<String>(
+          future: _resolveLocalArtPathForDialog(artUrl),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return Image.file(
+                File(snapshot.data!),
+                width: 48, height: 48, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => placeholder,
+              );
+            }
+            return placeholder;
+          },
+        );
+      }
+    }
+    return placeholder;
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add to Playlist'),
-      content: _playlists.isEmpty
-          ? Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('No playlists available.'),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _showCreatePlaylistDialog(context);
-            },
-            child: const Text('Create Playlist'),
-          ),
-        ],
-      )
-          : SizedBox(
-        width: double.maxFinite,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: _playlists.length,
-          itemBuilder: (BuildContext context, int index) {
-            final playlist = _playlists[index];
-            return ListTile(
-              title: Text(playlist.name),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                tooltip: 'Delete Playlist',
-                onPressed: () async {
-                  final playlistToDelete = _playlists[index];
-                  _playlistManagerService.removePlaylist(playlistToDelete);
-                  await _savePlaylists(); // Save changes
-                  setState(() { // Refresh local list
-                    _playlists = _playlistManagerService.playlists;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Deleted playlist "${playlistToDelete.name}"')),
-                  );
+      title: const Center(child: Text('Add to playlist')),
+      contentPadding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 0), // Adjust padding
+      content: SizedBox(
+        width: double.maxFinite, // Make dialog content take full available width
+        height: MediaQuery.of(context).size.height * 0.6, // Set a max height for the content
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24.0),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () {
+                  // Navigator.of(context).pop(); // Don't close AddToPlaylistDialog
+                  _showCreatePlaylistDialog(context); // Show create playlist dialog directly
                 },
+                child: const Text('New playlist', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              onTap: () {
-                final playlist = _playlists[index];
-                // Prevent duplicates using song.id
-                if (!playlist.songs.any((s) => s.id == widget.song.id)) {
-                  _playlistManagerService.addSongToPlaylist(playlist, widget.song);
-                  _savePlaylists(); // Save changes
-                  // No need to setState for playlist.songs directly if _playlistManagerService handles it
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Added to ${playlist.name}')),
-                  );
-                } else {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Song already in playlist')),
-                  );
-                }
-              },
-            );
-          },
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 0.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Find playlist',
+                        prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withOpacity(0.7)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24.0),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _filteredPlaylists.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchController.text.isNotEmpty ? 'No playlists found.' : 'No playlists available.',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _filteredPlaylists.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final playlist = _filteredPlaylists[index];
+                        return ListTile(
+                          leading: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4.0),
+                              child: _buildPlaylistArt(playlist, context),
+                            ),
+                          ),
+                          title: Text(playlist.name),
+                          subtitle: Text('${playlist.songs.length} songs'),
+                          onTap: () {
+                            if (!playlist.songs.any((s) => s.id == widget.song.id)) {
+                              _playlistManagerService.addSongToPlaylist(playlist, widget.song);
+                              // _playlistManagerService.savePlaylists(); // savePlaylists is called within addSongToPlaylist
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Added to ${playlist.name}')),
+                              );
+                            } else {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Song already in playlist')),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
       actions: [
@@ -506,7 +605,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   void _showCreatePlaylistDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) { // Renamed inner context for clarity
         final TextEditingController playlistNameController = TextEditingController();
         return AlertDialog(
           title: const Text('Create Playlist'),
@@ -518,7 +617,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop(); // Use dialogContext
               },
             ),
             TextButton(
@@ -528,12 +627,17 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                 if (playlistName.isNotEmpty) {
                   final newPlaylist = Playlist(id: DateTime.now().millisecondsSinceEpoch.toString(), name: playlistName, songs: []);
                   _playlistManagerService.addPlaylist(newPlaylist);
-                  _savePlaylists(); // Save the new playlist
-                  setState(() { // Refresh local list
-                     _playlists = _playlistManagerService.playlists;
+                  setState(() { 
+                     _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists); // Refresh the master list
+                     // Re-apply filter based on the new _allPlaylists and existing search term
+                     final searchQuery = _searchController.text.toLowerCase();
+                     _filteredPlaylists = _allPlaylists.where((playlist) {
+                       return playlist.name.toLowerCase().contains(searchQuery);
+                     }).toList();
+                     // No need to re-sort as sorting is removed
                   });
                 }
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop(); // Use dialogContext to pop CreatePlaylistDialog
               },
             ),
           ],
