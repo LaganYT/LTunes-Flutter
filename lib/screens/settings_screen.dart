@@ -24,6 +24,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
+  // Add a ValueNotifier to trigger refresh for FutureBuilders
+  final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
 
   @override
   void initState() {
@@ -47,6 +49,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     // Default to true if not set, as per original logic
     usRadioOnlyNotifier.value = prefs.getBool('usRadioOnly') ?? true;
+    // Notify ValueListenableBuilder to rebuild, if it was waiting for this.
+    // This is more for consistency if other parts of the UI depend on this finishing.
+    // For the switch itself, its own state management handles the initial value.
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -91,6 +96,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
     var i = (log(bytes) / log(1024)).floor();
     return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
+  }
+
+  Future<int> _getDownloadedSongsCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    int count = 0;
+    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
+
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            final song = Song.fromJson(songMap);
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              // Ensure the file actually exists
+              final fullPath = p.join(appDocDir.path, song.localFilePath!);
+              if (await File(fullPath).exists()) {
+                count++;
+              }
+            }
+          } catch (e) {
+            debugPrint("Error processing song $key for count calculation: $e");
+          }
+        }
+      }
+    }
+    return count;
   }
 
   Future<void> _deleteAllDownloads() async {
@@ -141,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$deletedFilesCount downloaded song(s) deleted.')),
       );
-      setState(() {}); // Refresh UI, e.g., storage calculation
+      _refreshNotifier.value++; // Trigger refresh
     }
   }
 
@@ -155,8 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await themeProvider.resetToDefaults();
 
     // Refresh storage calculation display if needed, by calling setState or using a ValueNotifier for storage
-    setState(() {});
-
+    _refreshNotifier.value++; // Trigger refresh
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings have been reset to default.')),
@@ -324,28 +357,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(),
             ListTile(
               title: const Text('Storage Used by Downloads'),
-              subtitle: FutureBuilder<int>(
-                future: _calculateStorageUsed(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Text('Calculating...');
-                  } else if (snapshot.hasError) {
-                    return Text('Error calculating storage', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                  } else if (snapshot.hasData) {
-                    return Text(_formatBytes(snapshot.data!));
-                  }
-                  return const Text('N/A');
-                },
+              subtitle: ValueListenableBuilder<int>(
+                valueListenable: _refreshNotifier,
+                builder: (context, _, child) {
+                  return FutureBuilder<int>(
+                    future: _calculateStorageUsed(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Text('Calculating...');
+                      } else if (snapshot.hasError) {
+                        return Text('Error calculating storage', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                      } else if (snapshot.hasData) {
+                        return Text(_formatBytes(snapshot.data!));
+                      }
+                      return const Text('N/A');
+                    },
+                  );
+                }
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Refresh Storage Calculation',
                 onPressed: () {
-                  setState(() {
-                    // This will cause FutureBuilder to re-run the future
-                  });
+                  _refreshNotifier.value++; // Increment to trigger ValueListenableBuilder
                 },
               ),
+            ),
+            ListTile(
+              title: const Text('Number of Downloaded Songs'),
+              subtitle: ValueListenableBuilder<int>(
+                valueListenable: _refreshNotifier,
+                builder: (context, _, child) {
+                  return FutureBuilder<int>(
+                    future: _getDownloadedSongsCount(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Text('Counting...');
+                      } else if (snapshot.hasError) {
+                        return Text('Error counting songs', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                      } else if (snapshot.hasData) {
+                        return Text('${snapshot.data} songs');
+                      }
+                      return const Text('N/A');
+                    },
+                  );
+                }
+              ),
+              // Optionally, share the refresh button or add another one
+              // For simplicity, the existing refresh button will now refresh both.
             ),
             const Divider(),
             Padding(
@@ -461,6 +520,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     usRadioOnlyNotifier.dispose();
+    _refreshNotifier.dispose(); // Dispose the new notifier
     super.dispose();
   }
 }
