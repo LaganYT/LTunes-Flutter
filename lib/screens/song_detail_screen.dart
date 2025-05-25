@@ -424,14 +424,14 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   }
 
   Future<void> _loadAndPreparePlaylists() async {
-    // PlaylistManagerService loads playlists on instantiation or through its own logic.
-    // We fetch the current list.
-    // await _playlistManagerService.loadPlaylists(); // This might be redundant if service handles it.
-    setState(() {
-      _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists);
-      _filteredPlaylists = List<Playlist>.from(_allPlaylists);
-      // _sortPlaylists(); // Initial sort // Removed
-    });
+    await _playlistManagerService.ensurePlaylistsLoaded(); // Ensure playlists are loaded
+    if (mounted) { // Check mounted after await
+      setState(() {
+        _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists);
+        _filteredPlaylists = List<Playlist>.from(_allPlaylists);
+        // _sortPlaylists(); // Initial sort // Removed
+      });
+    }
   }
 
   void _filterAndSortPlaylists() {

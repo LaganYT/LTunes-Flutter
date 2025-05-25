@@ -4,111 +4,144 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 
-class PlaylistManagerService extends ChangeNotifier {
-  static const _playlistsKey = 'playlists';
+class PlaylistManagerService with ChangeNotifier {
   static final PlaylistManagerService _instance = PlaylistManagerService._internal();
   factory PlaylistManagerService() => _instance;
+
   PlaylistManagerService._internal() {
-    loadPlaylists(); // Load playlists when the service is initialized.
+    _loadPlaylists(); // Load playlists on initialization
   }
 
+  static const _playlistsKey = 'playlists_v2'; // Use a distinct key for storage
   List<Playlist> _playlists = [];
-  
-  Future<void> loadPlaylists() async {
+  bool _isLoading = false;
+  bool _playlistsLoaded = false;
+
+  List<Playlist> get playlists => List.unmodifiable(_playlists);
+  bool get isLoading => _isLoading;
+  bool get playlistsLoaded => _playlistsLoaded;
+
+  Future<void> _loadPlaylists() async {
+    if (_playlistsLoaded && !_isLoading) return; // Already loaded and not currently loading
+    if (_isLoading) return; // Already loading, wait for it to complete
+
+    _isLoading = true;
+    // Do not notify listeners here for initial load triggered by constructor,
+    // as widgets might not be ready to listen yet.
+    // If called by ensurePlaylistsLoaded, that method can handle notifications if needed.
+
     final prefs = await SharedPreferences.getInstance();
     final playlistJsonList = prefs.getStringList(_playlistsKey) ?? [];
-    _playlists = playlistJsonList.map((jsonStr) {
-      try {
-        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-        return Playlist.fromJson(map);
-      } catch (e) {
-        debugPrint('Error decoding playlist: $e. JSON: $jsonStr');
-        return null; // Skip invalid playlist.
-      }
-    }).whereType<Playlist>().toList();
-    notifyListeners();
+    try {
+      _playlists = playlistJsonList.map((jsonStr) {
+        try {
+          final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+          return Playlist.fromJson(map);
+        } catch (e) {
+          debugPrint('Error decoding playlist: $e. JSON: $jsonStr');
+          return null;
+        }
+      }).whereType<Playlist>().toList();
+    } catch (e) {
+      debugPrint('Error processing playlist JSON list: $e');
+      _playlists = []; // Default to empty list on error
+    }
+
+    _playlistsLoaded = true;
+    _isLoading = false;
+    notifyListeners(); // Notify after loading is complete
   }
 
-  Future<void> savePlaylists() async {
+  Future<void> ensurePlaylistsLoaded() async {
+    if (!_playlistsLoaded) {
+      await _loadPlaylists(); // This will load and notify
+    } else if (_isLoading) {
+      // If currently loading, wait for it to complete.
+      // This can be achieved by listening to a Completer or checking _isLoading in a loop with delay.
+      // For simplicity, we'll rely on the fact that subsequent calls to _loadPlaylists are guarded.
+      // A more robust solution might involve a Completer.
+      while(_isLoading) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+    }
+  }
+
+  Future<void> _savePlaylists() async {
     final prefs = await SharedPreferences.getInstance();
     final playlistJsonList = _playlists.map((p) => jsonEncode(p.toJson())).toList();
     await prefs.setStringList(_playlistsKey, playlistJsonList);
     notifyListeners();
   }
 
-  List<Playlist> get playlists => List.unmodifiable(_playlists);
-
   Future<void> addPlaylist(Playlist playlist) async {
-    _playlists.add(playlist);
-    await savePlaylists();
+    // Ensure playlist with same ID doesn't already exist
+    if (!_playlists.any((p) => p.id == playlist.id)) {
+      _playlists.add(playlist);
+      await _savePlaylists();
+    }
   }
 
   Future<void> removePlaylist(Playlist playlist) async {
     _playlists.removeWhere((p) => p.id == playlist.id);
-    await savePlaylists();
+    await _savePlaylists();
   }
-  
+
   Future<void> renamePlaylist(String id, String newName) async {
-    try {
-      final playlist = _playlists.firstWhere((p) => p.id == id);
-      playlist.rename(newName);
-      await savePlaylists();
-    } catch (e) {
-      debugPrint('Playlist not found for renaming: $id');
-      // Optionally rethrow or handle as a silent failure
+    final index = _playlists.indexWhere((p) => p.id == id);
+    if (index != -1) {
+      _playlists[index] = _playlists[index].copyWith(name: newName);
+      await _savePlaylists();
     }
   }
-  
+
   Future<void> addSongToPlaylist(Playlist playlist, Song song) async {
-    try {
-      final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id);
-      if (!targetPlaylist.songs.any((s) => s.id == song.id)) {
-        targetPlaylist.songs.add(song);
-        await savePlaylists();
+    final index = _playlists.indexWhere((p) => p.id == playlist.id);
+    if (index != -1) {
+      Playlist existingPlaylist = _playlists[index];
+      if (!existingPlaylist.songs.any((s) => s.id == song.id)) {
+        List<Song> updatedSongs = List.from(existingPlaylist.songs)..add(song);
+        _playlists[index] = existingPlaylist.copyWith(songs: updatedSongs);
+        await _savePlaylists();
       }
-    } catch (e) {
-      debugPrint('Playlist not found for adding song: ${playlist.id}');
     }
   }
 
   Future<void> removeSongFromPlaylist(Playlist playlist, Song song) async {
-    try {
-      final targetPlaylist = _playlists.firstWhere((p) => p.id == playlist.id);
-      targetPlaylist.songs.removeWhere((s) => s.id == song.id);
-      await savePlaylists();
-    } catch (e) {
-      debugPrint('Playlist not found for removing song: ${playlist.id}');
+    final index = _playlists.indexWhere((p) => p.id == playlist.id);
+    if (index != -1) {
+      Playlist existingPlaylist = _playlists[index];
+      List<Song> updatedSongs = List.from(existingPlaylist.songs)..removeWhere((s) => s.id == song.id);
+      _playlists[index] = existingPlaylist.copyWith(songs: updatedSongs);
+      await _savePlaylists();
     }
   }
-  
-  Future<void> updateSongInPlaylists(Song updatedSong) async {
+
+  void updateSongInPlaylists(Song updatedSong) {
     bool changed = false;
-    for (var playlist in _playlists) {
-      final songIndex = playlist.songs.indexWhere((s) => s.id == updatedSong.id);
-      if (songIndex != -1) {
-        playlist.songs[songIndex] = updatedSong;
+    for (int i = 0; i < _playlists.length; i++) {
+      Playlist p = _playlists[i];
+      List<Song> newSongs = List.from(p.songs);
+      bool playlistChanged = false;
+      for (int j = 0; j < newSongs.length; j++) {
+        if (newSongs[j].id == updatedSong.id) {
+          // Only update if there's a meaningful change to avoid unnecessary saves/notifies
+          if (newSongs[j].isDownloaded != updatedSong.isDownloaded ||
+              newSongs[j].localFilePath != updatedSong.localFilePath ||
+              newSongs[j].title != updatedSong.title ||
+              newSongs[j].artist != updatedSong.artist ||
+              newSongs[j].albumArtUrl != updatedSong.albumArtUrl) {
+            newSongs[j] = updatedSong;
+            playlistChanged = true;
+          }
+        }
+      }
+      if (playlistChanged) {
+        _playlists[i] = p.copyWith(songs: newSongs);
         changed = true;
       }
     }
     if (changed) {
-      await savePlaylists();
+      _savePlaylists();
     }
-  }
-
-  Future<void> downloadAllSongsInPlaylist(Playlist playlist) async {
-    // Implementation for downloading all songs in a playlist
-    // This would likely involve iterating through playlist.songs
-    // and calling a download method (perhaps from CurrentSongProvider or ApiService)
-    // for each song not yet downloaded.
-    // Remember to call notifyListeners() if this operation changes playlist state
-    // or related song states that the UI should react to.
-    debugPrint('Download all songs in playlist "${playlist.name}" - Not yet implemented.');
-    // Example:
-    // for (var song in playlist.songs) {
-    //   if (!song.isDownloaded) {
-    //     // await downloadService.download(song);
-    //   }
-    // }
-    // await savePlaylists(); // If song metadata within playlists is updated
   }
 }
