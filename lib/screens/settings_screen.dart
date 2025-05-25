@@ -486,6 +486,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const Divider(),
+            ListTile(
+              title: const Text('Version Information'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Current Version: $_currentAppVersion'),
+                  Text('Latest Available Version: $_latestKnownVersion'),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: ElevatedButton(
@@ -499,16 +509,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12.0),
                 ),
                 child: const Text('Check for Updates'),
-              ),
-            ),
-            ListTile(
-              title: const Text('Version Information'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Current Version: $_currentAppVersion'),
-                  Text('Latest Available Version: $_latestKnownVersion'),
-                ],
               ),
             ),
           ],
