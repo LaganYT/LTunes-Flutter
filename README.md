@@ -23,5 +23,3 @@
 
 ### Bug fixes
 - Optimize download performance, especially for playlists, and implement a configurable concurrent download limit (default: 3). - Use resumable downloader package
-- Restore search bar in library (playlists and downloads sections).
-- Fix issue where playback cannot be resumed from notification after an audio interruption (play button disabled).
