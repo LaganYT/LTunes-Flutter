@@ -18,10 +18,10 @@
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
 
+### Settings
+- Add an option to disable UI animations (default: enabled).
+
 ### Bug fixes
-
-- Try and optimize the code so it doesn't take up so much resources (make less laggy)
-
-- Add a setting to disable animation, default = animation on
-
-Fix downloads being so resource heavy (also add a max 3 -changeable in settings - download at a time limit) *** seems like the laggy downloading is only when downloading a playlist, the same amount of songs dont seem to cause lag, add back the search bar to the library (playlists and downloads), fix the audioservice thingy pausing when interrupted by other audio and not letting you unpause from the notification, requiring you to reopen the app to play the music again (greyed out play button on notification)
+- Optimize download performance, especially for playlists, and implement a configurable concurrent download limit (default: 3). - Use resumable downloader package
+- Restore search bar in library (playlists and downloads sections).
+- Fix issue where playback cannot be resumed from notification after an audio interruption (play button disabled).

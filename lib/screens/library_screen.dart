@@ -35,10 +35,23 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   late CurrentSongProvider _currentSongProvider; // To listen for song updates
 
+  // Search functionality
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this); // Initialize TabController
+    _tabController?.addListener(() {
+      // Clear search when tab changes
+      if (_searchController.text.isNotEmpty) {
+        _searchController.clear();
+      }
+      // The _onSearchChanged will be called by the controller's listener
+    });
+
+    _searchController.addListener(_onSearchChanged);
     
     // Initial loads
     _loadDownloadedSongs();
@@ -54,6 +67,13 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         _currentlyPlayingSongPath = null;
         // Consider updating based on CurrentSongProvider state if it's managing global playback
       });
+    });
+  }
+
+  void _onSearchChanged() {
+    if (!mounted) return;
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase();
     });
   }
 
@@ -83,6 +103,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     _tabController?.dispose(); // Dispose TabController
     audioPlayer.dispose();
     _playlistNameController.dispose();
@@ -539,13 +561,21 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // Use a Consumer for PlaylistManagerService if you prefer that pattern,
     // or rely on the listener calling setState via _loadPlaylists.
     // For this example, we're using the listener pattern established in initState.
-    if (_playlists.isEmpty) {
-      return const Center(child: Text('No playlists yet. Create one using the "+" button!'));
+    List<Playlist> filteredPlaylists = _playlists;
+    if (_searchQuery.isNotEmpty) {
+      filteredPlaylists = _playlists
+          .where((playlist) =>
+              playlist.name.toLowerCase().contains(_searchQuery))
+          .toList();
+    }
+
+    if (filteredPlaylists.isEmpty) {
+      return Center(child: Text(_searchQuery.isNotEmpty ? 'No playlists found matching "$_searchQuery".' : 'No playlists yet. Create one using the "+" button!'));
     }
     return ListView.builder(
-      itemCount: _playlists.length,
+      itemCount: filteredPlaylists.length,
       itemBuilder: (context, index) {
-        final playlist = _playlists[index];
+        final playlist = filteredPlaylists[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
           child: ListTile(
@@ -583,19 +613,28 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
     final activeTasks = currentSongProvider.activeDownloadTasks; // Map<String, Song>
     final progressMap = currentSongProvider.downloadProgress; // Map<String, double>
-    final completedSongs = _songs; // List<Song> from local state
+    final List<Song> completedSongs = List.from(_songs); // Use a copy of _songs
 
-    final List<Song> allSongsToShow = [];
+    List<Song> allSongsToShow = [];
     final Set<String> addedSongIds = {};
 
-    // Add active downloads first
+    // Add active downloads first (these are not filtered by search as they are ongoing tasks)
     for (final song in activeTasks.values) {
       allSongsToShow.add(song);
       addedSongIds.add(song.id);
     }
 
-    // Add completed downloads, avoiding duplicates
-    for (final song in completedSongs) {
+    // Filter completed songs if search query is present
+    List<Song> songsToConsider = completedSongs;
+    if (_searchQuery.isNotEmpty) {
+      songsToConsider = completedSongs.where((song) {
+        return song.title.toLowerCase().contains(_searchQuery) ||
+               (song.artist.toLowerCase().contains(_searchQuery));
+      }).toList();
+    }
+    
+    // Add filtered/completed downloads, avoiding duplicates
+    for (final song in songsToConsider) {
       if (!addedSongIds.contains(song.id)) {
         allSongsToShow.add(song);
         addedSongIds.add(song.id);
@@ -603,11 +642,24 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     }
 
     // Sort songs by title (optional, but good for consistency)
-    allSongsToShow.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    // Only sort if not primarily showing active downloads at the top, or sort sections separately
+    // For simplicity, let's sort the whole list after combining.
+    // Active downloads might jump around if their title isn't first alphabetically.
+    // A more sophisticated sort would keep active downloads at the top, then sort completed ones.
+    // Current sort:
+    allSongsToShow.sort((a, b) {
+      // Prioritize active downloads at the top
+      bool aIsDownloading = activeTasks.containsKey(a.id);
+      bool bIsDownloading = activeTasks.containsKey(b.id);
+      if (aIsDownloading && !bIsDownloading) return -1;
+      if (!aIsDownloading && bIsDownloading) return 1;
+      // Then sort by title
+      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+    });
 
 
     if (allSongsToShow.isEmpty) {
-      return const Center(child: Text('No downloaded songs yet.'));
+      return Center(child: Text(_searchQuery.isNotEmpty ? 'No songs found matching "$_searchQuery".' : 'No downloaded songs yet.'));
     }
 
     return ListView.builder(
@@ -740,12 +792,47 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             onPressed: () => _createPlaylist(context),
           ),
         ],
-        bottom: TabBar( // Add TabBar
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.list), text: 'Playlists'),
-            Tab(icon: Icon(Icons.download_done), text: 'Downloads'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight + 56), // Adjusted height for search bar + tabs
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: _tabController?.index == 0 ? 'Search Playlists...' : 'Search Downloads...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              // _onSearchChanged will be called by listener
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24.0),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[850]
+                        : Colors.grey[200],
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  ),
+                ),
+              ),
+              TabBar( // Add TabBar
+                controller: _tabController,
+                tabs: const [
+                  Tab(icon: Icon(Icons.list), text: 'Playlists'),
+                  Tab(icon: Icon(Icons.download_done), text: 'Downloads'),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
       body: TabBarView( // Add TabBarView
