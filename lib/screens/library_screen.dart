@@ -745,19 +745,40 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 key: Key(songObj.id),
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(4.0),
-                  child: const Icon(Icons.music_note),
+                  child: songObj.albumArtUrl.isNotEmpty
+                    ? (songObj.albumArtUrl.startsWith('http')
+                        ? Image.network(
+                            songObj.albumArtUrl,
+                            width: 40, height: 40, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                          )
+                        : FutureBuilder<String>(
+                            future: (() async {
+                              final dir = await getApplicationDocumentsDirectory();
+                              final fullPath = p.join(dir.path, songObj.albumArtUrl);
+                              if (await File(fullPath).exists()) return fullPath;
+                              return '';
+                            })(),
+                            builder: (context, snap) {
+                              if (snap.connectionState == ConnectionState.done
+                                  && snap.hasData && snap.data!.isNotEmpty) {
+                                return Image.file(
+                                  File(snap.data!),
+                                  width: 40, height: 40, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                                );
+                              }
+                              return const Icon(Icons.music_note, size: 40);
+                            },
+                          ))
+                    : const Icon(Icons.music_note, size: 40),
                 ),
                 title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      tooltip: 'Delete Download',
-                      onPressed: () => _deleteDownloadedSong(songObj),
-                    ),
-                  ],
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Delete Download',
+                  onPressed: () => _deleteDownloadedSong(songObj),
                 ),
                 onTap: () {
                   // When tapping a completed song, play it and set the queue to all *completed* songs.
