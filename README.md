@@ -23,5 +23,5 @@
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
-
 - Have the background of the player be the color of the most common color of the album cover.
+- Fix the art not displaying in the downloads in the library, it just shows the music icon for some reason right now.
