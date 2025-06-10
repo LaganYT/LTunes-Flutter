@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Required for TextInputFormatter
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io'; // Required for File operations
@@ -8,9 +9,11 @@ import '../models/song.dart'; // Required for Song.fromJson
 import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import '../services/api_service.dart'; // Import ApiService
+import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import '../models/update_info.dart';   // Import UpdateInfo
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
+import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,12 +29,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _latestKnownVersion = 'N/A';
   // Add a ValueNotifier to trigger refresh for FutureBuilders
   final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
+  final TextEditingController _concurrentDownloadsController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadUSRadioOnlySetting();
     _loadCurrentAppVersion();
+    _loadConcurrentDownloadsSetting();
+  }
+
+  Future<void> _loadConcurrentDownloadsSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final limit = prefs.getInt('concurrentDownloadLimit') ?? 3;
+    if (mounted) {
+      _concurrentDownloadsController.text = limit.toString();
+    }
+  }
+
+  Future<void> _saveConcurrentDownloadsSetting(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('concurrentDownloadLimit', value);
+    // Notify CurrentSongProvider
+    if (mounted) {
+      Provider.of<CurrentSongProvider>(context, listen: false).setConcurrentDownloadLimit(value);
+    }
   }
 
   Future<void> _loadCurrentAppVersion() async {
@@ -64,6 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final keys = prefs.getKeys();
     int totalSizeBytes = 0;
     final appDocDir = await getApplicationDocumentsDirectory(); // Get once
+    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
@@ -74,8 +97,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Assuming Song.fromJson exists and works correctly
             final song = Song.fromJson(songMap); 
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              // song.localFilePath is now a filename
-              final fullPath = p.join(appDocDir.path, song.localFilePath!);
+              // song.localFilePath is now a filename, construct full path with subdirectory
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
               final file = File(fullPath);
               if (await file.exists()) {
                 totalSizeBytes += await file.length();
@@ -103,6 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final keys = prefs.getKeys();
     int count = 0;
     final appDocDir = await getApplicationDocumentsDirectory(); // Get once
+    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
@@ -112,8 +136,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final songMap = jsonDecode(songJson) as Map<String, dynamic>;
             final song = Song.fromJson(songMap);
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              // Ensure the file actually exists
-              final fullPath = p.join(appDocDir.path, song.localFilePath!);
+              // Ensure the file actually exists in the subdirectory
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
               if (await File(fullPath).exists()) {
                 count++;
               }
@@ -132,9 +156,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final keys = prefs.getKeys();
     int deletedFilesCount = 0;
     final appDocDir = await getApplicationDocumentsDirectory(); // Get once
+    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
     
-    List<String> keysToUpdate = [];
-    List<String> updatedJsonStrings = [];
+    List<Song> songsToUpdateInProvider = [];
+
+    List<String> keysToUpdateInPrefs = [];
+    List<String> updatedJsonStringsForPrefs = [];
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
@@ -142,34 +169,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (songJson != null) {
           try {
             Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
-            // Check if the song is marked as downloaded and has a local file path
-            if (songMap['isDownloaded'] == true && songMap['localFilePath'] != null && (songMap['localFilePath'] as String).isNotEmpty) {
-              final String fileName = songMap['localFilePath'] as String; // This is a filename
-              final fullPath = p.join(appDocDir.path, fileName);
+            Song currentSongState = Song.fromJson(songMap);
+
+            if (currentSongState.isDownloaded && currentSongState.localFilePath != null && currentSongState.localFilePath!.isNotEmpty) {
+              final String fileName = currentSongState.localFilePath!;
+              // Correct path for deletion, including the subdirectory
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
               final file = File(fullPath);
               if (await file.exists()) {
                 await file.delete();
                 deletedFilesCount++;
               }
-              // Update song metadata whether file existed or not, to ensure consistency
-              songMap['isDownloaded'] = false;
-              songMap['localFilePath'] = null; 
-              
-              keysToUpdate.add(key);
-              updatedJsonStrings.add(jsonEncode(songMap));
             }
+            // Update song metadata whether file existed or not, to ensure consistency
+            // and mark as not downloaded.
+            if (currentSongState.isDownloaded || currentSongState.localFilePath != null) {
+              Song updatedSong = currentSongState.copyWith(isDownloaded: false, localFilePath: null);
+              songsToUpdateInProvider.add(updatedSong);
+              keysToUpdateInPrefs.add(key);
+              updatedJsonStringsForPrefs.add(jsonEncode(updatedSong.toJson()));
+            }
+
           } catch (e) {
             debugPrint("Error processing song $key for deletion: $e");
-            // Optionally, collect errors to show to the user or log more formally
           }
         }
       }
     }
 
     // Perform SharedPreferences updates
-    for (int i = 0; i < keysToUpdate.length; i++) {
-      await prefs.setString(keysToUpdate[i], updatedJsonStrings[i]);
+    for (int i = 0; i < keysToUpdateInPrefs.length; i++) {
+      await prefs.setString(keysToUpdateInPrefs[i], updatedJsonStringsForPrefs[i]);
     }
+    
+    // Notify CurrentSongProvider and PlaylistManagerService for each updated song
+    if (mounted) {
+      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+      final playlistManager = PlaylistManagerService();
+      for (final song in songsToUpdateInProvider) {
+        currentSongProvider.updateSongDetails(song); // Notifies and saves state
+        playlistManager.updateSongInPlaylists(song);
+      }
+    }
+
 
     if (mounted) { // Check if the widget is still in the tree
       ScaffoldMessenger.of(context).showSnackBar(
@@ -188,8 +230,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults();
 
-    // Refresh storage calculation display if needed, by calling setState or using a ValueNotifier for storage
-    _refreshNotifier.value++; // Trigger refresh
+    // Reset Concurrent Downloads to default
+    _concurrentDownloadsController.text = '3'; // Default value
+    await _saveConcurrentDownloadsSetting(3);
+
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings have been reset to default.')),
@@ -352,6 +396,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (bool value) {
                   themeProvider.toggleTheme();
                 },
+              ),
+            ),
+            const Divider(),
+            // Concurrent Downloads Setting
+            ListTile(
+              title: const Text('Concurrent Downloads'),
+              subtitle: const Text('Max number of simultaneous downloads (1-10).'),
+              trailing: SizedBox(
+                width: 60,
+                child: TextField(
+                  controller: _concurrentDownloadsController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  onSubmitted: (value) {
+                    int limit = int.tryParse(value) ?? 3;
+                    if (limit < 1) limit = 1;
+                    if (limit > 10) limit = 10; // Max limit
+                    _concurrentDownloadsController.text = limit.toString();
+                    _saveConcurrentDownloadsSetting(limit);
+                  },
+                  onEditingComplete: () { // Also save when focus is lost
+                    int limit = int.tryParse(_concurrentDownloadsController.text) ?? 3;
+                    if (limit < 1) limit = 1;
+                    if (limit > 10) limit = 10;
+                     _concurrentDownloadsController.text = limit.toString();
+                    _saveConcurrentDownloadsSetting(limit);
+                    FocusScope.of(context).unfocus(); // Dismiss keyboard
+                  },
+                ),
               ),
             ),
             const Divider(),
@@ -521,6 +599,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     usRadioOnlyNotifier.dispose();
     _refreshNotifier.dispose(); // Dispose the new notifier
+    _concurrentDownloadsController.dispose();
     super.dispose();
   }
 }

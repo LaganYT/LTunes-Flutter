@@ -26,6 +26,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   List<Song> _songs = [];
   List<Playlist> _playlists = [];
   final AudioPlayer audioPlayer = AudioPlayer();
+  // ignore: unused_field
   String? _currentlyPlayingSongPath;
   bool isPlaying = false;
   final TextEditingController _playlistNameController = TextEditingController();
@@ -118,6 +119,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     final Set<String> keys = prefs.getKeys();
     final List<Song> loadedSongs = [];
     final appDocDir = await getApplicationDocumentsDirectory(); // Get once
+    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
@@ -134,15 +136,16 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
               if (song.localFilePath!.contains(Platform.pathSeparator)) { // It's a full path, needs migration
                 fileName = p.basename(song.localFilePath!);
               }
-              final fullPath = p.join(appDocDir.path, fileName);
+              // Correct path for checking existence, including the subdirectory
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
               
               if (await File(fullPath).exists()) {
-                if (song.localFilePath != fileName) { // Was a full path, now migrated
+                if (song.localFilePath != fileName) { // Was a full path, now migrated to just filename
                   song = song.copyWith(localFilePath: fileName);
                   songMap['localFilePath'] = fileName; // Update map for saving
                   metadataUpdated = true;
                 }
-              } else { // File doesn't exist
+              } else { // File doesn't exist in the expected subdirectory
                 song = song.copyWith(isDownloaded: false, localFilePath: null);
                 songMap['isDownloaded'] = false;
                 songMap['localFilePath'] = null;
@@ -155,7 +158,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 metadataUpdated = true;
             }
 
-            // Migration and validation for albumArtUrl (if local)
+            // Migration and validation for albumArtUrl (if local and stored in root app docs)
             if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
                 String artFileName = song.albumArtUrl;
                 if (song.albumArtUrl.contains(Platform.pathSeparator)) { // Full path, needs migration
@@ -183,7 +186,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
               // Re-check after potential modifications if file truly exists with the (potentially migrated) filename
-              final checkFile = File(p.join(appDocDir.path, song.localFilePath!));
+              // in the correct subdirectory
+              final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
               if (await checkFile.exists()){
                   loadedSongs.add(song);
               }
@@ -389,42 +393,65 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   Future<void> _deleteDownloadedSong(Song songToDelete) async {
     try {
+      // Stop playback if this song is currently playing from local file
+      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+      final audioHandler = currentSongProvider.audioHandler; // Use public getter
+      final currentMediaItem = audioHandler.mediaItem.value;
+
+      // ignore: unused_local_variable
+      bool wasPlayingThisDeletedSong = false;
+      if (currentMediaItem != null &&
+          currentMediaItem.extras?['songId'] == songToDelete.id &&
+          (currentMediaItem.extras?['isLocal'] as bool? ?? false)) {
+        wasPlayingThisDeletedSong = true;
+      }
+
       if (songToDelete.localFilePath != null && songToDelete.localFilePath!.isNotEmpty) {
-        // localFilePath is a filename
         final appDocDir = await getApplicationDocumentsDirectory();
-        final fullPath = p.join(appDocDir.path, songToDelete.localFilePath!);
+        const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+        // Correct path for deletion, including the subdirectory
+        final fullPath = p.join(appDocDir.path, downloadsSubDir, songToDelete.localFilePath!);
         final file = File(fullPath);
         if (await file.exists()) {
           await file.delete();
+          debugPrint('Deleted file: $fullPath');
+        } else {
+          debugPrint('File not found for deletion: $fullPath');
         }
       }
 
-      // Update metadata in SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
+      // Update metadata
       final updatedSong = songToDelete.copyWith(isDownloaded: false, localFilePath: null);
-      // Use the song's actual ID for the SharedPreferences key
-      await prefs.setString('song_${songToDelete.id}', jsonEncode(updatedSong.toJson()));
       
-      // Refresh UI by reloading the songs list
-      // await _loadDownloadedSongs(); // No longer needed here, listener will handle it.
+      // Persist updated metadata
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('song_${updatedSong.id}', jsonEncode(updatedSong.toJson()));
 
-      // If this song was playing via the local audioPlayer instance
-      if (_currentlyPlayingSongPath == songToDelete.localFilePath) {
-        audioPlayer.stop();
-        setState(() {
-          isPlaying = false;
-          _currentlyPlayingSongPath = null;
-        });
+      // Notify CurrentSongProvider and PlaylistManagerService
+      currentSongProvider.updateSongDetails(updatedSong); // This updates provider's state, queue, and current song if necessary
+      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+      
+      // If the deleted song was playing, the audio_handler's queue update (via updateSongDetails)
+      // should handle transitioning playback or stopping.
+      // If it was playing locally, updateSongDetails will replace the MediaItem with one
+      // that's not local, and if it can't be streamed, playback might stop or skip.
+      // If it was the only song, playback will stop.
+
+      // The _loadDownloadedSongs will be called by the listener _onSongDataChanged
+      // due to currentSongProvider.updateSongDetails.
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted "${updatedSong.title}"')),
+        );
       }
-      // Note: If CurrentSongProvider is managing playback, it should also be notified or handle this.
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted "${songToDelete.title}"')),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting song: $e')),
-      );
+      debugPrint('Error deleting song: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting song: $e')),
+        );
+      }
     }
   }
 
@@ -438,6 +465,12 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
       if (result != null && result.files.isNotEmpty) {
         Directory appDocDir = await getApplicationDocumentsDirectory();
+        const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory for downloads
+        final Directory fullDownloadsDir = Directory(p.join(appDocDir.path, downloadsSubDir));
+        if (!await fullDownloadsDir.exists()) {
+          await fullDownloadsDir.create(recursive: true); // Ensure the subdirectory exists
+        }
+        
         final prefs = await SharedPreferences.getInstance();
         int importCount = 0;
 
@@ -453,12 +486,12 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           String originalFileName = p.basename(originalPath);
           
           // Create a unique name for the copied file to avoid conflicts
-          // String uniquePrefix = _uuid.v4(); // Not needed if newFileName is used directly
           String newFileName = '${_uuid.v4()}_$originalFileName'; // This is just the filename
-          String copiedFilePath = p.join(appDocDir.path, newFileName); // Full path for copy destination
+          // Corrected path: Copy to the 'ltunes_downloads' subdirectory
+          String copiedFilePath = p.join(fullDownloadsDir.path, newFileName); 
 
           try {
-            // Copy the file to the app's documents directory
+            // Copy the file to the app's documents directory (specifically, the downloads subdirectory)
             File copiedFile = await File(originalPath).copy(copiedFilePath); // Ensure file is copied
 
             // Extract metadata
@@ -487,7 +520,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 // Add more formats as needed
                 
                 albumArtFileName = 'albumart_${songId}$extension'; // Just the filename
-                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); // Full path for writing
+                // Album art is saved in the root of appDocDir, not the downloadsSubDir
+                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
                 
                 try {
                   await File(fullAlbumArtPath).writeAsBytes(picture.bytes);
@@ -610,7 +644,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   Widget _buildDownloadedSongsView() {
     // Similar to _buildPlaylistsView, this relies on the listener for CurrentSongProvider.
     // Access CurrentSongProvider to get active downloads and progress
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context);
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context); // Listen for rebuilds
     final activeTasks = currentSongProvider.activeDownloadTasks; // Map<String, Song>
     final progressMap = currentSongProvider.downloadProgress; // Map<String, double>
     final List<Song> completedSongs = List.from(_songs); // Use a copy of _songs
@@ -729,12 +763,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
             trailing: IconButton(
               icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
-              tooltip: 'Cancel Download (Not Implemented)',
+              tooltip: 'Cancel Download',
               onPressed: () {
-                // TODO: Implement cancel download functionality in CurrentSongProvider
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cancel download not yet implemented.')),
-                );
+                Provider.of<CurrentSongProvider>(context, listen: false).cancelDownload(songObj.id);
               },
             ),
             onTap: null, // Or navigate to a detail page that also shows progress

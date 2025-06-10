@@ -5,13 +5,13 @@ import 'dart:convert';
 import 'dart:io';
 import '../models/song.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'package:path/path.dart' as p; // Import path package
 import 'package:audio_service/audio_service.dart';
 import '../services/audio_handler.dart'; // Assumed path to your audio_handler.dart
 import 'dart:async';
+import 'package:resumable_downloader/resumable_downloader.dart';
 
 // Define LoopMode enum
 enum LoopMode { none, queue, song }
@@ -26,10 +26,15 @@ class CurrentSongProvider with ChangeNotifier {
   List<Song> _queue = [];
   int _currentIndexInAppQueue = -1; // Index in the _queue (app's perspective)
 
-  // bool _isDownloadingSong = false; // Removed
-  final Map<String, Song> _activeDownloads = {}; // Added
+  DownloadManager? _downloadManager;
+  bool _isDownloadManagerInitialized = false;
+
+  final Map<String, Song> _activeDownloads = {}; // Tracks songs submitted to DownloadManager
+  // _pendingDownloads list is removed as DownloadManager handles its own queue.
+  int _concurrentDownloadLimit = 3; // Default, will be loaded from prefs
+
   bool _isLoadingAudio = false; // For UI feedback when initiating play
-  final Map<String, double> _downloadProgress = {};
+  final Map<String, double> _downloadProgress = {}; // songId -> progress (0.0 to 1.0)
   Duration _currentPosition = Duration.zero;
   Duration? _totalDuration;
 
@@ -47,6 +52,9 @@ class CurrentSongProvider with ChangeNotifier {
 
   Song? get currentSong => _currentSongFromAppLogic;
   bool get isPlaying => _isPlaying;
+
+  // Add public getter for audioHandler
+  AudioHandler get audioHandler => _audioHandler;
 
   // Getter for LoopMode based on AudioHandler's state
   LoopMode get loopMode {
@@ -92,9 +100,72 @@ void updateDownloadedSong(Song updatedSong) {
 
 
   CurrentSongProvider(this._audioHandler) {
+    _initializeDownloadManager(); // Initialize DownloadManager
+    _loadSettings(); // Load concurrent download limit (will re-init manager if needed)
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
   }
+
+  Future<void> _initializeDownloadManager() async {
+    if (_isDownloadManagerInitialized && _downloadManager != null) {
+      // Potentially update concurrency if it changed.
+      // DownloadManager might not support changing concurrency after init.
+      // For simplicity, we re-initialize if the limit changes significantly.
+      // Or, the DownloadManager could have a method to update concurrency.
+      // The example shows it's set at construction.
+      // If _concurrentDownloadLimit changed, we might need to dispose and re-create.
+      // Let's assume for now it's fixed after first init or _loadSettings handles re-init.
+      return;
+    }
+    final baseDir = await getApplicationDocumentsDirectory();
+    _downloadManager = DownloadManager(
+      subDir: 'ltunes_downloads', // Specific subdirectory for app downloads
+      baseDirectory: baseDir,
+      fileExistsStrategy: FileExistsStrategy.resume, // Or .replace, .skip
+      maxConcurrentDownloads: _concurrentDownloadLimit,
+      maxRetries: 2,
+      delayBetweenRetries: const Duration(seconds: 2),
+      logger: (log) => debugPrint('[DownloadManager:${log.level.name}] ${log.message}'),
+    );
+    _isDownloadManagerInitialized = true;
+    debugPrint("DownloadManager initialized with concurrency: $_concurrentDownloadLimit");
+  }
+
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final newLimit = prefs.getInt('concurrentDownloadLimit') ?? 3;
+    if (newLimit != _concurrentDownloadLimit || _downloadManager == null) {
+      _concurrentDownloadLimit = newLimit;
+      // Re-initialize DownloadManager if limit changed or not initialized
+      if (_downloadManager != null) {
+        _downloadManager!.dispose(); // Dispose old one if exists
+      }
+      await _initializeDownloadManager(); // Initialize with new limit
+    }
+    notifyListeners();
+  }
+
+  Future<void> setConcurrentDownloadLimit(int limit) async {
+    int newLimit = limit > 0 ? limit : 1;
+    newLimit = newLimit > 10 ? 10 : newLimit; // Cap at 10 for sanity
+
+    if (newLimit != _concurrentDownloadLimit) {
+      _concurrentDownloadLimit = newLimit;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('concurrentDownloadLimit', _concurrentDownloadLimit);
+      
+      // Dispose existing manager and re-initialize with new concurrency setting
+      _downloadManager?.dispose();
+      _isDownloadManagerInitialized = false; // Mark for re-initialization
+      await _initializeDownloadManager();
+      
+      notifyListeners();
+      // _processPendingDownloads(); // No longer needed as DownloadManager handles its queue
+    }
+  }
+
+  int get concurrentDownloadLimit => _concurrentDownloadLimit;
 
   void _listenToAudioHandler() {
     _playbackStateSubscription = _audioHandler.playbackState.listen((playbackState) {
@@ -201,7 +272,7 @@ void updateDownloadedSong(Song updatedSong) {
       bool needsNotifyForTotalDuration = false;
       if (_currentPosition != position) {
         _currentPosition = position;
-        // UI listening directly to AudioService.position will update the current seek time.
+        // UI listening to AudioService.position will update the current seek time.
         // No need to call notifyListeners() just for _currentPosition change if UI handles it.
       }
 
@@ -240,6 +311,10 @@ void updateDownloadedSong(Song updatedSong) {
 
   @override
   void dispose() {
+    _downloadManager?.dispose(); // Dispose the download manager
+    _activeDownloads.clear();
+    _downloadProgress.clear();
+
     _playbackStateSubscription?.cancel();
     _mediaItemSubscription?.cancel();
     _queueSubscription?.cancel();
@@ -451,7 +526,9 @@ void updateDownloadedSong(Song updatedSong) {
         !song.localFilePath!.startsWith('http://') &&
         !song.localFilePath!.startsWith('https://')) {
       final appDocDir = await getApplicationDocumentsDirectory();
-      final filePath = p.join(appDocDir.path, song.localFilePath!);
+      const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+      // Correct path for local files, including the subdirectory
+      final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
       if (await File(filePath).exists()) {
         return filePath; // Return full path for local files
       } else {
@@ -601,117 +678,223 @@ void updateDownloadedSong(Song updatedSong) {
 
 
   Future<void> downloadSongInBackground(Song song) async {
-    // Check if already downloaded
+    if (!_isDownloadManagerInitialized || _downloadManager == null) {
+      debugPrint("DownloadManager not initialized. Queuing download for later.");
+      // Optionally, add to a temporary pending list until manager is ready
+      // For now, we'll just log and skip if manager isn't ready.
+      // Or, trigger initialization:
+      await _initializeDownloadManager();
+      if (!_isDownloadManagerInitialized || _downloadManager == null) {
+          debugPrint("Failed to initialize DownloadManager. Cannot download.");
+          return;
+      }
+    }
+
+    // Check if already downloaded (file exists and metadata agrees)
     if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
       final appDocDir = await getApplicationDocumentsDirectory();
       final filePath = p.join(appDocDir.path, song.localFilePath!);
       if (await File(filePath).exists()) {
-        debugPrint('Song "${song.title}" is already downloaded. Skipping download.');
-        // Optionally notify or update UI if needed, but for batch downloads, silence is often better.
+        debugPrint('Song "${song.title}" is already downloaded and file exists. Skipping download.');
+        if (!song.isDownloaded) { // Metadata mismatch
+          final updatedSong = song.copyWith(isDownloaded: true);
+          await _persistSongMetadata(updatedSong);
+          updateSongDetails(updatedSong);
+          PlaylistManagerService().updateSongInPlaylists(updatedSong);
+        }
         return;
+      } else {
+        debugPrint('Song "${song.title}" marked downloaded but file missing. Resetting and attempting download.');
+        song = song.copyWith(isDownloaded: false, localFilePath: null);
+        await _persistSongMetadata(song);
       }
     }
 
-    // Check if download is already active for this song
     if (_activeDownloads.containsKey(song.id)) {
-      debugPrint('Download for song "${song.title}" is already in progress. Skipping.');
+      debugPrint('Download for song "${song.title}" is already submitted to DownloadManager. Skipping.');
       return;
     }
 
     _activeDownloads[song.id] = song;
-    _downloadProgress[song.id] = 0.0;
+    _downloadProgress[song.id] = 0.0; // Initial progress
     notifyListeners();
+
     String? audioUrl;
     try {
-      // Use existing fetchSongUrl which handles local file check first
       audioUrl = await fetchSongUrl(song);
-      if (audioUrl.isEmpty || audioUrl.startsWith('file://') || !(Uri.tryParse(audioUrl)?.isAbsolute ?? false) ) {
-         // If it's already local or URL is invalid, try API as a last resort for a fresh URL
+      if (audioUrl.isEmpty || audioUrl.startsWith('file://') || !(Uri.tryParse(audioUrl)?.isAbsolute ?? false)) {
         final apiService = ApiService();
         audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
       }
-
       if (audioUrl == null || audioUrl.isEmpty || !(Uri.tryParse(audioUrl)?.isAbsolute ?? false)) {
-        debugPrint('Failed to fetch a valid audio URL for download.');
-        // _isDownloadingSong = false; // Removed
-        _activeDownloads.remove(song.id); // Added
-        _downloadProgress.remove(song.id);
-        notifyListeners();
-        return;
+        throw Exception('Failed to fetch a valid audio URL for download.');
       }
     } catch (e) {
-      debugPrint('Error fetching audio URL for download: $e');
-      // _isDownloadingSong = false; // Removed
-      _activeDownloads.remove(song.id); // Added
-      _downloadProgress.remove(song.id);
-      notifyListeners();
+      debugPrint('Error fetching audio URL for download of "${song.title}": $e');
+      _handleDownloadError(song.id, e);
       return;
     }
 
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final String sanitizedTitle = song.title
-          .replaceAll(RegExp(r'[^\w\s.-]'), '_')
-          .replaceAll(RegExp(r'\s+'), '_');
-      final String fileName = '$sanitizedTitle.mp3';
-      final filePath = p.join(directory.path, fileName);
+    final String sanitizedTitle = song.title
+        .replaceAll(RegExp(r'[^\w\s.-]'), '_')
+        .replaceAll(RegExp(r'\s+'), '_');
+    final String uniqueFileName = '${song.id}_$sanitizedTitle.mp3';
 
-      final request = http.Request('GET', Uri.parse(audioUrl));
-      final response = await http.Client().send(request);
-      final totalBytes = response.contentLength;
-      List<int> bytes = [];
-
-      response.stream.listen(
-        (List<int> newBytes) {
-          bytes.addAll(newBytes);
-          if (totalBytes != null && totalBytes > 0) {
-            _downloadProgress[song.id] = bytes.length / totalBytes;
-            notifyListeners();
-          }
-        },
-        onDone: () async {
-          final file = File(filePath);
-          await file.writeAsBytes(bytes);
-          
-          Song updatedSong = song.copyWith(localFilePath: fileName, isDownloaded: true);
-          
-          _downloadProgress.remove(song.id); 
-          // _isDownloadingSong = false; // Removed
-          _activeDownloads.remove(song.id); // Added
-
-          await _persistSongMetadata(updatedSong);
-          updateSongDetails(updatedSong); // This will notifyListeners and save state
-
-          // If this song is currently playing via stream, update handler to use local file
-          if (_currentSongFromAppLogic?.id == updatedSong.id && !_currentSongFromAppLogic!.isDownloaded) {
-              final currentPosition = _audioHandler.playbackState.value.position;
-              MediaItem newMediaItem = await _prepareMediaItem(updatedSong);
-              await _audioHandler.playMediaItem(newMediaItem); // This might restart or update source
-              if (currentPosition > Duration.zero) {
-                  await _audioHandler.seek(currentPosition); // Seek to original position
-              }
-          }
-          
-          PlaylistManagerService().updateSongInPlaylists(updatedSong);
-          debugPrint('Download complete: ${updatedSong.title}');
-        },
-        onError: (e) {
-          debugPrint('Download failed for ${song.title}: $e');
-          _downloadProgress.remove(song.id);
-          // _isDownloadingSong = false; // Removed
-          _activeDownloads.remove(song.id); // Added
+    final queueItem = QueueItem(
+      url: audioUrl,
+      fileName: uniqueFileName, // DownloadManager will save to baseDir/subDir/fileName
+      progressCallback: (progressDetails) { // progressDetails is DownloadProgress object
+        if (_activeDownloads.containsKey(song.id)) { // Check if download is still active
+          _downloadProgress[song.id] = progressDetails.progress; // progress is double (0.0 to 1.0)
           notifyListeners();
-        },
-        cancelOnError: true,
-      );
+        }
+      },
+      // The onComplete and onError are handled by the Future returned by getFile
+    );
+
+    try {
+      debugPrint('Submitting download for ${song.title} (filename: $uniqueFileName) to DownloadManager.');
+      // getFile returns Future<File?>
+      final downloadedFile = await _downloadManager!.getFile(queueItem);
+
+      if (downloadedFile != null && await downloadedFile.exists()) {
+        // Use the basename of the actual downloaded file path
+        _handleDownloadSuccess(song.id, p.basename(downloadedFile.path));
+      } else {
+        // This case might occur if getFile resolves null or file doesn't exist after completion
+        // which could indicate an issue within DownloadManager or an unexpected state.
+         _handleDownloadError(song.id, Exception("Download completed but file is null or does not exist."));
+      }
     } catch (e) {
-      debugPrint('Error downloading song ${song.title}: $e');
-      _downloadProgress.remove(song.id);
-      // _isDownloadingSong = false; // Removed
-      _activeDownloads.remove(song.id); // Added
+      // This catch block handles errors from _downloadManager.getFile() itself (e.g., network issues, max retries exceeded)
+      debugPrint('Error from DownloadManager for ${song.title}: $e');
+      _handleDownloadError(song.id, e);
+    }
+  }
+
+  void _handleDownloadSuccess(String songId, String actualLocalFileName) async {
+    final song = _activeDownloads[songId];
+    if (song == null) return;
+
+    Song updatedSong = song.copyWith(localFilePath: actualLocalFileName, isDownloaded: true);
+    await _persistSongMetadata(updatedSong);
+    updateSongDetails(updatedSong);
+    PlaylistManagerService().updateSongInPlaylists(updatedSong);
+    debugPrint('Download complete: ${updatedSong.title}');
+
+    if (_currentSongFromAppLogic?.id == updatedSong.id && !_currentSongFromAppLogic!.isDownloaded) {
+      final currentPosition = _audioHandler.playbackState.value.position;
+      MediaItem newMediaItem = await _prepareMediaItem(updatedSong);
+      await _audioHandler.playMediaItem(newMediaItem);
+      if (currentPosition > Duration.zero) {
+        await _audioHandler.seek(currentPosition);
+      }
+    }
+
+    _activeDownloads.remove(songId);
+    _downloadProgress.remove(songId);
+    notifyListeners();
+  }
+
+  void _handleDownloadError(String songId, dynamic error) {
+    final song = _activeDownloads[songId];
+    if (song == null) return;
+
+    debugPrint('Download failed for ${song.title}: $error');
+    // Optionally, delete partial file if necessary, though ResumableDownloader might handle this.
+    // final appDocDir = await getApplicationDocumentsDirectory();
+    // final filePath = p.join(appDocDir.path, _downloadManager.subDir, uniqueFileName); // Construct path
+    // final file = File(filePath);
+    // if (await file.exists()) await file.delete();
+
+    _activeDownloads.remove(songId);
+    _downloadProgress.remove(songId); // Or set to a specific error state if UI needs it
+    notifyListeners();
+  }
+
+
+  Future<void> cancelDownload(String songId) async {
+    if (!_isDownloadManagerInitialized || _downloadManager == null) {
+      debugPrint("DownloadManager not initialized. Cannot cancel.");
+      return;
+    }
+
+    final song = _activeDownloads[songId];
+    if (song == null) {
+      debugPrint("Song ID $songId not found in active downloads for cancellation.");
+      return;
+    }
+    
+    // Reconstruct QueueItem details needed for cancellation
+    // We need the original URL and filename that was submitted.
+    // Fetching URL again might be slow or yield a different one.
+    // It's better if QueueItem details were stored or if cancel could use a unique task ID.
+    // For now, we assume we can reconstruct enough for DownloadManager to identify it.
+    // The fileName used was uniqueFileName = '${song.id}_$sanitizedTitle.mp3';
+    
+
+    // To robustly cancel, we need the exact URL and filename given to the QueueItem.
+    // Let's assume the song.audioUrl is the one used or can be re-fetched reliably for identification.
+    // This part is a bit fragile if the URL used for download was fetched dynamically and not stored back to song.audioUrl
+    // before this point. The `fetchSongUrl` in `downloadSongInBackground` does this.
+
+    String? originalAudioUrl = song.audioUrl; // Assuming this was updated if fetched dynamically
+    if (originalAudioUrl.isEmpty) { // Attempt to re-fetch if not available
+        try {
+            originalAudioUrl = await fetchSongUrl(song);
+             if (originalAudioUrl.isEmpty || originalAudioUrl.startsWith('file://') || !(Uri.tryParse(originalAudioUrl)?.isAbsolute ?? false) ) {
+                final apiService = ApiService();
+                originalAudioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+            }
+        } catch (e) {
+            debugPrint("Could not determine URL for cancelling download of ${song.title}: $e");
+            return;
+        }
+    }
+     if (originalAudioUrl == null || originalAudioUrl.isEmpty) {
+        debugPrint("URL for cancelling download of ${song.title} is empty. Cannot cancel.");
+        return;
+    }
+
+
+    final String sanitizedTitle = song.title
+        .replaceAll(RegExp(r'[^\w\s.-]'), '_')
+        .replaceAll(RegExp(r'\s+'), '_');
+    // This uniqueFileName must match what was passed to DownloadManager's QueueItem.
+    // If the DownloadManager modifies it (e.g. adds another .mp3),
+    // cancellation might need the *actual* stored name.
+    // However, DownloadManager's cancelDownload uses the fileName you *gave* it.
+    // The issue was with what *we* stored vs what *it* saved.
+    // For cancellation, we use the filename we *intended* to give it.
+    // If `p.basename(downloadedFile.path)` was different, it means DownloadManager changed it.
+    // The `fileName` in `QueueItem` was `uniqueFileName` (e.g. `...mp3`).
+    // If the saved file is `...mp3.mp3`, then `cancelDownload` should still use `...mp3`
+    // if that's what `DownloadManager` uses to identify tasks.
+    final String uniqueFileNameForCancellation = '${song.id}_$sanitizedTitle.mp3';
+
+    final itemToCancel = QueueItem(url: originalAudioUrl, fileName: uniqueFileNameForCancellation);
+
+    try {
+      debugPrint('Attempting to cancel download for ${song.title} using URL: ${itemToCancel.url} and FileName: ${itemToCancel.fileName}');
+      await _downloadManager!.cancelDownload(itemToCancel.fileName!);
+      // Assuming cancellation will trigger an error in the getFile Future,
+      // which then calls _handleDownloadError.
+      // If not, we need to manually clean up here.
+      debugPrint('Cancellation request sent for ${song.title}.');
+      // Manually update state as cancelItem might not trigger callbacks immediately or as expected for cleanup.
+      _activeDownloads.remove(songId);
+      _downloadProgress.remove(songId);
+      notifyListeners();
+
+    } catch (e) {
+      debugPrint('Error cancelling download for ${song.title}: $e');
+      // Even if cancel fails, try to clean up local state
+      _activeDownloads.remove(songId);
+      _downloadProgress.remove(songId);
       notifyListeners();
     }
   }
+
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
     _isLoadingAudio = true;

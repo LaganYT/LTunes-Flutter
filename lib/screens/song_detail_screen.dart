@@ -64,48 +64,69 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _deleteSong() async {
+    // Capture context and song for use in async operations, checking mounted status.
+    if (!mounted) return;
+    final currentContext = context; // Capture context
+    final songToDelete = widget.song; // Use a local variable for the song being deleted.
+
     try {
-      if (widget.song.localFilePath != null && widget.song.localFilePath!.isNotEmpty) {
-        // localFilePath is now just a filename
+      if (songToDelete.localFilePath != null && songToDelete.localFilePath!.isNotEmpty) {
         final directory = await getApplicationDocumentsDirectory();
-        final fullPath = p.join(directory.path, widget.song.localFilePath!);
+        final fullPath = p.join(directory.path, songToDelete.localFilePath!);
         final file = File(fullPath);
         if (await file.exists()) {
           await file.delete();
+          debugPrint("Deleted file: $fullPath");
+        } else {
+          debugPrint("File not found for deletion: $fullPath");
         }
       }
       
-      Song updatedSong;
+      // Create the updated song object reflecting its new state.
+      final updatedSong = songToDelete.copyWith(isDownloaded: false, localFilePath: null);
+
+      // Persist the updated metadata.
+      await _saveSongMetadata(updatedSong);
+
+      // Notify services if the widget is still mounted.
       if (mounted) {
+        // Notify PlaylistManagerService
+        PlaylistManagerService().updateSongInPlaylists(updatedSong);
+
+        // Notify CurrentSongProvider
+        Provider.of<CurrentSongProvider>(currentContext, listen: false).updateSongDetails(updatedSong);
+        
+        // Update local UI state.
+        // This setState is primarily for the current screen's immediate reflection
+        // if it directly uses widget.song.isDownloaded or widget.song.localFilePath.
+        // However, relying on Provider for state is generally preferred.
+        // If the UI rebuilds based on Provider, this might be redundant or could even
+        // conflict if widget.song is not updated in sync.
+        // For safety, ensure widget.song is updated if it's directly used by build method.
+        // A common pattern is to have the widget take a final Song object and then
+        // listen to a Provider for the most up-to-date version of that song.
+        // If widget.song is final and this screen is meant to reflect the initial state + changes via provider,
+        // then this direct mutation of widget.song is problematic.
+        // Assuming widget.song can be updated or the UI primarily listens to provider:
         setState(() {
-          widget.song.isDownloaded = false;
-          widget.song.localFilePath = null;
+          // If widget.song is mutable (not recommended for StatefulWidget properties passed in constructor):
+          // widget.song.isDownloaded = false;
+          // widget.song.localFilePath = null;
+          // Or, if this screen should reflect the change immediately without waiting for provider:
+          // This depends on how `songForDownloadStatus` and other UI elements get their data.
+          // For now, let's assume the provider update is sufficient and will trigger a rebuild.
         });
-        updatedSong = widget.song.copyWith(isDownloaded: false, localFilePath: null);
-      } else {
-        // If not mounted, create a copy from the original widget.song state before modification attempt
-        updatedSong = widget.song.copyWith(isDownloaded: false, localFilePath: null);
+
+        scaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(content: Text('Song deleted!')),
+        );
       }
-      
-      await _saveSongMetadata(updatedSong); // Save the updated state (isDownloaded: false, localFilePath: null)
-
-      // Notify PlaylistManagerService
-      PlaylistManagerService().updateSongInPlaylists(updatedSong);
-
-      // Notify CurrentSongProvider
-      // Ensure context is available and mounted if this is in an async gap without a mounted check
-      // However, _deleteSong is usually called from a button press, so context should be valid.
-      // Adding a mounted check for safety if it could be called otherwise.
-      if (mounted) {
-         Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(updatedSong);
-      }
-
-
-      scaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('Song deleted!')),
-      );
     } catch (e) {
-      _showErrorDialog('Error deleting song: $e');
+      if (mounted) {
+        _showErrorDialog('Error deleting song: $e');
+      } else {
+        debugPrint('Error deleting song (widget not mounted): $e');
+      }
     }
   }
 

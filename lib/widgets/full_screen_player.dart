@@ -2,11 +2,11 @@ import 'dart:ui'; // For ImageFilter
 import 'dart:convert'; // For jsonEncode
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/current_song_provider.dart'; // Imports LoopMode enum now
-import '../models/song.dart';
-import 'dart:io'; // For File
+import '../providers/current_song_provider.dart'; // Ensure CurrentSongProvider is imported
+import '../models/song.dart'; // Ensure Song model is imported
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
+import 'dart:io'; // For File operations
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 // ignore: unused_import
 import '../services/playlist_manager_service.dart';
@@ -123,54 +123,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     super.dispose();
   }
 
-  // Method for downloading the current song
+  // Method for downloading the current song - NOW USES PROVIDER
   Future<void> _downloadCurrentSong(Song song) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${song.id}.mp3'; // Use song ID as the file name
-      final fullPath = p.join(directory.path, fileName);
+    // Use the CurrentSongProvider to handle the download
+    Provider.of<CurrentSongProvider>(context, listen: false).downloadSongInBackground(song);
 
-      // Check if the file already exists
-      final file = File(fullPath);
-      if (await file.exists()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Song "${song.title}" is already downloaded.')),
-        );
-        return;
-      }
-
-      // Fetch the audio URL
-      final audioUrl = await song.fetchUrl();
-      if (audioUrl.isEmpty) {
-        throw Exception('Failed to fetch audio URL for "${song.title}".');
-      }
-
-      // Download the song
-      final response = await HttpClient().getUrl(Uri.parse(audioUrl));
-      final downloadedFile = await response.close();
-      await downloadedFile.pipe(file.openWrite());
-
-      // Update song metadata
-      final updatedSong = song.copyWith(isDownloaded: true, localFilePath: fileName);
-      await _saveSongMetadata(updatedSong);
-
-      // Notify PlaylistManagerService
-      PlaylistManagerService().updateSongInPlaylists(updatedSong);
-
-      // Notify CurrentSongProvider
-      Provider.of<CurrentSongProvider>(context, listen: false).updateDownloadedSong(updatedSong);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download completed for "${song.title}".')),
-      );
-    } catch (e) {
-      debugPrint('Error downloading song "${song.title}": $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to download "${song.title}".')),
-      );
-    }
+    // Show a snackbar indicating the download has started
+    // You might want to check if the song is already downloading via provider state
+    // to avoid redundant messages, but downloadSongInBackground itself has checks.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Download started for "${song.title}"...')),
+    );
   }
 
+  // ignore: unused_element
   Future<void> _saveSongMetadata(Song song) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('song_${song.id}', jsonEncode(song.toJson()));
