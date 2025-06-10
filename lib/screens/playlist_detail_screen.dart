@@ -41,16 +41,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     int songsToDownloadCount = 0;
     for (final song in widget.playlist.songs) {
-      // Basic check, CurrentSongProvider will do a more thorough one
+      // Add all songs to the download queue in CurrentSongProvider
       if (!song.isDownloaded) {
-        currentSongProvider.downloadSongInBackground(song);
+        // Corrected line: Use queueSongForDownload
+        currentSongProvider.queueSongForDownload(song);
         songsToDownloadCount++;
       }
     }
 
     if (songsToDownloadCount > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Starting download for $songsToDownloadCount song(s)...')),
+        SnackBar(content: Text('Queued $songsToDownloadCount song(s) for download...')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

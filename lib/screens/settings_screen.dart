@@ -29,31 +29,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _latestKnownVersion = 'N/A';
   // Add a ValueNotifier to trigger refresh for FutureBuilders
   final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
-  final TextEditingController _concurrentDownloadsController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadUSRadioOnlySetting();
     _loadCurrentAppVersion();
-    _loadConcurrentDownloadsSetting();
-  }
-
-  Future<void> _loadConcurrentDownloadsSetting() async {
-    final prefs = await SharedPreferences.getInstance();
-    final limit = prefs.getInt('concurrentDownloadLimit') ?? 3;
-    if (mounted) {
-      _concurrentDownloadsController.text = limit.toString();
-    }
-  }
-
-  Future<void> _saveConcurrentDownloadsSetting(int value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('concurrentDownloadLimit', value);
-    // Notify CurrentSongProvider
-    if (mounted) {
-      Provider.of<CurrentSongProvider>(context, listen: false).setConcurrentDownloadLimit(value);
-    }
   }
 
   Future<void> _loadCurrentAppVersion() async {
@@ -181,14 +162,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 deletedFilesCount++;
               }
             }
-            // Update song metadata whether file existed or not, to ensure consistency
-            // and mark as not downloaded.
-            if (currentSongState.isDownloaded || currentSongState.localFilePath != null) {
-              Song updatedSong = currentSongState.copyWith(isDownloaded: false, localFilePath: null);
-              songsToUpdateInProvider.add(updatedSong);
-              keysToUpdateInPrefs.add(key);
-              updatedJsonStringsForPrefs.add(jsonEncode(updatedSong.toJson()));
-            }
+            // Unconditionally update song metadata to mark as not downloaded
+            // for all songs processed by this function.
+            Song updatedSong = currentSongState.copyWith(isDownloaded: false, localFilePath: null);
+            songsToUpdateInProvider.add(updatedSong);
+            keysToUpdateInPrefs.add(key);
+            updatedJsonStringsForPrefs.add(jsonEncode(updatedSong.toJson()));
 
           } catch (e) {
             debugPrint("Error processing song $key for deletion: $e");
@@ -230,14 +209,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults();
 
-    // Reset Concurrent Downloads to default
-    _concurrentDownloadsController.text = '3'; // Default value
-    await _saveConcurrentDownloadsSetting(3);
-
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Settings have been reset to default.')),
-    );
+    if (mounted) { // Ensure mounted check before showing SnackBar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Settings have been reset to default.')),
+      );
+    }
   }
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
@@ -398,41 +374,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
-            const Divider(),
-            // Concurrent Downloads Setting
-            ListTile(
-              title: const Text('Concurrent Downloads'),
-              subtitle: const Text('Max number of simultaneous downloads (1-10).'),
-              trailing: SizedBox(
-                width: 60,
-                child: TextField(
-                  controller: _concurrentDownloadsController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  textAlign: TextAlign.center,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  ),
-                  onSubmitted: (value) {
-                    int limit = int.tryParse(value) ?? 3;
-                    if (limit < 1) limit = 1;
-                    if (limit > 10) limit = 10; // Max limit
-                    _concurrentDownloadsController.text = limit.toString();
-                    _saveConcurrentDownloadsSetting(limit);
-                  },
-                  onEditingComplete: () { // Also save when focus is lost
-                    int limit = int.tryParse(_concurrentDownloadsController.text) ?? 3;
-                    if (limit < 1) limit = 1;
-                    if (limit > 10) limit = 10;
-                     _concurrentDownloadsController.text = limit.toString();
-                    _saveConcurrentDownloadsSetting(limit);
-                    FocusScope.of(context).unfocus(); // Dismiss keyboard
-                  },
-                ),
-              ),
-            ),
-            const Divider(),
+            const Divider(), // Added a divider for better separation
             ListTile(
               title: const Text('Storage Used by Downloads'),
               subtitle: ValueListenableBuilder<int>(
@@ -599,7 +541,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     usRadioOnlyNotifier.dispose();
     _refreshNotifier.dispose(); // Dispose the new notifier
-    _concurrentDownloadsController.dispose();
     super.dispose();
   }
 }

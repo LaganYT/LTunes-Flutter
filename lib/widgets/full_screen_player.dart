@@ -126,7 +126,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // Method for downloading the current song - NOW USES PROVIDER
   Future<void> _downloadCurrentSong(Song song) async {
     // Use the CurrentSongProvider to handle the download
-    Provider.of<CurrentSongProvider>(context, listen: false).downloadSongInBackground(song);
+    Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
 
     // Show a snackbar indicating the download has started
     // You might want to check if the song is already downloading via provider state

@@ -40,6 +40,10 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // cache local‐art lookup futures by filename
+  // ignore: unused_field
+  final Map<String, Future<String>> _localArtPathCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -561,7 +565,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         // await _loadDownloadedSongs(); // This will be triggered by _onSongDataChanged if CurrentSongProvider notifies appropriately
                                 // For direct import, if CurrentSongProvider isn't involved in notifying about these new files,
                                 // calling _loadDownloadedSongs() directly or ensuring a notification path is valid.
-                                // The existing listener _onSongDataChanged should handle updates if songs are managed via CurrentSongProvider.
+                                // The listener _onSongDataChanged should handle updates if songs are managed via CurrentSongProvider.
                                 // If import directly modifies SharedPreferences, then _loadDownloadedSongs() is the correct refresh.
                                 // The listener _onSongDataChanged should ideally be triggered if these new songs are "globally" announced.
                                 // For now, assuming the provider pattern will eventually lead to a notification.
@@ -642,18 +646,15 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Widget _buildDownloadedSongsView() {
-    // Similar to _buildPlaylistsView, this relies on the listener for CurrentSongProvider.
-    // Access CurrentSongProvider to get active downloads and progress
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context); // Listen for rebuilds
-    final activeTasks = currentSongProvider.activeDownloadTasks; // Map<String, Song>
-    final progressMap = currentSongProvider.downloadProgress; // Map<String, double>
-    final List<Song> completedSongs = List.from(_songs); // Use a copy of _songs
+    // Do not listen here, we'll scope rebuilds to each item
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final List<Song> completedSongs = List.from(_songs);
 
     List<Song> allSongsToShow = [];
     final Set<String> addedSongIds = {};
 
     // Add active downloads first (these are not filtered by search as they are ongoing tasks)
-    for (final song in activeTasks.values) {
+    for (final song in currentSongProvider.activeDownloadTasks.values) {
       allSongsToShow.add(song);
       addedSongIds.add(song.id);
     }
@@ -683,8 +684,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // Current sort:
     allSongsToShow.sort((a, b) {
       // Prioritize active downloads at the top
-      bool aIsDownloading = activeTasks.containsKey(a.id);
-      bool bIsDownloading = activeTasks.containsKey(b.id);
+      bool aIsDownloading = currentSongProvider.activeDownloadTasks.containsKey(a.id);
+      bool bIsDownloading = currentSongProvider.activeDownloadTasks.containsKey(b.id);
       if (aIsDownloading && !bIsDownloading) return -1;
       if (!aIsDownloading && bIsDownloading) return 1;
       // Then sort by title
@@ -700,108 +701,78 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       itemCount: allSongsToShow.length,
       itemBuilder: (context, index) {
         final songObj = allSongsToShow[index];
-        final double? progress = progressMap[songObj.id];
-        final bool isDownloading = activeTasks.containsKey(songObj.id) && progress != null;
+        // ...existing code to build leadingWidget...
 
-        Widget leadingWidget;
-        if (songObj.albumArtUrl.isNotEmpty) {
-          if (songObj.albumArtUrl.startsWith('http')) {
-            leadingWidget = Image.network(
-              songObj.albumArtUrl,
-              width: 40,
-              height: 40,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.music_note, size: 40),
-            );
-          } else {
-            // Assume it's a local file (filename)
-            leadingWidget = FutureBuilder<String>(
-              future: _getResolvedLocalPath(songObj.albumArtUrl), // Resolve filename to full path
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                  return Image.file(
-                    File(snapshot.data!), // Use resolved full path
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.music_note, size: 40),
-                  );
-                }
-                return const Icon(Icons.music_note, size: 40); // Fallback if file doesn't exist or still loading
-              }
-            );
-          }
-        } else {
-          leadingWidget = const Icon(Icons.music_note, size: 40);
-        }
+        return Consumer<CurrentSongProvider>(
+          builder: (context, provider, _) {
+            final active = provider.activeDownloadTasks;
+            final prog  = provider.downloadProgress;
+            final double? progress = prog[songObj.id];
+            final bool isDownloading = active.containsKey(songObj.id) && progress != null;
 
-        if (isDownloading) {
-          return ListTile(
-            key: Key("downloading_${songObj.id}"),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(4.0),
-              child: leadingWidget,
-            ),
-            title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.grey[300],
+            if (isDownloading) {
+              return ListTile(
+                key: Key("downloading_${songObj.id}"),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(4.0),
+                  child: const Icon(Icons.music_note),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Downloading... ${(progress * 100).toStringAsFixed(0)}%',
-                  style: Theme.of(context).textTheme.bodySmall,
+                title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist",
+                         maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    LinearProgressIndicator(value: progress),
+                    const SizedBox(height: 2),
+                    Text('Downloading... ${(progress * 100).toStringAsFixed(0)}%',
+                         style: Theme.of(context).textTheme.bodySmall),
+                  ],
                 ),
-              ],
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
-              tooltip: 'Cancel Download',
-              onPressed: () {
-                Provider.of<CurrentSongProvider>(context, listen: false).cancelDownload(songObj.id);
-              },
-            ),
-            onTap: null, // Or navigate to a detail page that also shows progress
-          );
-        } else {
-          // Completed download
-          return ListTile(
-            key: Key(songObj.id),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(4.0),
-              child: leadingWidget,
-            ),
-            title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  tooltip: 'Delete Download',
-                  onPressed: () => _deleteDownloadedSong(songObj),
+                trailing: IconButton(
+                  icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
+                  tooltip: 'Cancel Download',
+                  onPressed: () {
+                    Provider.of<CurrentSongProvider>(context, listen: false)
+                        .cancelDownload(songObj.id);
+                  },
                 ),
-              ],
-            ),
-            onTap: () {
-              // When tapping a completed song, play it and set the queue to all *completed* songs.
-              // Filter 'allSongsToShow' to only include non-downloading songs for the playback queue.
-              final playableSongs = allSongsToShow.where((s) => !activeTasks.containsKey(s.id)).toList();
-              int playableIndex = playableSongs.indexWhere((s) => s.id == songObj.id);
-              if (playableIndex != -1) {
-                 Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-                 Provider.of<CurrentSongProvider>(context, listen: false).setQueue(playableSongs, initialIndex: playableIndex);
-              }
-            },
-          );
-        }
+                onTap: null,
+              );
+            } else {
+              return ListTile(
+                key: Key(songObj.id),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(4.0),
+                  child: const Icon(Icons.music_note),
+                ),
+                title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Delete Download',
+                      onPressed: () => _deleteDownloadedSong(songObj),
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  // When tapping a completed song, play it and set the queue to all *completed* songs.
+                  // Filter 'allSongsToShow' to only include non-downloading songs for the playback queue.
+                  final playableSongs = allSongsToShow.where((s) => !active.containsKey(s.id)).toList();
+                  int playableIndex = playableSongs.indexWhere((s) => s.id == songObj.id);
+                  if (playableIndex != -1) {
+                     Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                     Provider.of<CurrentSongProvider>(context, listen: false).setQueue(playableSongs, initialIndex: playableIndex);
+                  }
+                },
+              );
+            }
+          },
+        );
       },
     );
   }
@@ -877,6 +848,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   // Helper to resolve a local filename (stored in song.albumArtUrl or song.localFilePath) to a full path
+  // ignore: unused_element
   Future<String> _getResolvedLocalPath(String? fileName) async {
     if (fileName == null || fileName.isEmpty) return '';
     // If it's already an absolute path or URL (e.g. http), return as is (though local files should be filenames)

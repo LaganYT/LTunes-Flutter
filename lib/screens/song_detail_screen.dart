@@ -34,7 +34,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   void _downloadSong() {
     // No longer async, just triggers the provider's background download
-    Provider.of<CurrentSongProvider>(context, listen: false).downloadSongInBackground(widget.song);
+    Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(widget.song);
     // Optionally, show a snackbar that download has started
     // scaffoldMessengerKey.currentState?.showSnackBar(
     //   SnackBar(content: Text('Starting download for ${widget.song.title}...')),

@@ -29,9 +29,13 @@ class CurrentSongProvider with ChangeNotifier {
   DownloadManager? _downloadManager;
   bool _isDownloadManagerInitialized = false;
 
-  final Map<String, Song> _activeDownloads = {}; // Tracks songs submitted to DownloadManager
-  // _pendingDownloads list is removed as DownloadManager handles its own queue.
-  int _concurrentDownloadLimit = 3; // Default, will be loaded from prefs
+  // _activeDownloads will now track the single song actively being processed by the provider's logic
+  final Map<String, Song> _activeDownloads = {}; 
+  
+  // New: Provider-level download queue and processing flag
+  final List<Song> _downloadQueue = [];
+  // ignore: unused_field
+  bool _isProcessingProviderDownload = false;
 
   bool _isLoadingAudio = false; // For UI feedback when initiating play
   final Map<String, double> _downloadProgress = {}; // songId -> progress (0.0 to 1.0)
@@ -48,7 +52,6 @@ class CurrentSongProvider with ChangeNotifier {
   StreamSubscription? _mediaItemSubscription;
   StreamSubscription? _queueSubscription;
   StreamSubscription? _positionSubscription;
-
 
   Song? get currentSong => _currentSongFromAppLogic;
   bool get isPlaying => _isPlaying;
@@ -75,7 +78,7 @@ class CurrentSongProvider with ChangeNotifier {
     return _audioHandler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
   }
 
-void updateDownloadedSong(Song updatedSong) {
+  void updateDownloadedSong(Song updatedSong) {
     // Update the current song if it matches the updated song
     if (currentSong?.id == updatedSong.id) {
       _currentSongFromAppLogic = updatedSong;
@@ -98,74 +101,37 @@ void updateDownloadedSong(Song updatedSong) {
     return mediaItem?.extras?['isRadio'] as bool? ?? false;
   }
 
-
   CurrentSongProvider(this._audioHandler) {
     _initializeDownloadManager(); // Initialize DownloadManager
-    _loadSettings(); // Load concurrent download limit (will re-init manager if needed)
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
   }
 
   Future<void> _initializeDownloadManager() async {
     if (_isDownloadManagerInitialized && _downloadManager != null) {
-      // Potentially update concurrency if it changed.
-      // DownloadManager might not support changing concurrency after init.
-      // For simplicity, we re-initialize if the limit changes significantly.
-      // Or, the DownloadManager could have a method to update concurrency.
-      // The example shows it's set at construction.
-      // If _concurrentDownloadLimit changed, we might need to dispose and re-create.
-      // Let's assume for now it's fixed after first init or _loadSettings handles re-init.
+      // Already initialized
       return;
     }
-    final baseDir = await getApplicationDocumentsDirectory();
-    _downloadManager = DownloadManager(
-      subDir: 'ltunes_downloads', // Specific subdirectory for app downloads
-      baseDirectory: baseDir,
-      fileExistsStrategy: FileExistsStrategy.resume, // Or .replace, .skip
-      maxConcurrentDownloads: _concurrentDownloadLimit,
-      maxRetries: 2,
-      delayBetweenRetries: const Duration(seconds: 2),
-      logger: (log) => debugPrint('[DownloadManager:${log.level.name}] ${log.message}'),
-    );
-    _isDownloadManagerInitialized = true;
-    debugPrint("DownloadManager initialized with concurrency: $_concurrentDownloadLimit");
-  }
-
-
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final newLimit = prefs.getInt('concurrentDownloadLimit') ?? 3;
-    if (newLimit != _concurrentDownloadLimit || _downloadManager == null) {
-      _concurrentDownloadLimit = newLimit;
-      // Re-initialize DownloadManager if limit changed or not initialized
-      if (_downloadManager != null) {
-        _downloadManager!.dispose(); // Dispose old one if exists
-      }
-      await _initializeDownloadManager(); // Initialize with new limit
-    }
-    notifyListeners();
-  }
-
-  Future<void> setConcurrentDownloadLimit(int limit) async {
-    int newLimit = limit > 0 ? limit : 1;
-    newLimit = newLimit > 10 ? 10 : newLimit; // Cap at 10 for sanity
-
-    if (newLimit != _concurrentDownloadLimit) {
-      _concurrentDownloadLimit = newLimit;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('concurrentDownloadLimit', _concurrentDownloadLimit);
-      
-      // Dispose existing manager and re-initialize with new concurrency setting
-      _downloadManager?.dispose();
-      _isDownloadManagerInitialized = false; // Mark for re-initialization
-      await _initializeDownloadManager();
-      
-      notifyListeners();
-      // _processPendingDownloads(); // No longer needed as DownloadManager handles its queue
+    try {
+      final baseDir = await getApplicationDocumentsDirectory();
+      _downloadManager = DownloadManager(
+        subDir: 'ltunes_downloads',
+        baseDirectory: baseDir,
+        fileExistsStrategy: FileExistsStrategy.resume,
+        maxConcurrentDownloads: 100000000, 
+        maxRetries: 2,
+        delayBetweenRetries: const Duration(seconds: 2),
+        logger: (log) => debugPrint('[DownloadManager:${log.level.name}] ${log.message}'),
+      );
+      // start the internal downloader loop so it will pick up any newly enqueued items
+      // No explicit start method required for DownloadManager in this version.
+      _isDownloadManagerInitialized = true;
+    } catch (e) {
+      debugPrint("Failed to initialize DownloadManager: $e");
+      _isDownloadManagerInitialized = false;
+      _downloadManager = null;
     }
   }
-
-  int get concurrentDownloadLimit => _concurrentDownloadLimit;
 
   void _listenToAudioHandler() {
     _playbackStateSubscription = _audioHandler.playbackState.listen((playbackState) {
@@ -174,8 +140,8 @@ void updateDownloadedSong(Song updatedSong) {
 
       _isPlaying = playbackState.playing;
       _isLoadingAudio = playbackState.processingState == AudioProcessingState.loading ||
-                        playbackState.processingState == AudioProcessingState.buffering;
-      
+          playbackState.processingState == AudioProcessingState.buffering;
+
       // _totalDuration is managed by _mediaItemSubscription and _positionSubscription (for radio)
       if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
         notifyListeners();
@@ -207,62 +173,62 @@ void updateDownloadedSong(Song updatedSong) {
         String? newStationFaviconCandidate;
 
         if (mediaItem.extras?['isRadio'] as bool? ?? false) {
-            final radioSongId = mediaItem.extras!['songId'] as String? ?? mediaItem.id;
-            newCurrentSongLogicCandidate = Song(
-                id: radioSongId,
-                title: mediaItem.title,
-                artist: mediaItem.artist ?? 'Radio',
-                albumArtUrl: mediaItem.artUri?.toString() ?? '',
-                audioUrl: mediaItem.id, 
-                isDownloaded: false,
-                extras: {'isRadio': true}
-            );
-            newStationNameCandidate = newCurrentSongLogicCandidate.title;
-            newStationFaviconCandidate = newCurrentSongLogicCandidate.albumArtUrl;
-            // For radio, _totalDuration is handled in _positionSubscription
+          final radioSongId = mediaItem.extras!['songId'] as String? ?? mediaItem.id;
+          newCurrentSongLogicCandidate = Song(
+              id: radioSongId,
+              title: mediaItem.title,
+              artist: mediaItem.artist ?? 'Radio',
+              albumArtUrl: mediaItem.artUri?.toString() ?? '',
+              audioUrl: mediaItem.id,
+              isDownloaded: false,
+              extras: {'isRadio': true}
+          );
+          newStationNameCandidate = newCurrentSongLogicCandidate.title;
+          newStationFaviconCandidate = newCurrentSongLogicCandidate.albumArtUrl;
+          // For radio, _totalDuration is handled in _positionSubscription
         } else{
-            final songId = mediaItem.extras?['songId'] as String?;
-            if (songId != null) {
-                newCurrentSongLogicCandidate = _queue.firstWhere((s) => s.id == songId,
-                    orElse: () {
-                        return Song( 
-                            id: songId,
-                            title: mediaItem.title,
-                            artist: mediaItem.artist ?? 'Unknown Artist',
-                            album: mediaItem.album,
-                            albumArtUrl: mediaItem.artUri?.toString() ?? '', 
-                            audioUrl: mediaItem.id, 
-                            isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
-                            localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
-                        );
-                    });
-            } else {
-                newCurrentSongLogicCandidate = Song(
-                    id: mediaItem.id, 
-                    title: mediaItem.title,
-                    artist: mediaItem.artist ?? 'Unknown Artist',
-                    album: mediaItem.album,
-                    albumArtUrl: await _resolveArtUriPath(mediaItem),
-                    audioUrl: mediaItem.id,
-                    isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
-                    localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
-                );
-            }
-            newStationNameCandidate = null;
-            newStationFaviconCandidate = null;
+          final songId = mediaItem.extras?['songId'] as String?;
+          if (songId != null) {
+            newCurrentSongLogicCandidate = _queue.firstWhere((s) => s.id == songId,
+                orElse: () {
+                  return Song(
+                      id: songId,
+                      title: mediaItem.title,
+                      artist: mediaItem.artist ?? 'Unknown Artist',
+                      album: mediaItem.album,
+                      albumArtUrl: mediaItem.artUri?.toString() ?? '',
+                      audioUrl: mediaItem.id,
+                      isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
+                      localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
+                  );
+                });
+          } else {
+            newCurrentSongLogicCandidate = Song(
+                id: mediaItem.id,
+                title: mediaItem.title,
+                artist: mediaItem.artist ?? 'Unknown Artist',
+                album: mediaItem.album,
+                albumArtUrl: await _resolveArtUriPath(mediaItem),
+                audioUrl: mediaItem.id,
+                isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
+                localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
+            );
+          }
+          newStationNameCandidate = null;
+          newStationFaviconCandidate = null;
         }
 
         if (_currentSongFromAppLogic?.id != newCurrentSongLogicCandidate.id ||
             _currentSongFromAppLogic?.title != newCurrentSongLogicCandidate.title ||
             _currentSongFromAppLogic?.artist != newCurrentSongLogicCandidate.artist ||
             _currentSongFromAppLogic?.albumArtUrl != newCurrentSongLogicCandidate.albumArtUrl) {
-            _currentSongFromAppLogic = newCurrentSongLogicCandidate;
-            needsNotification = true;
+          _currentSongFromAppLogic = newCurrentSongLogicCandidate;
+          needsNotification = true;
         }
         if (_stationName != newStationNameCandidate) { _stationName = newStationNameCandidate; needsNotification = true; }
         if (_stationFavicon != newStationFaviconCandidate) { _stationFavicon = newStationFaviconCandidate; needsNotification = true; }
       }
-      
+
       if (needsNotification) {
         notifyListeners();
       }
@@ -283,7 +249,7 @@ void updateDownloadedSong(Song updatedSong) {
           needsNotifyForTotalDuration = true; // _totalDuration changed, FullScreenPlayer needs this
         }
       }
-      
+
       if (needsNotifyForTotalDuration) {
         notifyListeners();
       }
@@ -308,7 +274,6 @@ void updateDownloadedSong(Song updatedSong) {
     return item.artUri?.toString() ?? '';
   }
 
-
   @override
   void dispose() {
     _downloadManager?.dispose(); // Dispose the download manager
@@ -322,7 +287,6 @@ void updateDownloadedSong(Song updatedSong) {
     // _audioHandler.stop(); // Optional: stop playback when provider is disposed
     super.dispose();
   }
-
 
   Future<void> _saveCurrentSongToStorage() async {
     final prefs = await SharedPreferences.getInstance();
@@ -345,7 +309,7 @@ void updateDownloadedSong(Song updatedSong) {
   Future<void> _loadCurrentSongFromStorage() async {
     final prefs = await SharedPreferences.getInstance();
     final songJson = prefs.getString('current_song_v2');
-    
+
     // Load and set loop mode
     final savedLoopModeIndex = prefs.getInt('loop_mode_v2');
     if (savedLoopModeIndex != null && savedLoopModeIndex < AudioServiceRepeatMode.values.length) {
@@ -361,7 +325,7 @@ void updateDownloadedSong(Song updatedSong) {
         Map<String, dynamic> songMap = jsonDecode(songJson);
         Song loadedSong = Song.fromJson(songMap);
         // Migration logic for file paths (if any) should be in Song.fromJson or here
-        
+
         // Check if the loaded song is a radio stream
         bool isRadioStream = loadedSong.id.startsWith('radio_') || (loadedSong.extras?['isRadio'] as bool? ?? false);
 
@@ -378,32 +342,32 @@ void updateDownloadedSong(Song updatedSong) {
           final mediaItems = await Future.wait(_queue.map((s) async => await _prepareMediaItem(s)).toList());
           await _audioHandler.updateQueue(mediaItems);
           await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
-          await _audioHandler.pause(); 
+          await _audioHandler.pause();
 
         } else if (_currentSongFromAppLogic != null) { // Handles single song or radio stream
-            // For radio, fetchSongUrl will just return its existing audioUrl (the stream URL)
-            // For regular song, it will fetch if necessary.
-            final playableUrl = await fetchSongUrl(_currentSongFromAppLogic!); 
-            final mediaItem = songToMediaItem(_currentSongFromAppLogic!, playableUrl, null);
-            
-            // If it's a radio stream, set its specific properties from the loaded song
-            if (isRadioStream) {
-                _stationName = _currentSongFromAppLogic!.title;
-                _stationFavicon = _currentSongFromAppLogic!.albumArtUrl;
-                // Ensure mediaItem for radio has 'isRadio' extra
-                final radioExtras = Map<String, dynamic>.from(mediaItem.extras ?? {});
-                radioExtras['isRadio'] = true;
-                radioExtras['songId'] = _currentSongFromAppLogic!.id; // Ensure original radio songId is used
-                final radioMediaItem = mediaItem.copyWith(extras: radioExtras, id: _currentSongFromAppLogic!.audioUrl, title: _stationName ?? 'Unknown Station', artist: "Radio Station");
-                await _audioHandler.playMediaItem(radioMediaItem); // Use playMediaItem for consistency
-                await _audioHandler.pause();
+          // For radio, fetchSongUrl will just return its existing audioUrl (the stream URL)
+          // For regular song, it will fetch if necessary.
+          final playableUrl = await fetchSongUrl(_currentSongFromAppLogic!);
+          final mediaItem = songToMediaItem(_currentSongFromAppLogic!, playableUrl, null);
+
+          // If it's a radio stream, set its specific properties from the loaded song
+          if (isRadioStream) {
+            _stationName = _currentSongFromAppLogic!.title;
+            _stationFavicon = _currentSongFromAppLogic!.albumArtUrl;
+            // Ensure mediaItem for radio has 'isRadio' extra
+            final radioExtras = Map<String, dynamic>.from(mediaItem.extras ?? {});
+            radioExtras['isRadio'] = true;
+            radioExtras['songId'] = _currentSongFromAppLogic!.id; // Ensure original radio songId is used
+            final radioMediaItem = mediaItem.copyWith(extras: radioExtras, id: _currentSongFromAppLogic!.audioUrl, title: _stationName ?? 'Unknown Station', artist: "Radio Station");
+            await _audioHandler.playMediaItem(radioMediaItem); // Use playMediaItem for consistency
+            await _audioHandler.pause();
 
 
-            } else {
-                 await _audioHandler.updateQueue([mediaItem]);
-                 await _audioHandler.skipToQueueItem(0);
-                 await _audioHandler.pause();
-            }
+          } else {
+            await _audioHandler.updateQueue([mediaItem]);
+            await _audioHandler.skipToQueueItem(0);
+            await _audioHandler.pause();
+          }
         }
         notifyListeners();
       } catch (e) {
@@ -418,34 +382,34 @@ void updateDownloadedSong(Song updatedSong) {
   Future<MediaItem> _prepareMediaItem(Song song) async {
     String playableUrl = await fetchSongUrl(song);
     if (playableUrl.isEmpty) {
-        throw Exception('Could not resolve playable URL for ${song.title}');
+      throw Exception('Could not resolve playable URL for ${song.title}');
     }
 
     Duration? songDuration = song.duration;
     if (songDuration == null || songDuration == Duration.zero) {
-        final audioPlayer = AudioPlayer();
-        try {
-            await audioPlayer.setSourceUrl(playableUrl);
-            songDuration = await audioPlayer.getDuration();
-        } catch (e) {
-            debugPrint("Error getting duration for ${song.title}: $e");
-            songDuration = Duration.zero;
-        } finally {
-            await audioPlayer.dispose();
-        }
+      final audioPlayer = AudioPlayer();
+      try {
+        await audioPlayer.setSourceUrl(playableUrl);
+        songDuration = await audioPlayer.getDuration();
+      } catch (e) {
+        debugPrint("Error getting duration for ${song.title}: $e");
+        songDuration = Duration.zero;
+      } finally {
+        await audioPlayer.dispose();
+      }
     }
 
     Song songForMediaItem = song;
     if (playableUrl != song.audioUrl && !song.isDownloaded) {
-        songForMediaItem = song.copyWith(audioUrl: playableUrl);
-        await _persistSongMetadata(songForMediaItem);
-        final qIndex = _queue.indexWhere((s) => s.id == songForMediaItem.id);
-        if (qIndex != -1) {
-            _queue[qIndex] = songForMediaItem;
-        }
-        if (_currentSongFromAppLogic?.id == songForMediaItem.id) {
-            _currentSongFromAppLogic = songForMediaItem;
-        }
+      songForMediaItem = song.copyWith(audioUrl: playableUrl);
+      await _persistSongMetadata(songForMediaItem);
+      final qIndex = _queue.indexWhere((s) => s.id == songForMediaItem.id);
+      if (qIndex != -1) {
+        _queue[qIndex] = songForMediaItem;
+      }
+      if (_currentSongFromAppLogic?.id == songForMediaItem.id) {
+        _currentSongFromAppLogic = songForMediaItem;
+      }
     }
 
     final extras = Map<String, dynamic>.from(songForMediaItem.extras ?? {});
@@ -453,7 +417,7 @@ void updateDownloadedSong(Song updatedSong) {
     extras['songId'] = songForMediaItem.id;
     extras['isLocal'] = songForMediaItem.isDownloaded;
     if (songForMediaItem.isDownloaded && songForMediaItem.localFilePath != null && !songForMediaItem.albumArtUrl.startsWith('http')) {
-        extras['localArtFileName'] = songForMediaItem.albumArtUrl;
+      extras['localArtFileName'] = songForMediaItem.albumArtUrl;
     }
 
     return songToMediaItem(songForMediaItem, playableUrl, songDuration).copyWith(extras: extras);
@@ -464,9 +428,9 @@ void updateDownloadedSong(Song updatedSong) {
     // Tentatively update _currentSongFromAppLogic. This might be refined if the song
     // is found in _queue (and that instance is more up-to-date), or if _prepareMediaItem updates it.
     if (!isResumingOrLooping || _currentSongFromAppLogic?.id != songToPlay.id) {
-        _currentSongFromAppLogic = songToPlay;
+      _currentSongFromAppLogic = songToPlay;
     }
-    _stationName = null; 
+    _stationName = null;
     _stationFavicon = null;
     notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info, show loading)
 
@@ -479,8 +443,8 @@ void updateDownloadedSong(Song updatedSong) {
           _currentIndexInAppQueue = indexInExistingQueue;
           // Ensure _currentSongFromAppLogic points to the instance from _queue,
           // as it might have been updated by a previous _prepareMediaItem call or other logic.
-          _currentSongFromAppLogic = _queue[_currentIndexInAppQueue]; 
-                                                                    
+          _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
+
           // Refresh the entire queue in AudioHandler.
           // This ensures that if radio was playing, or if any song URLs needed re-fetching,
           // the handler gets the latest set of MediaItems.
@@ -491,15 +455,15 @@ void updateDownloadedSong(Song updatedSong) {
             _queue.map((sInQueue) => _prepareMediaItem(sInQueue)).toList()
           );
           await _audioHandler.updateQueue(fullQueueMediaItems);
-          
-        } else { 
+
+        } else {
           // Song not in current _queue, treat as a new single-item queue.
           // _currentSongFromAppLogic was set to songToPlay.
           // Call _prepareMediaItem for this song. It will update _currentSongFromAppLogic
           // if its URL changes (due to the side effect in _prepareMediaItem).
           MediaItem mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
           // After _prepareMediaItem, _currentSongFromAppLogic is the definitive Song object.
-          _queue = [_currentSongFromAppLogic!]; 
+          _queue = [_currentSongFromAppLogic!];
           _currentIndexInAppQueue = 0;
           await _audioHandler.updateQueue([mediaItem]);
         }
@@ -532,13 +496,10 @@ void updateDownloadedSong(Song updatedSong) {
       if (await File(filePath).exists()) {
         return filePath; // Return full path for local files
       } else {
-        // File missing, attempt to stream
-        debugPrint("Local file for ${song.title} missing. Attempting to stream.");
-        // Correct metadata
-        song.isDownloaded = false;
-        song.localFilePath = null;
+        debugPrint('Local file for ${song.title} marked as downloaded but file missing. Resetting metadata.');
+        // File missing, reset metadata and attempt to stream
+        song = song.copyWith(isDownloaded: false, localFilePath: null);
         await _persistSongMetadata(song);
-        // Fall through to streaming logic
       }
     }
 
@@ -611,7 +572,7 @@ void updateDownloadedSong(Song updatedSong) {
     _audioHandler.setRepeatMode(nextMode);
     // No need to call notifyListeners() here if UI listens to _audioHandler.playbackState
     // However, if FullScreenPlayer relies on provider's loopMode getter, then notify.
-    notifyListeners(); 
+    notifyListeners();
     _saveCurrentSongToStorage(); // Save the new mode
   }
 
@@ -637,12 +598,12 @@ void updateDownloadedSong(Song updatedSong) {
       _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
       _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
     }
-    
+
     final mediaItems = await Future.wait(
         _queue.map((s) async => _prepareMediaItem(s)).toList()
     );
     await _audioHandler.updateQueue(mediaItems);
-    
+
     if (_currentSongFromAppLogic != null && _currentIndexInAppQueue != -1) {
       // Don't auto-play, just set the current item in the handler
       await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
@@ -651,7 +612,7 @@ void updateDownloadedSong(Song updatedSong) {
       // If it auto-plays, and you don't want that:
       // if (!_isPlaying) await _audioHandler.pause();
     } else if (_queue.isEmpty) {
-        await _audioHandler.stop();
+      await _audioHandler.stop();
     }
 
     notifyListeners();
@@ -661,8 +622,8 @@ void updateDownloadedSong(Song updatedSong) {
   void playPrevious() {
     // The handler now manages shuffle/repeat logic for skipToPrevious
     if (_queue.isNotEmpty) {
-        _isLoadingAudio = true;
-        notifyListeners();
+      _isLoadingAudio = true;
+      notifyListeners();
     }
     _audioHandler.skipToPrevious();
   }
@@ -670,58 +631,96 @@ void updateDownloadedSong(Song updatedSong) {
   void playNext() {
     // The handler now manages shuffle/repeat logic for skipToNext
     if (_queue.isNotEmpty) {
-        _isLoadingAudio = true;
-        notifyListeners();
+      _isLoadingAudio = true;
+      notifyListeners();
     }
     _audioHandler.skipToNext();
   }
 
-
-  Future<void> downloadSongInBackground(Song song) async {
-    if (!_isDownloadManagerInitialized || _downloadManager == null) {
-      debugPrint("DownloadManager not initialized. Queuing download for later.");
-      // Optionally, add to a temporary pending list until manager is ready
-      // For now, we'll just log and skip if manager isn't ready.
-      // Or, trigger initialization:
-      await _initializeDownloadManager();
-      if (!_isDownloadManagerInitialized || _downloadManager == null) {
-          debugPrint("Failed to initialize DownloadManager. Cannot download.");
-          return;
-      }
-    }
-
-    // Check if already downloaded (file exists and metadata agrees)
-    if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final filePath = p.join(appDocDir.path, song.localFilePath!);
-      if (await File(filePath).exists()) {
-        debugPrint('Song "${song.title}" is already downloaded and file exists. Skipping download.');
-        if (!song.isDownloaded) { // Metadata mismatch
-          final updatedSong = song.copyWith(isDownloaded: true);
-          await _persistSongMetadata(updatedSong);
-          updateSongDetails(updatedSong);
-          PlaylistManagerService().updateSongInPlaylists(updatedSong);
-        }
-        return;
-      } else {
-        debugPrint('Song "${song.title}" marked downloaded but file missing. Resetting and attempting download.');
-        song = song.copyWith(isDownloaded: false, localFilePath: null);
-        await _persistSongMetadata(song);
-      }
-    }
-
-    if (_activeDownloads.containsKey(song.id)) {
-      debugPrint('Download for song "${song.title}" is already submitted to DownloadManager. Skipping.');
+  Future<void> queueSongForDownload(Song song) async {
+    // Ensure DownloadManager is ready before queueing
+    await _initializeDownloadManager();
+    if (_downloadManager == null) {
+      debugPrint("DownloadManager unavailable after initialization. Cannot queue \"${song.title}\".");
       return;
     }
 
-    _activeDownloads[song.id] = song;
-    _downloadProgress[song.id] = 0.0; // Initial progress
+    Song songToProcess = song;
+
+    // Check 1: Already downloaded and file exists?
+    if (songToProcess.isDownloaded && songToProcess.localFilePath != null && songToProcess.localFilePath!.isNotEmpty) {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final filePath = p.join(appDocDir.path, _downloadManager!.subDir, songToProcess.localFilePath!);
+      if (await File(filePath).exists()) {
+        debugPrint('Song "${songToProcess.title}" is already downloaded and file exists. Skipping queueing.');
+        if (_downloadProgress[songToProcess.id] != 1.0) {
+          _downloadProgress[songToProcess.id] = 1.0;
+          if (_activeDownloads.containsKey(songToProcess.id)) {
+            _activeDownloads.remove(songToProcess.id);
+          }
+          notifyListeners();
+        }
+        return;
+      } else {
+        debugPrint('Song "${songToProcess.title}" marked downloaded but file missing. Resetting metadata.');
+        songToProcess = songToProcess.copyWith(isDownloaded: false, localFilePath: null);
+        await _persistSongMetadata(songToProcess);
+        updateSongDetails(songToProcess);
+      }
+    }
+
+    // Check 2: Already actively being downloaded by this provider?
+    if (_activeDownloads.containsKey(songToProcess.id)) {
+      debugPrint('Song "${songToProcess.title}" is already in active downloads by provider. Skipping queueing.');
+      return;
+    }
+
+    // Check 3: Already in the provider's download queue?
+    if (_downloadQueue.any((s) => s.id == songToProcess.id)) {
+      debugPrint('Song "${songToProcess.title}" is already in the provider download queue. Skipping queueing.');
+      return;
+    }
+
+    // Add to provider's queue
+    _downloadQueue.add(songToProcess);
+    debugPrint('Song "${songToProcess.title}" added to provider download queue. Queue size: ${_downloadQueue.length}');
+    notifyListeners(); // Notify that queue has changed, UI might show "queued"
+    _triggerNextDownloadInProviderQueue();
+  }
+
+  void _triggerNextDownloadInProviderQueue() {
+    // only start a new download if none is processing and queue isn't empty
+    if (_isProcessingProviderDownload || _downloadQueue.isEmpty) {
+      return;
+    }
+
+    _isProcessingProviderDownload = true;
+    final Song songToDownload = _downloadQueue.removeAt(0);
+    _activeDownloads[songToDownload.id] = songToDownload;
+    _downloadProgress[songToDownload.id] = _downloadProgress[songToDownload.id] ?? 0.0;
     notifyListeners();
+    _processAndSubmitDownload(songToDownload);
+  }
+
+  Future<void> _processAndSubmitDownload(Song song) async {
+    // Note: _activeDownloads and _downloadProgress are now set by _triggerNextDownloadInProviderQueue
+    // This method assumes it's been called for a song that is now the "current" provider-managed download.
+
+    if (!_isDownloadManagerInitialized || _downloadManager == null) {
+      debugPrint("DownloadManager not initialized. Cannot process download for ${song.title}.");
+      // _handleDownloadError needs song.id, which is available.
+      // The error handling will also trigger the next download from queue.
+      _handleDownloadError(song.id, Exception("DownloadManager not initialized"));
+      return;
+    }
+
+    // _activeDownloads[song.id] = song; // Moved to _triggerNextDownloadInProviderQueue
+    // _downloadProgress[song.id] = _downloadProgress[song.id] ?? 0.0; // Moved
+    // notifyListeners(); // Moved
 
     String? audioUrl;
     try {
-      audioUrl = await fetchSongUrl(song);
+      audioUrl = await fetchSongUrl(song); // Use the passed song object
       if (audioUrl.isEmpty || audioUrl.startsWith('file://') || !(Uri.tryParse(audioUrl)?.isAbsolute ?? false)) {
         final apiService = ApiService();
         audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
@@ -735,111 +734,147 @@ void updateDownloadedSong(Song updatedSong) {
       return;
     }
 
-    final String sanitizedTitle = song.title
+    String sanitizedTitle = song.title
         .replaceAll(RegExp(r'[^\w\s.-]'), '_')
         .replaceAll(RegExp(r'\s+'), '_');
-    final String uniqueFileName = '${song.id}_$sanitizedTitle.mp3';
+
+    const commonAudioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'];
+    for (var ext in commonAudioExtensions) {
+      if (sanitizedTitle.toLowerCase().endsWith(ext)) {
+        sanitizedTitle = sanitizedTitle.substring(0, sanitizedTitle.length - ext.length);
+        break;
+      }
+    }
+    
+    final String uniqueFileNameBase = '${song.id}_$sanitizedTitle';
 
     final queueItem = QueueItem(
       url: audioUrl,
-      fileName: uniqueFileName, // DownloadManager will save to baseDir/subDir/fileName
-      progressCallback: (progressDetails) { // progressDetails is DownloadProgress object
-        if (_activeDownloads.containsKey(song.id)) { // Check if download is still active
-          _downloadProgress[song.id] = progressDetails.progress; // progress is double (0.0 to 1.0)
+      fileName: uniqueFileNameBase,
+      progressCallback: (progressDetails) {
+        if (_activeDownloads.containsKey(song.id)) {
+          _downloadProgress[song.id] = progressDetails.progress;
           notifyListeners();
         }
       },
-      // The onComplete and onError are handled by the Future returned by getFile
     );
 
     try {
-      debugPrint('Submitting download for ${song.title} (filename: $uniqueFileName) to DownloadManager.');
-      // getFile returns Future<File?>
+      debugPrint('Submitting download for ${song.title} (base filename: $uniqueFileNameBase) to DownloadManager.');
       final downloadedFile = await _downloadManager!.getFile(queueItem);
 
       if (downloadedFile != null && await downloadedFile.exists()) {
-        // Use the basename of the actual downloaded file path
         _handleDownloadSuccess(song.id, p.basename(downloadedFile.path));
       } else {
-        // This case might occur if getFile resolves null or file doesn't exist after completion
-        // which could indicate an issue within DownloadManager or an unexpected state.
-         _handleDownloadError(song.id, Exception("Download completed but file is null or does not exist."));
+        // Attempt to clean up potential partial file if DownloadManager didn't.
+        // This part is speculative as DownloadManager should handle its files.
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final String potentialPartialPath = p.join(appDocDir.path, _downloadManager!.subDir, queueItem.fileName!);
+        final File partialFile = File(potentialPartialPath);
+        if (await partialFile.exists()) {
+          try {
+            await partialFile.delete();
+            debugPrint('Deleted potential partial file: $potentialPartialPath');
+          } catch (deleteError) {
+            debugPrint('Error deleting potential partial file $potentialPartialPath: $deleteError');
+          }
+        }
+        _handleDownloadError(song.id, Exception('DownloadManager.getFile completed but file is null or does not exist.'));
       }
     } catch (e) {
-      // This catch block handles errors from _downloadManager.getFile() itself (e.g., network issues, max retries exceeded)
       debugPrint('Error from DownloadManager for ${song.title}: $e');
       _handleDownloadError(song.id, e);
     }
   }
 
+
   void _handleDownloadSuccess(String songId, String actualLocalFileName) async {
     final song = _activeDownloads[songId];
-    if (song == null) return;
-
-    Song updatedSong = song.copyWith(localFilePath: actualLocalFileName, isDownloaded: true);
-    await _persistSongMetadata(updatedSong);
-    updateSongDetails(updatedSong);
-    PlaylistManagerService().updateSongInPlaylists(updatedSong);
-    debugPrint('Download complete: ${updatedSong.title}');
-
-    if (_currentSongFromAppLogic?.id == updatedSong.id && !_currentSongFromAppLogic!.isDownloaded) {
-      final currentPosition = _audioHandler.playbackState.value.position;
-      MediaItem newMediaItem = await _prepareMediaItem(updatedSong);
-      await _audioHandler.playMediaItem(newMediaItem);
-      if (currentPosition > Duration.zero) {
-        await _audioHandler.seek(currentPosition);
-      }
+    if (song == null) {
+      _isProcessingProviderDownload = false;
+      _triggerNextDownloadInProviderQueue();
+      return;
     }
-
-    _activeDownloads.remove(songId);
-    _downloadProgress.remove(songId);
-    notifyListeners();
+    try {
+      Song updatedSong = song.copyWith(localFilePath: actualLocalFileName, isDownloaded: true);
+      await _persistSongMetadata(updatedSong);
+      updateSongDetails(updatedSong); 
+      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+      debugPrint('Download complete: ${updatedSong.title}');
+    } catch (e) {
+      debugPrint("Error during post-download success processing for ${song.title}: $e");
+    } finally {
+      if (_activeDownloads.containsKey(songId)) {
+        _activeDownloads.remove(songId);
+        _downloadProgress.remove(songId);
+      }
+      _isProcessingProviderDownload = false;
+      notifyListeners();
+      _triggerNextDownloadInProviderQueue();
+    }
   }
 
   void _handleDownloadError(String songId, dynamic error) {
-    final song = _activeDownloads[songId];
-    if (song == null) return;
+    final song = _activeDownloads[songId]; // Get the song being processed
 
-    debugPrint('Download failed for ${song.title}: $error');
-    // Optionally, delete partial file if necessary, though ResumableDownloader might handle this.
-    // final appDocDir = await getApplicationDocumentsDirectory();
-    // final filePath = p.join(appDocDir.path, _downloadManager.subDir, uniqueFileName); // Construct path
-    // final file = File(filePath);
-    // if (await file.exists()) await file.delete();
-
-    _activeDownloads.remove(songId);
-    _downloadProgress.remove(songId); // Or set to a specific error state if UI needs it
-    notifyListeners();
+    try {
+      if (song != null) {
+        debugPrint('Download failed for ${song.title}: $error');
+      } else {
+        debugPrint('Handling download error for songId $songId (not in _activeDownloads by provider). Error: $error');
+        // If song is null, it means it wasn't the one _isProcessingProviderDownload was true for,
+        // or state is inconsistent.
+      }
+    } catch (e) {
+      debugPrint("Internal error in _handleDownloadError for songId $songId: $e");
+    } finally {
+      if (_activeDownloads.containsKey(songId)) {
+        _activeDownloads.remove(songId);
+        _downloadProgress.remove(songId);
+      }
+      _isProcessingProviderDownload = false;
+      notifyListeners();
+      _triggerNextDownloadInProviderQueue();
+    }
   }
 
-
   Future<void> cancelDownload(String songId) async {
-    if (!_isDownloadManagerInitialized || _downloadManager == null) {
-      debugPrint("DownloadManager not initialized. Cannot cancel.");
-      return;
+    // Check if the song is in the provider's manual queue
+    int queueIndex = _downloadQueue.indexWhere((s) => s.id == songId);
+    if (queueIndex != -1) {
+      _downloadQueue.removeAt(queueIndex);
+      debugPrint("Song ID $songId removed from provider's download queue.");
+      // If it was only in the queue, no need to interact with DownloadManager yet.
+      // Clean up progress if it was somehow set.
+      if (_downloadProgress.containsKey(songId)) {
+        _downloadProgress.remove(songId);
+      }
+      notifyListeners();
+      return; // Song was only in queue, not yet given to DownloadManager by provider logic.
     }
 
+    // If not in queue, check if it's the one actively being processed by the provider
     final song = _activeDownloads[songId];
     if (song == null) {
-      debugPrint("Song ID $songId not found in active downloads for cancellation.");
+      debugPrint("Song ID $songId not found in active downloads by provider for cancellation.");
+      if (_downloadProgress.containsKey(songId)) {
+          _downloadProgress.remove(songId);
+          notifyListeners();
+      }
       return;
     }
     
-    // Reconstruct QueueItem details needed for cancellation
-    // We need the original URL and filename that was submitted.
-    // Fetching URL again might be slow or yield a different one.
-    // It's better if QueueItem details were stored or if cancel could use a unique task ID.
-    // For now, we assume we can reconstruct enough for DownloadManager to identify it.
-    // The fileName used was uniqueFileName = '${song.id}_$sanitizedTitle.mp3';
+    // If actively being processed by provider, attempt to cancel with DownloadManager
+    if (!_isDownloadManagerInitialized || _downloadManager == null) {
+      debugPrint("DownloadManager not initialized. Cannot cancel active download.");
+      // Even if DM is not init, we should clean up provider state for this song.
+      // _handleDownloadError will set _isProcessingProviderDownload = false and trigger next.
+      _handleDownloadError(songId, Exception("Cancel attempted but DownloadManager not initialized"));
+      return;
+    }
     
-
-    // To robustly cancel, we need the exact URL and filename given to the QueueItem.
-    // Let's assume the song.audioUrl is the one used or can be re-fetched reliably for identification.
-    // This part is a bit fragile if the URL used for download was fetched dynamically and not stored back to song.audioUrl
-    // before this point. The `fetchSongUrl` in `downloadSongInBackground` does this.
-
-    String? originalAudioUrl = song.audioUrl; // Assuming this was updated if fetched dynamically
-    if (originalAudioUrl.isEmpty) { // Attempt to re-fetch if not available
+    String? originalAudioUrl = song.audioUrl; 
+    if (originalAudioUrl.isEmpty) { 
         try {
             originalAudioUrl = await fetchSongUrl(song);
              if (originalAudioUrl.isEmpty || originalAudioUrl.startsWith('file://') || !(Uri.tryParse(originalAudioUrl)?.isAbsolute ?? false) ) {
@@ -848,60 +883,66 @@ void updateDownloadedSong(Song updatedSong) {
             }
         } catch (e) {
             debugPrint("Could not determine URL for cancelling download of ${song.title}: $e");
-            return;
+            // Still attempt filename cancel below if URL fetch fails
         }
     }
-     if (originalAudioUrl == null || originalAudioUrl.isEmpty) {
-        debugPrint("URL for cancelling download of ${song.title} is empty. Cannot cancel.");
-        return;
-    }
 
-
-    final String sanitizedTitle = song.title
+    String sanitizedTitle = song.title
         .replaceAll(RegExp(r'[^\w\s.-]'), '_')
         .replaceAll(RegExp(r'\s+'), '_');
-    // This uniqueFileName must match what was passed to DownloadManager's QueueItem.
-    // If the DownloadManager modifies it (e.g. adds another .mp3),
-    // cancellation might need the *actual* stored name.
-    // However, DownloadManager's cancelDownload uses the fileName you *gave* it.
-    // The issue was with what *we* stored vs what *it* saved.
-    // For cancellation, we use the filename we *intended* to give it.
-    // If `p.basename(downloadedFile.path)` was different, it means DownloadManager changed it.
-    // The `fileName` in `QueueItem` was `uniqueFileName` (e.g. `...mp3`).
-    // If the saved file is `...mp3.mp3`, then `cancelDownload` should still use `...mp3`
-    // if that's what `DownloadManager` uses to identify tasks.
-    final String uniqueFileNameForCancellation = '${song.id}_$sanitizedTitle.mp3';
 
-    final itemToCancel = QueueItem(url: originalAudioUrl, fileName: uniqueFileNameForCancellation);
+    const commonAudioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'];
+    for (var ext in commonAudioExtensions) {
+      if (sanitizedTitle.toLowerCase().endsWith(ext)) {
+        sanitizedTitle = sanitizedTitle.substring(0, sanitizedTitle.length - ext.length);
+        break;
+      }
+    }
+    
+    final String uniqueFileNameBaseForCancellation = '${song.id}_$sanitizedTitle';
+
+    if (originalAudioUrl != null && originalAudioUrl.isNotEmpty) {
+        try {
+          debugPrint('Attempting to cancel download for ${song.title} via URL: $originalAudioUrl');
+          await _downloadManager!.cancelDownload(originalAudioUrl);
+          debugPrint('URL-based cancel request sent for ${song.title}.');
+        } catch (e) {
+          debugPrint('URL-based cancel failed for ${song.title}: $e. Will attempt filename cancel.');
+        }
+    } else {
+        debugPrint("URL for cancelling download of ${song.title} is empty. Attempting filename cancel.");
+    }
 
     try {
-      debugPrint('Attempting to cancel download for ${song.title} using URL: ${itemToCancel.url} and FileName: ${itemToCancel.fileName}');
-      await _downloadManager!.cancelDownload(itemToCancel.fileName!);
-      // Assuming cancellation will trigger an error in the getFile Future,
-      // which then calls _handleDownloadError.
-      // If not, we need to manually clean up here.
-      debugPrint('Cancellation request sent for ${song.title}.');
-      // Manually update state as cancelItem might not trigger callbacks immediately or as expected for cleanup.
-      _activeDownloads.remove(songId);
-      _downloadProgress.remove(songId);
-      notifyListeners();
-
+      debugPrint('Attempting to cancel download for ${song.title} via base filename: $uniqueFileNameBaseForCancellation');
+      await _downloadManager!.cancelDownload(uniqueFileNameBaseForCancellation); 
+      debugPrint('Filename-based cancel request sent for ${song.title}.');
     } catch (e) {
-      debugPrint('Error cancelling download for ${song.title}: $e');
-      // Even if cancel fails, try to clean up local state
-      _activeDownloads.remove(songId);
-      _downloadProgress.remove(songId);
-      notifyListeners();
+      debugPrint('Filename-based cancel also failed for ${song.title}: $e');
     }
+    
+    // Regardless of DownloadManager's cancel success, treat this as an error/completion locally.
+    // The DownloadManager's getFile() Future should complete (often with an error) if cancelled.
+    // _handleDownloadError will be called when that Future completes.
+    // For immediate UI feedback of cancellation:
+    if (_activeDownloads.containsKey(songId)) {
+        _activeDownloads.remove(songId); // Proactively remove from provider's active list
+    }
+    if (_downloadProgress.containsKey(songId)) {
+        _downloadProgress.remove(songId);
+    }
+    // _isProcessingProviderDownload will be set to false by _handleDownloadError/Success
+    // when the `await _downloadManager.getFile()` call finally unblocks.
+    // Then _triggerNextDownloadInProviderQueue will be called.
+    notifyListeners();
   }
-
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
     _isLoadingAudio = true;
     // _currentSongFromAppLogic = null; // Clear regular song // This will be set to the radio song object
     _stationName = stationName;
     _stationFavicon = stationFavicon ?? '';
-    
+
 
     final radioSongId = 'radio_${stationName.hashCode}_${streamUrl.hashCode}';
     // final mediaItem = MediaItem( // This is defined later
@@ -911,7 +952,7 @@ void updateDownloadedSong(Song updatedSong) {
     //   artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
     //   extras: {'isRadio': true, 'songId': radioSongId}, // Ensure songId is set for radio
     // );
-    
+
     // Update app's notion of current song to this radio stream
     _currentSongFromAppLogic = Song(
         id: radioSongId, // Use the unique radioSongId
@@ -934,13 +975,12 @@ void updateDownloadedSong(Song updatedSong) {
       title: stationName,
       artist: 'Radio Station',
       artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
-      extras: {'isRadio': true, 'songId': radioSongId}, 
+      extras: {'isRadio': true, 'songId': radioSongId},
     );
     await _audioHandler.playMediaItem(mediaItem);
     _saveCurrentSongToStorage(); // Save that we are playing a radio stream
     // _isLoadingAudio will be set to false by _listenToAudioHandler
   }
-
 
   void addToQueue(Song song) async {
     if (!_queue.any((s) => s.id == song.id)) {
@@ -1007,28 +1047,28 @@ void updateDownloadedSong(Song updatedSong) {
 
 
       if (isCurrentlyPlayingInHandler && currentSongWasUpdated) {
-          // If the currently playing song's details are updated,
-          // we might need to replace the media item in the handler.
-          // This can be complex if it means reloading the audio source.
-          // A custom action or re-evaluating playMediaItem might be needed.
-          // For now, let's assume metadata updates don't require reloading the stream itself
-          // unless the playable ID (URL) changes.
-          // If newMediaItem.id (playable URL) changed, more drastic action is needed.
-          // For now, we focus on metadata like title, artist, art.
-          
-          // Option 1: Custom action to update metadata of current item (if handler supports)
-          // This is safer if only non-critical metadata changes.
-           _audioHandler.customAction('updateCurrentMediaItemMetadata', {
-            'mediaItem': { // Send only metadata, not necessarily the full item if ID is same
-              'id': newMediaItem.id, // Keep same ID if URL hasn't changed
-              'title': newMediaItem.title,
-              'artist': newMediaItem.artist,
-              'album': newMediaItem.album,
-              'artUri': newMediaItem.artUri?.toString(),
-              'duration': newMediaItem.duration?.inMilliseconds,
-              'extras': newMediaItem.extras,
-            }
-          });
+        // If the currently playing song's details are updated,
+        // we might need to replace the media item in the handler.
+        // This can be complex if it means reloading the audio source.
+        // A custom action or re-evaluating playMediaItem might be needed.
+        // For now, let's assume metadata updates don't require reloading the stream itself
+        // unless the playable ID (URL) changes.
+        // If newMediaItem.id (playable URL) changed, more drastic action is needed.
+        // For now, we focus on metadata like title, artist, art.
+
+        // Option 1: Custom action to update metadata of current item (if handler supports)
+        // This is safer if only non-critical metadata changes.
+        _audioHandler.customAction('updateCurrentMediaItemMetadata', {
+          'mediaItem': { // Send only metadata, not necessarily the full item if ID is same
+            'id': newMediaItem.id, // Keep same ID if URL hasn't changed
+            'title': newMediaItem.title,
+            'artist': newMediaItem.artist,
+            'album': newMediaItem.album,
+            'artUri': newMediaItem.artUri?.toString(),
+            'duration': newMediaItem.duration?.inMilliseconds,
+            'extras': newMediaItem.extras,
+          }
+        });
 
 
       }
@@ -1061,7 +1101,7 @@ void updateDownloadedSong(Song updatedSong) {
     _saveCurrentSongToStorage();
     _persistSongMetadata(updatedSong);
   }
-  
+
   void setCurrentSong(Song song) async {
     // This method is likely for UI purposes to show details before playing.
     // It shouldn't trigger playback directly.
