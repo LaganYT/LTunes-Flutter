@@ -23,4 +23,3 @@
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
-- Have the background of the player be the color of the most common color of the album cover.
