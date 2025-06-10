@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart'; // For getApplicationDocument
 import 'package:path/path.dart' as p; // For path joining
 import 'dart:io'; // For File operations
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
+import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 // ignore: unused_import
 import '../services/playlist_manager_service.dart';
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
@@ -32,6 +33,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   late Animation<Offset> _albumArtSlideAnimation;
 
   late CurrentSongProvider _currentSongProvider;
+
+  Color _dominantColor = Colors.transparent; // NEW: holds extracted background color
 
   @override
   void initState() {
@@ -77,6 +80,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _textFadeController.forward();
     }
     
+    // After first build, extract palette for the current song
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updatePalette(_currentSongProvider.currentSong);
+    });
+
     _currentSongProvider.addListener(_onSongChanged);
   }
 
@@ -109,9 +117,37 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
       _albumArtSlideController.forward(from: 0.0);
       _textFadeController.forward(from: 0.0);
-      
+
+      // NEW: regenerate palette whenever song truly changes
+      _updatePalette(_currentSongProvider.currentSong);
+
       _previousSongId = newSongId;
       _slideOffsetX = 0.0; // Reset for next non-skip change
+    }
+  }
+
+  // NEW: pull out dominant color from network or local image
+  Future<void> _updatePalette(Song? song) async {
+    if (song == null || song.albumArtUrl.isEmpty) return;
+    ImageProvider provider;
+    if (song.albumArtUrl.startsWith('http')) {
+      provider = NetworkImage(song.albumArtUrl);
+    } else {
+      final path = await _resolveLocalArtPath(song.albumArtUrl);
+      if (path.isEmpty) return;
+      provider = FileImage(File(path));
+    }
+    try {
+      final palette = await PaletteGenerator.fromImageProvider(provider);
+      // Darken the extracted dominant color by clamping its lightness
+      final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.background;
+      final hsl = HSLColor.fromColor(baseColor);
+      final darkColor = hsl.withLightness(0.2).toColor();
+      setState(() {
+        _dominantColor = darkColor;
+      });
+    } catch (_) {
+      // ignore any errors
     }
   }
 
@@ -431,16 +467,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                colorScheme.primary.withOpacity(0.6),
-                colorScheme.primaryContainer.withOpacity(0.8),
-                colorScheme.background,
-              ],
-              stops: const [0.0, 0.35, 0.75],
-            ),
+            color: _dominantColor, // use dominant album color
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + kToolbarHeight),

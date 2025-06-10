@@ -25,6 +25,7 @@ dependencies:
   package_info_plus: ^8.0.0
   audioplayers: ^6.4.0
   resumable_downloader: ^0.0.17
+  palette_generator: ^0.3.3+7
 
 dev_dependencies:
   flutter_test:
