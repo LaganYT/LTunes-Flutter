@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart'; // Use PlaylistManagerService
@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart'; // Ensure this is imported
 import 'package:path/path.dart' as p; // Ensure this is imported
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
+import '../services/api_service.dart'; // Import ApiService
+import 'album_screen.dart'; // Import AlbumScreen
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -22,15 +24,48 @@ class SongDetailScreen extends StatefulWidget {
 class _SongDetailScreenState extends State<SongDetailScreen> {
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-  // @override // initState and dispose are fine
-  // void initState() {
-  //   super.initState();
-  // }
+  // ignore: unused_field
+  bool _isDownloading = false;
+  // ignore: unused_field
+  double _downloadProgress = 0.0;
+  // ignore: unused_field
+  bool _isLoadingAlbum = false; // For View Album button
 
-  // @override
-  // void dispose() {
-  //   super.dispose();
-  // }
+  @override
+  void initState() {
+    super.initState();
+    // Listen to download progress changes for the specific song
+    Provider.of<CurrentSongProvider>(context, listen: false).addListener(() {
+      final currentSong = Provider.of<CurrentSongProvider>(context, listen: false).currentSong;
+      // Check if the current song in the provider is the same as the one in this widget
+      if (currentSong?.id == widget.song.id) {
+        setState(() {
+          _isDownloading = currentSong?.isDownloading ?? false;
+          _downloadProgress = currentSong?.downloadProgress ?? 0.0;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove listener on dispose
+    Provider.of<CurrentSongProvider>(context, listen: false).removeListener(() {});
+    super.dispose();
+  }
+
+  // ignore: unused_element
+  void _onDownloadProgress(String songId, double progress) {
+    if (songId == widget.song.id && mounted) {
+      setState(() {
+        _downloadProgress = progress;
+        _isDownloading = progress < 1.0; // Still downloading if progress < 1
+        if (progress == 1.0) {
+          // Optionally refresh song data from provider or prefs to get updated localFilePath
+        }
+      });
+    }
+  }
 
   void _downloadSong() {
     // No longer async, just triggers the provider's background download
@@ -41,6 +76,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     // );
   }
 
+  // ignore: unused_element
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -95,37 +131,26 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
         // Notify CurrentSongProvider
         Provider.of<CurrentSongProvider>(currentContext, listen: false).updateSongDetails(updatedSong);
-        
-        // Update local UI state.
-        // This setState is primarily for the current screen's immediate reflection
-        // if it directly uses widget.song.isDownloaded or widget.song.localFilePath.
-        // However, relying on Provider for state is generally preferred.
-        // If the UI rebuilds based on Provider, this might be redundant or could even
-        // conflict if widget.song is not updated in sync.
-        // For safety, ensure widget.song is updated if it's directly used by build method.
-        // A common pattern is to have the widget take a final Song object and then
-        // listen to a Provider for the most up-to-date version of that song.
-        // If widget.song is final and this screen is meant to reflect the initial state + changes via provider,
-        // then this direct mutation of widget.song is problematic.
-        // Assuming widget.song can be updated or the UI primarily listens to provider:
-        setState(() {
-          // If widget.song is mutable (not recommended for StatefulWidget properties passed in constructor):
-          // widget.song.isDownloaded = false;
-          // widget.song.localFilePath = null;
-          // Or, if this screen should reflect the change immediately without waiting for provider:
-          // This depends on how `songForDownloadStatus` and other UI elements get their data.
-          // For now, let's assume the provider update is sufficient and will trigger a rebuild.
-        });
 
-        scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(content: Text('Song deleted!')),
-        );
+        // Update local state if the widget is still mounted.
+        if (mounted) {
+          setState(() {
+            // Reflect that the song is no longer downloaded.
+            // This assumes widget.song is not directly mutated,
+            // but rather the UI relies on a fresh build or provider state.
+            // For immediate feedback, you might update a local copy or rely on provider.
+          });
+          ScaffoldMessenger.of(currentContext).showSnackBar(
+            SnackBar(content: Text('"${updatedSong.title}" deleted from downloads.')),
+          );
+        }
       }
     } catch (e) {
+      debugPrint('Error deleting song: $e');
       if (mounted) {
-        _showErrorDialog('Error deleting song: $e');
-      } else {
-        debugPrint('Error deleting song (widget not mounted): $e');
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(content: Text('Error deleting song: $e')),
+        );
       }
     }
   }
@@ -135,6 +160,52 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     // Ensure all relevant fields are in toJson() and saved
     final songData = jsonEncode(song.toJson()); 
     await prefs.setString('song_${song.id}', songData); // Use song.id for unique key
+  }
+
+  Future<void> _viewAlbum(BuildContext context) async {
+    if (widget.song.album == null || widget.song.album!.isEmpty || widget.song.artist.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Album information is not available for this song.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoadingAlbum = true;
+    });
+
+    try {
+      final apiService = ApiService();
+      final albumDetails = await apiService.getAlbum(widget.song.album!, widget.song.artist);
+
+      if (mounted) {
+        if (albumDetails != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AlbumScreen(album: albumDetails),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not find details for album: "${widget.song.album}".')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching album details: $e')),
+        );
+      }
+      debugPrint('Error fetching album details: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingAlbum = false;
+        });
+      }
+    }
   }
 
   @override
@@ -389,6 +460,19 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                 ],
               ),
               const SizedBox(height: 20),
+              // View Album button
+              if (widget.song.album != null && widget.song.album!.isNotEmpty)
+                ElevatedButton.icon(
+                  icon: _isLoadingAlbum 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                        : const Icon(Icons.album_outlined),
+                  label: const Text('View Album'),
+                  onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.secondary,
+                    foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  ),
+                ),
             ],
           ),
         ),

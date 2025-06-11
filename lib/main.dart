@@ -11,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
 import 'package:audio_service/audio_service.dart'; // Import audio_service
 import 'services/audio_handler.dart'; // Import your AudioPlayerHandler
+import 'services/album_manager_service.dart'; // Import AlbumManagerService
+import 'services/playlist_manager_service.dart'; // Import PlaylistManagerService
 
 // Global instance of the AudioPlayerHandler
 late AudioHandler _audioHandler;
@@ -37,8 +39,8 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (context) => CurrentSongProvider(_audioHandler),
         ),
-        // You can also provide _audioHandler directly if other widgets need it:
-        // Provider<AudioHandler>.value(value: _audioHandler),
+        ChangeNotifierProvider(create: (context) => PlaylistManagerService()), // Assuming this was already here or needed
+        ChangeNotifierProvider(create: (context) => AlbumManagerService()), // Add AlbumManagerService
       ],
       child: const LTunesApp(),
     ),

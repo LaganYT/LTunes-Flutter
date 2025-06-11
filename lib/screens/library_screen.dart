@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Required for SharedPreferences
 import '../models/song.dart';
 import '../models/playlist.dart';
+import '../models/album.dart'; // Import Album model
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
+import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import 'playlist_detail_screen.dart'; // Import for navigation
+import 'album_screen.dart'; // Import AlbumScreen for navigation
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart'; // Required for getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // Required for path manipulation
@@ -25,12 +28,14 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderStateMixin { // Add SingleTickerProviderStateMixin
   List<Song> _songs = [];
   List<Playlist> _playlists = [];
+  List<Album> _savedAlbums = []; // New list for saved albums
   final AudioPlayer audioPlayer = AudioPlayer();
   // ignore: unused_field
   String? _currentlyPlayingSongPath;
   bool isPlaying = false;
   final TextEditingController _playlistNameController = TextEditingController();
   final PlaylistManagerService _playlistManager = PlaylistManagerService();
+  final AlbumManagerService _albumManager = AlbumManagerService(); // Instance of AlbumManagerService
   TabController? _tabController; // Declare TabController
   final Uuid _uuid = const Uuid(); // For generating unique IDs
 
@@ -47,13 +52,14 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this); // Initialize TabController
+    _tabController = TabController(length: 3, vsync: this); // Changed length to 3
     _tabController?.addListener(() {
-      // Clear search when tab changes
       if (_searchController.text.isNotEmpty) {
         _searchController.clear();
+        // _onSearchChanged will be called by controller's listener
       }
-      // The _onSearchChanged will be called by the controller's listener
+      // Update hint text based on tab
+      setState(() {}); 
     });
 
     _searchController.addListener(_onSearchChanged);
@@ -61,10 +67,12 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // Initial loads
     _loadDownloadedSongs();
     _loadPlaylists();
+    _loadSavedAlbums(); // Load saved albums
 
     // Listen to PlaylistManagerService
     // This listener will call _loadPlaylists when playlist data changes.
     _playlistManager.addListener(_onPlaylistChanged);
+    _albumManager.addListener(_onSavedAlbumsChanged); // Listen to AlbumManagerService
     
     audioPlayer.onPlayerComplete.listen((event) {
       setState(() {
@@ -98,6 +106,12 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     }
   }
 
+  void _onSavedAlbumsChanged() { // New listener method
+    if (mounted) {
+      _loadSavedAlbums();
+    }
+  }
+
   void _onSongDataChanged() {
     // CurrentSongProvider notified changes (e.g., download finished, metadata updated)
     // Reload downloaded songs list
@@ -114,6 +128,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     audioPlayer.dispose();
     _playlistNameController.dispose();
     _playlistManager.removeListener(_onPlaylistChanged);
+    _albumManager.removeListener(_onSavedAlbumsChanged); // Remove listener
     _currentSongProvider.removeListener(_onSongDataChanged); // Remove listener
     super.dispose();
   }
@@ -212,16 +227,17 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Future<void> _loadPlaylists() async {
-    // No need to call _playlistManager.loadPlaylists() if it loads itself initially
-    // and notifies. We just get the current state.
-    // However, if PlaylistManagerService's loadPlaylists itself is what triggers
-    // the initial load and notify, then it's fine.
-    // For robustness, ensure it's loaded if this is the first time.
-    // await _playlistManager.loadPlaylists(); // This might cause a loop if loadPlaylists also notifies.
-                                         // Let's assume PlaylistManagerService handles its own loading.
     if (mounted) {
       setState(() {
         _playlists = _playlistManager.playlists;
+      });
+    }
+  }
+  
+  Future<void> _loadSavedAlbums() async { // New method to load saved albums
+    if (mounted) {
+      setState(() {
+        _savedAlbums = _albumManager.savedAlbums;
       });
     }
   }
@@ -596,9 +612,6 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Widget _buildPlaylistsView() {
-    // Use a Consumer for PlaylistManagerService if you prefer that pattern,
-    // or rely on the listener calling setState via _loadPlaylists.
-    // For this example, we're using the listener pattern established in initState.
     List<Playlist> filteredPlaylists = _playlists;
     if (_searchQuery.isNotEmpty) {
       filteredPlaylists = _playlists
@@ -619,6 +632,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           child: ListTile(
             leading: Icon(Icons.playlist_play, color: Theme.of(context).colorScheme.primary),
             title: Text(playlist.name, style: Theme.of(context).textTheme.titleMedium),
+            subtitle: Text('${playlist.songs.length} songs', style: Theme.of(context).textTheme.bodySmall),
             trailing: IconButton(
               icon: Icon(Icons.delete_outline, color: Colors.red[700]),
               tooltip: 'Delete Playlist',
@@ -633,11 +647,71 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                   builder: (context) => PlaylistDetailScreen(playlist: playlist),
                 ),
               ).then((_) {
-                // Refresh playlists in case of changes in PlaylistDetailScreen,
-                // e.g., name change or song additions/removals.
-                // Listener should ideally handle this if PlaylistDetailScreen uses PlaylistManagerService.
-                // _loadPlaylists(); // This might be redundant if listener works correctly.
+                // Listener _onPlaylistChanged handles refresh
               });
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSavedAlbumsView() { // New method for "Albums" tab
+    List<Album> filteredAlbums = _savedAlbums;
+    if (_searchQuery.isNotEmpty) {
+      filteredAlbums = _savedAlbums
+          .where((album) =>
+              album.title.toLowerCase().contains(_searchQuery) ||
+              album.artistName.toLowerCase().contains(_searchQuery))
+          .toList();
+    }
+
+    if (filteredAlbums.isEmpty) {
+      return Center(child: Text(_searchQuery.isNotEmpty ? 'No albums found matching "$_searchQuery".' : 'No saved albums yet. Find albums in Search and save them!'));
+    }
+
+    return ListView.builder(
+      itemCount: filteredAlbums.length,
+      itemBuilder: (context, index) {
+        final album = filteredAlbums[index];
+        Widget leadingImage;
+        if (album.fullAlbumArtUrl.isNotEmpty) {
+          leadingImage = Image.network(
+            album.fullAlbumArtUrl,
+            width: 56, height: 56, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
+          );
+        } else {
+          leadingImage = const Icon(Icons.album, size: 40);
+        }
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+          child: ListTile(
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(4.0),
+              child: leadingImage,
+            ),
+            title: Text(album.title, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(album.artistName, style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: IconButton( // "Unsave" button
+              icon: Icon(Icons.bookmark_remove_outlined, color: Theme.of(context).colorScheme.error),
+              tooltip: 'Unsave Album',
+              onPressed: () async {
+                await _albumManager.removeSavedAlbum(album.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('"${album.title}" unsaved.')),
+                );
+                // Listener _onSavedAlbumsChanged handles refresh
+              },
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AlbumScreen(album: album),
+                ),
+              );
             },
           ),
         );
@@ -800,6 +874,15 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    String hintText = 'Search...';
+    if (_tabController?.index == 0) {
+      hintText = 'Search Playlists...';
+    } else if (_tabController?.index == 1) {
+      hintText = 'Search Saved Albums...'; // New hint for Albums tab
+    } else if (_tabController?.index == 2) {
+      hintText = 'Search Downloads...';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library'),
@@ -824,7 +907,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: _tabController?.index == 0 ? 'Search Playlists...' : 'Search Downloads...',
+                    hintText: hintText, // Updated hintText
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -851,6 +934,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 controller: _tabController,
                 tabs: const [
                   Tab(icon: Icon(Icons.list), text: 'Playlists'),
+                  Tab(icon: Icon(Icons.album), text: 'Albums'), // New "Albums" tab
                   Tab(icon: Icon(Icons.download_done), text: 'Downloads'),
                 ],
               ),
@@ -858,11 +942,12 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           ),
         ),
       ),
-      body: TabBarView( // Add TabBarView
+      body: TabBarView(
         controller: _tabController,
         children: [
-          _buildPlaylistsView(), // First tab: Playlists
-          _buildDownloadedSongsView(), // Second tab: Downloaded Songs
+          _buildPlaylistsView(),
+          _buildSavedAlbumsView(), // View for "Albums" tab
+          _buildDownloadedSongsView(),
         ],
       ),
     );

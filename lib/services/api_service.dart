@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../models/song.dart';
 import '../models/update_info.dart'; // Import the new model
+import '../models/album.dart'; // Import the new Album model
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -19,6 +20,69 @@ class ApiService {
   // Caches
   final Map<String, List<Song>> _songCache = {};
   final Map<String, List<dynamic>> _radioStationCache = {};
+  // ignore: unused_field
+  final Map<String, String> _audioUrlCache = {};
+  final Map<String, Album> _albumDetailCache = {}; // Cache for album details by ID
+
+  // Helper method to make HTTP GET requests and handle common errors
+  Future<http.Response> _get(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        return response;
+      } else if (response.statusCode == 404) {
+        // Handle 404 specifically if needed, e.g., return empty list or null
+        throw Exception('Resource not found (404) for URL: $url');
+      } else {
+        throw Exception('Failed to load data from $url, Status Code: ${response.statusCode}');
+      }
+    } catch (e) {
+      // Catch network errors or other exceptions during the request
+      throw Exception('Error connecting to $url: $e');
+    }
+  }
+
+  Future<String?> _searchForAlbumId(String albumName, String artistName) async {
+    final query = '${albumName.trim()} ${artistName.trim()}';
+    final url = '${baseUrl}search/albums?query=${Uri.encodeComponent(query)}';
+    try {
+      final response = await _get(url);
+      List<dynamic> searchResults = jsonDecode(response.body);
+      if (searchResults.isNotEmpty) {
+        // Consider adding more robust matching, e.g., verify artist name from searchResults.first['ARTISTS']
+        return searchResults.first['ALB_ID']?.toString();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error searching for album ID for "$query": $e');
+      return null;
+    }
+  }
+
+  Future<Album?> _fetchAlbumDetailsById(String albumId) async {
+    if (_albumDetailCache.containsKey(albumId)) {
+      return _albumDetailCache[albumId];
+    }
+    final url = '${baseUrl}album/$albumId';
+    try {
+      final response = await _get(url);
+      Map<String, dynamic> data = jsonDecode(response.body);
+      final album = Album.fromJson(data);
+      _albumDetailCache[albumId] = album; // Cache the fetched album
+      return album;
+    } catch (e) {
+      debugPrint('Error fetching album details for ID "$albumId": $e');
+      return null;
+    }
+  }
+
+  Future<Album?> getAlbum(String albumName, String artistName) async {
+    final albumId = await _searchForAlbumId(albumName, artistName);
+    if (albumId != null) {
+      return await _fetchAlbumDetailsById(albumId);
+    }
+    return null;
+  }
 
   Future<List<Song>> fetchSongs(String query) async {
     final String cacheKey = query.isEmpty ? "__topCharts__" : query;

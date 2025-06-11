@@ -17,6 +17,10 @@ class Song {
   // Add a getter for isRadio
   bool get isRadio => extras?['isRadio'] as bool? ?? false;
 
+  // Fields for download state
+  bool isDownloading;
+  double downloadProgress;
+
   Song({
     required this.title,
     required this.id,
@@ -29,6 +33,8 @@ class Song {
     this.localFilePath,
     this.extras, // Added extras to constructor
     this.duration, // Ensure duration is part of the constructor
+    this.isDownloading = false, // Default value
+    this.downloadProgress = 0.0, // Default value
   });
 
   Song copyWith({
@@ -43,6 +49,8 @@ class Song {
     String? localFilePath, // Ensure this can be null
     Map<String, dynamic>? extras, // Added extras to copyWith
     Duration? duration, // Added duration to copyWith
+    bool? isDownloading,
+    double? downloadProgress,
     
   }) {
     return Song(
@@ -57,6 +65,8 @@ class Song {
       localFilePath: localFilePath, // Consumers ensure this is a filename
       extras: extras ?? this.extras, // Added extras logic
       duration: duration ?? this.duration, // Added duration logic
+      isDownloading: isDownloading ?? this.isDownloading,
+      downloadProgress: downloadProgress ?? this.downloadProgress,
     );
   }
 
@@ -91,6 +101,11 @@ class Song {
       // Parse duration_ms
       final int? durationMs = json['duration_ms'] as int?;
       final Duration? parsedDuration = durationMs != null ? Duration(milliseconds: durationMs) : null;
+
+      // isDownloading and downloadProgress are typically transient state,
+      // so they are not usually part of fromJson.
+      // If they were persisted, you'd parse them here.
+      // For now, they will default to false and 0.0 respectively via the constructor.
 
       if (artist.isEmpty && json.containsKey('artists')) {
         final artistsList = json['artists'] as List?;
@@ -127,12 +142,57 @@ class Song {
         localFilePath: _asNullableString(json['localFilePath']), // Store as is; migration/usage logic handles interpretation
         extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
         duration: parsedDuration, // Assign parsed duration
+        // isDownloading and downloadProgress will use default constructor values
       );
     } catch (e) {
       // For debugging purposes, it can be helpful to print the problematic JSON.
       // print('Error parsing song from JSON: $json. Error: $e'); 
       throw FormatException('Invalid song JSON format: $e. Source JSON: $json');
     }
+  }
+
+  factory Song.fromAlbumTrackJson(
+    Map<String, dynamic> trackJson,
+    String albumTitle,
+    String albumArtPictureId, 
+    String albumReleaseDate,
+    String albumArtistName
+  ) {
+    final String songId = trackJson['SNG_ID']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final String title = trackJson['SNG_TITLE']?.toString() ?? 'Unknown Track';
+    final String artist = trackJson['ART_NAME']?.toString() ?? albumArtistName;
+
+    final String durationStr = trackJson['DURATION']?.toString() ?? '0';
+    final int seconds = int.tryParse(durationStr) ?? 0;
+    final Duration duration = Duration(seconds: seconds);
+
+    final String diskNumberStr = trackJson['DISK_NUMBER']?.toString() ?? '1';
+    final String trackNumberStr = trackJson['TRACK_NUMBER']?.toString() ?? '0';
+
+    final Map<String, dynamic> extras = {
+      'diskNumber': int.tryParse(diskNumberStr) ?? 1,
+      'trackNumber': int.tryParse(trackNumberStr) ?? 0,
+      'SNG_ID': songId,
+    };
+
+    final String albumArtUrl = albumArtPictureId.isNotEmpty
+        ? 'https://e-cdns-images.dzcdn.net/images/cover/$albumArtPictureId/500x500-000000-80-0-0.jpg'
+        : '';
+
+    return Song(
+      id: songId,
+      title: title,
+      artist: artist,
+      album: albumTitle,
+      albumArtUrl: albumArtUrl,
+      releaseDate: albumReleaseDate,
+      audioUrl: '', // To be fetched later
+      isDownloaded: false,
+      localFilePath: null,
+      duration: duration,
+      extras: extras,
+      // isDownloading and downloadProgress will use default constructor values
+    );
   }
 
   Map<String, dynamic> toJson() => {
@@ -147,6 +207,8 @@ class Song {
         'localFilePath': localFilePath, // Will save filename if correctly set by app logic
         'extras': extras, // Added extras to JSON
         'duration_ms': duration?.inMilliseconds, // Serialize duration to milliseconds
+        // isDownloading and downloadProgress are typically transient state
+        // and not included in toJson. If you need to persist them, add them here.
       };
 
   // New getter to safely provide a valid audio URL
