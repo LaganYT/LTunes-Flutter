@@ -23,3 +23,4 @@
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
+- Fix album issues (just figure it out lol)
