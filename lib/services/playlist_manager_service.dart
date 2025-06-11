@@ -116,6 +116,24 @@ class PlaylistManagerService with ChangeNotifier {
     }
   }
 
+  Song? findDownloadedSongByTitleArtist(String title, String artist) {
+    final String targetTitle = title.toLowerCase();
+    final String targetArtist = artist.toLowerCase();
+
+    for (final playlist in _playlists) {
+      for (final songInPlaylist in playlist.songs) {
+        if (songInPlaylist.isDownloaded &&
+            songInPlaylist.localFilePath != null &&
+            songInPlaylist.localFilePath!.isNotEmpty &&
+            songInPlaylist.title.toLowerCase() == targetTitle &&
+            songInPlaylist.artist.toLowerCase() == targetArtist) {
+          return songInPlaylist;
+        }
+      }
+    }
+    return null;
+  }
+
   void updateSongInPlaylists(Song updatedSong) {
     bool changed = false;
     for (int i = 0; i < _playlists.length; i++) {

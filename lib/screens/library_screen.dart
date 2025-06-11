@@ -886,6 +886,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library'),
+        centerTitle: true, // Center the title
         actions: [
           IconButton(
             icon: const Icon(Icons.file_upload_outlined), // Icon for importing

@@ -98,9 +98,16 @@ class Song {
       String? albumName;
       String? releaseDate = _asNullableString(json['releaseDate']);
 
-      // Parse duration_ms
-      final int? durationMs = json['duration_ms'] as int?;
-      final Duration? parsedDuration = durationMs != null ? Duration(milliseconds: durationMs) : null;
+      // Parse duration_ms robustly
+      dynamic durationMsValue = json['duration_ms'];
+      int? durationMsAsInt;
+      if (durationMsValue is int) {
+        durationMsAsInt = durationMsValue;
+      } else if (durationMsValue is String) {
+        durationMsAsInt = int.tryParse(durationMsValue);
+      }
+      // If durationMsValue is null or not int/String, durationMsAsInt remains null.
+      final Duration? parsedDuration = durationMsAsInt != null ? Duration(milliseconds: durationMsAsInt) : null;
 
       // isDownloading and downloadProgress are typically transient state,
       // so they are not usually part of fromJson.
