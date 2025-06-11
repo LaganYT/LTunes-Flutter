@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/album.dart';
-import '../models/song.dart'; // Ensure Song class is imported
 import '../providers/current_song_provider.dart';
 import '../services/album_manager_service.dart';
 import 'package:path_provider/path_provider.dart';
@@ -56,25 +55,12 @@ class _AlbumScreenState extends State<AlbumScreen> {
     return await File(fullPath).exists() ? fullPath : '';
   }
 
-  // Helper function to get a song prepared for playback (local if available)
-  Song _getPlayableSong(Song song) {
-    if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-      return song.copyWith(audioUrl: song.localFilePath);
-    }
-    return song;
-  }
-
-  // Helper function to get a list of songs prepared for playback
-  List<Song> _getPlayableQueue(List<Song> songs) {
-    return songs.map((s) => _getPlayableSong(s)).toList();
-  }
-
   void _playAlbum() {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     if (widget.album.tracks.isNotEmpty) {
-      final playableQueue = _getPlayableQueue(widget.album.tracks);
-      currentSongProvider.setQueue(playableQueue, initialIndex: 0);
-      currentSongProvider.playSong(playableQueue.first);
+      // Pass the original tracks directly. CurrentSongProvider will handle preparation.
+      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0);
+      currentSongProvider.playSong(widget.album.tracks.first);
       // Navigate to FullScreenPlayer
         Navigator.push(
           context,
@@ -245,7 +231,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 24), // Added bottom margin
+                        const SizedBox(height: 16.0), // Changed from -48 to 16.0 for proper bottom margin
                       ],
                     ),
                   )
@@ -267,11 +253,10 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   ),
                   onTap: () {
                     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                    final playableQueue = _getPlayableQueue(widget.album.tracks);
-                    final playableTrack = playableQueue[index]; // Get the potentially modified track from the new queue
-
-                    currentSongProvider.setQueue(playableQueue, initialIndex: index);
-                    currentSongProvider.playSong(playableTrack);
+                    // Pass the original tracks directly. CurrentSongProvider will handle preparation.
+                    // The specific track to play will also be the original track object.
+                    currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
+                    currentSongProvider.playSong(widget.album.tracks[index]); 
                      Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),

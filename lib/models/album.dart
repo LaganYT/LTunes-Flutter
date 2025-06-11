@@ -31,9 +31,9 @@ class Album {
 
   factory Album.fromJson(Map<String, dynamic> json) {
     final info = json['info'] as Map<String, dynamic>? ?? {};
-    final tracksData = json['tracks'] as List<dynamic>? ?? [];
+    // final tracksData = json['tracks'] as List<dynamic>? ?? []; // Old line, source of confusion
 
-    final albumId = info['ALB_ID']?.toString() ?? json['id']?.toString() ?? ''; // Also check for 'id' from local saves
+    final albumId = info['ALB_ID']?.toString() ?? json['id']?.toString() ?? '';
     final albumTitle = info['ALB_TITLE']?.toString() ?? json['title']?.toString() ?? 'Unknown Album';
     final albumArtPicId = info['ALB_PICTURE']?.toString() ?? json['albumArtPictureId']?.toString() ?? '';
     final albumReleaseDate = info['DIGITAL_RELEASE_DATE']?.toString() ?? json['releaseDate']?.toString() ?? '';
@@ -49,19 +49,56 @@ class Album {
       }
     }
 
-    List<Song> songs = tracksData.isNotEmpty
-      ? tracksData.map((trackJson) {
+    List<Song> songs;
+    final rawTracksField = json['tracks']; // This could be List<map> (our save), Map (Deezer API {'data': [...]}), or null
+
+    // Determine if this JSON is from our local save (isSaved: true) vs. an external API or old format.
+    if (json['isSaved'] as bool? ?? false) {
+      // Locally saved album: tracks are already in Song.toJson() format.
+      final List<dynamic> tracksList = (rawTracksField is List) ? rawTracksField : [];
+      songs = tracksList
+          .map((trackJson) => Song.fromJson(trackJson as Map<String, dynamic>))
+          .toList();
+    } else {
+      // API data or old format (isSaved is false or not present).
+      List<dynamic> trackListForParsing;
+      bool useSongFromJsonForApiOrOldFormat = false;
+
+      if (rawTracksField is List && rawTracksField.isNotEmpty &&
+          rawTracksField.first is Map &&
+          (rawTracksField.first as Map).containsKey('id') && 
+          (rawTracksField.first as Map).containsKey('title')) {
+        // Tracks list looks like our Song.toJson() output (e.g., old save without 'isSaved' flag).
+        trackListForParsing = rawTracksField;
+        useSongFromJsonForApiOrOldFormat = true;
+      } else if (rawTracksField is Map && rawTracksField.containsKey('data') && rawTracksField['data'] is List) {
+        // Deezer-like API structure: json['tracks']['data'] is the list of raw track JSONs.
+        trackListForParsing = rawTracksField['data'] as List<dynamic>;
+      } else if (rawTracksField is List) {
+        // Generic list of tracks, assume API format for Song.fromAlbumTrackJson.
+        trackListForParsing = rawTracksField;
+      } else {
+        // No recognizable track structure.
+        trackListForParsing = [];
+      }
+
+      if (useSongFromJsonForApiOrOldFormat) {
+        songs = trackListForParsing
+            .map((trackJson) => Song.fromJson(trackJson as Map<String, dynamic>))
+            .toList();
+      } else {
+        // Use Song.fromAlbumTrackJson for API-specific track formats.
+        songs = trackListForParsing.map((trackJson) {
           return Song.fromAlbumTrackJson(
             trackJson as Map<String, dynamic>,
             albumTitle,
             albumArtPicId,
             albumReleaseDate,
-            artistName 
+            artistName
           );
-        }).toList()
-      : (json['tracks'] as List<dynamic>? ?? []) // For loading from local JSON
-          .map((trackJson) => Song.fromJson(trackJson as Map<String, dynamic>))
-          .toList();
+        }).toList();
+      }
+    }
 
     return Album(
       id: albumId,

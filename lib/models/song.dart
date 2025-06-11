@@ -46,7 +46,7 @@ class Song {
     String? releaseDate,
     String? audioUrl,
     bool? isDownloaded,
-    String? localFilePath, // Ensure this can be null
+    String? localFilePath,           // <— parameter stays nullable
     Map<String, dynamic>? extras, // Added extras to copyWith
     Duration? duration, // Added duration to copyWith
     bool? isDownloading,
@@ -62,7 +62,7 @@ class Song {
       releaseDate: releaseDate ?? this.releaseDate,
       audioUrl: audioUrl ?? this.audioUrl,
       isDownloaded: isDownloaded ?? this.isDownloaded,
-      localFilePath: localFilePath, // Consumers ensure this is a filename
+      localFilePath: localFilePath ?? this.localFilePath,  // <— preserve existing path
       extras: extras ?? this.extras, // Added extras logic
       duration: duration ?? this.duration, // Added duration logic
       isDownloading: isDownloading ?? this.isDownloading,

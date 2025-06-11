@@ -118,7 +118,7 @@ class CurrentSongProvider with ChangeNotifier {
         subDir: 'ltunes_downloads',
         baseDirectory: baseDir,
         fileExistsStrategy: FileExistsStrategy.resume,
-        maxConcurrentDownloads: 100000000, 
+        maxConcurrentDownloads: 2, // Reduced to avoid running out of fds
         maxRetries: 2,
         delayBetweenRetries: const Duration(seconds: 2),
         logger: (log) => debugPrint('[DownloadManager:${log.level.name}] ${log.message}'),
@@ -531,21 +531,22 @@ class CurrentSongProvider with ChangeNotifier {
         !song.localFilePath!.startsWith('http://') &&
         !song.localFilePath!.startsWith('https://')) {
       final appDocDir = await getApplicationDocumentsDirectory();
-      // Ensure _downloadManager is initialized to get subDir, or hardcode if always the same
-      await _initializeDownloadManager(); // Ensures _downloadManager and its subDir are available
+      await _initializeDownloadManager(); 
       final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
       final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+      
+      // Check if file exists. If so, return its path.
+      // If not, we will fall through to fetching the remote URL.
+      // Crucially, DO NOT reset metadata here.
       if (await File(filePath).exists()) {
-        return filePath; // Return full path for local files
+        return filePath; 
       } else {
-        debugPrint('Local file for ${song.title} marked as downloaded but file missing at $filePath. Resetting metadata.');
-        // File missing, reset metadata and attempt to stream
-        // Create a new Song instance for modification if 'song' is from a final source
-        Song mutableSong = song.copyWith(isDownloaded: false, localFilePath: null);
-        await _persistSongMetadata(mutableSong); // Persist the reset state
-        // Update the song in relevant places if its state changed
-        updateSongDetails(mutableSong); 
-        PlaylistManagerService().updateSongInPlaylists(mutableSong);
+        debugPrint('Local file for ${song.title} marked as downloaded but file missing at $filePath. Will attempt to stream if possible.');
+        // Do not reset metadata like:
+        // song = song.copyWith(isDownloaded: false, localFilePath: null);
+        // await _persistSongMetadata(song);
+        // updateSongDetails(song); 
+        // PlaylistManagerService().updateSongInPlaylists(song);
         // Fall through to fetch remote URL
       }
     }
@@ -890,15 +891,16 @@ class CurrentSongProvider with ChangeNotifier {
       // For now, let's assume the caller (queueSongForDownload's "already downloaded" path)
       // handles providing the correct, updated song object to _persistSongMetadata, etc.
       // and this _handleDownloadSuccess is primarily for actual network downloads.
-      // The "already downloaded" path in queueSongForDownload now directly calls _persistSongMetadata, etc.
-      // and this _handleDownloadSuccess is primarily for actual network downloads.
-      debugPrint("_handleDownloadSuccess called for songId $songId but song not in _activeDownloads. This might be an issue or a race condition.");
-      // Clean up and proceed to next download if any
-      if (_activeDownloads.containsKey(songId)) _activeDownloads.remove(songId);
-      if (_downloadProgress.containsKey(songId)) _downloadProgress.remove(songId); // Or set to 1.0 if success is confirmed
-      _isProcessingProviderDownload = false;
-      notifyListeners();
-      _triggerNextDownloadInProviderQueue();
+      // For immediate UI feedback of cancellation:
+      if (_activeDownloads.containsKey(songId)) {
+        _activeDownloads.remove(songId); // Proactively remove from provider's active list
+      }
+      if (_downloadProgress.containsKey(songId)) {
+        _downloadProgress.remove(songId);
+      }
+      // _isProcessingProviderDownload will be set to false by _handleDownloadError/Success
+      // when the `await _downloadManager.getFile()` call finally unblocks.
+      // Then _triggerNextDownloadInProviderQueue will be called.
       return;
     }
 
@@ -1164,7 +1166,6 @@ class CurrentSongProvider with ChangeNotifier {
         // For now, we focus on metadata like title, artist, art.
 
         // Option 1: Custom action to update metadata of current item (if handler supports)
-        // This is safer if only non-critical metadata changes.
         _audioHandler.customAction('updateCurrentMediaItemMetadata', {
           'mediaItem': { // Send only metadata, not necessarily the full item if ID is same
             'id': newMediaItem.id, // Keep same ID if URL hasn't changed
