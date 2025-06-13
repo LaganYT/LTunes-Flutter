@@ -15,7 +15,7 @@
 
 ### Settings
 - Add an option to disable UI animations (default: animations enabled).
-- Add an option for no theme and just have it be a light/dark compared to the current theme
+- Add an option for no accent color and just have it be a light/dark compared to the current theme (dark/light)
 - Allow selecting which tabs show in the library, downloads tab is always there, all are shown by default
 
 ### Bug fixes
