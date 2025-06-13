@@ -9,7 +9,6 @@
 
 ### Search and Library
 - Show artists in search results.
-- Add a confirm when deleting a song or cancelling a download
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).

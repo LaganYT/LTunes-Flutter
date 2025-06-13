@@ -519,6 +519,36 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Future<void> _deleteDownloadedSong(Song songToDelete) async {
+    // Show confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Delete "${songToDelete.title}"?'),
+          content: const Text('Are you sure you want to delete this downloaded song? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false); // User canceled
+              },
+            ),
+            TextButton(
+              child: Text('Delete', style: TextStyle(color: Colors.red[700])),
+              onPressed: () {
+                Navigator.of(context).pop(true); // User confirmed
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user did not confirm, or dismissed the dialog, do nothing
+    if (confirmed != true) {
+      return;
+    }
+
     try {
       // Stop playback if this song is currently playing from local file
       final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
@@ -862,10 +892,42 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
               icon: Icon(Icons.bookmark_remove_outlined, color: Theme.of(context).colorScheme.error),
               tooltip: 'Unsave Album',
               onPressed: () async {
-                await _albumManager.removeSavedAlbum(album.id);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('"${album.title}" unsaved.')),
+                // Show confirmation dialog
+                final bool? confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: Text('Unsave "${album.title}"?'),
+                      content: const Text('Are you sure you want to remove this album from your saved albums?'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('Cancel'),
+                          onPressed: () {
+                            Navigator.of(context).pop(false); // User canceled
+                          },
+                        ),
+                        TextButton(
+                          child: Text('Unsave', style: TextStyle(color: Colors.red[700])),
+                          onPressed: () {
+                            Navigator.of(context).pop(true); // User confirmed
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 );
+
+                // If user did not confirm, or dismissed the dialog, do nothing
+                if (confirmed != true) {
+                  return;
+                }
+
+                await _albumManager.removeSavedAlbum(album.id);
+                if (mounted) { // Check if the widget is still in the tree
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('"${album.title}" unsaved.')),
+                  );
+                }
                 // Listener _onSavedAlbumsChanged handles refresh
               },
             ),
@@ -980,7 +1042,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         tooltip: 'Delete Download',
-                        onPressed: () => _deleteDownloadedSong(songObj),
+                        onPressed: () => _deleteDownloadedSong(songObj), // This line remains the same, but the method now has a dialog
                       ),
                       onTap: () {
                         // When tapping a completed song, play it.
