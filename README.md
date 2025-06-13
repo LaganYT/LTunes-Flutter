@@ -22,7 +22,7 @@
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
 - On android it takes forever to load an offline song, fix that
-- on android it plays one or two songs offline then stps
+- on android it plays one or two songs offline then stops
 - Apparently bluetooth doesn't work with music (android)
 
 Version - 1.3.0
