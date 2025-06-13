@@ -422,36 +422,38 @@ class CurrentSongProvider with ChangeNotifier {
   Future<MediaItem> _prepareMediaItem(Song song) async {
     Song effectiveSong = song; 
 
-    final existingDownloadedSong = await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);
-
-    if (existingDownloadedSong != null) {
-      debugPrint("Found existing downloaded version for ${song.title} (ID: ${song.id}) by ${song.artist}. Consolidating with downloaded song ID: ${existingDownloadedSong.id}.");
-      
-      String albumArtToUse = song.albumArtUrl; // Default to incoming song's art
-      if (existingDownloadedSong.albumArtUrl.isNotEmpty && !existingDownloadedSong.albumArtUrl.startsWith('http')) {
-        // If downloaded song has local art, prefer it.
-        final appDocDir = await getApplicationDocumentsDirectory();
-        final localArtPath = p.join(appDocDir.path, existingDownloadedSong.albumArtUrl);
-        if (await File(localArtPath).exists()) {
-          albumArtToUse = existingDownloadedSong.albumArtUrl;
+    // Only scan SharedPreferences if we DON'T already have a localFilePath
+    if (!(song.isDownloaded && (song.localFilePath?.isNotEmpty ?? false))) {
+      final existingDownloadedSong = await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);
+      if (existingDownloadedSong != null) {
+        debugPrint("Found existing downloaded version for ${song.title} (ID: ${song.id}) by ${song.artist}. Consolidating with downloaded song ID: ${existingDownloadedSong.id}.");
+        
+        String albumArtToUse = song.albumArtUrl; // Default to incoming song's art
+        if (existingDownloadedSong.albumArtUrl.isNotEmpty && !existingDownloadedSong.albumArtUrl.startsWith('http')) {
+          // If downloaded song has local art, prefer it.
+          final appDocDir = await getApplicationDocumentsDirectory();
+          final localArtPath = p.join(appDocDir.path, existingDownloadedSong.albumArtUrl);
+          if (await File(localArtPath).exists()) {
+            albumArtToUse = existingDownloadedSong.albumArtUrl;
+          }
         }
-      }
 
-      effectiveSong = song.copyWith( // Start with incoming song's display data
-        id: existingDownloadedSong.id, // CRITICAL: Use ID of the existing downloaded song
-        isDownloaded: true, // CRITICAL: Mark as downloaded
-        localFilePath: existingDownloadedSong.localFilePath, // CRITICAL: Use downloaded song's path
-        duration: existingDownloadedSong.duration ?? song.duration, // Prefer downloaded duration, fallback to incoming
-        albumArtUrl: albumArtToUse,
-        // audioUrl will be determined/confirmed by fetchSongUrl based on isDownloaded status
-      );
-      
-      // Persist this "merged" song information. This is important.
-      // It ensures that SharedPreferences has the correct ID and download status.
-      await _persistSongMetadata(effectiveSong);
-      // Update this song in all playlists to consolidate around the existing ID
-      // This assumes PlaylistManagerService can handle ID changes or find by old ID/title/artist.
-      PlaylistManagerService().updateSongInPlaylists(effectiveSong);
+        effectiveSong = song.copyWith( // Start with incoming song's display data
+          id: existingDownloadedSong.id, // CRITICAL: Use ID of the existing downloaded song
+          isDownloaded: true, // CRITICAL: Mark as downloaded
+          localFilePath: existingDownloadedSong.localFilePath, // CRITICAL: Use downloaded song's path
+          duration: existingDownloadedSong.duration ?? song.duration, // Prefer downloaded duration, fallback to incoming
+          albumArtUrl: albumArtToUse,
+          // audioUrl will be determined/confirmed by fetchSongUrl based on isDownloaded status
+        );
+        
+        // Persist this "merged" song information. This is important.
+        // It ensures that SharedPreferences has the correct ID and download status.
+        await _persistSongMetadata(effectiveSong);
+        // Update this song in all playlists to consolidate around the existing ID
+        // This assumes PlaylistManagerService can handle ID changes or find by old ID/title/artist.
+        PlaylistManagerService().updateSongInPlaylists(effectiveSong);
+      }
     }
 
     // 'effectiveSong' is now the definitive version to work with.
@@ -611,30 +613,15 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<String> fetchSongUrl(Song song) async {
-    if (song.isDownloaded &&
-        song.localFilePath != null &&
-        song.localFilePath!.isNotEmpty &&
-        !song.localFilePath!.startsWith('http://') &&
-        !song.localFilePath!.startsWith('https://')) {
+    // FAST PATH for offline songs: avoid DownloadManager init & long file checks
+    if (song.isDownloaded && (song.localFilePath?.isNotEmpty ?? false)) {
       final appDocDir = await getApplicationDocumentsDirectory();
-      await _initializeDownloadManager(); 
-      final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
+      final downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
       final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
-      
-      // Check if file exists. If so, return its path.
-      // If not, we will fall through to fetching the remote URL.
-      // Crucially, DO NOT reset metadata here.
       if (await File(filePath).exists()) {
-        return filePath; 
-      } else {
-        debugPrint('Local file for ${song.title} marked as downloaded but file missing at $filePath. Will attempt to stream if possible.');
-        // Do not reset metadata like:
-        // song = song.copyWith(isDownloaded: false, localFilePath: null);
-        // await _persistSongMetadata(song);
-        // updateSongDetails(song); 
-        // PlaylistManagerService().updateSongInPlaylists(song);
-        // Fall through to fetch remote URL
+        return filePath;
       }
+      debugPrint('Local file for ${song.title} missing at $filePath, falling back to streaming.');
     }
 
     if (song.audioUrl.isNotEmpty && (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false) && !song.audioUrl.startsWith('file:/')) {
