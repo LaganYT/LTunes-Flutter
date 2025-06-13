@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import '../services/api_service.dart'; // Import ApiService
 import 'album_screen.dart'; // Import AlbumScreen
+import 'lyrics_screen.dart'; // Import the new LyricsScreen
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -30,6 +31,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   double _downloadProgress = 0.0;
   // ignore: unused_field
   bool _isLoadingAlbum = false; // For View Album button
+  bool _isLoadingLyrics = false;
+  String? _lyrics;
 
   @override
   void initState() {
@@ -203,6 +206,58 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       if (mounted) {
         setState(() {
           _isLoadingAlbum = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchAndShowLyrics(BuildContext context) async {
+    if (widget.song.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Song ID is missing, cannot fetch lyrics.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoadingLyrics = true;
+      _lyrics = null; // Reset previous lyrics
+    });
+
+    try {
+      final apiService = ApiService();
+      final lyricsText = await apiService.fetchLyrics(widget.song.artist, widget.song.title);
+
+      if (mounted) {
+        if (lyricsText != null && lyricsText.isNotEmpty) {
+          _lyrics = lyricsText;
+          // Navigate to the new LyricsScreen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LyricsScreen(
+                songTitle: widget.song.title,
+                lyrics: _lyrics!,
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Lyrics not found for this song.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching lyrics: $e')),
+        );
+      }
+      debugPrint('Error fetching lyrics: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLyrics = false;
         });
       }
     }
@@ -468,6 +523,26 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                     ),
                   ),
                 ),
+              const SizedBox(height: 16), // Spacing after View Album button
+              
+              // View Lyrics button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: _isLoadingLyrics
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.lyrics_outlined),
+                  label: const Text('View Lyrics'),
+                  onPressed: _isLoadingLyrics ? null : () => _fetchAndShowLyrics(context),
+                  style: ElevatedButton.styleFrom(
+                    // Use a style that fits with other buttons, e.g., tertiary or outlined
+                    backgroundColor: colorScheme.tertiaryContainer,
+                    foregroundColor: colorScheme.onTertiaryContainer,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
               const SizedBox(height: 24), // Spacing before Action Row
 
               // Action Row: Add to Playlist & Add to Queue
@@ -786,3 +861,4 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     );
   }
 }
+
