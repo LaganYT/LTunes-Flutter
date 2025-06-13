@@ -30,4 +30,4 @@
 - Apparently bluetooth doesn't work with music (android)
 
 
-Version - 1.5.0
+Version - 1.3.0
