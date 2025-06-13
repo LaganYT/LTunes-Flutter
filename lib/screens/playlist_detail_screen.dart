@@ -593,74 +593,152 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               ),
             )
           else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final song = widget.playlist.songs[index]; // Use widget.playlist
-                  Widget listItemLeading;
-                  if (song.albumArtUrl.isNotEmpty) {
-                    if (song.albumArtUrl.startsWith('http')) {
-                      listItemLeading = Image.network(
-                        song.albumArtUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      );
-                    } else {
-                      listItemLeading = FutureBuilder<String>(
-                        future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                            return Image.file(
-                              File(snapshot.data!),
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                            );
-                          }
-                          return Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                        },
-                      );
-                    }
-                  } else {
-                    listItemLeading = Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                  }
+            SliverReorderableList(
+              itemBuilder: (context, index) {
+                final song = widget.playlist.songs[index];
+                Widget listItemLeading;
+                final Key itemKey = ValueKey(song.id);
 
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: listItemLeading,
-                    ),
-                    title: Text(
-                      song.title,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
-                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: IconButton(
-                      icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                      tooltip: 'Remove from playlist',
-                      onPressed: () {
-                        _showRemoveSongDialog(song, index);
+                if (song.albumArtUrl.isNotEmpty) {
+                  if (song.albumArtUrl.startsWith('http')) {
+                    listItemLeading = Image.network(
+                      song.albumArtUrl,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    );
+                  } else {
+                    listItemLeading = FutureBuilder<String>(
+                      future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                          return Image.file(
+                            File(snapshot.data!),
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          );
+                        }
+                        return Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
+                      },
+                    );
+                  }
+                } else {
+                  listItemLeading = Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
+                }
+
+                // Each item in ReorderableList needs a Material ancestor for proper visuals during drag.
+                // ReorderableDelayedDragStartListener makes the whole tile draggable after a delay.
+                return ReorderableDelayedDragStartListener(
+                  key: itemKey,
+                  index: index,
+                  child: Material( // Added Material widget
+                    color: Colors.transparent, // To maintain list background, or set specific item background
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: listItemLeading,
+                      ),
+                      title: Text(
+                        song.title,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
+                         maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                         maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                            tooltip: 'Remove from playlist',
+                            onPressed: () {
+                              _showRemoveSongDialog(song, index);
+                            },
+                          ),
+                          const SizedBox(width: 8), // Spacing before drag handle
+                          Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                        ],
+                      ),
+                      onTap: () {
+                        currentSongProvider.setQueue(widget.playlist.songs, initialIndex: index);
+                        currentSongProvider.playSong(song);
                       },
                     ),
-                    onTap: () {
-                      currentSongProvider.setQueue(widget.playlist.songs, initialIndex: index);
-                      currentSongProvider.playSong(song);
-                    },
-                  );
-                },
-                childCount: widget.playlist.songs.length, // Use widget.playlist
-              ),
+                  ),
+                );
+              },
+              itemCount: widget.playlist.songs.length,
+              proxyDecorator: (Widget child, int index, Animation<double> animation) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (BuildContext context, Widget? _child) {
+                    final double animValue = Curves.easeInOut.transform(animation.value);
+                    final double elevation = lerpDouble(0, 8, animValue)!; // Elevate when dragging
+                    final double scale = lerpDouble(1, 1.05, animValue)!; // Slightly scale up
+                    return Material( // Material for shadow and proper rendering of the proxy
+                      elevation: elevation,
+                      color: Theme.of(context).colorScheme.surfaceVariant, // Or another suitable color for drag proxy
+                      shadowColor: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8), // Optional: match ListTile's visual style
+                      child: Transform.scale(scale: scale, child: child),
+                    );
+                  },
+                  child: child,
+                );
+              },
+              onReorder: (int oldIndex, int newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) {
+                    newIndex -= 1;
+                  }
+                  final Song item = widget.playlist.songs.removeAt(oldIndex);
+                  widget.playlist.songs.insert(newIndex, item);
+
+                  // --- Persist the new order ---
+                  // You need to save this new order to your persistent storage.
+                  // Example: _playlistManager.updatePlaylist(widget.playlist);
+                  // This assumes _playlistManager has an updatePlaylist method.
+                  // Ensure this persistence happens, otherwise changes are lost.
+                  _playlistManager.updatePlaylist(widget.playlist).then((_) {
+                    // Optional: Show a confirmation or handle error
+                  }).catchError((error) {
+                    // Optional: Handle error during saving
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error saving playlist order: $error')),
+                      );
+                    }
+                    // Optionally, revert the order in UI if save fails, though this can be complex.
+                  });
+
+
+                  Song? currentlyPlayingSong = currentSongProvider.currentSong;
+                  int newPlayingIndex = -1;
+
+                  if (currentlyPlayingSong != null) {
+                    newPlayingIndex = widget.playlist.songs.indexWhere((s) => s.id == currentlyPlayingSong.id);
+                  }
+                  
+                  // Update the provider's queue.
+                  // The `setQueue` method should ideally update the queue and the current index
+                  // without automatically restarting playback if the song is the same.
+                  if (newPlayingIndex != -1) {
+                    // Pass playNow: false if your setQueue supports it and you don't want to interrupt
+                    currentSongProvider.setQueue(List.from(widget.playlist.songs), initialIndex: newPlayingIndex);
+                  } else {
+                    currentSongProvider.setQueue(List.from(widget.playlist.songs), initialIndex: 0);
+                  }
+                });
+              },
             ),
         ],
       ),

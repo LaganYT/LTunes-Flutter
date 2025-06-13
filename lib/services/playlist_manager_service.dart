@@ -116,6 +116,23 @@ class PlaylistManagerService with ChangeNotifier {
     }
   }
 
+  Future<void> updatePlaylist(Playlist updatedPlaylist) async {
+    final index = _playlists.indexWhere((p) => p.id == updatedPlaylist.id);
+    if (index != -1) {
+      // Replace the old playlist with the updated one.
+      // This is important for changes like song reordering.
+      _playlists[index] = updatedPlaylist;
+      await _savePlaylists();
+    } else {
+      // Optionally handle the case where the playlist to update is not found.
+      // For example, add it as a new playlist or log an error.
+      debugPrint('Playlist with ID ${updatedPlaylist.id} not found for update.');
+      // Fallback: add if not found, or throw an error, depending on desired behavior.
+      // _playlists.add(updatedPlaylist); 
+      // await _savePlaylists();
+    }
+  }
+
   Song? findDownloadedSongByTitleArtist(String title, String artist) {
     final String targetTitle = title.toLowerCase();
     final String targetArtist = artist.toLowerCase();
