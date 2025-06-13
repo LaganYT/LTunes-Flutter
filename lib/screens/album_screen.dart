@@ -175,7 +175,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 4), // Changed from 16 to 4
                         Text( // Added album title here
                           widget.album.title,
                           style: textTheme.headlineSmall?.copyWith(
@@ -189,7 +189,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                           maxLines: 2, // Allow for longer titles
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4), // Adjusted spacing
+                        const SizedBox(height: 4), // Changed from 16 to 4
                         Text(
                           widget.album.artistName,
                           style: textTheme.titleMedium?.copyWith(color: Colors.white.withOpacity(0.9), shadows: [
@@ -204,7 +204,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                              const Shadow(blurRadius: 1, color: Colors.black54)
                           ]),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 4), // Changed from 16 to 4
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
@@ -231,7 +231,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16.0), // Changed from -48 to 16.0 for proper bottom margin
                       ],
                     ),
                   )
