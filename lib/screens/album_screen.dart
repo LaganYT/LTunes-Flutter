@@ -34,6 +34,10 @@ class _AlbumScreenState extends State<AlbumScreen> {
       if (mounted) {
         _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
         _currentSongProvider?.addListener(_onCurrentSongProviderChanged);
+        
+        // Prime the provider with the status of already downloaded tracks
+        _primeProviderWithDownloadedTracksStatus();
+        
         _updateAllTracksDownloadedStatus(); // Initial check
       }
     });
@@ -41,6 +45,29 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
   void _onCurrentSongProviderChanged() {
     _updateAllTracksDownloadedStatus();
+  }
+
+  // New method to ensure CurrentSongProvider is aware of persisted downloaded tracks
+  void _primeProviderWithDownloadedTracksStatus() {
+    if (_currentSongProvider == null || widget.album.tracks.isEmpty) {
+      return;
+    }
+    final currentSongProvider = _currentSongProvider!;
+    for (final track in widget.album.tracks) {
+      final bool isPersistedAsDownloaded = track.isDownloaded;
+      final bool isMarkedCompleteByProvider = currentSongProvider.downloadProgress[track.id] == 1.0;
+      final bool isActiveDownload = currentSongProvider.activeDownloadTasks.containsKey(track.id);
+
+      if (isPersistedAsDownloaded && !isMarkedCompleteByProvider && !isActiveDownload) {
+        // This track is marked as downloaded in its metadata,
+        // but the provider doesn't show it as 100% complete yet,
+        // and it's not an active download.
+        // Call queueSongForDownload to make the provider check the file.
+        // If the file exists, the provider will update its progress to 1.0
+        // and notify listeners, which will trigger _updateAllTracksDownloadedStatus.
+        currentSongProvider.queueSongForDownload(track);
+      }
+    }
   }
 
   void _updateAllTracksDownloadedStatus() {
@@ -172,28 +199,51 @@ class _AlbumScreenState extends State<AlbumScreen> {
   void _downloadAlbum() {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     int queuedCount = 0;
-    for (final track in widget.album.tracks) {
-      // Check if already downloaded or actively downloading by CurrentSongProvider's logic
-      bool isAlreadyDownloadedOrProcessing = track.isDownloaded ||
-          currentSongProvider.activeDownloadTasks.containsKey(track.id) ||
-          currentSongProvider.downloadProgress[track.id] == 1.0;
+    int alreadyProcessedCount = 0; // Tracks already downloaded or being processed
 
-      if (!isAlreadyDownloadedOrProcessing) {
-        currentSongProvider.queueSongForDownload(track);
-        queuedCount++;
-      }
+    if (widget.album.tracks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Album is empty. Nothing to download.')),
+      );
+      return;
     }
+
+    for (final track in widget.album.tracks) {
+      // Check if already downloaded (persisted state)
+      bool isPersistedAsDownloaded = track.isDownloaded;
+
+      // Check if actively being downloaded by the provider
+      bool isActiveDownload = currentSongProvider.activeDownloadTasks.containsKey(track.id);
+      
+      // Check if provider has marked it as 100% downloaded in this session
+      bool isMarkedCompleteByProvider = currentSongProvider.downloadProgress[track.id] == 1.0;
+
+      if (isPersistedAsDownloaded || isActiveDownload || isMarkedCompleteByProvider) {
+        alreadyProcessedCount++;
+        continue; // Skip this track
+      }
+
+      // If none of the above, queue it
+      currentSongProvider.queueSongForDownload(track);
+      queuedCount++;
+    }
+
     if (queuedCount > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Queued $queuedCount track(s) for download.')),
       );
-    } else if (widget.album.tracks.isNotEmpty) {
+    } else if (alreadyProcessedCount == widget.album.tracks.length) {
+      // This means all tracks were either already downloaded or are being processed
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All tracks are already downloaded, being downloaded, or the album is empty.')),
+        const SnackBar(content: Text('All tracks are already downloaded or being processed.')),
       );
     } else {
+      // This case should ideally not be hit if the logic is correct and album is not empty.
+      // It implies no tracks were queued and not all tracks were already processed.
+      // Could happen if album has tracks but all failed some pre-check not covered,
+      // or if there's a logic flaw.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Album is empty. Nothing to download.')),
+        const SnackBar(content: Text('No new tracks were queued for download.')),
       );
     }
   }
