@@ -32,9 +32,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     return '';
   }
 
-  Future<void> _downloadAllSongs() async {
+  Future<void> _downloadAllSongs(Playlist currentPlaylist) async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    if (widget.playlist.songs.isEmpty) {
+    if (currentPlaylist.songs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Playlist is empty. Nothing to download.')),
       );
@@ -42,7 +42,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     int songsToDownloadCount = 0;
-    for (final song in widget.playlist.songs) {
+    for (final song in currentPlaylist.songs) {
       // Add all songs to the download queue in CurrentSongProvider
       if (!song.isDownloaded) {
         // Corrected line: Use queueSongForDownload
@@ -62,7 +62,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
-  Future<void> _showRemoveSongDialog(Song songToRemove, int originalIndexInPlaylist) async {
+  Future<void> _showRemoveSongDialog(Song songToRemove, int originalIndexInPlaylist, Playlist currentPlaylist) async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     // Capture mounted state outside async gap if used across await
     final bool isCurrentlyMounted = mounted;
@@ -90,21 +90,28 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               child: const Text('Remove'),
-              onPressed: () {
+              onPressed: () async { // Make onPressed async
                 Song? currentlyPlayingSong = currentSongProvider.currentSong;
                 bool wasPlayingRemovedSong = currentlyPlayingSong?.id == songToRemove.id;
 
-                // This assumes widget.playlist.songs is a mutable list.
-                // If Playlist class has a dedicated method like widget.playlist.removeSong(song), prefer that.
-                widget.playlist.songs.remove(songToRemove);
+                // Use PlaylistManagerService to remove the song
+                await _playlistManager.removeSongFromPlaylist(currentPlaylist, songToRemove);
+                
+                // The playlist instance from the manager will be updated,
+                // so we need to fetch the latest version for queue updates.
+                // However, for immediate UI update and queue logic, we can work with a modified local list.
+                // The Consumer will handle getting the absolute latest from the manager.
+                List<Song> updatedPlaylistSongs = List.from(currentPlaylist.songs)..removeWhere((s) => s.id == songToRemove.id);
+
 
                 if (isCurrentlyMounted) {
                   setState(() {
-                    // UI will rebuild to reflect the removed song
+                    // UI will rebuild due to Consumer<PlaylistManagerService>
+                    // or if we were directly mutating widget.playlist.songs (which we are not anymore for removal)
                   });
                 }
 
-                List<Song> updatedPlaylistSongs = List.from(widget.playlist.songs);
+                // List<Song> updatedPlaylistSongs = List.from(widget.playlist.songs); // Use currentPlaylist
 
                 if (wasPlayingRemovedSong) {
                   if (updatedPlaylistSongs.isEmpty) {
@@ -147,7 +154,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     );
   }
 
-  Future<void> _showDeletePlaylistDialog() async {
+  Future<void> _showDeletePlaylistDialog(Playlist currentPlaylist) async {
     // Capture mounted state and context outside async gap if used across await
     final bool isCurrentlyMounted = mounted;
     final BuildContext currentContext = context; // Capture context
@@ -161,7 +168,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text('Are you sure you want to delete the playlist "${widget.playlist.name}"? This action cannot be undone.'),
+                Text('Are you sure you want to delete the playlist "${currentPlaylist.name}"? This action cannot be undone.'),
               ],
             ),
           ),
@@ -176,14 +183,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               style: TextButton.styleFrom(foregroundColor: Theme.of(currentContext).colorScheme.error),
               child: const Text('Delete'),
               onPressed: () async {
-                await _playlistManager.removePlaylist(widget.playlist);
+                await _playlistManager.removePlaylist(currentPlaylist);
                 Navigator.of(dialogContext).pop(); // Close the dialog
 
                 if (isCurrentlyMounted) {
                   // Navigate back to the previous screen (LibraryScreen)
                   Navigator.of(currentContext).pop();
                   ScaffoldMessenger.of(currentContext).showSnackBar(
-                    SnackBar(content: Text('Playlist "${widget.playlist.name}" deleted.')),
+                    SnackBar(content: Text('Playlist "${currentPlaylist.name}" deleted.')),
                   );
                 }
               },
@@ -287,12 +294,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
-  String _calculateAndFormatPlaylistDuration() {
-    if (widget.playlist.songs.isEmpty) {
+  String _calculateAndFormatPlaylistDuration(Playlist currentPlaylist) {
+    if (currentPlaylist.songs.isEmpty) {
       return "0 sec";
     }
     Duration totalDuration = Duration.zero;
-    for (var song in widget.playlist.songs) {
+    for (var song in currentPlaylist.songs) {
       // Assuming song.duration is a Duration? object.
       // If song.duration is not available or is null, it won't be added.
       // This part needs the Song model to have a 'duration' field.
@@ -306,7 +313,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         totalDuration += song.duration!;
       }
     }
-    if (totalDuration == Duration.zero && widget.playlist.songs.isNotEmpty) {
+    if (totalDuration == Duration.zero && currentPlaylist.songs.isNotEmpty) {
         // This case means songs exist but none had a parsable duration,
         // or the duration field isn't populated in the Song model.
         return "N/A"; 
@@ -317,431 +324,457 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    final bool hasSongs = widget.playlist.songs.isNotEmpty;
-
-    List<String> uniqueAlbumArtUrls = widget.playlist.songs
-        .map((song) => song.albumArtUrl)
-        .where((artUrl) => artUrl.isNotEmpty)
-        .toSet()
-        .toList();
-
-    Widget flexibleSpaceBackground;
-    if (uniqueAlbumArtUrls.isNotEmpty) {
-      // Use the first art for the blurred background
-      if (uniqueAlbumArtUrls.first.startsWith('http')) {
-        flexibleSpaceBackground = Image.network(
-          uniqueAlbumArtUrls.first,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[850]),
+    
+    return Consumer<PlaylistManagerService>(
+      builder: (context, playlistManager, child) {
+        // Get the latest playlist instance from the manager
+        final Playlist currentPlaylist = playlistManager.playlists.firstWhere(
+          (p) => p.id == widget.playlist.id,
+          orElse: () => widget.playlist, // Fallback, though ideally it's always found
         );
-      } else {
-        flexibleSpaceBackground = FutureBuilder<String>(
-          future: _resolveLocalArtPath(uniqueAlbumArtUrls.first),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(File(snapshot.data!), fit: BoxFit.cover);
-            }
-            return Container(color: Colors.grey[850]); // Placeholder
-          },
-        );
-      }
-    } else {
-      flexibleSpaceBackground = Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-      );
-    }
 
-    const double prominentArtSize = 160.0; 
-    final double systemTopPadding = MediaQuery.of(context).padding.top;
+        final bool hasSongs = currentPlaylist.songs.isNotEmpty;
+        final bool isFullyDownloaded = currentPlaylist.isFullyDownloaded;
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 390.0, 
-            pinned: true,
-            stretch: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Builder(
-                builder: (context) {
-                  final settings = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
-                  if (settings == null) return const SizedBox.shrink();
+        List<String> uniqueAlbumArtUrls = currentPlaylist.songs
+            .map((song) => song.albumArtUrl)
+            .where((artUrl) => artUrl.isNotEmpty)
+            .toSet()
+            .toList();
 
-                  // Calculate how "collapsed" the bar is.
-                  // currentExtent goes from maxExtent down to minExtent.
-                  // We want the title to appear when currentExtent is very close to minExtent.
-                  final double delta = settings.maxExtent - settings.minExtent;
-                  // Threshold for when the title starts becoming visible.
-                  // Let's say it starts appearing when 90% collapsed.
-                  final double collapseThreshold = delta * 0.1; // 10% of the scroll range remains
-                  
-                  double opacity = 0.0;
-                  if (delta > 0) { // Avoid division by zero
-                    // When currentExtent is at minExtent, settings.currentExtent - settings.minExtent is 0.
-                    // We want opacity to be 1.0 when fully collapsed (or very near it).
-                    // And 0.0 when it's more expanded than our threshold.
-                    if ((settings.currentExtent - settings.minExtent) < collapseThreshold) {
-                        // Smoothly fade in as it approaches full collapse within the threshold
-                        opacity = 1.0 - ((settings.currentExtent - settings.minExtent) / collapseThreshold);
-                        opacity = opacity.clamp(0.0, 1.0); // Ensure opacity is between 0 and 1
-                    }
-                  } else if (settings.currentExtent == settings.minExtent) {
-                    opacity = 1.0; // Fully collapsed
-                  }
-
-
-                  return Opacity(
-                    opacity: opacity,
-                    child: Text(
-                      widget.playlist.name,
-                      style: const TextStyle(
-                        fontSize: 16.0, 
-                        color: Colors.white, // Ensure text color is set for visibility
-                        shadows: [ // Optional: add a slight shadow for better readability
-                          Shadow(
-                            blurRadius: 1.0,
-                            color: Colors.black54,
-                            offset: Offset(0.5, 0.5),
-                          ),
-                        ],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
+        Widget flexibleSpaceBackground;
+        if (uniqueAlbumArtUrls.isNotEmpty) {
+          // Use the first art for the blurred background
+          if (uniqueAlbumArtUrls.first.startsWith('http')) {
+            flexibleSpaceBackground = Image.network(
+              uniqueAlbumArtUrls.first,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[850]),
+            );
+          } else {
+            flexibleSpaceBackground = FutureBuilder<String>(
+              future: _resolveLocalArtPath(uniqueAlbumArtUrls.first),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Image.file(File(snapshot.data!), fit: BoxFit.cover);
                 }
+                return Container(color: Colors.grey[850]); // Placeholder
+              },
+            );
+          }
+        } else {
+          flexibleSpaceBackground = Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              centerTitle: true, 
-              titlePadding: const EdgeInsets.only(bottom: 16.0, left: 48.0, right: 48.0), 
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  flexibleSpaceBackground,
-                  BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-                    child: Container(
-                      color: Colors.black.withOpacity(0.6),
-                    ),
+            ),
+          );
+        }
+
+        const double prominentArtSize = 160.0; 
+        final double systemTopPadding = MediaQuery.of(context).padding.top;
+
+        return Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 390.0, 
+                pinned: true,
+                stretch: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  title: Builder(
+                    builder: (context) {
+                      final settings = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+                      if (settings == null) return const SizedBox.shrink();
+
+                      // Calculate how "collapsed" the bar is.
+                      // currentExtent goes from maxExtent down to minExtent.
+                      // We want the title to appear when currentExtent is very close to minExtent.
+                      final double delta = settings.maxExtent - settings.minExtent;
+                      // Threshold for when the title starts becoming visible.
+                      // Let's say it starts appearing when 90% collapsed.
+                      final double collapseThreshold = delta * 0.1; // 10% of the scroll range remains
+                      
+                      double opacity = 0.0;
+                      if (delta > 0) { // Avoid division by zero
+                        // When currentExtent is at minExtent, settings.currentExtent - settings.minExtent is 0.
+                        // We want opacity to be 1.0 when fully collapsed (or very near it).
+                        // And 0.0 when it's more expanded than our threshold.
+                        if ((settings.currentExtent - settings.minExtent) < collapseThreshold) {
+                            // Smoothly fade in as it approaches full collapse within the threshold
+                            opacity = 1.0 - ((settings.currentExtent - settings.minExtent) / collapseThreshold);
+                            opacity = opacity.clamp(0.0, 1.0); // Ensure opacity is between 0 and 1
+                        }
+                      } else if (settings.currentExtent == settings.minExtent) {
+                        opacity = 1.0; // Fully collapsed
+                      }
+
+
+                      return Opacity(
+                        opacity: opacity,
+                        child: Text(
+                          currentPlaylist.name, // Use currentPlaylist
+                          style: const TextStyle(
+                            fontSize: 16.0, 
+                            color: Colors.white, // Ensure text color is set for visibility
+                            shadows: [ // Optional: add a slight shadow for better readability
+                              Shadow(
+                                blurRadius: 1.0,
+                                color: Colors.black54,
+                                offset: Offset(0.5, 0.5),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }
                   ),
-                  // Use Padding to position the content column correctly
-                  Padding(
-                    padding: EdgeInsets.only(
-                      top: systemTopPadding + kToolbarHeight + 10, // Space for status bar, app bar, and a small margin
-                      left: 16.0,
-                      right: 16.0,
-                      bottom: 16.0, // Padding at the bottom of the content area
-                    ),
+                  centerTitle: true, 
+                  titlePadding: const EdgeInsets.only(bottom: 16.0, left: 48.0, right: 48.0), 
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      flexibleSpaceBackground,
+                      BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+                        child: Container(
+                          color: Colors.black.withOpacity(0.6),
+                        ),
+                      ),
+                      // Use Padding to position the content column correctly
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: systemTopPadding + kToolbarHeight + 10, // Space for status bar, app bar, and a small margin
+                          left: 16.0,
+                          right: 16.0,
+                          bottom: 16.0, // Padding at the bottom of the content area
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start, // Align content to the start (top) of the padded area
+                          mainAxisSize: MainAxisSize.min, 
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _buildProminentPlaylistArt(uniqueAlbumArtUrls, prominentArtSize),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        currentPlaylist.name, // Use currentPlaylist
+                                        style: const TextStyle(
+                                          fontSize: 22, // Adjusted size
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          shadows: [Shadow(blurRadius: 3, color: Colors.black)],
+                                        ),
+                                        maxLines: 3, // Allow more lines for playlist name
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '${currentPlaylist.songs.length} songs', // Use currentPlaylist
+                                        style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _calculateAndFormatPlaylistDuration(currentPlaylist), // Use currentPlaylist
+                                        style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                      ),
+                                      if (isFullyDownloaded && hasSongs) ...[
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.check_circle, color: Colors.greenAccent.withOpacity(0.9), size: 16),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'All songs downloaded',
+                                              style: TextStyle(color: Colors.greenAccent.withOpacity(0.9), fontSize: 12, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24), 
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: hasSongs ? () {
+                                      currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: 0); // Use currentPlaylist
+                                      currentSongProvider.playSong(currentPlaylist.songs.first); // Use currentPlaylist
+                                    } : null,
+                                    icon: const Icon(Icons.play_arrow),
+                                    label: const Text('Play All'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Theme.of(context).colorScheme.surface, // Brighter background
+                                      foregroundColor: Theme.of(context).colorScheme.onSurface, // Contrasting text
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: hasSongs ? () {
+                                      if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
+                                      currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: 0); // Use currentPlaylist
+                                      currentSongProvider.playNext();
+                                    } : null,
+                                    icon: const Icon(Icons.shuffle),
+                                    label: const Text('Shuffle'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (hasSongs)
+                                  Expanded(
+                                    child: TextButton.icon(
+                                      onPressed: isFullyDownloaded ? null : () => _downloadAllSongs(currentPlaylist), // Use currentPlaylist
+                                      icon: Icon(
+                                        isFullyDownloaded ? Icons.download_done_outlined : Icons.download_for_offline_outlined,
+                                        color: isFullyDownloaded ? Colors.greenAccent.withOpacity(0.85) : Colors.white.withOpacity(0.85)
+                                      ),
+                                      label: Text(
+                                        isFullyDownloaded ? 'All Downloaded' : 'Download', 
+                                        style: TextStyle(color: isFullyDownloaded ? Colors.greenAccent.withOpacity(0.85) : Colors.white.withOpacity(0.85)),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(20),
+                                          side: BorderSide(color: Colors.white.withOpacity(0.4)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                if (hasSongs) const SizedBox(width: 12), 
+                                Expanded(
+                                  child: TextButton.icon(
+                                    onPressed: () => _showDeletePlaylistDialog(currentPlaylist), // Use currentPlaylist
+                                    icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
+                                    label: Text(
+                                      'Delete', // Shorter label
+                                      style: TextStyle(color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                        side: BorderSide(color: Theme.of(context).colorScheme.error.withOpacity(0.5)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // No extra SizedBox here, bottom padding is handled by the outer Padding
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (!hasSongs) 
+                SliverFillRemaining( // Use SliverFillRemaining for empty state
+                  child: Center(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start, // Align content to the start (top) of the padded area
-                      mainAxisSize: MainAxisSize.min, 
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _buildProminentPlaylistArt(uniqueAlbumArtUrls, prominentArtSize),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    widget.playlist.name,
-                                    style: const TextStyle(
-                                      fontSize: 22, // Adjusted size
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      shadows: [Shadow(blurRadius: 3, color: Colors.black)],
-                                    ),
-                                    maxLines: 3, // Allow more lines for playlist name
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '${widget.playlist.songs.length} songs',
-                                    style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _calculateAndFormatPlaylistDuration(),
-                                    style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24), 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: hasSongs ? () {
-                                  currentSongProvider.setQueue(widget.playlist.songs, initialIndex: 0);
-                                  currentSongProvider.playSong(widget.playlist.songs.first);
-                                } : null,
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Play All'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.surface, // Brighter background
-                                  foregroundColor: Theme.of(context).colorScheme.onSurface, // Contrasting text
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: hasSongs ? () {
-                                  if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
-                                  currentSongProvider.setQueue(widget.playlist.songs, initialIndex: 0);
-                                  currentSongProvider.playNext();
-                                } : null,
-                                icon: const Icon(Icons.shuffle),
-                                label: const Text('Shuffle'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: BorderSide(color: Colors.white.withOpacity(0.7)),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        Icon(Icons.music_off_outlined, size: 60, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (hasSongs)
-                              Expanded(
-                                child: TextButton.icon(
-                                  onPressed: _downloadAllSongs,
-                                  icon: Icon(Icons.download_for_offline_outlined, color: Colors.white.withOpacity(0.85)),
-                                  label: Text(
-                                    'Download', // Shorter label
-                                    style: TextStyle(color: Colors.white.withOpacity(0.85)),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                      side: BorderSide(color: Colors.white.withOpacity(0.4)),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (hasSongs) const SizedBox(width: 12), 
-                            Expanded(
-                              child: TextButton.icon(
-                                onPressed: _showDeletePlaylistDialog,
-                                icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
-                                label: Text(
-                                  'Delete', // Shorter label
-                                  style: TextStyle(color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
-                                ),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                    side: BorderSide(color: Theme.of(context).colorScheme.error.withOpacity(0.5)),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'This playlist is empty.',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
-                        // No extra SizedBox here, bottom padding is handled by the outer Padding
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add some songs from your library.',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          if (!hasSongs) 
-            SliverFillRemaining( // Use SliverFillRemaining for empty state
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.music_off_outlined, size: 60, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    const SizedBox(height: 16),
-                    Text(
-                      'This playlist is empty.',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add some songs from your library.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            SliverReorderableList(
-              itemBuilder: (context, index) {
-                final song = widget.playlist.songs[index];
-                Widget listItemLeading;
-                final Key itemKey = ValueKey(song.id);
+                )
+              else
+                SliverReorderableList(
+                  itemBuilder: (context, index) {
+                    final song = currentPlaylist.songs[index]; // Use currentPlaylist
+                    Widget listItemLeading;
+                    final Key itemKey = ValueKey(song.id);
 
-                if (song.albumArtUrl.isNotEmpty) {
-                  if (song.albumArtUrl.startsWith('http')) {
-                    listItemLeading = Image.network(
-                      song.albumArtUrl,
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    );
-                  } else {
-                    listItemLeading = FutureBuilder<String>(
-                      future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                          return Image.file(
-                            File(snapshot.data!),
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          );
-                        }
-                        return Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                      },
-                    );
-                  }
-                } else {
-                  listItemLeading = Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                }
+                    if (song.albumArtUrl.isNotEmpty) {
+                      if (song.albumArtUrl.startsWith('http')) {
+                        listItemLeading = Image.network(
+                          song.albumArtUrl,
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        );
+                      } else {
+                        listItemLeading = FutureBuilder<String>(
+                          future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                              return Image.file(
+                                File(snapshot.data!),
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              );
+                            }
+                            return Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
+                          },
+                        );
+                      }
+                    } else {
+                      listItemLeading = Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
+                    }
 
-                // Each item in ReorderableList needs a Material ancestor for proper visuals during drag.
-                // ReorderableDelayedDragStartListener makes the whole tile draggable after a delay.
-                return ReorderableDelayedDragStartListener(
-                  key: itemKey,
-                  index: index,
-                  child: Material( // Added Material widget
-                    color: Colors.transparent, // To maintain list background, or set specific item background
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: listItemLeading,
-                      ),
-                      title: Text(
-                        song.title,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
-                         maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                         maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                            tooltip: 'Remove from playlist',
-                            onPressed: () {
-                              _showRemoveSongDialog(song, index);
-                            },
+                    // Each item in ReorderableList needs a Material ancestor for proper visuals during drag.
+                    // ReorderableDelayedDragStartListener makes the whole tile draggable after a delay.
+                    return ReorderableDelayedDragStartListener(
+                      key: itemKey,
+                      index: index,
+                      child: Material( // Added Material widget
+                        color: Colors.transparent, // To maintain list background, or set specific item background
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: listItemLeading,
                           ),
-                          const SizedBox(width: 8), // Spacing before drag handle
-                          Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
-                        ],
+                          title: Text(
+                            song.title,
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
+                             maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                             maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                                tooltip: 'Remove from playlist',
+                                onPressed: () {
+                                  _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
+                                },
+                              ),
+                              const SizedBox(width: 8), // Spacing before drag handle
+                              Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                            ],
+                          ),
+                          onTap: () {
+                            currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: index); // Use currentPlaylist
+                            currentSongProvider.playSong(song);
+                          },
+                        ),
                       ),
-                      onTap: () {
-                        currentSongProvider.setQueue(widget.playlist.songs, initialIndex: index);
-                        currentSongProvider.playSong(song);
-                      },
-                    ),
-                  ),
-                );
-              },
-              itemCount: widget.playlist.songs.length,
-              proxyDecorator: (Widget child, int index, Animation<double> animation) {
-                return AnimatedBuilder(
-                  animation: animation,
-                  builder: (BuildContext context, Widget? _child) {
-                    final double animValue = Curves.easeInOut.transform(animation.value);
-                    final double elevation = lerpDouble(0, 8, animValue)!; // Elevate when dragging
-                    final double scale = lerpDouble(1, 1.05, animValue)!; // Slightly scale up
-                    return Material( // Material for shadow and proper rendering of the proxy
-                      elevation: elevation,
-                      color: Theme.of(context).colorScheme.surfaceVariant, // Or another suitable color for drag proxy
-                      shadowColor: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(8), // Optional: match ListTile's visual style
-                      child: Transform.scale(scale: scale, child: child),
                     );
                   },
-                  child: child,
-                );
-              },
-              onReorder: (int oldIndex, int newIndex) {
-                setState(() {
-                  if (newIndex > oldIndex) {
-                    newIndex -= 1;
-                  }
-                  final Song item = widget.playlist.songs.removeAt(oldIndex);
-                  widget.playlist.songs.insert(newIndex, item);
+                  itemCount: currentPlaylist.songs.length, // Use currentPlaylist
+                  proxyDecorator: (Widget child, int index, Animation<double> animation) {
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (BuildContext context, Widget? _child) {
+                        final double animValue = Curves.easeInOut.transform(animation.value);
+                        final double elevation = lerpDouble(0, 8, animValue)!; // Elevate when dragging
+                        final double scale = lerpDouble(1, 1.05, animValue)!; // Slightly scale up
+                        return Material( // Material for shadow and proper rendering of the proxy
+                          elevation: elevation,
+                          color: Theme.of(context).colorScheme.surfaceVariant, // Or another suitable color for drag proxy
+                          shadowColor: Colors.black.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(8), // Optional: match ListTile's visual style
+                          child: Transform.scale(scale: scale, child: child),
+                        );
+                      },
+                      child: child,
+                    );
+                  },
+                  onReorder: (int oldIndex, int newIndex) {
+                    setState(() {
+                      if (newIndex > oldIndex) {
+                        newIndex -= 1;
+                      }
+                      // Create a mutable copy for reordering
+                      List<Song> reorderedSongs = List.from(currentPlaylist.songs);
+                      final Song item = reorderedSongs.removeAt(oldIndex);
+                      reorderedSongs.insert(newIndex, item);
 
-                  // --- Persist the new order ---
-                  // You need to save this new order to your persistent storage.
-                  // Example: _playlistManager.updatePlaylist(widget.playlist);
-                  // This assumes _playlistManager has an updatePlaylist method.
-                  // Ensure this persistence happens, otherwise changes are lost.
-                  _playlistManager.updatePlaylist(widget.playlist).then((_) {
-                    // Optional: Show a confirmation or handle error
-                  }).catchError((error) {
-                    // Optional: Handle error during saving
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error saving playlist order: $error')),
-                      );
-                    }
-                    // Optionally, revert the order in UI if save fails, though this can be complex.
-                  });
+                      // Create an updated playlist object with the new song order
+                      Playlist updatedPlaylist = currentPlaylist.copyWith(songs: reorderedSongs);
+                      
+                      _playlistManager.updatePlaylist(updatedPlaylist).then((_) {
+                        // PlaylistManagerService will notify its listeners,
+                        // and the Consumer will rebuild with the new order.
+                      }).catchError((error) {
+                        // Optional: Handle error during saving
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error saving playlist order: $error')),
+                          );
+                        }
+                        // Optionally, revert the order in UI if save fails, though this can be complex.
+                      });
 
 
-                  Song? currentlyPlayingSong = currentSongProvider.currentSong;
-                  int newPlayingIndex = -1;
+                      Song? currentlyPlayingSong = currentSongProvider.currentSong;
+                      int newPlayingIndex = -1;
 
-                  if (currentlyPlayingSong != null) {
-                    newPlayingIndex = widget.playlist.songs.indexWhere((s) => s.id == currentlyPlayingSong.id);
-                  }
-                  
-                  // Update the provider's queue.
-                  // The `setQueue` method should ideally update the queue and the current index
-                  // without automatically restarting playback if the song is the same.
-                  if (newPlayingIndex != -1) {
-                    // Pass playNow: false if your setQueue supports it and you don't want to interrupt
-                    currentSongProvider.setQueue(List.from(widget.playlist.songs), initialIndex: newPlayingIndex);
-                  } else {
-                    currentSongProvider.setQueue(List.from(widget.playlist.songs), initialIndex: 0);
-                  }
-                });
-              },
-            ),
-        ],
-      ),
+                      if (currentlyPlayingSong != null) {
+                        newPlayingIndex = updatedPlaylist.songs.indexWhere((s) => s.id == currentlyPlayingSong.id);
+                      }
+                      
+                      // Update the provider's queue.
+                      if (newPlayingIndex != -1) {
+                        currentSongProvider.setQueue(List.from(updatedPlaylist.songs), initialIndex: newPlayingIndex);
+                      } else {
+                        currentSongProvider.setQueue(List.from(updatedPlaylist.songs), initialIndex: 0);
+                      }
+                    });
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
-  }
+ }
 }
