@@ -7,6 +7,7 @@ import '../providers/current_song_provider.dart';
 import 'dart:io'; // Required for File
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
+import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -18,6 +19,7 @@ class PlaylistDetailScreen extends StatefulWidget {
 }
 
 class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
+  final PlaylistManagerService _playlistManager = PlaylistManagerService(); // For deleting playlist
 
   // Helper method to resolve local album art path
   Future<String> _resolveLocalArtPath(String fileName) async {
@@ -145,6 +147,53 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     );
   }
 
+  Future<void> _showDeletePlaylistDialog() async {
+    // Capture mounted state and context outside async gap if used across await
+    final bool isCurrentlyMounted = mounted;
+    final BuildContext currentContext = context; // Capture context
+
+    return showDialog<void>(
+      context: currentContext,
+      barrierDismissible: false, // User must tap button
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Playlist'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text('Are you sure you want to delete the playlist "${widget.playlist.name}"? This action cannot be undone.'),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Theme.of(currentContext).colorScheme.error),
+              child: const Text('Delete'),
+              onPressed: () async {
+                await _playlistManager.removePlaylist(widget.playlist);
+                Navigator.of(dialogContext).pop(); // Close the dialog
+
+                if (isCurrentlyMounted) {
+                  // Navigate back to the previous screen (LibraryScreen)
+                  Navigator.of(currentContext).pop();
+                  ScaffoldMessenger.of(currentContext).showSnackBar(
+                    SnackBar(content: Text('Playlist "${widget.playlist.name}" deleted.')),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // Helper to build individual art piece for grid/single display
   Widget _buildArtImage(String artUrl, double size, {BoxFit fit = BoxFit.cover}) {
     Widget placeholder = Container(
@@ -224,6 +273,47 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+
+    if (duration.inHours > 0) {
+      return "${duration.inHours} hr $twoDigitMinutes min";
+    } else if (duration.inMinutes > 0) {
+      return "$twoDigitMinutes min $twoDigitSeconds sec";
+    } else {
+      return "$twoDigitSeconds sec";
+    }
+  }
+
+  String _calculateAndFormatPlaylistDuration() {
+    if (widget.playlist.songs.isEmpty) {
+      return "0 sec";
+    }
+    Duration totalDuration = Duration.zero;
+    for (var song in widget.playlist.songs) {
+      // Assuming song.duration is a Duration? object.
+      // If song.duration is not available or is null, it won't be added.
+      // This part needs the Song model to have a 'duration' field.
+      // For now, we'll simulate it or handle null.
+      // Example: if (song.duration != null) totalDuration += song.duration!;
+      // As a placeholder if song.duration doesn't exist:
+      // totalDuration += const Duration(minutes: 3, seconds: 30); // Placeholder
+      
+      // Assuming Song model has: Duration? duration;
+      if (song.duration != null) {
+        totalDuration += song.duration!;
+      }
+    }
+    if (totalDuration == Duration.zero && widget.playlist.songs.isNotEmpty) {
+        // This case means songs exist but none had a parsable duration,
+        // or the duration field isn't populated in the Song model.
+        return "N/A"; 
+    }
+    return _formatDuration(totalDuration);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
@@ -267,13 +357,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       );
     }
 
-    const double prominentArtSize = 200.0; // Size for the main artwork display
+    const double prominentArtSize = 160.0; // Adjusted size for prominent artwork in side-by-side layout
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 400.0, // Adjusted height
+            expandedHeight: 500.0, 
             pinned: true,
             stretch: true,
             flexibleSpace: FlexibleSpaceBar(
@@ -282,9 +372,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 children: [
                   flexibleSpaceBackground,
                   BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0), // Increased blur
+                    filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
                     child: Container(
-                      color: Colors.black.withOpacity(0.6), // Darker overlay
+                      color: Colors.black.withOpacity(0.6),
                     ),
                   ),
                   Center(
@@ -293,97 +383,140 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const SizedBox(height: kToolbarHeight - 20), // Space for system status bar & appbar title area
-                          _buildProminentPlaylistArt(uniqueAlbumArtUrls, prominentArtSize),
-                          const SizedBox(height: 16),
-                          Text(
-                            widget.playlist.name,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 24, // Slightly larger
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              shadows: [Shadow(blurRadius: 3, color: Colors.black)],
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: kToolbarHeight / 2),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              _buildProminentPlaylistArt(uniqueAlbumArtUrls, prominentArtSize),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      widget.playlist.name,
+                                      style: const TextStyle(
+                                        fontSize: 22, // Adjusted size
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        shadows: [Shadow(blurRadius: 3, color: Colors.black)],
+                                      ),
+                                      maxLines: 3, // Allow more lines for playlist name
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${widget.playlist.songs.length} songs',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _calculateAndFormatPlaylistDuration(),
+                                      style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${widget.playlist.songs.length} songs',
-                            style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
-                          ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 24), // Spacing before buttons
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              ElevatedButton.icon(
-                                onPressed: hasSongs ? () {
-                                  currentSongProvider.setQueue(widget.playlist.songs, initialIndex: 0);
-                                  currentSongProvider.playSong(widget.playlist.songs.first);
-                                } : null,
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Play All'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.secondary,
-                                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: hasSongs ? () {
+                                    currentSongProvider.setQueue(widget.playlist.songs, initialIndex: 0);
+                                    currentSongProvider.playSong(widget.playlist.songs.first);
+                                  } : null,
+                                  icon: const Icon(Icons.play_arrow),
+                                  label: const Text('Play All'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Theme.of(context).colorScheme.surface, // Brighter background
+                                    foregroundColor: Theme.of(context).colorScheme.onSurface, // Contrasting text
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              OutlinedButton.icon(
-                                onPressed: hasSongs ? () {
-                                  if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
-                                  currentSongProvider.setQueue(widget.playlist.songs, initialIndex: 0);
-                                  currentSongProvider.playNext();
-                                } : null,
-                                icon: const Icon(Icons.shuffle),
-                                label: const Text('Shuffle'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: BorderSide(color: Colors.white.withOpacity(0.7)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: hasSongs ? () {
+                                    if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
+                                    currentSongProvider.setQueue(widget.playlist.songs, initialIndex: 0);
+                                    currentSongProvider.playNext();
+                                  } : null,
+                                  icon: const Icon(Icons.shuffle),
+                                  label: const Text('Shuffle'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          if (hasSongs) ...[
-                            const SizedBox(height: 12),
-                            TextButton.icon(
-                              onPressed: _downloadAllSongs,
-                              icon: Icon(Icons.download_for_offline_outlined, color: Colors.white.withOpacity(0.85)),
-                              label: Text(
-                                'Download Playlist',
-                                style: TextStyle(color: Colors.white.withOpacity(0.85)),
-                              ),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                  side: BorderSide(color: Colors.white.withOpacity(0.4)),
+                          const SizedBox(height: 16),
+                           // Download and Delete buttons in a Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (hasSongs)
+                                Expanded(
+                                  child: TextButton.icon(
+                                    onPressed: _downloadAllSongs,
+                                    icon: Icon(Icons.download_for_offline_outlined, color: Colors.white.withOpacity(0.85)),
+                                    label: Text(
+                                      'Download', // Shorter label
+                                      style: TextStyle(color: Colors.white.withOpacity(0.85)),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                        side: BorderSide(color: Colors.white.withOpacity(0.4)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (hasSongs) const SizedBox(width: 12), 
+                              Expanded(
+                                child: TextButton.icon(
+                                  onPressed: _showDeletePlaylistDialog,
+                                  icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
+                                  label: Text(
+                                    'Delete', // Shorter label
+                                    style: TextStyle(color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                      side: BorderSide(color: Theme.of(context).colorScheme.error.withOpacity(0.5)),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ]
+                            ],
+                          ),
+                          const SizedBox(height: kToolbarHeight / 3), 
                         ],
                       ),
                     ),
                   ),
                 ],
               ),
-              // Title is not explicitly set here to allow the centered content to be the focus.
-              // If a title is needed when collapsed, it can be added to SliverAppBar.
-              // title: Text(widget.playlist.name, style: TextStyle(color: Colors.white)), // Example if title needed
-              // centerTitle: true, // If title is used
             ),
           ),
-          if (!hasSongs) // hasSongs is updated by setState
+          if (!hasSongs) 
             SliverFillRemaining( // Use SliverFillRemaining for empty state
               child: Center(
                 child: Column(
