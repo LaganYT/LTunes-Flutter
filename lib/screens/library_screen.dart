@@ -704,17 +704,18 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             
             Song newSong = Song(
               id: songId,
-              title: metadata?.title ?? p.basenameWithoutExtension(originalFileName), // Use metadata title or filename
-              artist: metadata?.artist ?? 'Unknown Artist', // Use metadata artist or default
-              album: metadata?.album, // Use metadata album or null
-              albumArtUrl: albumArtFileName, // Store filename for local album art
-              audioUrl: '', // Not an online stream
-              localFilePath: newFileName, // Store filename of the copied audio file
-              isDownloaded: true, // Mark as "downloaded" i.e., locally available
-              releaseDate: null, // Default releaseDate to null or empty string
-                                 // metadata.year could be used if available and parsed
+              title: metadata?.title ?? p.basenameWithoutExtension(originalFileName),
+              artist: metadata?.artist ?? 'Unknown Artist',
+              album: metadata?.album,
+              albumArtUrl: albumArtFileName, // Store just the filename
+              audioUrl: copiedFilePath, // Store full path for initial playback before metadata save
+              isDownloaded: true, // Mark as downloaded
+              localFilePath: newFileName, // Store just the filename for persistence
+              duration: metadata?.duration,
+              isImported: true, // Mark as imported
             );
 
+            // Persist song metadata
             await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
             importCount++;
           } catch (e) {

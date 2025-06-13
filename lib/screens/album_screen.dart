@@ -209,6 +209,12 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
 
     for (final track in widget.album.tracks) {
+      // Skip if track is imported
+      if (track.isImported) {
+        alreadyProcessedCount++;
+        continue;
+      }
+
       // Check if already downloaded (persisted state)
       bool isPersistedAsDownloaded = track.isDownloaded;
 

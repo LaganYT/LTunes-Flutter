@@ -621,7 +621,21 @@ class CurrentSongProvider with ChangeNotifier {
       if (await File(filePath).exists()) {
         return filePath;
       }
+      // If song is downloaded but file is missing, and it's NOT an imported song,
+      // then we might fall back to streaming.
+      // If it IS an imported song and file is missing, it's an error.
+      if (song.isImported) {
+        debugPrint('Imported song "${song.title}" local file missing at $filePath. Cannot play or stream.');
+        return ''; // Return empty, preventing API fallback for imported songs.
+      }
       debugPrint('Local file for ${song.title} missing at $filePath, falling back to streaming.');
+    }
+
+    // If song is imported and we reached here, it means its local file is missing.
+    // We should not attempt to fetch a URL from API for an imported song.
+    if (song.isImported) {
+        debugPrint('Imported song "${song.title}" does not have a valid local file path or file is missing. Cannot stream.');
+        return '';
     }
 
     if (song.audioUrl.isNotEmpty && (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false) && !song.audioUrl.startsWith('file:/')) {
@@ -766,6 +780,22 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     Song songToProcess = song;
+
+    // Skip if song is imported
+    if (songToProcess.isImported) {
+      debugPrint('Song "${songToProcess.title}" is imported. Skipping download queue.');
+      // Optionally, ensure its download progress is marked as 1.0 if it's considered "complete" by being imported.
+      // This depends on how `isImported` interacts with `isDownloaded`.
+      // If imported implies downloaded and available, then:
+      if (_downloadProgress[songToProcess.id] != 1.0) {
+        _downloadProgress[songToProcess.id] = 1.0; // Mark as complete
+        if (_activeDownloads.containsKey(songToProcess.id)) {
+          _activeDownloads.remove(songToProcess.id);
+        }
+        notifyListeners();
+      }
+      return;
+    }
 
     // Check for existing downloaded version by title and artist
     final existingDownloadedSong = await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);

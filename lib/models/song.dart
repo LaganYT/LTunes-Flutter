@@ -13,6 +13,7 @@ class Song {
   String? localFilePath; // Stores filename only (relative to docs dir) if downloaded
   bool get isLocal => !albumArtUrl.startsWith('http');
   final Map<String, dynamic>? extras; // Added extras field
+  final bool isImported; // New field for imported songs
 
   // Add a getter for isRadio
   bool get isRadio => extras?['isRadio'] as bool? ?? false;
@@ -35,6 +36,7 @@ class Song {
     this.duration, // Ensure duration is part of the constructor
     this.isDownloading = false, // Default value
     this.downloadProgress = 0.0, // Default value
+    this.isImported = false, // Default to false
   });
 
   Song copyWith({
@@ -51,6 +53,7 @@ class Song {
     Duration? duration, // Added duration to copyWith
     bool? isDownloading,
     double? downloadProgress,
+    bool? isImported, // Added isImported
     
   }) {
     return Song(
@@ -67,6 +70,7 @@ class Song {
       duration: duration ?? this.duration, // Added duration logic
       isDownloading: isDownloading ?? this.isDownloading,
       downloadProgress: downloadProgress ?? this.downloadProgress,
+      isImported: isImported ?? this.isImported, // Added isImported logic
     );
   }
 
@@ -137,6 +141,8 @@ class Song {
         albumName = _asNullableString(albumField);
       }
 
+      final bool isImported = json['isImported'] as bool? ?? false; // Parse isImported
+
       return Song(
         title: title,
         id: id,
@@ -149,6 +155,7 @@ class Song {
         localFilePath: _asNullableString(json['localFilePath']), // Store as is; migration/usage logic handles interpretation
         extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
         duration: parsedDuration, // Assign parsed duration
+        isImported: isImported, // Assign parsed isImported
         // isDownloading and downloadProgress will use default constructor values
       );
     } catch (e) {
@@ -198,6 +205,7 @@ class Song {
       localFilePath: null,
       duration: duration,
       extras: extras,
+      isImported: false, // API songs are not imported by default
       // isDownloading and downloadProgress will use default constructor values
     );
   }
@@ -214,6 +222,7 @@ class Song {
         'localFilePath': localFilePath, // Will save filename if correctly set by app logic
         'extras': extras, // Added extras to JSON
         'duration_ms': duration?.inMilliseconds, // Serialize duration to milliseconds
+        'isImported': isImported, // Serialize isImported
         // isDownloading and downloadProgress are typically transient state
         // and not included in toJson. If you need to persist them, add them here.
       };
