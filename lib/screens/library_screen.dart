@@ -585,7 +585,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom, // Changed from FileType.audio
-        allowedExtensions: ['mp3'],
+        allowedExtensions: ['mp3', 'wav', 'm4a', 'mp4', 'flac', 'opus'], // Added new extensions
         allowMultiple: true,
       );
 
@@ -609,10 +609,14 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           if (file.path == null) continue;
 
           String originalPath = file.path!;
-          String originalFileName = p.basename(originalPath);
+          String originalFileName = p.basename(originalPath).toLowerCase();
           
           // Create a unique name for the copied file to avoid conflicts
-          String newFileName = '${_uuid.v4()}_$originalFileName'; // This is just the filename
+          // Use the original extension from originalFileName for the new file name
+          String baseNameWithoutExt = p.basenameWithoutExtension(originalFileName);
+          String originalExtension = p.extension(originalFileName); // e.g. .mp3
+          String newFileName = '${_uuid.v4()}_$baseNameWithoutExt$originalExtension';
+
           // Corrected path: Copy to the 'ltunes_downloads' subdirectory
           String copiedFilePath = p.join(fullDownloadsDir.path, newFileName); 
 
@@ -622,12 +626,20 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
             // Extract metadata
             AudioMetadata? metadata;
-            try {
-              // getImage: true to attempt to load album art
-              metadata = await readMetadata(copiedFile, getImage: true); 
-            } catch (e) {
-              debugPrint('Error reading metadata for $originalFileName: $e');
-              // Proceed with default values if metadata reading fails
+            // Check if the file is an M4A, MP4 file by its original extension
+            List<String> skipMetadataExtensions = ['.m4a', '.mp4'];
+            bool skipMetadata = skipMetadataExtensions.any((ext) => originalFileName.endsWith(ext));
+
+            if (!skipMetadata) {
+              try {
+                // getImage: true to attempt to load album art
+                metadata = await readMetadata(copiedFile, getImage: true); 
+              } catch (e) {
+                debugPrint('Error reading metadata for $originalFileName: $e');
+                // Proceed with default values if metadata reading fails
+              }
+            } else {
+              debugPrint('Skipping metadata reading for $originalFileName');
             }
 
             String songId = _uuid.v4(); // Generate a unique ID for the song
