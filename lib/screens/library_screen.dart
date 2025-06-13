@@ -746,10 +746,50 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                   itemCount: filteredPlaylists.length,
                   itemBuilder: (context, index) {
                     final playlist = filteredPlaylists[index];
+                    
+                    // Logic to determine leading widget based on album art
+                    List<String> uniqueAlbumArtUrls = playlist.songs
+                        .map((song) => song.albumArtUrl)
+                        .where((artUrl) => artUrl.isNotEmpty)
+                        .toSet() // Get unique URLs
+                        .toList();
+
+                    Widget leadingWidget;
+                    const double leadingSize = 56.0;
+
+                    if (uniqueAlbumArtUrls.isEmpty) {
+                      leadingWidget = Icon(Icons.playlist_play, size: leadingSize, color: Theme.of(context).colorScheme.primary);
+                    } else if (uniqueAlbumArtUrls.length < 4) {
+                      leadingWidget = _buildPlaylistArtWidget(uniqueAlbumArtUrls.first, leadingSize);
+                    } else {
+                      // Display a 2x2 grid of the first 4 album arts
+                      List<Widget> gridImages = uniqueAlbumArtUrls
+                          .take(4)
+                          .map((artUrl) => _buildPlaylistArtWidget(artUrl, leadingSize / 2)) // Each image is half the size
+                          .toList();
+                      
+                      leadingWidget = SizedBox(
+                        width: leadingSize,
+                        height: leadingSize,
+                        child: GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
+                          mainAxisSpacing: 1, // Optional spacing
+                          crossAxisSpacing: 1, // Optional spacing
+                          padding: EdgeInsets.zero,
+                          children: gridImages,
+                        ),
+                      );
+                    }
+
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                       child: ListTile(
-                        leading: Icon(Icons.playlist_play, color: Theme.of(context).colorScheme.primary),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(4.0), // Match album art clip
+                          child: leadingWidget,
+                        ),
                         title: Text(playlist.name, style: Theme.of(context).textTheme.titleMedium),
                         subtitle: Text('${playlist.songs.length} songs', style: Theme.of(context).textTheme.bodySmall),
                         trailing: IconButton(
@@ -987,6 +1027,40 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           },
         );
       },
+    );
+  }
+
+  // Helper widget to build album art for playlists (handles local and network)
+  Widget _buildPlaylistArtWidget(String artUrl, double size) {
+    Widget placeholder = Icon(Icons.music_note, size: size * 0.7, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
+    
+    return SizedBox(
+      width: size,
+      height: size,
+      child: artUrl.startsWith('http')
+          ? Image.network(
+              artUrl,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => placeholder,
+            )
+          : FutureBuilder<String>(
+              future: _getResolvedLocalPath(artUrl), // Use existing helper
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Image.file(
+                    File(snapshot.data!),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => placeholder,
+                  );
+                }
+                // Show placeholder while loading or if path is invalid/empty
+                return placeholder;
+              },
+            ),
     );
   }
 
