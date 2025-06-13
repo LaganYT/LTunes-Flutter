@@ -20,5 +20,4 @@
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled). - IOS
 - Apparently bluetooth doesn't work with music (android) - ##CHECK THIS##
-- Only play/pause button on radio
 - When you click the delete all songs button, have it delete the downloaded folder and re-create it, then go to where ever the is downloaded log is and delete all entries.

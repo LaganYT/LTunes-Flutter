@@ -607,27 +607,31 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
                 // Controls Section
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: isRadio
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
-                      icon: Icon(
-                        currentSongProvider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
-                        color: currentSongProvider.isShuffling ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
-                      ),
-                      iconSize: 26,
-                      onPressed: () => currentSongProvider.toggleShuffle(),
-                      tooltip: 'Shuffle',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.skip_previous_rounded),
-                      iconSize: 42,
-                      color: colorScheme.onBackground,
-                      onPressed: () {
-                       _slideOffsetX = -1.0; // Slide from left
-                       currentSongProvider.playPrevious();
-                      },
-                      tooltip: 'Previous Song',
-                    ),
+                    if (!isRadio)
+                      IconButton(
+                       icon: Icon(
+                         currentSongProvider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
+                         color: currentSongProvider.isShuffling ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
+                       ),
+                       iconSize: 26,
+                       onPressed: () => currentSongProvider.toggleShuffle(),
+                       tooltip: 'Shuffle',
+                     ),
+                    if (!isRadio)
+                      IconButton(
+                       icon: const Icon(Icons.skip_previous_rounded),
+                       iconSize: 42,
+                       color: colorScheme.onBackground,
+                       onPressed: () {
+                        _slideOffsetX = -1.0; // Slide from left
+                        currentSongProvider.playPrevious();
+                       },
+                       tooltip: 'Previous Song',
+                     ),
                     Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
@@ -656,27 +660,29 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         tooltip: isPlaying ? 'Pause' : 'Play',
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.skip_next_rounded),
-                      iconSize: 42,
-                      color: colorScheme.onBackground,
-                      onPressed: () {
-                        _slideOffsetX = 1.0; // Slide from right
-                        currentSongProvider.playNext();
-                      },
-                      tooltip: 'Next Song',
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        loopMode == LoopMode.none ? Icons.repeat_rounded : 
-                        loopMode == LoopMode.queue ? Icons.repeat_on_rounded : Icons.repeat_one_on_rounded,
-                        color: loopMode != LoopMode.none ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
-                      ),
-                      iconSize: 26,
-                      onPressed: () => currentSongProvider.toggleLoop(),
-                      tooltip: loopMode == LoopMode.none ? 'Repeat Off' : 
-                               loopMode == LoopMode.queue ? 'Repeat Queue' : 'Repeat Song',
-                    ),
+                    if (!isRadio)
+                      IconButton(
+                       icon: const Icon(Icons.skip_next_rounded),
+                       iconSize: 42,
+                       color: colorScheme.onBackground,
+                       onPressed: () {
+                         _slideOffsetX = 1.0; // Slide from right
+                         currentSongProvider.playNext();
+                       },
+                       tooltip: 'Next Song',
+                     ),
+                    if (!isRadio)
+                      IconButton(
+                       icon: Icon(
+                         loopMode == LoopMode.none ? Icons.repeat_rounded : 
+                         loopMode == LoopMode.queue ? Icons.repeat_on_rounded : Icons.repeat_one_on_rounded,
+                         color: loopMode != LoopMode.none ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
+                       ),
+                       iconSize: 26,
+                       onPressed: () => currentSongProvider.toggleLoop(),
+                       tooltip: loopMode == LoopMode.none ? 'Repeat Off' : 
+                                loopMode == LoopMode.queue ? 'Repeat Queue' : 'Repeat Song',
+                     ),
                   ],
                 ),
                 SizedBox(height: MediaQuery.of(context).padding.bottom + 16), // For bottom padding

@@ -131,16 +131,18 @@ class _PlaybarState extends State<Playbar> {
         );
       },
       child: GestureDetector( // Added GestureDetector for horizontal swipes
-        onHorizontalDragEnd: (details) {
-          // Swipe gestures on playbar can also trigger next/previous
-          if (details.primaryVelocity! > 0) {
-            // Swiped right (previous)
-            currentSongProvider.playPrevious();
-          } else if (details.primaryVelocity! < 0) {
-            // Swiped left (next)
-            currentSongProvider.playNext();
-          }
-        },
+        onHorizontalDragEnd: isRadio
+            ? null
+            : (details) {
+           // Swipe gestures on playbar can also trigger next/previous
+           if (details.primaryVelocity! > 0) {
+             // Swiped right (previous)
+             currentSongProvider.playPrevious();
+           } else if (details.primaryVelocity! < 0) {
+             // Swiped left (next)
+             currentSongProvider.playNext();
+           }
+         },
         child: Material(
           elevation: 8.0,
           color: colorScheme.surfaceVariant.withOpacity(0.95),
