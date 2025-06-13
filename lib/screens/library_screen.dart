@@ -726,39 +726,55 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           .toList();
     }
 
-    if (filteredPlaylists.isEmpty) {
-      return Center(child: Text(_searchQuery.isNotEmpty ? 'No playlists found matching "$_searchQuery".' : 'No playlists yet. Create one using the "+" button!'));
-    }
-    return ListView.builder(
-      itemCount: filteredPlaylists.length,
-      itemBuilder: (context, index) {
-        final playlist = filteredPlaylists[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-          child: ListTile(
-            leading: Icon(Icons.playlist_play, color: Theme.of(context).colorScheme.primary),
-            title: Text(playlist.name, style: Theme.of(context).textTheme.titleMedium),
-            subtitle: Text('${playlist.songs.length} songs', style: Theme.of(context).textTheme.bodySmall),
-            trailing: IconButton(
-              icon: Icon(Icons.delete_outline, color: Colors.red[700]),
-              tooltip: 'Delete Playlist',
-              onPressed: () {
-                _deletePlaylist(context, playlist);
-              },
+    return Column( // Wrap content in a Column
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Create New Playlist'),
+            onPressed: () => _createPlaylist(context),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 40), // Make button wider
             ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PlaylistDetailScreen(playlist: playlist),
-                ),
-              ).then((_) {
-                // Listener _onPlaylistChanged handles refresh
-              });
-            },
           ),
-        );
-      },
+        ),
+        Expanded( // Make ListView take remaining space
+          child: filteredPlaylists.isEmpty
+              ? Center(child: Text(_searchQuery.isNotEmpty ? 'No playlists found matching "$_searchQuery".' : 'No playlists yet. Create one using the button above!'))
+              : ListView.builder(
+                  itemCount: filteredPlaylists.length,
+                  itemBuilder: (context, index) {
+                    final playlist = filteredPlaylists[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      child: ListTile(
+                        leading: Icon(Icons.playlist_play, color: Theme.of(context).colorScheme.primary),
+                        title: Text(playlist.name, style: Theme.of(context).textTheme.titleMedium),
+                        subtitle: Text('${playlist.songs.length} songs', style: Theme.of(context).textTheme.bodySmall),
+                        trailing: IconButton(
+                          icon: Icon(Icons.delete_outline, color: Colors.red[700]),
+                          tooltip: 'Delete Playlist',
+                          onPressed: () {
+                            _deletePlaylist(context, playlist);
+                          },
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PlaylistDetailScreen(playlist: playlist),
+                            ),
+                          ).then((_) {
+                            // Listener _onPlaylistChanged handles refresh
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -993,7 +1009,20 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           case PlaylistSortType.songCountAsc: text = 'Song Count (Fewest)'; break;
           case PlaylistSortType.songCountDesc: text = 'Song Count (Most)'; break;
         }
-        return PopupMenuItem(value: sortType, child: Text(text));
+        return PopupMenuItem(
+          value: sortType,
+          child: Row(
+            children: [
+              if (_playlistSortType == sortType) ...[
+                const Icon(Icons.check, size: 20.0),
+                const SizedBox(width: 8.0),
+              ] else ...[
+                const SizedBox(width: 28.0), // Placeholder for icon (20.0) + padding (8.0)
+              ],
+              Text(text),
+            ],
+          ),
+        );
       }).toList();
     } else if (currentTabIndex == 1) { // Albums
       hintText = 'Search Saved Albums...';
@@ -1006,7 +1035,20 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           case AlbumSortType.artistAsc: text = 'Artist (A-Z)'; break;
           case AlbumSortType.artistDesc: text = 'Artist (Z-A)'; break;
         }
-        return PopupMenuItem(value: sortType, child: Text(text));
+        return PopupMenuItem(
+          value: sortType,
+          child: Row(
+            children: [
+              if (_albumSortType == sortType) ...[
+                const Icon(Icons.check, size: 20.0),
+                const SizedBox(width: 8.0),
+              ] else ...[
+                const SizedBox(width: 28.0), // Placeholder for icon (20.0) + padding (8.0)
+              ],
+              Text(text),
+            ],
+          ),
+        );
       }).toList();
     } else if (currentTabIndex == 2) { // Downloads
       hintText = 'Search Downloads...';
@@ -1019,27 +1061,40 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           case SongSortType.artistAsc: text = 'Artist (A-Z)'; break;
           case SongSortType.artistDesc: text = 'Artist (Z-A)'; break;
         }
-        return PopupMenuItem(value: sortType, child: Text(text));
+        return PopupMenuItem(
+          value: sortType,
+          child: Row(
+            children: [
+              if (_songSortType == sortType) ...[
+                const Icon(Icons.check, size: 20.0),
+                const SizedBox(width: 8.0),
+              ] else ...[
+                const SizedBox(width: 28.0), // Placeholder for icon (20.0) + padding (8.0)
+              ],
+              Text(text),
+            ],
+          ),
+        );
       }).toList();
     }
+
+
+    List<Widget> appBarActions = [];
+    // "Create Playlist" button is now in _buildPlaylistsView, so it's removed from here.
+    appBarActions.add(
+      IconButton(
+        icon: const Icon(Icons.file_upload_outlined), // Icon for importing
+        tooltip: 'Import Songs',
+        onPressed: _importSongs, // Call the import function
+      ),
+    );
 
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library'),
         centerTitle: true, // Center the title
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_upload_outlined), // Icon for importing
-            tooltip: 'Import Songs',
-            onPressed: _importSongs, // Call the import function
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Create Playlist',
-            onPressed: () => _createPlaylist(context),
-          ),
-        ],
+        actions: appBarActions, // Use the dynamically built list of actions
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(kToolbarHeight + 56), // Adjusted height for search bar + tabs
           child: Column(
