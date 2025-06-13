@@ -9,7 +9,6 @@
 
 ### Search and Library
 - Show artists in search results.
-- Move the import songs button to the bottom right as a floating button, only visible on the download tab
 - On the downloads tab add a button thingy that is a thing that shows the current download but is also a button to click that opens the download queue
 
 ### Lyrics and Visuals

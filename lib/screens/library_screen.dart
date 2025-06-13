@@ -1144,13 +1144,14 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
     List<Widget> appBarActions = [];
     // "Create Playlist" button is now a FAB, so it's removed from here.
-    appBarActions.add(
-      IconButton(
-        icon: const Icon(Icons.file_upload_outlined), // Icon for importing
-        tooltip: 'Import Songs',
-        onPressed: _importSongs, // Call the import function
-      ),
-    );
+    // The "Import Songs" button is also moved to a FAB.
+    // appBarActions.add(
+    //   IconButton(
+    //     icon: const Icon(Icons.file_upload_outlined), // Icon for importing
+    //     tooltip: 'Import Songs',
+    //     onPressed: _importSongs, // Call the import function
+    //   ),
+    // );
 
 
     return Scaffold(
@@ -1235,15 +1236,21 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         ],
       ),
       floatingActionButton: AnimatedOpacity(
-        opacity: currentTabIndex == 0 ? 1.0 : 0.0, // Visible only on Playlists tab
+        opacity: (currentTabIndex == 0 || currentTabIndex == 2) ? 1.0 : 0.0, // Visible on Playlists or Downloads tab
         duration: const Duration(milliseconds: 200),
-        child: currentTabIndex == 0 // Ensure FAB is only built when potentially visible
+        child: currentTabIndex == 0
             ? FloatingActionButton(
                 onPressed: () => _createPlaylist(context),
                 tooltip: 'Create New Playlist',
                 child: const Icon(Icons.add),
               )
-            : null, // Render nothing if not on the Playlists tab
+            : currentTabIndex == 2
+                ? FloatingActionButton(
+                    onPressed: _importSongs,
+                    tooltip: 'Import Songs',
+                    child: const Icon(Icons.file_upload_outlined),
+                  )
+                : null, // Render nothing if not on Playlists or Downloads tab
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
