@@ -118,8 +118,8 @@ class CurrentSongProvider with ChangeNotifier {
         subDir: 'ltunes_downloads',
         baseDirectory: baseDir,
         fileExistsStrategy: FileExistsStrategy.resume,
-        maxConcurrentDownloads: 2, // Reduced to avoid running out of fds
         maxRetries: 2,
+        maxConcurrentDownloads: 1000000,
         delayBetweenRetries: const Duration(seconds: 2),
         logger: (log) => debugPrint('[DownloadManager:${log.level.name}] ${log.message}'),
       );
@@ -274,6 +274,45 @@ class CurrentSongProvider with ChangeNotifier {
     return item.artUri?.toString() ?? '';
   }
 
+  // Helper method to find an existing downloaded song by title and artist
+  Future<Song?> _findExistingDownloadedSongByTitleArtist(String title, String artist) async {
+    final prefs = await SharedPreferences.getInstance();
+    final Set<String> keys = prefs.getKeys();
+    final appDocDir = await getApplicationDocumentsDirectory();
+    // Ensure _downloadManager is initialized to get subDir, or use default
+    await _initializeDownloadManager();
+    final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
+
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final String? songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            Song songCandidate = Song.fromJson(songMap);
+
+            if (songCandidate.isDownloaded &&
+                songCandidate.localFilePath != null &&
+                songCandidate.localFilePath!.isNotEmpty &&
+                songCandidate.title.toLowerCase() == title.toLowerCase() &&
+                songCandidate.artist.toLowerCase() == artist.toLowerCase()) {
+              
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, songCandidate.localFilePath!);
+              if (await File(fullPath).exists()) {
+                return songCandidate; // Found a downloaded match with an existing file
+              } else {
+                debugPrint("Song ${songCandidate.title} (ID: ${songCandidate.id}) matched title/artist and isDownloaded=true, but local file $fullPath missing.");
+              }
+            }
+          } catch (e) {
+            debugPrint('Error decoding song from SharedPreferences for key $key during _findExistingDownloadedSongByTitleArtist: $e');
+          }
+        }
+      }
+    }
+    return null; // No downloaded match found with an existing file
+  }
+
   @override
   void dispose() {
     _downloadManager?.dispose(); // Dispose the download manager
@@ -380,70 +419,111 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<MediaItem> _prepareMediaItem(Song song) async {
-    Song effectiveSong = song; // Start with the input song
+    Song effectiveSong = song; 
 
-    // Check for existing downloaded version by title and artist
-    final playlistManager = PlaylistManagerService();
-    final existingDownloadedSong = playlistManager.findDownloadedSongByTitleArtist(song.title, song.artist);
+    final existingDownloadedSong = await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);
 
     if (existingDownloadedSong != null) {
-      debugPrint("Found existing downloaded version for ${song.title} by ${song.artist} with ID ${existingDownloadedSong.id}. Using its details.");
-      effectiveSong = song.copyWith(
-        id: existingDownloadedSong.id, // Use ID of the existing downloaded song
-        isDownloaded: true,
-        localFilePath: existingDownloadedSong.localFilePath,
-        audioUrl: existingDownloadedSong.localFilePath, // Tentative, fetchSongUrl will confirm/use full path
-        duration: existingDownloadedSong.duration ?? song.duration,
-        // Keep other metadata like title, artist, album from the original 'song' object if desired,
-        // or decide to use all metadata from existingDownloadedSong.
-        // For now, primarily adopting ID and download status.
-        // If original song had different title/artist casing, this keeps it.
-        title: song.title, 
-        artist: song.artist,
-        album: song.album,
-        albumArtUrl: song.albumArtUrl, 
-        releaseDate: song.releaseDate,
-        extras: song.extras
+      debugPrint("Found existing downloaded version for ${song.title} (ID: ${song.id}) by ${song.artist}. Consolidating with downloaded song ID: ${existingDownloadedSong.id}.");
+      
+      String albumArtToUse = song.albumArtUrl; // Default to incoming song's art
+      if (existingDownloadedSong.albumArtUrl.isNotEmpty && !existingDownloadedSong.albumArtUrl.startsWith('http')) {
+        // If downloaded song has local art, prefer it.
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final localArtPath = p.join(appDocDir.path, existingDownloadedSong.albumArtUrl);
+        if (await File(localArtPath).exists()) {
+          albumArtToUse = existingDownloadedSong.albumArtUrl;
+        }
+      }
+
+      effectiveSong = song.copyWith( // Start with incoming song's display data
+        id: existingDownloadedSong.id, // CRITICAL: Use ID of the existing downloaded song
+        isDownloaded: true, // CRITICAL: Mark as downloaded
+        localFilePath: existingDownloadedSong.localFilePath, // CRITICAL: Use downloaded song's path
+        duration: existingDownloadedSong.duration ?? song.duration, // Prefer downloaded duration, fallback to incoming
+        albumArtUrl: albumArtToUse,
+        // audioUrl will be determined/confirmed by fetchSongUrl based on isDownloaded status
       );
-      // Persist this "merged" song information if its ID changed or download status is new to this instance
+      
+      // Persist this "merged" song information. This is important.
+      // It ensures that SharedPreferences has the correct ID and download status.
       await _persistSongMetadata(effectiveSong);
       // Update this song in all playlists to consolidate around the existing ID
-      playlistManager.updateSongInPlaylists(effectiveSong);
+      // This assumes PlaylistManagerService can handle ID changes or find by old ID/title/artist.
+      PlaylistManagerService().updateSongInPlaylists(effectiveSong);
     }
 
+    // 'effectiveSong' is now the definitive version to work with.
+    // 'fetchSongUrl' will use local path if 'effectiveSong.isDownloaded' is true and file exists.
+    // If local file is missing, 'fetchSongUrl' will attempt to get a stream URL.
     String playableUrl = await fetchSongUrl(effectiveSong);
+    
+    bool metadataToPersistChanged = false;
+
     if (playableUrl.isEmpty) {
-      throw Exception('Could not resolve playable URL for ${effectiveSong.title}');
+      // Fallback: if fetchSongUrl couldn't get a local path (even if marked downloaded but file missing)
+      // and original audioUrl was also empty/invalid, try API.
+      final apiService = ApiService();
+      final fetchedApiUrl = await apiService.fetchAudioUrl(effectiveSong.artist, effectiveSong.title);
+
+      if (fetchedApiUrl != null && fetchedApiUrl.isNotEmpty) {
+        playableUrl = fetchedApiUrl;
+        // If we got here, it means the song is NOT playable locally.
+        // If it was marked as downloaded (either originally or after merging), its status is now incorrect because the file is missing.
+        // We should update 'effectiveSong' to reflect it's streaming.
+        if (effectiveSong.isDownloaded) {
+          debugPrint("Song ${effectiveSong.title} (ID: ${effectiveSong.id}) was marked downloaded, but local file was missing and no other valid audioUrl. Fetched API stream. Updating metadata to non-downloaded.");
+          effectiveSong = effectiveSong.copyWith(
+            isDownloaded: false, 
+            localFilePath: null, 
+            audioUrl: playableUrl // Set audioUrl to the fetched stream URL
+          );
+          metadataToPersistChanged = true; 
+        } else if (effectiveSong.audioUrl != playableUrl) {
+          // If it was never downloaded, and we fetched a new URL.
+          effectiveSong = effectiveSong.copyWith(audioUrl: playableUrl);
+          metadataToPersistChanged = true;
+        }
+      } else {
+         throw Exception('Could not resolve playable URL for ${effectiveSong.title} (ID: ${effectiveSong.id}) after API fallback.');
+      }
+    } else {
+      // Playable URL was found by fetchSongUrl.
+      // If 'effectiveSong' is downloaded, 'playableUrl' is its local file path.
+      // We need to ensure 'effectiveSong.audioUrl' reflects this local path if it's different
+      // (e.g., if original 'song' had a streaming URL but we merged with a downloaded version).
+      if (effectiveSong.isDownloaded && effectiveSong.audioUrl != playableUrl) {
+        effectiveSong = effectiveSong.copyWith(audioUrl: playableUrl);
+        metadataToPersistChanged = true;
+      }
+      // If not downloaded, and fetchSongUrl returned a (possibly new) stream URL
+      else if (!effectiveSong.isDownloaded && effectiveSong.audioUrl != playableUrl) {
+        effectiveSong = effectiveSong.copyWith(audioUrl: playableUrl);
+        metadataToPersistChanged = true;
+      }
     }
 
     Duration? songDuration = effectiveSong.duration;
     if (songDuration == null || songDuration == Duration.zero) {
       final audioPlayer = AudioPlayer();
       try {
-        await audioPlayer.setSourceUrl(playableUrl);
+        await audioPlayer.setSourceUrl(playableUrl); // Use the confirmed playableUrl
         songDuration = await audioPlayer.getDuration();
+        if (songDuration != null && songDuration != Duration.zero && effectiveSong.duration != songDuration) {
+            effectiveSong = effectiveSong.copyWith(duration: songDuration);
+            metadataToPersistChanged = true;
+        }
       } catch (e) {
-        debugPrint("Error getting duration for ${effectiveSong.title}: $e");
-        songDuration = Duration.zero;
+        debugPrint("Error getting duration for ${effectiveSong.title} (ID: ${effectiveSong.id}) using URL $playableUrl: $e");
+        songDuration = effectiveSong.duration ?? Duration.zero; // Keep existing or zero
       } finally {
         await audioPlayer.dispose();
       }
     }
-
-    // If fetchSongUrl resulted in a new audioUrl (e.g., fetched from API) for a non-downloaded song,
-    // or if the duration was just fetched, update the effectiveSong instance.
-    bool metadataChanged = false;
-    if (playableUrl != effectiveSong.audioUrl && !effectiveSong.isDownloaded) {
-        effectiveSong = effectiveSong.copyWith(audioUrl: playableUrl);
-        metadataChanged = true;
-    }
-    if (songDuration != null && songDuration != effectiveSong.duration) {
-        effectiveSong = effectiveSong.copyWith(duration: songDuration);
-        metadataChanged = true;
-    }
-
-    if (metadataChanged) {
+    
+    if (metadataToPersistChanged) {
       await _persistSongMetadata(effectiveSong);
+      // Update in-memory representations if they exist
       final qIndex = _queue.indexWhere((s) => s.id == effectiveSong.id);
       if (qIndex != -1) {
         _queue[qIndex] = effectiveSong;
@@ -451,13 +531,18 @@ class CurrentSongProvider with ChangeNotifier {
       if (_currentSongFromAppLogic?.id == effectiveSong.id) {
         _currentSongFromAppLogic = effectiveSong;
       }
+      // If the song's download status changed from downloaded to not-downloaded
+      if (song.isDownloaded && !effectiveSong.isDownloaded) {
+          PlaylistManagerService().updateSongInPlaylists(effectiveSong);
+      }
     }
 
     final extras = Map<String, dynamic>.from(effectiveSong.extras ?? {});
     extras['isRadio'] = false;
-    extras['songId'] = effectiveSong.id;
+    extras['songId'] = effectiveSong.id; // CRITICAL: ensure this is the ID of effectiveSong
     extras['isLocal'] = effectiveSong.isDownloaded;
-    if (effectiveSong.isDownloaded && effectiveSong.localFilePath != null && !effectiveSong.albumArtUrl.startsWith('http')) {
+    if (effectiveSong.isDownloaded && effectiveSong.localFilePath != null && effectiveSong.albumArtUrl.isNotEmpty && !effectiveSong.albumArtUrl.startsWith('http')) {
+      // Ensure localArtFileName is only set if albumArtUrl is indeed a local filename
       extras['localArtFileName'] = effectiveSong.albumArtUrl;
     }
 
@@ -695,37 +780,39 @@ class CurrentSongProvider with ChangeNotifier {
     Song songToProcess = song;
 
     // Check for existing downloaded version by title and artist
-    final playlistManager = PlaylistManagerService();
-    final existingDownloadedSong = playlistManager.findDownloadedSongByTitleArtist(song.title, song.artist);
+    final existingDownloadedSong = await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);
 
     if (existingDownloadedSong != null) {
-      debugPrint("Song \"${song.title}\" by ${song.artist} is already downloaded (found as ID ${existingDownloadedSong.id}). Updating metadata and skipping download.");
+      debugPrint("Song \"${song.title}\" by ${song.artist} is already downloaded (found as ID ${existingDownloadedSong.id}). Updating metadata and skipping download queue.");
+      
+      String albumArtToUse = song.albumArtUrl;
+      if (existingDownloadedSong.albumArtUrl.isNotEmpty && !existingDownloadedSong.albumArtUrl.startsWith('http')) {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final localArtPath = p.join(appDocDir.path, existingDownloadedSong.albumArtUrl);
+        if (await File(localArtPath).exists()) {
+          albumArtToUse = existingDownloadedSong.albumArtUrl;
+        }
+      }
+      
       songToProcess = song.copyWith(
-        id: existingDownloadedSong.id, // Adopt the ID of the existing downloaded song
+        id: existingDownloadedSong.id, 
         isDownloaded: true,
         localFilePath: existingDownloadedSong.localFilePath,
-        audioUrl: existingDownloadedSong.localFilePath, // Or construct full path
+        audioUrl: existingDownloadedSong.localFilePath, // Or construct full path after ensuring file exists
         duration: existingDownloadedSong.duration ?? song.duration,
-        title: song.title, 
-        artist: song.artist,
-        album: song.album,
-        albumArtUrl: song.albumArtUrl,
-        releaseDate: song.releaseDate,
-        extras: song.extras
+        albumArtUrl: albumArtToUse,
       );
 
-      // Persist and update this consolidated song information
       await _persistSongMetadata(songToProcess);
-      updateSongDetails(songToProcess); // Update in CurrentSongProvider's state (queue, currentSong)
-      playlistManager.updateSongInPlaylists(songToProcess); // Update in all playlists
+      updateSongDetails(songToProcess); 
+      PlaylistManagerService().updateSongInPlaylists(songToProcess); 
 
-      // Update UI to reflect it's downloaded
       _downloadProgress[songToProcess.id] = 1.0;
-      if (_activeDownloads.containsKey(songToProcess.id)) { // Should not be active if already downloaded
+      if (_activeDownloads.containsKey(songToProcess.id)) { 
           _activeDownloads.remove(songToProcess.id);
       }
       notifyListeners();
-      return; // Skip actual download process
+      return; 
     }
 
     // Check 1 (modified): Already downloaded (based on current songToProcess state) and file exists?
