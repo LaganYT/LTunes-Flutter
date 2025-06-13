@@ -11,7 +11,7 @@
 - Show artists in search results.
 
 ### Lyrics and Visuals
-- Lyrics support (save lyrics when downloading songs).
+- Now add synced lyrics to the full screen player please (when you download the song have it download the lyrics too)
 
 ### Settings
 - Add an option to disable UI animations (default: animations enabled).
