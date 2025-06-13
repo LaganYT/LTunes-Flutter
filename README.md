@@ -9,20 +9,21 @@
 
 ### Search and Library
 - Show artists in search results.
-- Import playlists from XLSX files.
+- Move the import songs button to the bottom right as a floating button, only visible on the download tab
+- Move the create playlist button to the bottom right as a floating button, only visible on the playlist tab
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
 
 ### Settings
-- Add an option to disable UI animations (default: enabled).
+- Add an option to disable UI animations (default: animations enabled).
 - Add an option for no theme and just have it be a light/dark compared to the current theme
+- Allow selecting which tabs show in the library, downloads tab is always there, all are shown by default
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
 - On android it takes forever to load an offline song, fix that
 - on android it plays one or two songs offline then stps
 - Apparently bluetooth doesn't work with music (android)
-
 
 Version - 1.3.0
