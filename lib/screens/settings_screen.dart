@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for TextInputFormatter
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io'; // Required for File operations
@@ -62,6 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('usRadioOnly', value);
   }
 
+  // ignore: unused_element
   Future<int> _calculateStorageUsed() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
@@ -95,6 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return totalSizeBytes;
   }
 
+  // ignore: unused_element
   String _formatBytes(int bytes, {int decimals = 2}) {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -102,6 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
   }
 
+  // ignore: unused_element
   Future<int> _getDownloadedSongsCount() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
