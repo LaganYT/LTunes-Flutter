@@ -18,6 +18,11 @@ import 'package:path/path.dart' as p; // Required for path manipulation
 import 'package:uuid/uuid.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart'; // Import for metadata
 
+// Enum definitions for sorting
+enum PlaylistSortType { nameAsc, nameDesc, songCountAsc, songCountDesc }
+enum AlbumSortType { titleAsc, titleDesc, artistAsc, artistDesc }
+enum SongSortType { titleAsc, titleDesc, artistAsc, artistDesc }
+
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -45,6 +50,17 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // Sort state variables
+  PlaylistSortType _playlistSortType = PlaylistSortType.nameAsc;
+  AlbumSortType _albumSortType = AlbumSortType.titleAsc;
+  SongSortType _songSortType = SongSortType.titleAsc;
+
+  // SharedPreferences keys for sorting
+  static const String _playlistSortPrefKey = 'playlistSortType_v2';
+  static const String _albumSortPrefKey = 'albumSortType_v2';
+  static const String _songSortPrefKey = 'songSortType_v2';
+
+
   // cache local‐art lookup futures by filename
   // ignore: unused_field
   final Map<String, Future<String>> _localArtPathCache = {};
@@ -54,20 +70,21 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     super.initState();
     _tabController = TabController(length: 3, vsync: this); // Changed length to 3
     _tabController?.addListener(() {
+      if (!mounted) return;
       if (_searchController.text.isNotEmpty) {
-        _searchController.clear();
-        // _onSearchChanged will be called by controller's listener
+        _searchController.clear(); // Clears search query, _onSearchChanged handles state
       }
-      // Update hint text based on tab
+      // Update hint text and potentially sort options based on tab
       setState(() {}); 
     });
 
     _searchController.addListener(_onSearchChanged);
     
-    // Initial loads
-    _loadDownloadedSongs();
-    _loadPlaylists();
-    _loadSavedAlbums(); // Load saved albums
+    _loadSortPreferences().then((_) {
+      // Initial loads after sort preferences are loaded
+      _loadDataAndApplySort();
+    });
+    
 
     // Listen to PlaylistManagerService
     // This listener will call _loadPlaylists when playlist data changes.
@@ -83,10 +100,96 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     });
   }
 
+  void _loadDataAndApplySort() {
+    _loadDownloadedSongs(); // This will eventually call _applySortAndRefresh via its completion or listener
+    _loadPlaylists();       // This will eventually call _applySortAndRefresh
+    _loadSavedAlbums();     // This will eventually call _applySortAndRefresh
+  }
+
+  Future<void> _loadSortPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _playlistSortType = _enumFromString(prefs.getString(_playlistSortPrefKey), PlaylistSortType.values, PlaylistSortType.nameAsc);
+      _albumSortType = _enumFromString(prefs.getString(_albumSortPrefKey), AlbumSortType.values, AlbumSortType.titleAsc);
+      _songSortType = _enumFromString(prefs.getString(_songSortPrefKey), SongSortType.values, SongSortType.titleAsc);
+    });
+  }
+
+  Future<void> _saveSortPreference(String key, String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, value);
+  }
+
+  T _enumFromString<T>(String? value, List<T> enumValues, T defaultValue) {
+    if (value == null) return defaultValue;
+    return enumValues.firstWhere((e) => e.toString().split('.').last == value, orElse: () => defaultValue);
+  }
+
+  void _applySortAndRefresh() {
+    if (!mounted) return;
+
+    // Apply sorting based on current tab and sort type
+    if (_tabController?.index == 0) { // Playlists
+      _sortPlaylists();
+    } else if (_tabController?.index == 1) { // Albums
+      _sortAlbums();
+    } else if (_tabController?.index == 2) { // Downloads
+      _sortSongs();
+    }
+    setState(() {});
+  }
+
+  void _sortPlaylists() {
+    _playlists.sort((a, b) {
+      switch (_playlistSortType) {
+        case PlaylistSortType.nameAsc:
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        case PlaylistSortType.nameDesc:
+          return b.name.toLowerCase().compareTo(a.name.toLowerCase());
+        case PlaylistSortType.songCountAsc:
+          return a.songs.length.compareTo(b.songs.length);
+        case PlaylistSortType.songCountDesc:
+          return b.songs.length.compareTo(a.songs.length);
+      }
+    });
+  }
+
+  void _sortAlbums() {
+    _savedAlbums.sort((a, b) {
+      switch (_albumSortType) {
+        case AlbumSortType.titleAsc:
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        case AlbumSortType.titleDesc:
+          return b.title.toLowerCase().compareTo(a.title.toLowerCase());
+        case AlbumSortType.artistAsc:
+          return a.artistName.toLowerCase().compareTo(b.artistName.toLowerCase());
+        case AlbumSortType.artistDesc:
+          return b.artistName.toLowerCase().compareTo(a.artistName.toLowerCase());
+      }
+    });
+  }
+
+  void _sortSongs() {
+    _songs.sort((a, b) {
+      switch (_songSortType) {
+        case SongSortType.titleAsc:
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        case SongSortType.titleDesc:
+          return b.title.toLowerCase().compareTo(a.title.toLowerCase());
+        case SongSortType.artistAsc:
+          return a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+        case SongSortType.artistDesc:
+          return b.artist.toLowerCase().compareTo(a.artist.toLowerCase());
+      }
+    });
+  }
+
+
   void _onSearchChanged() {
     if (!mounted) return;
     setState(() {
       _searchQuery = _searchController.text.toLowerCase();
+      // No need to call _applySortAndRefresh here, filtering happens in build methods
     });
   }
 
@@ -102,13 +205,13 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   void _onPlaylistChanged() {
     // PlaylistManagerService notified changes, reload playlists
     if (mounted) {
-      _loadPlaylists();
+      _loadPlaylists(); // This will call _applySortAndRefresh after loading
     }
   }
 
   void _onSavedAlbumsChanged() { // New listener method
     if (mounted) {
-      _loadSavedAlbums();
+      _loadSavedAlbums(); // This will call _applySortAndRefresh after loading
     }
   }
 
@@ -116,7 +219,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // CurrentSongProvider notified changes (e.g., download finished, metadata updated)
     // Reload downloaded songs list
     if (mounted) {
-      _loadDownloadedSongs();
+      _loadDownloadedSongs(); // This will call _applySortAndRefresh after loading
     }
   }
 
@@ -223,22 +326,25 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       setState(() {
         _songs = loadedSongs;
       });
+      _applySortAndRefresh(); // Apply sort after songs are loaded
     }
   }
 
   Future<void> _loadPlaylists() async {
     if (mounted) {
       setState(() {
-        _playlists = _playlistManager.playlists;
+        _playlists = List.from(_playlistManager.playlists); // Create a mutable copy
       });
+      _applySortAndRefresh(); // Apply sort after playlists are loaded
     }
   }
   
   Future<void> _loadSavedAlbums() async { // New method to load saved albums
     if (mounted) {
       setState(() {
-        _savedAlbums = _albumManager.savedAlbums;
+        _savedAlbums = List.from(_albumManager.savedAlbums); // Create a mutable copy
       });
+      _applySortAndRefresh(); // Apply sort after albums are loaded
     }
   }
 
@@ -595,7 +701,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
-            _loadDownloadedSongs();
+            _loadDownloadedSongs(); // This will also trigger sorting
         }
       } else {
         // User canceled the picker or no files selected
@@ -722,7 +828,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   Widget _buildDownloadedSongsView() {
     // Do not listen here, we'll scope rebuilds to each item
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    final List<Song> completedSongs = List.from(_songs);
+    
+    // _songs list is already sorted by _sortSongs() via _applySortAndRefresh()
+    final List<Song> completedSortedSongs = List.from(_songs);
 
     List<Song> allSongsToShow = [];
     final Set<String> addedSongIds = {};
@@ -734,38 +842,27 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     }
 
     // Filter completed songs if search query is present
-    List<Song> songsToConsider = completedSongs;
+    List<Song> songsToConsider = completedSortedSongs;
     if (_searchQuery.isNotEmpty) {
-      songsToConsider = completedSongs.where((song) {
+      songsToConsider = completedSortedSongs.where((song) {
         return song.title.toLowerCase().contains(_searchQuery) ||
                (song.artist.toLowerCase().contains(_searchQuery));
       }).toList();
     }
     
     // Add filtered/completed downloads, avoiding duplicates
+    // These are already sorted by user preference via _sortSongs -> _applySortAndRefresh
     for (final song in songsToConsider) {
       if (!addedSongIds.contains(song.id)) {
         allSongsToShow.add(song);
-        addedSongIds.add(song.id);
+        // addedSongIds.add(song.id); // Not strictly needed here as we iterate unique songs
       }
     }
 
-    // Sort songs by title (optional, but good for consistency)
-    // Only sort if not primarily showing active downloads at the top, or sort sections separately
-    // For simplicity, let's sort the whole list after combining.
-    // Active downloads might jump around if their title isn't first alphabetically.
-    // A more sophisticated sort would keep active downloads at the top, then sort completed ones.
-    // Current sort:
-    allSongsToShow.sort((a, b) {
-      // Prioritize active downloads at the top
-      bool aIsDownloading = currentSongProvider.activeDownloadTasks.containsKey(a.id);
-      bool bIsDownloading = currentSongProvider.activeDownloadTasks.containsKey(b.id);
-      if (aIsDownloading && !bIsDownloading) return -1;
-      if (!aIsDownloading && bIsDownloading) return 1;
-      // Then sort by title
-      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-    });
-
+    // Active downloads are already at the top. The 'songsToConsider' part is already sorted.
+    // No additional sorting needed here unless active downloads also need sorting,
+    // but they are typically displayed by order of initiation or fixed at the top.
+    // The previous sort logic for allSongsToShow is now handled by _sortSongs for the _songs list.
 
     if (allSongsToShow.isEmpty) {
       return Center(child: Text(_searchQuery.isNotEmpty ? 'No songs found matching "$_searchQuery".' : 'No downloaded songs yet.'));
@@ -823,13 +920,18 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                     ? (songObj.albumArtUrl.startsWith('http')
                         ? Image.network(
                             songObj.albumArtUrl,
-                            width: 40, height: 40, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                            width: 40, height: 40, fit: BoxFit.cover, // Reduced size
+                            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), // Reduced size
                           )
                         : FutureBuilder<String>(
                             future: (() async {
                               final dir = await getApplicationDocumentsDirectory();
-                              final fullPath = p.join(dir.path, songObj.albumArtUrl);
+                              // Ensure albumArtUrl is just a filename if local
+                              String artFileName = songObj.albumArtUrl;
+                              if (artFileName.contains(Platform.pathSeparator)) {
+                                artFileName = p.basename(artFileName);
+                              }
+                              final fullPath = p.join(dir.path, artFileName);
                               if (await File(fullPath).exists()) return fullPath;
                               return '';
                             })(),
@@ -838,14 +940,14 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                                   && snap.hasData && snap.data!.isNotEmpty) {
                                 return Image.file(
                                   File(snap.data!),
-                                  width: 40, height: 40, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                                  width: 40, height: 40, fit: BoxFit.cover, // Reduced size
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), // Reduced size
                                 );
                               }
-                              return const Icon(Icons.music_note, size: 40);
+                              return const Icon(Icons.music_note, size: 40); // Reduced size
                             },
                           ))
-                    : const Icon(Icons.music_note, size: 40),
+                    : const Icon(Icons.music_note, size: 40), // Reduced size
                 ),
                 title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -875,13 +977,52 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     String hintText = 'Search...';
-    if (_tabController?.index == 0) {
+    IconData sortIcon = Icons.sort; // Default, can be more specific
+    List<PopupMenuEntry<dynamic>> sortMenuItems = [];
+
+    int currentTabIndex = _tabController?.index ?? 0;
+
+    if (currentTabIndex == 0) { // Playlists
       hintText = 'Search Playlists...';
-    } else if (_tabController?.index == 1) {
-      hintText = 'Search Saved Albums...'; // New hint for Albums tab
-    } else if (_tabController?.index == 2) {
+      sortIcon = Icons.sort_by_alpha; // Example, adjust as needed
+      sortMenuItems = PlaylistSortType.values.map((sortType) {
+        String text = '';
+        switch (sortType) {
+          case PlaylistSortType.nameAsc: text = 'Name (A-Z)'; break;
+          case PlaylistSortType.nameDesc: text = 'Name (Z-A)'; break;
+          case PlaylistSortType.songCountAsc: text = 'Song Count (Fewest)'; break;
+          case PlaylistSortType.songCountDesc: text = 'Song Count (Most)'; break;
+        }
+        return PopupMenuItem(value: sortType, child: Text(text));
+      }).toList();
+    } else if (currentTabIndex == 1) { // Albums
+      hintText = 'Search Saved Albums...';
+      sortIcon = Icons.sort_by_alpha; // Example
+      sortMenuItems = AlbumSortType.values.map((sortType) {
+        String text = '';
+        switch (sortType) {
+          case AlbumSortType.titleAsc: text = 'Title (A-Z)'; break;
+          case AlbumSortType.titleDesc: text = 'Title (Z-A)'; break;
+          case AlbumSortType.artistAsc: text = 'Artist (A-Z)'; break;
+          case AlbumSortType.artistDesc: text = 'Artist (Z-A)'; break;
+        }
+        return PopupMenuItem(value: sortType, child: Text(text));
+      }).toList();
+    } else if (currentTabIndex == 2) { // Downloads
       hintText = 'Search Downloads...';
+      sortIcon = Icons.sort_by_alpha; // Example
+      sortMenuItems = SongSortType.values.map((sortType) {
+        String text = '';
+        switch (sortType) {
+          case SongSortType.titleAsc: text = 'Title (A-Z)'; break;
+          case SongSortType.titleDesc: text = 'Title (Z-A)'; break;
+          case SongSortType.artistAsc: text = 'Artist (A-Z)'; break;
+          case SongSortType.artistDesc: text = 'Artist (Z-A)'; break;
+        }
+        return PopupMenuItem(value: sortType, child: Text(text));
+      }).toList();
     }
+
 
     return Scaffold(
       appBar: AppBar(
@@ -905,30 +1046,54 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: hintText, // Updated hintText
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              // _onSearchChanged will be called by listener
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24.0),
-                      borderSide: BorderSide.none,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: hintText, // Updated hintText
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    // _onSearchChanged will be called by listener
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24.0),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey[850]
+                              : Colors.grey[200],
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                        ),
+                      ),
                     ),
-                    filled: true,
-                    fillColor: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey[850]
-                        : Colors.grey[200],
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                  ),
+                    PopupMenuButton(
+                      icon: Icon(sortIcon),
+                      tooltip: "Sort",
+                      onSelected: (selectedValue) {
+                        if (currentTabIndex == 0 && selectedValue is PlaylistSortType) {
+                          setState(() => _playlistSortType = selectedValue);
+                          _saveSortPreference(_playlistSortPrefKey, selectedValue.toString().split('.').last);
+                        } else if (currentTabIndex == 1 && selectedValue is AlbumSortType) {
+                          setState(() => _albumSortType = selectedValue);
+                           _saveSortPreference(_albumSortPrefKey, selectedValue.toString().split('.').last);
+                        } else if (currentTabIndex == 2 && selectedValue is SongSortType) {
+                          setState(() => _songSortType = selectedValue);
+                           _saveSortPreference(_songSortPrefKey, selectedValue.toString().split('.').last);
+                        }
+                        _applySortAndRefresh();
+                      },
+                      itemBuilder: (BuildContext context) => sortMenuItems,
+                    ),
+                  ],
                 ),
               ),
               TabBar( // Add TabBar
