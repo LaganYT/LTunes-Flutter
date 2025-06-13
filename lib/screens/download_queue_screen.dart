@@ -11,6 +11,49 @@ class DownloadQueueScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Download Queue'),
+        actions: [
+          Consumer<CurrentSongProvider>( // Use Consumer here to access provider for button visibility
+            builder: (context, provider, child) {
+              final bool hasDownloads = provider.activeDownloadTasks.isNotEmpty || provider.songsQueuedForDownload.isNotEmpty;
+              if (hasDownloads) {
+                return IconButton(
+                  icon: const Icon(Icons.clear_all),
+                  tooltip: 'Cancel All Downloads',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        return AlertDialog(
+                          title: const Text('Cancel All Downloads?'),
+                          content: const Text('Are you sure you want to cancel all pending and active downloads?'),
+                          actions: <Widget>[
+                            TextButton(
+                              child: const Text('No'),
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop(); // Close the dialog
+                              },
+                            ),
+                            TextButton(
+                              child: const Text('Yes, Cancel All'),
+                              onPressed: () {
+                                provider.cancelAllDownloads();
+                                Navigator.of(dialogContext).pop(); // Close the dialog
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('All downloads cancelled.')),
+                                );
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              }
+              return const SizedBox.shrink(); // Return an empty widget if no downloads
+            },
+          ),
+        ],
       ),
       body: Consumer<CurrentSongProvider>(
         builder: (context, provider, child) {

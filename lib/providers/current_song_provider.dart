@@ -1134,6 +1134,54 @@ class CurrentSongProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> cancelAllDownloads() async {
+    debugPrint("Attempting to cancel all downloads.");
+
+    // Create a combined list of all song IDs to cancel to avoid issues with modifying collections while iterating.
+    final List<String> songIdsToCancel = [];
+    songIdsToCancel.addAll(_activeDownloads.keys);
+    songIdsToCancel.addAll(_downloadQueue.map((s) => s.id).toList());
+
+    // Remove duplicates, though activeDownloads and downloadQueue should ideally not have overlaps
+    // if logic is correct, but good for safety.
+    final uniqueSongIdsToCancel = songIdsToCancel.toSet().toList();
+
+    if (uniqueSongIdsToCancel.isEmpty) {
+      debugPrint("No downloads to cancel.");
+      return;
+    }
+
+    debugPrint("Found ${uniqueSongIdsToCancel.length} unique downloads to cancel.");
+
+    // Call cancelDownload for each. cancelDownload handles DownloadManager interaction and state updates.
+    for (final songId in uniqueSongIdsToCancel) {
+      // We don't need to await each individual cancelDownload here if we want to fire them off
+      // and let them complete asynchronously. The UI will update as each one finishes.
+      // However, cancelDownload itself is async.
+      // For simplicity in managing _isProcessingProviderDownload and _triggerNextDownloadInProviderQueue,
+      // it might be better to let them run.
+      // The current cancelDownload logic already handles removing from _activeDownloads
+      // and _downloadProgress, and triggering the next download if one was active.
+      // If we clear _downloadQueue here, _triggerNextDownloadInProviderQueue won't pick up new items from it.
+
+      // If a download is active (_activeDownloads contains it), cancelDownload will handle it.
+      // If it's only in _downloadQueue, cancelDownload will remove it from there.
+      await cancelDownload(songId);
+    }
+
+    // Explicitly clear the provider's queue as cancelDownload only removes one at a time
+    // or the active one.
+    _downloadQueue.clear();
+
+    // _activeDownloads and _downloadProgress should be cleared by the individual cancelDownload calls
+    // as they complete or error out.
+    // If there was an active download, its cancellation will set _isProcessingProviderDownload to false
+    // and attempt to trigger the next download. Since _downloadQueue is now empty, nothing new will start.
+
+    debugPrint("All download cancellation requests initiated. Provider queue cleared.");
+    notifyListeners(); // Notify for the queue clearing and any immediate state changes.
+  }
+
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
     _isLoadingAudio = true;
     // _currentSongFromAppLogic = null; // Clear regular song // This will be set to the radio song object
