@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/song.dart';
-import 'song_detail_screen.dart';
+import 'song_detail_screen.dart'; // Ensure AddToPlaylistDialog is accessible
 import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
@@ -9,6 +9,7 @@ import 'dart:io'; // Required for File
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import 'dart:convert'; // Added import
+import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -24,6 +25,8 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   String _searchQuery = '';
   late TabController _tabController;
   final ApiService _apiService = ApiService();
+  // ignore: unused_field
+  final PlaylistManagerService _playlistManagerService = PlaylistManagerService(); // Instance of PlaylistManagerService
 
   @override
   bool get wantKeepAlive => true;
@@ -260,23 +263,57 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
 
               return Dismissible(
                 key: Key(song.id),
-                direction: DismissDirection.startToEnd,
-                dismissThresholds: const { // Add this property
-                  DismissDirection.startToEnd: 0.25, // Adjust this value as needed (e.g., 0.2 for 20%)
+                direction: DismissDirection.horizontal, // Allow both directions
+                dismissThresholds: const { 
+                  DismissDirection.startToEnd: 0.25, 
+                  DismissDirection.endToStart: 0.25, // Threshold for adding to playlist
                 },
                 confirmDismiss: (direction) async {
-                  final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                  currentSongProvider.addToQueue(song);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${song.title} added to queue')),
-                  );
-                  return false; // Do not dismiss the item
+                  if (direction == DismissDirection.startToEnd) {
+                    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                    currentSongProvider.addToQueue(song);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${song.title} added to queue')),
+                    );
+                    return false; // Do not dismiss the item
+                  } else if (direction == DismissDirection.endToStart) {
+                    // Show add to playlist dialog
+                    // _showAddToPlaylistDialog(song); // Old call
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        return AddToPlaylistDialog(song: song);
+                      }
+                    );
+                    return false; // Do not dismiss the item, dialog handles action
+                  }
+                  return false; // Default to not dismissing
                 },
                 background: Container(
                   color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                      const SizedBox(width: 8),
+                      Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                    ],
+                  ),
+                ),
+                secondaryBackground: Container(
+                  color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+                      const SizedBox(width: 8),
+                      Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
+                    ],
+                  ),
                 ),
                 child: ListTile(
                   leading: ClipRRect(

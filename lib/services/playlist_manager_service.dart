@@ -64,6 +64,14 @@ class PlaylistManagerService with ChangeNotifier {
         await Future.delayed(const Duration(milliseconds: 50));
       }
     }
+    // Ensure playlists are loaded before returning, especially if called externally before accessing playlists
+    if (!_playlistsLoaded) {
+      // This case should ideally not be hit if the logic above is correct,
+      // but as a safeguard, wait for loading to complete.
+      while(_isLoading || !_playlistsLoaded) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+    }
   }
 
   Future<void> _savePlaylists() async {
@@ -95,6 +103,7 @@ class PlaylistManagerService with ChangeNotifier {
   }
 
   Future<void> addSongToPlaylist(Playlist playlist, Song song) async {
+    await ensurePlaylistsLoaded(); // Ensure playlists are loaded before modification
     final index = _playlists.indexWhere((p) => p.id == playlist.id);
     if (index != -1) {
       Playlist existingPlaylist = _playlists[index];
