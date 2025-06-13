@@ -908,13 +908,16 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           Consumer<CurrentSongProvider>( 
             builder: (context, provider, child) {
               final activeCount = provider.activeDownloadTasks.length;
-              if (activeCount == 0) return const SizedBox.shrink(); 
+              final queuedCount = provider.songsQueuedForDownload.length;
+              final totalDownloadQueueCount = activeCount + queuedCount;
+
+              if (totalDownloadQueueCount == 0) return const SizedBox.shrink(); 
 
               return Card(
                 margin: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0), 
                 child: ListTile(
                   leading: const Icon(Icons.downloading),
-                  title: Text('$activeCount song(s) downloading...'),
+                  title: Text('$totalDownloadQueueCount song(s) in download queue...'),
                   subtitle: const Text('Tap to view queue'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 18),
                   onTap: () {
@@ -980,12 +983,21 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                         onPressed: () => _deleteDownloadedSong(songObj),
                       ),
                       onTap: () {
-                        // When tapping a completed song, play it and set the queue.
-                        // The queue should consist of all displayable completed songs.
-                        int playableIndex = songsToDisplay.indexWhere((s) => s.id == songObj.id);
-                        if (playableIndex != -1) {
-                           Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue(songsToDisplay, initialIndex: playableIndex);
+                        // When tapping a completed song, play it.
+                        // The queue will be set to ALL completed downloaded songs,
+                        // respecting the current sort order of the Downloads tab.
+                        Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+
+                        // Find the index of the tapped song within the full list of completed sorted songs.
+                        int queueIndex = completedSortedSongs.indexWhere((s) => s.id == songObj.id);
+                        
+                        if (queueIndex != -1) {
+                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue(completedSortedSongs, initialIndex: queueIndex);
+                        } else {
+                          // This case should ideally not happen if songObj comes from completedSortedSongs (via songsToDisplay filter).
+                          // As a fallback, play the single song.
+                          Provider.of<CurrentSongProvider>(context, listen: false).setQueue([songObj], initialIndex: 0);
+                          debugPrint("Warning: Tapped song not found in the primary sorted list for queue. Setting queue with single song.");
                         }
                       },
                     );

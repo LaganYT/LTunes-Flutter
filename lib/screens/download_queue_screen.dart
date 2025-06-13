@@ -14,15 +14,24 @@ class DownloadQueueScreen extends StatelessWidget {
       ),
       body: Consumer<CurrentSongProvider>(
         builder: (context, provider, child) {
-          final activeTasks = provider.activeDownloadTasks;
-          final downloadProgress = provider.downloadProgress;
+          final activeTasksMap = provider.activeDownloadTasks;
+          final queuedSongsList = provider.songsQueuedForDownload;
+          final downloadProgressMap = provider.downloadProgress;
 
-          if (activeTasks.isEmpty) {
+          // Combine active tasks and queued songs for display.
+          // Active tasks are songs currently being processed by the provider/DownloadManager.
+          // Queued songs are waiting in the provider's internal queue.
+          final List<Song> allDownloadItems = [
+            ...activeTasksMap.values,
+            ...queuedSongsList,
+          ];
+
+          if (allDownloadItems.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(16.0),
                 child: Text(
-                  'No active downloads.',
+                  'Download queue is empty.',
                   style: TextStyle(fontSize: 16),
                   textAlign: TextAlign.center,
                 ),
@@ -30,14 +39,12 @@ class DownloadQueueScreen extends StatelessWidget {
             );
           }
 
-          // Convert map to list for ListView.builder
-          final List<Song> downloadingSongs = activeTasks.values.toList();
-
           return ListView.builder(
-            itemCount: downloadingSongs.length,
+            itemCount: allDownloadItems.length,
             itemBuilder: (context, index) {
-              final song = downloadingSongs[index];
-              final double? progress = downloadProgress[song.id];
+              final song = allDownloadItems[index];
+              final bool isActive = activeTasksMap.containsKey(song.id);
+              final double? progress = downloadProgressMap[song.id];
 
               Widget leadingWidget;
               if (song.albumArtUrl.isNotEmpty) {
@@ -76,20 +83,30 @@ class DownloadQueueScreen extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      if (progress != null) ...[
-                        LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: Colors.grey[300],
-                          valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Downloading... ${(progress * 100).toStringAsFixed(0)}%',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                      if (isActive) ...[
+                        // Song is actively being processed
+                        if (progress != null) ...[
+                          LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Downloading... ${(progress * 100).toStringAsFixed(0)}%',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ] else ...[
+                          // Active, but progress not yet available (e.g., preparing)
+                          Text(
+                            'Preparing download...',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ] else ...[
+                        // Song is in the provider's queue, not yet active
                         Text(
-                          'Pending...',
+                          'Queued',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],

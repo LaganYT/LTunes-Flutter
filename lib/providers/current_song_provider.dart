@@ -91,6 +91,7 @@ class CurrentSongProvider with ChangeNotifier {
   // bool get isDownloadingSong => _isDownloadingSong; // Changed
   bool get isDownloadingSong => _downloadProgress.isNotEmpty; // Changed
   Map<String, Song> get activeDownloadTasks => Map.unmodifiable(_activeDownloads); // Added
+  List<Song> get songsQueuedForDownload => List.unmodifiable(_downloadQueue); // Added
   bool get isLoadingAudio => _isLoadingAudio;
   Duration? get totalDuration => _totalDuration;
   // Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Replaced
