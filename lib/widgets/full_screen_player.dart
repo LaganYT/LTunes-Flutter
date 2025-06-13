@@ -139,12 +139,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
     try {
       final palette = await PaletteGenerator.fromImageProvider(provider);
-      // Darken the extracted dominant color by clamping its lightness
+      // Darken or lighten the extracted dominant color based on theme
       final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.background;
       final hsl = HSLColor.fromColor(baseColor);
-      final darkColor = hsl.withLightness(0.2).toColor();
+
+      // Determine theme brightness
+      final Brightness currentBrightness = Theme.of(context).brightness;
+      final bool isDarkMode = currentBrightness == Brightness.dark;
+
+      final adjustedColor = hsl.withLightness(isDarkMode ? 0.2 : 0.8).toColor(); // 0.2 for dark, 0.8 for light
+
       setState(() {
-        _dominantColor = darkColor;
+        _dominantColor = adjustedColor;
       });
     } catch (_) {
       // ignore any errors
