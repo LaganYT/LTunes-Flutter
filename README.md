@@ -20,6 +20,7 @@
 
 ### Settings
 - Add an option to disable UI animations (default: enabled).
+- Add an option for no theme and just have it be a light/dark compared to the current theme
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
