@@ -9,7 +9,7 @@
 
 ### Search and Library
 - Show artists in search results.
-- On the downloads tab add a button thingy that is a thing that shows the current download but is also a button to click that opens the download queue
+- Add a way to cancel all downloads
 
 ### Lyrics and Visuals
 - Lyrics support (save lyrics when downloading songs).
@@ -26,3 +26,5 @@
 - Apparently bluetooth doesn't work with music (android)
 
 Version - 1.3.0
+
+

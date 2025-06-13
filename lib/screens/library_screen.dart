@@ -17,6 +17,7 @@ import 'package:path_provider/path_provider.dart'; // Required for getApplicatio
 import 'package:path/path.dart' as p; // Required for path manipulation
 import 'package:uuid/uuid.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart'; // Import for metadata
+import 'download_queue_screen.dart'; // Import for the new Download Queue screen
 
 // Enum definitions for sorting
 enum PlaylistSortType { nameAsc, nameDesc, songCountAsc, songCountDesc }
@@ -886,148 +887,112 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // Do not listen here, we'll scope rebuilds to each item
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     
-    // _songs list is already sorted by _sortSongs() via _applySortAndRefresh()
+    // _songs list already contains completed, downloaded songs, sorted by _sortSongs()
     final List<Song> completedSortedSongs = List.from(_songs);
 
-    List<Song> allSongsToShow = [];
-    final Set<String> addedSongIds = {};
-
-    // Add active downloads first (these are not filtered by search as they are ongoing tasks)
-    for (final song in currentSongProvider.activeDownloadTasks.values) {
-      allSongsToShow.add(song);
-      addedSongIds.add(song.id);
-    }
+    final activeDownloadsMap = currentSongProvider.activeDownloadTasks;
+    final bool hasActiveDownloads = activeDownloadsMap.isNotEmpty;
 
     // Filter completed songs if search query is present
-    List<Song> songsToConsider = completedSortedSongs;
+    List<Song> songsToDisplay = completedSortedSongs;
     if (_searchQuery.isNotEmpty) {
-      songsToConsider = completedSortedSongs.where((song) {
+      songsToDisplay = completedSortedSongs.where((song) {
         return song.title.toLowerCase().contains(_searchQuery) ||
                (song.artist.toLowerCase().contains(_searchQuery));
       }).toList();
     }
     
-    // Add filtered/completed downloads, avoiding duplicates
-    // These are already sorted by user preference via _sortSongs -> _applySortAndRefresh
-    for (final song in songsToConsider) {
-      if (!addedSongIds.contains(song.id)) {
-        allSongsToShow.add(song);
-        // addedSongIds.add(song.id); // Not strictly needed here as we iterate unique songs
-      }
-    }
+    return Column( 
+      children: [
+        if (hasActiveDownloads) 
+          Consumer<CurrentSongProvider>( 
+            builder: (context, provider, child) {
+              final activeCount = provider.activeDownloadTasks.length;
+              if (activeCount == 0) return const SizedBox.shrink(); 
 
-    // Active downloads are already at the top. The 'songsToConsider' part is already sorted.
-    // No additional sorting needed here unless active downloads also need sorting,
-    // but they are typically displayed by order of initiation or fixed at the top.
-    // The previous sort logic for allSongsToShow is now handled by _sortSongs for the _songs list.
-
-    if (allSongsToShow.isEmpty) {
-      return Center(child: Text(_searchQuery.isNotEmpty ? 'No songs found matching "$_searchQuery".' : 'No downloaded songs yet.'));
-    }
-
-    return ListView.builder(
-      itemCount: allSongsToShow.length,
-      itemBuilder: (context, index) {
-        final songObj = allSongsToShow[index];
-        // ...existing code to build leadingWidget...
-
-        return Consumer<CurrentSongProvider>(
-          builder: (context, provider, _) {
-            final active = provider.activeDownloadTasks;
-            final prog  = provider.downloadProgress;
-            final double? progress = prog[songObj.id];
-            final bool isDownloading = active.containsKey(songObj.id) && progress != null;
-
-            if (isDownloading) {
-              return ListTile(
-                key: Key("downloading_${songObj.id}"),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(4.0),
-                  child: const Icon(Icons.music_note),
-                ),
-                title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist",
-                         maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    LinearProgressIndicator(value: progress),
-                    const SizedBox(height: 2),
-                    Text('Downloading... ${(progress * 100).toStringAsFixed(0)}%',
-                         style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.cancel_outlined, color: Colors.orange),
-                  tooltip: 'Cancel Download',
-                  onPressed: () {
-                    Provider.of<CurrentSongProvider>(context, listen: false)
-                        .cancelDownload(songObj.id);
+              return Card(
+                margin: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0), 
+                child: ListTile(
+                  leading: const Icon(Icons.downloading),
+                  title: Text('$activeCount song(s) downloading...'),
+                  subtitle: const Text('Tap to view queue'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 18),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const DownloadQueueScreen()),
+                    );
                   },
                 ),
-                onTap: null,
               );
-            } else {
-              return ListTile(
-                key: Key(songObj.id),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(4.0),
-                  child: songObj.albumArtUrl.isNotEmpty
-                    ? (songObj.albumArtUrl.startsWith('http')
-                        ? Image.network(
-                            songObj.albumArtUrl,
-                            width: 40, height: 40, fit: BoxFit.cover, // Reduced size
-                            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), // Reduced size
-                          )
-                        : FutureBuilder<String>(
-                            future: (() async {
-                              final dir = await getApplicationDocumentsDirectory();
-                              // Ensure albumArtUrl is just a filename if local
-                              String artFileName = songObj.albumArtUrl;
-                              if (artFileName.contains(Platform.pathSeparator)) {
-                                artFileName = p.basename(artFileName);
-                              }
-                              final fullPath = p.join(dir.path, artFileName);
-                              if (await File(fullPath).exists()) return fullPath;
-                              return '';
-                            })(),
-                            builder: (context, snap) {
-                              if (snap.connectionState == ConnectionState.done
-                                  && snap.hasData && snap.data!.isNotEmpty) {
-                                return Image.file(
-                                  File(snap.data!),
-                                  width: 40, height: 40, fit: BoxFit.cover, // Reduced size
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), // Reduced size
-                                );
-                              }
-                              return const Icon(Icons.music_note, size: 40); // Reduced size
-                            },
-                          ))
-                    : const Icon(Icons.music_note, size: 40), // Reduced size
+            },
+          ),
+        Expanded( 
+          child: songsToDisplay.isEmpty
+              ? Center(child: Text(_searchQuery.isNotEmpty ? 'No songs found matching "$_searchQuery".' : 'No downloaded songs yet.'))
+              : ListView.builder(
+                  itemCount: songsToDisplay.length,
+                  itemBuilder: (context, index) {
+                    final songObj = songsToDisplay[index];
+                    // This ListTile is now only for completed songs
+
+                    return ListTile(
+                      key: Key(songObj.id),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(4.0),
+                        child: songObj.albumArtUrl.isNotEmpty
+                          ? (songObj.albumArtUrl.startsWith('http')
+                              ? Image.network(
+                                  songObj.albumArtUrl,
+                                  width: 40, height: 40, fit: BoxFit.cover, 
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), 
+                                )
+                              : FutureBuilder<String>(
+                                  future: (() async {
+                                    final dir = await getApplicationDocumentsDirectory();
+                                    String artFileName = songObj.albumArtUrl;
+                                    if (artFileName.contains(Platform.pathSeparator)) {
+                                      artFileName = p.basename(artFileName);
+                                    }
+                                    final fullPath = p.join(dir.path, artFileName);
+                                    if (await File(fullPath).exists()) return fullPath;
+                                    return '';
+                                  })(),
+                                  builder: (context, snap) {
+                                    if (snap.connectionState == ConnectionState.done
+                                        && snap.hasData && snap.data!.isNotEmpty) {
+                                      return Image.file(
+                                        File(snap.data!),
+                                        width: 40, height: 40, fit: BoxFit.cover, 
+                                        errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), 
+                                      );
+                                    }
+                                    return const Icon(Icons.music_note, size: 40); 
+                                  },
+                                ))
+                          : const Icon(Icons.music_note, size: 40), 
+                      ),
+                      title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Delete Download',
+                        onPressed: () => _deleteDownloadedSong(songObj),
+                      ),
+                      onTap: () {
+                        // When tapping a completed song, play it and set the queue.
+                        // The queue should consist of all displayable completed songs.
+                        int playableIndex = songsToDisplay.indexWhere((s) => s.id == songObj.id);
+                        if (playableIndex != -1) {
+                           Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
+                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue(songsToDisplay, initialIndex: playableIndex);
+                        }
+                      },
+                    );
+                  },
                 ),
-                title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  tooltip: 'Delete Download',
-                  onPressed: () => _deleteDownloadedSong(songObj),
-                ),
-                onTap: () {
-                  // When tapping a completed song, play it and set the queue to all *completed* songs.
-                  // Filter 'allSongsToShow' to only include non-downloading songs for the playback queue.
-                  final playableSongs = allSongsToShow.where((s) => !active.containsKey(s.id)).toList();
-                  int playableIndex = playableSongs.indexWhere((s) => s.id == songObj.id);
-                  if (playableIndex != -1) {
-                     Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-                     Provider.of<CurrentSongProvider>(context, listen: false).setQueue(playableSongs, initialIndex: playableIndex);
-                  }
-                },
-              );
-            }
-          },
-        );
-      },
+        ),
+      ],
     );
   }
 
