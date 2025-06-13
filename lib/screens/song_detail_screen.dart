@@ -355,87 +355,122 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ],
               const SizedBox(height: 32),
               
-              // Play/Pause Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: isLoadingThisSong
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
-                            strokeWidth: 2,
+              // Row for Play/Pause and Download/Delete Buttons
+              Row(
+                children: [
+                  // Play/Pause Button
+                  Expanded(
+                    child: SizedBox(
+                      width: double.infinity, // Ensures button takes full width of Expanded
+                      child: ElevatedButton.icon(
+                        icon: isLoadingThisSong
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 28),
+                        label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: isLoadingThisSong
+                            ? null
+                            : () {
+                                if (isPlayingThisSong) {
+                                  currentSongProvider.pauseSong();
+                                } else {
+                                  if (isCurrentSongInProvider) {
+                                    currentSongProvider.resumeSong();
+                                  } else {
+                                    currentSongProvider.playSong(widget.song);
+                                  }
+                                }
+                              },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16), // Spacing between buttons
+
+                  // Download/Delete Button
+                  Expanded(
+                    child: Column( // Column to handle progress bar and button
+                      children: [
+                        if (currentSongProvider.isDownloadingSong && currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id)) ...[
+                          LinearProgressIndicator(
+                            value: currentSongProvider.downloadProgress[songForDownloadStatus.id],
+                            color: colorScheme.secondary
                           ),
-                        )
-                      : Icon(isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 28),
-                  label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
+                            style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                          ),
+                          // To maintain consistent height with the button, add a placeholder or adjust padding
+                          // For simplicity, we'll let the button define the height when not downloading.
+                          // If a fixed height is needed, wrap the Text in a SizedBox or Container.
+                        ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.tonalIcon(
+                              icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
+                              label: Text('Delete', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer, fontSize: 16)), // Adjusted text
+                              style: FilledButton.styleFrom(
+                                backgroundColor: colorScheme.errorContainer,
+                                foregroundColor: colorScheme.onErrorContainer,
+                                padding: const EdgeInsets.symmetric(vertical: 16), // Match play button padding
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: _deleteSong,
+                            ),
+                          ),
+                        ] else ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.tonalIcon(
+                              icon: const Icon(Icons.download_rounded),
+                              label: Text('Download', style: textTheme.labelLarge?.copyWith(fontSize: 16)), // Adjusted text
+                               style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16), // Match play button padding
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: isRadioPlayingGlobal ? null : _downloadSong,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  onPressed: isLoadingThisSong
-                      ? null
-                      : () {
-                          if (isPlayingThisSong) {
-                            currentSongProvider.pauseSong();
-                          } else {
-                            if (isCurrentSongInProvider) {
-                              currentSongProvider.resumeSong();
-                            } else {
-                              currentSongProvider.playSong(widget.song);
-                            }
-                          }
-                        },
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 16), // Spacing after the button row
 
-              // Download/Delete Button
-              // Check if the specific song is being downloaded by the provider
-              if (currentSongProvider.isDownloadingSong && currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id)) ...[
-                LinearProgressIndicator(
-                  value: currentSongProvider.downloadProgress[songForDownloadStatus.id],
-                  color: colorScheme.secondary
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
-                  style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                ),
-              ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
+              // View Album button
+              if (widget.song.album != null && widget.song.album!.isNotEmpty)
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
-                    label: Text('Delete Download', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.errorContainer,
-                      foregroundColor: colorScheme.onErrorContainer,
+                  child: ElevatedButton.icon(
+                    icon: _isLoadingAlbum 
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                          : const Icon(Icons.album_outlined),
+                    label: const Text('View Album'),
+                    onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      foregroundColor: Theme.of(context).colorScheme.onSecondary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    onPressed: _deleteSong,
                   ),
                 ),
-              ] else ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    icon: const Icon(Icons.download_rounded),
-                    label: Text('Download Song', style: textTheme.labelLarge),
-                     style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: isRadioPlayingGlobal ? null : _downloadSong,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 24), // Spacing before Action Row
 
-              // Action Row: Add to Playlist & More Info
+              // Action Row: Add to Playlist & Add to Queue
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -459,20 +494,20 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              // View Album button
-              if (widget.song.album != null && widget.song.album!.isNotEmpty)
-                ElevatedButton.icon(
-                  icon: _isLoadingAlbum 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
-                        : const Icon(Icons.album_outlined),
-                  label: const Text('View Album'),
-                  onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.secondary,
-                    foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                  ),
-                ),
+              // const SizedBox(height: 20), // This SizedBox might be redundant or need adjustment
+              // View Album button - MOVED UP
+              // if (widget.song.album != null && widget.song.album!.isNotEmpty)
+              //   ElevatedButton.icon(
+              //     icon: _isLoadingAlbum 
+              //           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+              //           : const Icon(Icons.album_outlined),
+              //     label: const Text('View Album'),
+              //     onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
+              //     style: ElevatedButton.styleFrom(
+              //       backgroundColor: Theme.of(context).colorScheme.secondary,
+              //       foregroundColor: Theme.of(context).colorScheme.onSecondary,
+              //     ),
+              //   ),
             ],
           ),
         ),
