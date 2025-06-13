@@ -427,7 +427,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Icon(isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 28),
+                            : Icon(
+                                isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                size: 28,
+                                color: colorScheme.onPrimary, // Explicitly set icon color
+                              ), 
                         label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.primary,
@@ -505,43 +509,47 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 16), // Spacing after the button row
 
-              // View Album button
-              if (widget.song.album != null && widget.song.album!.isNotEmpty)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: _isLoadingAlbum 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
-                          : const Icon(Icons.album_outlined),
-                    label: const Text('View Album'),
-                    onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // Row for View Album and View Lyrics buttons
+              Row(
+                children: [
+                  // View Album button
+                  if (widget.song.album != null && widget.song.album!.isNotEmpty)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: _isLoadingAlbum
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.album_outlined),
+                        label: const Text('View Album'),
+                        onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.secondary,
+                          foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  // Add spacing if both buttons are visible
+                  if (widget.song.album != null && widget.song.album!.isNotEmpty)
+                    const SizedBox(width: 16),
+              
+                  // View Lyrics button
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: _isLoadingLyrics
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.lyrics_outlined),
+                      label: const Text('View Lyrics'),
+                      onPressed: _isLoadingLyrics ? null : () => _fetchAndShowLyrics(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.tertiaryContainer,
+                        foregroundColor: colorScheme.onTertiaryContainer,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
-                ),
-              const SizedBox(height: 16), // Spacing after View Album button
-              
-              // View Lyrics button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: _isLoadingLyrics
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.lyrics_outlined),
-                  label: const Text('View Lyrics'),
-                  onPressed: _isLoadingLyrics ? null : () => _fetchAndShowLyrics(context),
-                  style: ElevatedButton.styleFrom(
-                    // Use a style that fits with other buttons, e.g., tertiary or outlined
-                    backgroundColor: colorScheme.tertiaryContainer,
-                    foregroundColor: colorScheme.onTertiaryContainer,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
+                ],
               ),
               const SizedBox(height: 24), // Spacing before Action Row
 
