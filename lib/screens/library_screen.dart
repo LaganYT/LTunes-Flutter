@@ -728,20 +728,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
     return Column( // Wrap content in a Column
       children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Create New Playlist'),
-            onPressed: () => _createPlaylist(context),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 40), // Make button wider
-            ),
-          ),
-        ),
         Expanded( // Make ListView take remaining space
           child: filteredPlaylists.isEmpty
-              ? Center(child: Text(_searchQuery.isNotEmpty ? 'No playlists found matching "$_searchQuery".' : 'No playlists yet. Create one using the button above!'))
+              ? Center(child: Text(_searchQuery.isNotEmpty ? 'No playlists found matching "$_searchQuery".' : 'No playlists yet. Create one using the button below!')) // Updated text
               : ListView.builder(
                   itemCount: filteredPlaylists.length,
                   itemBuilder: (context, index) {
@@ -1154,7 +1143,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
 
     List<Widget> appBarActions = [];
-    // "Create Playlist" button is now in _buildPlaylistsView, so it's removed from here.
+    // "Create Playlist" button is now a FAB, so it's removed from here.
     appBarActions.add(
       IconButton(
         icon: const Icon(Icons.file_upload_outlined), // Icon for importing
@@ -1245,6 +1234,18 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           _buildDownloadedSongsView(),
         ],
       ),
+      floatingActionButton: AnimatedOpacity(
+        opacity: currentTabIndex == 0 ? 1.0 : 0.0, // Visible only on Playlists tab
+        duration: const Duration(milliseconds: 200),
+        child: currentTabIndex == 0 // Ensure FAB is only built when potentially visible
+            ? FloatingActionButton(
+                onPressed: () => _createPlaylist(context),
+                tooltip: 'Create New Playlist',
+                child: const Icon(Icons.add),
+              )
+            : null, // Render nothing if not on the Playlists tab
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
