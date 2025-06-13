@@ -20,12 +20,77 @@ class AlbumScreen extends StatefulWidget {
 class _AlbumScreenState extends State<AlbumScreen> {
   late bool _isSaved;
   final AlbumManagerService _albumManager = AlbumManagerService();
+  late bool _areAllTracksDownloaded;
+  CurrentSongProvider? _currentSongProvider;
 
   @override
   void initState() {
     super.initState();
     _isSaved = _albumManager.isAlbumSaved(widget.album.id);
     _albumManager.addListener(_onAlbumManagerStateChanged);
+    _areAllTracksDownloaded = false; // Initial value
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+        _currentSongProvider?.addListener(_onCurrentSongProviderChanged);
+        _updateAllTracksDownloadedStatus(); // Initial check
+      }
+    });
+  }
+
+  void _onCurrentSongProviderChanged() {
+    _updateAllTracksDownloadedStatus();
+  }
+
+  void _updateAllTracksDownloadedStatus() {
+    if (!mounted) return;
+
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    bool newAllDownloadedStatus;
+
+    if (widget.album.tracks.isEmpty) {
+      newAllDownloadedStatus = false;
+    } else {
+      newAllDownloadedStatus = true; // Assume true, prove false
+      for (final track in widget.album.tracks) {
+        final progress = currentSongProvider.downloadProgress[track.id];
+        final bool isPersistedAsDownloaded = track.isDownloaded;
+
+        if (progress == 1.0) {
+          // Explicitly marked as 100% downloaded by provider
+          continue;
+        } else if (progress != null && progress < 1.0) {
+          // Actively downloading or failed, not fully downloaded
+          newAllDownloadedStatus = false;
+          break;
+        } else if (progress == null && isPersistedAsDownloaded) {
+          // Not in provider's active/completed download map for this session,
+          // but the track data says it's downloaded. Assume it is.
+          // To ensure this state is reflected in downloadProgress for future checks by provider,
+          // one might consider calling queueSongForDownload which would update progress to 1.0
+          // if file exists. For display purposes, this assumption is generally okay.
+          // If the file was deleted externally, this would be stale until user tries to play/download.
+          bool foundInActiveDownloads = currentSongProvider.activeDownloadTasks.containsKey(track.id);
+          if (foundInActiveDownloads) { // If it's in active downloads but progress is null, it's not done.
+            newAllDownloadedStatus = false;
+            break;
+          }
+          continue;
+        } else {
+          // Not in progress map (progress == null) AND not persistedAsDownloaded,
+          // or other states. Definitely not downloaded.
+          newAllDownloadedStatus = false;
+          break;
+        }
+      }
+    }
+
+    if (_areAllTracksDownloaded != newAllDownloadedStatus) {
+      setState(() {
+        _areAllTracksDownloaded = newAllDownloadedStatus;
+      });
+    }
   }
 
   void _onAlbumManagerStateChanged() {
@@ -42,6 +107,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
   @override
   void dispose() {
     _albumManager.removeListener(_onAlbumManagerStateChanged);
+    _currentSongProvider?.removeListener(_onCurrentSongProviderChanged);
     super.dispose();
   }
 
@@ -380,20 +446,36 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         Row(
                           children: [
                             if (hasTracks)
-                            Expanded(
-                              child: TextButton.icon(
-                                icon: Icon(Icons.download_for_offline_outlined, color: secondaryButtonColor),
-                                label: Text('Download', style: TextStyle(color: secondaryButtonColor)),
-                                onPressed: _downloadAlbum,
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                    side: BorderSide(color: secondaryButtonSideColor),
+                              if (_areAllTracksDownloaded)
+                                Expanded(
+                                  child: TextButton.icon(
+                                    icon: Icon(Icons.check_circle_outline, color: secondaryButtonColor.withOpacity(0.7)),
+                                    label: Text('All Downloaded', style: TextStyle(color: secondaryButtonColor.withOpacity(0.7))),
+                                    onPressed: null, // Disabled
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                        side: BorderSide(color: secondaryButtonSideColor.withOpacity(0.5)),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                Expanded(
+                                  child: TextButton.icon(
+                                    icon: Icon(Icons.download_for_offline_outlined, color: secondaryButtonColor),
+                                    label: Text('Download', style: TextStyle(color: secondaryButtonColor)),
+                                    onPressed: _downloadAlbum,
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                        side: BorderSide(color: secondaryButtonSideColor),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
                             if (hasTracks) const SizedBox(width: 12),
                             Expanded(
                               child: TextButton.icon(
