@@ -23,7 +23,7 @@
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled).
-- Fix album issues (just figure it out lol)
+- #codebase when downloading from an album have it check which songs are downloaded before attempting to download them
 - On android it takes forever to load an offline song, fix that
 - on android it plays one or two songs offline then stps
 - Apparently bluetooth doesn't work with music (android)
