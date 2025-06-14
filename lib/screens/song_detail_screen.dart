@@ -238,6 +238,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               builder: (context) => LyricsScreen(
                 songTitle: widget.song.title,
                 lyrics: _lyrics!,
+                albumArtUrl: widget.song.albumArtUrl, // Pass the album art URL
               ),
             ),
           );
