@@ -6,12 +6,10 @@
 - Listening history (with option to clear).
 - Sleep timer (stop playback after set time).
 - Volume normalization (level all songs).
+- Rework shuffle button to (when turned on) shuffle the queue and not shuffle after each song
 
 ### Search and Library
 - Show artists in search results.
-
-### Lyrics and Visuals
-- Now add synced lyrics to the full screen player please (when you download the song have it download the lyrics too)
 
 ### Settings
 - Add an option to disable UI animations (default: animations enabled).
@@ -19,5 +17,7 @@
 
 ### Bug fixes
 - Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled). - IOS
+
 - Apparently bluetooth doesn't work with music (android) - ##CHECK THIS##
+
 - When you click the delete all songs button, have it delete the downloaded folder and re-create it, then go to where ever the is downloaded log is and delete all entries.
