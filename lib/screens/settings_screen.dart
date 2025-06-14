@@ -28,12 +28,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _latestKnownVersion = 'N/A';
   // Add a ValueNotifier to trigger refresh for FutureBuilders
   final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
+  // ignore: unused_field
+  late Future<int> _storageUsedFuture;
 
   @override
   void initState() {
     super.initState();
     _loadUSRadioOnlySetting();
     _loadCurrentAppVersion();
+    _storageUsedFuture = _calculateStorageUsed();
   }
 
   Future<void> _loadCurrentAppVersion() async {
@@ -64,25 +67,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ignore: unused_element
   Future<int> _calculateStorageUsed() async {
     final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys();
-    int totalSizeBytes = 0;
-    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
-    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+    final Set<String> keys = prefs.getKeys();
+    int totalSize = 0;
+    final appDocDir = await getApplicationDocumentsDirectory();
+    const String downloadsSubDir = 'ltunes_downloads';
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
-        final songJson = prefs.getString(key);
+        final String? songJson = prefs.getString(key);
         if (songJson != null) {
           try {
-            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
-            // Assuming Song.fromJson exists and works correctly
-            final song = Song.fromJson(songMap); 
+            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            Song song = Song.fromJson(songMap);
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
               // song.localFilePath is now a filename, construct full path with subdirectory
               final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
               final file = File(fullPath);
               if (await file.exists()) {
-                totalSizeBytes += await file.length();
+                totalSize += await file.length();
               }
             }
           } catch (e) {
@@ -92,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     }
-    return totalSizeBytes;
+    return totalSize;
   }
 
   // ignore: unused_element
@@ -295,6 +297,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _latestKnownVersion = 'Error';
       });
+    }
+  }
+
+  // ignore: unused_element
+  Future<void> _deleteAllDownloadedSongs() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Clear All Downloaded Music?'),
+          content: const Text(
+              'This will delete all downloaded music files from your device and reset their download status. This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error),
+              child: const Text('Clear All'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Clearing downloaded music...')),
+      );
+    }
+
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      const String downloadsSubDir = 'ltunes_downloads';
+      final Directory downloadsDir = Directory(p.join(appDocDir.path, downloadsSubDir));
+
+      if (await downloadsDir.exists()) {
+        await downloadsDir.delete(recursive: true);
+        debugPrint('Deleted directory: ${downloadsDir.path}');
+      }
+      await downloadsDir.create(recursive: true);
+      debugPrint('Re-created directory: ${downloadsDir.path}');
+
+      final prefs = await SharedPreferences.getInstance();
+      final Set<String> keys = prefs.getKeys();
+      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+      final playlistManagerService = Provider.of<PlaylistManagerService>(context, listen: false);
+      int songsUpdated = 0;
+
+      for (String key in keys) {
+        if (key.startsWith('song_')) {
+          final String? songJson = prefs.getString(key);
+          if (songJson != null) {
+            try {
+              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+              Song song = Song.fromJson(songMap);
+
+              if (song.isDownloaded || (song.localFilePath != null && song.localFilePath!.isNotEmpty)) {
+                Song updatedSong = song.copyWith(
+                  isDownloaded: false,
+                  localFilePath: null, // Explicitly set to null
+                  // Retain other fields like audioUrl for streaming
+                );
+                await prefs.setString(key, jsonEncode(updatedSong.toJson()));
+                
+                // Notify providers
+                currentSongProvider.updateSongDetails(updatedSong);
+                playlistManagerService.updateSongInPlaylists(updatedSong);
+                songsUpdated++;
+              }
+            } catch (e) {
+              debugPrint('Error processing song key $key during delete all: $e');
+            }
+          }
+        }
+      }
+      
+      // Recalculate storage used to update UI
+      _storageUsedFuture = _calculateStorageUsed();
+      if (mounted) {
+        setState(() {}); // To refresh the storage used display
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('All downloaded music has been cleared. $songsUpdated song(s) metadata updated.')),
+        );
+      }
+
+    } catch (e) {
+      debugPrint('Error deleting all downloaded songs: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error clearing music: $e')),
+        );
+      }
     }
   }
 
