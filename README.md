@@ -8,6 +8,3 @@
 ### Settings
 - Add an option to disable UI animations (default: animations enabled).
 - Allow selecting which tabs show in the library, downloads tab is always there, all are shown by default
-
-### Bug fixes
-- Apparently bluetooth doesn't work with music (android) - ##CHECK THIS##
