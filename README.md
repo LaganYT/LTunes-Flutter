@@ -2,12 +2,6 @@
 
 ## Features
 
-### Playback Features
-- Listening history (with option to clear).
-- Sleep timer (stop playback after set time).
-- Volume normalization (level all songs).
-- Rework shuffle button to (when turned on) shuffle the queue and not shuffle after each song
-
 ### Search and Library
 - Show artists in search results.
 

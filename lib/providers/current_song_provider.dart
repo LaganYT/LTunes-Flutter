@@ -23,7 +23,7 @@ class CurrentSongProvider with ChangeNotifier {
   Song? _currentSongFromAppLogic; // Represents the song our app thinks is current
   bool _isPlaying = false;
   // bool _isLooping = false; // Replaced by LoopMode logic derived from audio_handler
-  // bool _isShuffling = false; // Handled by audio_handler's shuffleMode
+  bool _isShuffling = false; // Manage shuffle state by shuffling queue once
   List<Song> _queue = [];
   int _currentIndexInAppQueue = -1; // Index in the _queue (app's perspective)
 
@@ -75,9 +75,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
-  bool get isShuffling {
-    return _audioHandler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
-  }
+  bool get isShuffling => _isShuffling;
 
   void updateDownloadedSong(Song updatedSong) {
     // Update the current song if it matches the updated song
@@ -709,14 +707,37 @@ class CurrentSongProvider with ChangeNotifier {
     _saveCurrentSongToStorage(); // Save the new mode
   }
 
-  void toggleShuffle() {
-    final currentMode = _audioHandler.playbackState.value.shuffleMode;
-    if (currentMode == AudioServiceShuffleMode.all) {
-      _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
+  // store queue/index before shuffle so we can restore later
+  List<Song>? _previousQueueBeforeShuffle;
+  int? _previousIndexBeforeShuffle;
+
+  void toggleShuffle() async {
+    if (!_isShuffling) {
+      // turning shuffle ON: save current state
+      if (_queue.isNotEmpty) {
+        _previousQueueBeforeShuffle = List.from(_queue);
+        _previousIndexBeforeShuffle = _currentIndexInAppQueue;
+        _isShuffling = true;
+        final current = _currentSongFromAppLogic;
+        final remaining = List<Song>.from(_queue)
+          ..removeWhere((s) => current != null && s.id == current.id)
+          ..shuffle();
+        final newQueue = [if (current != null) current, ...remaining];
+        await setQueue(newQueue, initialIndex: 0);
+      } else {
+        _isShuffling = true;
+      }
     } else {
-      _audioHandler.setShuffleMode(AudioServiceShuffleMode.all);
+      // turning shuffle OFF: restore previous state
+      _isShuffling = false;
+      if (_previousQueueBeforeShuffle != null) {
+        await setQueue(_previousQueueBeforeShuffle!, initialIndex: _previousIndexBeforeShuffle ?? 0);
+        _previousQueueBeforeShuffle = null;
+        _previousIndexBeforeShuffle = null;
+      }
     }
     notifyListeners();
+    _saveCurrentSongToStorage();
   }
 
   Future<void> setQueue(List<Song> songs, {int initialIndex = 0}) async {
