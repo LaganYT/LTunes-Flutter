@@ -2,6 +2,7 @@ class Song {
   final String title;
   final String id; 
   final String artist;
+  final String artistId;
   final String albumArtUrl; // Can be network URL or local filename (relative to docs dir)
   final String? album;
   final String? releaseDate;
@@ -30,6 +31,7 @@ class Song {
     required this.title,
     required this.id,
     required this.artist,
+    this.artistId = '', // Default to empty string if not provided
     required this.albumArtUrl,
     this.album,
     this.releaseDate,
@@ -49,6 +51,7 @@ class Song {
     String? title,
     String? id, // Allow copying ID if necessary, though typically fixed
     String? artist,
+    String? artistId, // Added artistId
     String? albumArtUrl,
     String? album,
     String? releaseDate,
@@ -68,6 +71,7 @@ class Song {
       title: title ?? this.title,
       id: id ?? this.id, // Keep original ID unless explicitly overridden
       artist: artist ?? this.artist,
+      artistId: artistId ?? this.artistId, // Updated to use provided or existing artistId
       albumArtUrl: albumArtUrl ?? this.albumArtUrl, // Handled by consumers
       album: album ?? this.album,
       releaseDate: releaseDate ?? this.releaseDate,
@@ -106,6 +110,7 @@ class Song {
       final id = _asString(json['id'], DateTime.now().millisecondsSinceEpoch.toString());
 
       String artist = _asString(json['artist']);
+      String artistIdFromJson = _asString(json['artistId']); // Parse artistId
       String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
       String audioUrl = _asString(json['audioUrl']);
       
@@ -133,6 +138,10 @@ class Song {
         if (artistsList != null && artistsList.isNotEmpty) {
           final firstArtistMap = artistsList.first as Map?;
           artist = _asString(firstArtistMap?['name']);
+          // Attempt to get artistId from the same structure if not already found
+          if (artistIdFromJson.isEmpty) {
+            artistIdFromJson = _asString(firstArtistMap?['id']);
+          }
         }
       }
 
@@ -159,6 +168,7 @@ class Song {
         title: title,
         id: id,
         artist: artist,
+        artistId: artistIdFromJson, // Assign parsed artistId
         albumArtUrl: albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
         releaseDate: releaseDate, // releaseDate is already String?
@@ -189,6 +199,7 @@ class Song {
     final String songId = trackJson['SNG_ID']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
     final String title = trackJson['SNG_TITLE']?.toString() ?? 'Unknown Track';
     final String artist = trackJson['ART_NAME']?.toString() ?? albumArtistName;
+    final String artistId = trackJson['ART_ID']?.toString() ?? ''; // Parse ART_ID for artistId
 
     final String durationStr = trackJson['DURATION']?.toString() ?? '0';
     final int seconds = int.tryParse(durationStr) ?? 0;
@@ -211,6 +222,7 @@ class Song {
       id: songId,
       title: title,
       artist: artist,
+      artistId: artistId, // Assign parsed artistId
       album: albumTitle,
       albumArtUrl: albumArtUrl,
       releaseDate: albumReleaseDate,
@@ -229,6 +241,7 @@ class Song {
         'title': title,
         'id': id, // Ensure ID is saved
         'artist': artist,
+        'artistId': artistId, // Serialize artistId
         'albumArtUrl': albumArtUrl, // Will save filename if correctly set by app logic
         'album': album,
         'releaseDate': releaseDate,

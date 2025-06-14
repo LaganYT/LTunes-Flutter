@@ -7,6 +7,7 @@ import '../services/album_manager_service.dart';
 import '../widgets/full_screen_player.dart'; // For navigation to player
 import '../screens/song_detail_screen.dart'; // For navigation to song details
 import 'package:audio_service/audio_service.dart'; // Required for AudioServiceShuffleMode
+import 'artist_screen.dart';  // new import
 
 class AlbumScreen extends StatefulWidget {
   final Album album;
@@ -579,11 +580,26 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
                     ),
-                    subtitle: Text(
-                      track.artist.isNotEmpty ? track.artist : widget.album.artistName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+                    subtitle: GestureDetector(
+                      onTap: () {
+                        if (track.artist.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ArtistScreen(artistId: track.artist),
+                            ),
+                          );
+                        }
+                      },
+                      child: Text(
+                        track.artist.isNotEmpty ? track.artist : widget.album.artistName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                     trailing: Text(
                       track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',

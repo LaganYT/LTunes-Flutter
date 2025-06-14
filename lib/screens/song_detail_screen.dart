@@ -12,6 +12,7 @@ import '../providers/current_song_provider.dart';
 import '../services/api_service.dart'; // Import ApiService
 import 'album_screen.dart'; // Import AlbumScreen
 import 'lyrics_screen.dart'; // Import the new LyricsScreen
+import 'artist_screen.dart';  // new import
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -392,12 +393,24 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              Text(
-                songForDisplay.artist.isNotEmpty ? songForDisplay.artist : 'Unknown Artist', // Use songForDisplay
-                style: textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+              // artist line replaced with InkWell
+              InkWell(
+                onTap: () {
+                  if (songForDisplay.artist.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ArtistScreen(artistId: songForDisplay.artist),
+                      ),
+                    );
+                  }
+                },
+                child: Text(
+                  songForDisplay.artist.isNotEmpty ? songForDisplay.artist : 'Unknown Artist',
+                  style: textTheme.titleMedium
+                      ?.copyWith(color: colorScheme.onSurfaceVariant, decoration: TextDecoration.underline),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
               if (songForDisplay.album != null && songForDisplay.album!.isNotEmpty) ...[ // Use songForDisplay
                 const SizedBox(height: 4),

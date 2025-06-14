@@ -262,5 +262,38 @@ class ApiService {
       rethrow; 
     }
   }
+
+  Future<Map<String, dynamic>> getArtistById(String query) async {
+    try {
+      String artistId;
+
+      // If query is already a numeric ID, skip the search step
+      if (RegExp(r'^\d+$').hasMatch(query)) {
+        artistId = query;
+      } else {
+        // 1) Search for artists matching the query
+        final searchUrl = '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
+        final searchResp = await _get(searchUrl);
+        final List<dynamic> results = jsonDecode(searchResp.body) as List<dynamic>;
+
+        if (results.isEmpty) {
+          throw Exception('No artists found for query: "$query"');
+        }
+
+        // 2) Extract the first ART_ID
+        artistId = results.first['ART_ID']?.toString() ?? '';
+        if (artistId.isEmpty) {
+          throw Exception('Artist ID missing in search results for "$query"');
+        }
+      }
+
+      // 3) Fetch full artist info by the resolved ID
+      final detailUrl = '${baseUrl}artist/$artistId';
+      final detailResp = await _get(detailUrl);
+      return jsonDecode(detailResp.body) as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('getArtistById failed for "$query": $e');
+    }
+  }
 }
 

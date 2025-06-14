@@ -178,6 +178,7 @@ class CurrentSongProvider with ChangeNotifier {
               id: radioSongId,
               title: mediaItem.title,
               artist: mediaItem.artist ?? 'Radio',
+              artistId: mediaItem.extras?['artistId'] as String? ?? '',
               albumArtUrl: mediaItem.artUri?.toString() ?? '',
               audioUrl: mediaItem.id,
               isDownloaded: false,
@@ -195,6 +196,7 @@ class CurrentSongProvider with ChangeNotifier {
                       id: songId,
                       title: mediaItem.title,
                       artist: mediaItem.artist ?? 'Unknown Artist',
+                      artistId: mediaItem.extras?['artistId'] as String,
                       album: mediaItem.album,
                       albumArtUrl: mediaItem.artUri?.toString() ?? '',
                       audioUrl: mediaItem.id,
@@ -207,6 +209,7 @@ class CurrentSongProvider with ChangeNotifier {
                 id: mediaItem.id,
                 title: mediaItem.title,
                 artist: mediaItem.artist ?? 'Unknown Artist',
+                artistId: mediaItem.extras?['artistId'] as String,
                 album: mediaItem.album,
                 albumArtUrl: await _resolveArtUriPath(mediaItem),
                 audioUrl: mediaItem.id,
@@ -1245,6 +1248,7 @@ class CurrentSongProvider with ChangeNotifier {
         id: radioSongId, // Use the unique radioSongId
         title: stationName,
         artist: 'Radio Station',
+        artistId: '',
         albumArtUrl: stationFavicon ?? '',
         audioUrl: streamUrl, // Store the actual stream URL
         isDownloaded: false,
@@ -1408,7 +1412,7 @@ class CurrentSongProvider with ChangeNotifier {
   void playUrl(String url) {
     // This would need to create a MediaItem and call _audioHandler.playMediaItem
     debugPrint('Playing URL directly: $url - This method might need adaptation for audio_service');
-    final tempSong = Song(id: url, title: "Direct URL", artist: "", albumArtUrl: "", audioUrl: url);
+    final tempSong = Song(id: url, title: "Direct URL", artist: "", artistId: "", albumArtUrl: "", audioUrl: url);
     playSong(tempSong); // Or a more direct handler call
   }
 
