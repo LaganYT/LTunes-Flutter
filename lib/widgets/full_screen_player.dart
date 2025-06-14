@@ -178,13 +178,31 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     if (!mounted) return;
     setState(() {
       _lyricsLoading = true;
-      // Clear previous lyrics to ensure loading indicator is shown if toggling quickly
-      // or if previous fetch failed and user retries.
       _parsedLyrics = []; 
       _currentLyricIndex = -1;
       _areLyricsSynced = false;
     });
 
+    // Check for local lyrics first
+    if ((currentSong.syncedLyrics != null && currentSong.syncedLyrics!.isNotEmpty) ||
+        (currentSong.plainLyrics != null && currentSong.plainLyrics!.isNotEmpty)) {
+      debugPrint("Using local lyrics for ${currentSong.title}");
+      final localLyricsData = LyricsData(
+        plainLyrics: currentSong.plainLyrics,
+        syncedLyrics: currentSong.syncedLyrics,
+      );
+      _processLyricsForSongData(localLyricsData);
+      if (mounted) {
+        setState(() {
+          _lyricsLoading = false;
+          _lyricsFetchedForCurrentSong = true;
+        });
+      }
+      return;
+    }
+
+    // If no local lyrics, fetch from API
+    debugPrint("Fetching lyrics from API for ${currentSong.title}");
     LyricsData? lyricsData;
     try {
       lyricsData = await _apiService.fetchLyrics(currentSong.artist, currentSong.title);
