@@ -226,11 +226,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final lyricsText = await apiService.fetchLyrics(widget.song.artist, widget.song.title);
+      final lyricsData = await apiService.fetchLyrics(widget.song.artist, widget.song.title);
 
       if (mounted) {
-        if (lyricsText != null && lyricsText.isNotEmpty) {
-          _lyrics = lyricsText;
+        if (lyricsData != null) {
+          _lyrics = lyricsData.plainLyrics; // extract the string field
           // Navigate to the new LyricsScreen
           Navigator.push(
             context,

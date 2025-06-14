@@ -26,6 +26,7 @@ dependencies:
   audioplayers: ^6.4.0
   resumable_downloader: ^0.0.17
   palette_generator: ^0.3.3+7
+  scrollable_positioned_list: ^0.3.8
 
 dev_dependencies:
   flutter_test:

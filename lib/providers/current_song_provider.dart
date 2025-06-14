@@ -978,17 +978,7 @@ class CurrentSongProvider with ChangeNotifier {
 
 
   void _handleDownloadSuccess(String songId, String actualLocalFileName) async {
-    // Find the song from _activeDownloads or potentially _downloadQueue if state is complex
-    // For simplicity, assume it was in _activeDownloads.
     Song? song = _activeDownloads[songId];
-
-    // If not in _activeDownloads, it might have been a direct call for an already existing download.
-    // In that case, we need to fetch its full details if songId is all we have.
-    // However, the new logic in queueSongForDownload should mean 'song' is already 'songToProcess'
-    // which is fully populated.
-    // For robustness, if song is null here, we might need to reconstruct it or log an error.
-    // For now, we assume 'song' will be non-null if it came through the regular download path.
-    // If called from the "already downloaded" path in queueSongForDownload, songId is already the correct one.
 
     if (song == null) {
       // Attempt to find it in the queue or persisted data if it's an update for an existing item
@@ -1010,11 +1000,25 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     try {
-      Song updatedSong = song.copyWith(localFilePath: actualLocalFileName, isDownloaded: true);
+      Song updatedSong = song.copyWith(
+        localFilePath: actualLocalFileName, 
+        isDownloaded: true
+      );
+
+      // Fetch lyrics after successful download
+      final apiService = ApiService();
+      final lyricsData = await apiService.fetchLyrics(updatedSong.artist, updatedSong.title);
+      if (lyricsData != null) {
+        updatedSong = updatedSong.copyWith(
+          plainLyrics: lyricsData.plainLyrics,
+          syncedLyrics: lyricsData.syncedLyrics,
+        );
+      }
+
       await _persistSongMetadata(updatedSong);
       updateSongDetails(updatedSong); 
       PlaylistManagerService().updateSongInPlaylists(updatedSong);
-      debugPrint('Download complete: ${updatedSong.title}');
+      debugPrint('Download complete: ${updatedSong.title}. Lyrics fetched: ${lyricsData != null}');
     } catch (e) {
       debugPrint("Error during post-download success processing for ${song.title}: $e");
     } finally {

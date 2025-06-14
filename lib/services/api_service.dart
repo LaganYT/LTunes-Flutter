@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../models/song.dart';
 import '../models/update_info.dart'; // Import the new model
 import '../models/album.dart'; // Import the new Album model
+import '../models/lyrics_data.dart'; // Import LyricsData
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -239,26 +240,26 @@ class ApiService {
     return null;
   }
 
-  Future<String?> fetchLyrics(String artist, String musicName) async {
+  Future<LyricsData?> fetchLyrics(String artist, String musicName) async {
     final url = '${baseUrl}lyrics?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}';
     try {
-      final response = await _get(url); // Uses the existing _get method for consistency
+      final response = await _get(url); 
       final data = jsonDecode(response.body);
-      // Updated parsing based on the example response structure
-      if (data != null &&
-          data['lyrics'] != null &&
-          data['lyrics'] is Map &&
-          data['lyrics']['plainLyrics'] != null) {
-        return data['lyrics']['plainLyrics'] as String;
+      
+      if (data != null && data['lyrics'] != null && data['lyrics'] is Map) {
+        final lyricsMap = data['lyrics'] as Map<String, dynamic>;
+        return LyricsData(
+          plainLyrics: lyricsMap['plainLyrics'] as String?,
+          syncedLyrics: lyricsMap['syncedLyrics'] as String?,
+        );
       }
-      return null; // Lyrics not found or data format incorrect
+      return null; 
     } catch (e) {
       debugPrint('Error fetching lyrics for "$artist - $musicName": $e');
-      // Specific handling for 404 if lyrics are not found vs. other errors
       if (e.toString().contains('404')) {
-        return null; // Explicitly return null if resource not found
+        return null; 
       }
-      rethrow; // Rethrow other errors to be handled by the caller
+      rethrow; 
     }
   }
 }

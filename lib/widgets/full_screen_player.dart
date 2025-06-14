@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart'; // Ensure CurrentSongProvider is imported
 import '../models/song.dart'; // Ensure Song model is imported
+import '../models/lyrics_data.dart'; // Import LyricsData
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
 import 'dart:io'; // For File operations
@@ -11,7 +12,17 @@ import 'package:shared_preferences/shared_preferences.dart'; // For SharedPrefer
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 // ignore: unused_import
 import '../services/playlist_manager_service.dart';
+import '../services/api_service.dart'; // Import ApiService
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
+
+// Helper class for parsed lyric lines
+class LyricLine {
+  final Duration timestamp;
+  final String text;
+
+  LyricLine({required this.timestamp, required this.text});
+}
 
 class FullScreenPlayer extends StatefulWidget {
   // Removed song parameter as Provider will supply the current song
@@ -33,12 +44,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   late Animation<Offset> _albumArtSlideAnimation;
 
   late CurrentSongProvider _currentSongProvider;
+  late ApiService _apiService;
 
-  Color _dominantColor = Colors.transparent; // NEW: holds extracted background color
+  Color _dominantColor = Colors.transparent;
+
+  // Lyrics State
+  bool _showLyrics = false;
+  List<LyricLine> _parsedLyrics = [];
+  int _currentLyricIndex = -1;
+  bool _areLyricsSynced = false; 
+  bool _lyricsLoading = false;
+  bool _lyricsFetchedForCurrentSong = false;
+
+  final ItemScrollController _lyricsScrollController = ItemScrollController();
+  final ItemPositionsListener _lyricsPositionsListener = ItemPositionsListener.create();
 
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService();
 
     _textFadeController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -66,7 +90,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
 
-    // Trigger initial animations if a song is already playing
+    // Initial lyrics state reset (lyrics will be loaded on demand or if _showLyrics is true)
+    _resetLyricsState();
+
     if (_currentSongProvider.currentSong != null) {
       // Initial appearance: art fades/slides in from right, text fades in
       _albumArtSlideAnimation = Tween<Offset>(
@@ -78,9 +104,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       ));
       _albumArtSlideController.forward();
       _textFadeController.forward();
+      // If lyrics view should be shown initially (e.g., persisted state, not covered here)
+      // and lyrics are not fetched, trigger loading.
+      // For now, lyrics are not shown by default on init.
     }
     
-    // After first build, extract palette for the current song
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updatePalette(_currentSongProvider.currentSong);
     });
@@ -88,10 +116,26 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _currentSongProvider.addListener(_onSongChanged);
   }
 
+  void _resetLyricsState() {
+    if (mounted) {
+      setState(() {
+        _parsedLyrics = [];
+        _currentLyricIndex = -1;
+        _areLyricsSynced = false;
+        _lyricsFetchedForCurrentSong = false;
+        _lyricsLoading = false;
+        // _showLyrics remains as is, or reset if desired:
+        // _showLyrics = false; 
+      });
+    }
+  }
+
   void _onSongChanged() {
     if (!mounted) return;
 
-    final newSongId = _currentSongProvider.currentSong?.id;
+    final newSong = _currentSongProvider.currentSong;
+    final newSongId = newSong?.id;
+
     if (newSongId != _previousSongId) {
       // Update slide animation based on _slideOffsetX
       // If _slideOffsetX is 0.0, it means the art should just fade (or appear if no fade controller for art)
@@ -118,15 +162,135 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _albumArtSlideController.forward(from: 0.0);
       _textFadeController.forward(from: 0.0);
 
-      // NEW: regenerate palette whenever song truly changes
-      _updatePalette(_currentSongProvider.currentSong);
+      _updatePalette(newSong);
+      _resetLyricsState(); // Reset lyrics state for the new song
+
+      if (_showLyrics && newSong != null) { // If lyrics view was active, load for new song
+        _loadAndProcessLyrics(newSong);
+      }
 
       _previousSongId = newSongId;
       _slideOffsetX = 0.0; // Reset for next non-skip change
     }
   }
 
-  // NEW: pull out dominant color from network or local image
+  Future<void> _loadAndProcessLyrics(Song currentSong) async {
+    if (!mounted) return;
+    setState(() {
+      _lyricsLoading = true;
+      // Clear previous lyrics to ensure loading indicator is shown if toggling quickly
+      // or if previous fetch failed and user retries.
+      _parsedLyrics = []; 
+      _currentLyricIndex = -1;
+      _areLyricsSynced = false;
+    });
+
+    LyricsData? lyricsData;
+    try {
+      lyricsData = await _apiService.fetchLyrics(currentSong.artist, currentSong.title);
+      _processLyricsForSongData(lyricsData);
+    } catch (e) {
+      debugPrint("Error loading lyrics in FullScreenPlayer: $e");
+      _processLyricsForSongData(null); // Process with null to clear lyrics and show "not available"
+    } finally {
+      if (mounted) {
+        setState(() {
+          _lyricsLoading = false;
+          _lyricsFetchedForCurrentSong = true; 
+        });
+      }
+    }
+  }
+
+  void _processLyricsForSongData(LyricsData? lyricsData) {
+    List<LyricLine> tempParsedLyrics = [];
+    bool tempAreLyricsSynced = false;
+
+    if (lyricsData?.syncedLyrics != null && lyricsData!.syncedLyrics!.isNotEmpty) {
+      tempParsedLyrics = _parseSyncedLyrics(lyricsData.syncedLyrics!);
+      if (tempParsedLyrics.isNotEmpty) {
+        tempAreLyricsSynced = true;
+      }
+    }
+
+    if (!tempAreLyricsSynced && lyricsData?.plainLyrics != null && lyricsData!.plainLyrics!.isNotEmpty) {
+      tempParsedLyrics = _parsePlainLyrics(lyricsData.plainLyrics!);
+    }
+
+    if (mounted) {
+      setState(() {
+        _parsedLyrics = tempParsedLyrics;
+        _areLyricsSynced = tempAreLyricsSynced;
+        _currentLyricIndex = -1;
+      });
+    }
+  }
+
+
+  // void _processLyricsForSong(Song? song) { // Replaced by _loadAndProcessLyrics & _processLyricsForSongData
+  //   List<LyricLine> tempParsedLyrics = [];
+  //   bool tempAreLyricsSynced = false;
+
+  //   if (song?.syncedLyrics != null && song!.syncedLyrics!.isNotEmpty) {
+  //     tempParsedLyrics = _parseSyncedLyrics(song.syncedLyrics!);
+  //     if (tempParsedLyrics.isNotEmpty) {
+  //       tempAreLyricsSynced = true;
+  //     }
+  //   }
+
+  //   // If synced lyrics parsing failed or synced lyrics were not available, try plain lyrics
+  //   if (!tempAreLyricsSynced && song?.plainLyrics != null && song!.plainLyrics!.isNotEmpty) {
+  //     tempParsedLyrics = _parsePlainLyrics(song.plainLyrics!);
+  //     // tempAreLyricsSynced remains false for plain lyrics
+  //   }
+
+  //   if (mounted) {
+  //     setState(() {
+  //       _parsedLyrics = tempParsedLyrics;
+  //       _currentLyricIndex = -1; // Reset for new lyrics
+  //       _areLyricsSynced = tempAreLyricsSynced;
+  //       if (_parsedLyrics.isEmpty) {
+  //         _showLyrics = false; // Automatically hide lyrics view if no lyrics are available
+  //       }
+  //     });
+  //   }
+  // }
+
+  List<LyricLine> _parseSyncedLyrics(String lrcContent) {
+    final List<LyricLine> lines = [];
+    final RegExp lrcLineRegex = RegExp(r"\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)");
+    final List<String> lrcLines = lrcContent.split('\n');
+
+    for (String line in lrcLines) {
+      final matches = lrcLineRegex.firstMatch(line);
+      if (matches != null) {
+        final minutes = int.parse(matches.group(1)!);
+        final seconds = int.parse(matches.group(2)!);
+        final milliseconds = int.parse(matches.group(3)!);
+        final text = matches.group(4)!.trim();
+        if (text.isNotEmpty) {
+          lines.add(LyricLine(
+            timestamp: Duration(minutes: minutes, seconds: seconds, milliseconds: milliseconds),
+            text: text,
+          ));
+        }
+      }
+    }
+    lines.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return lines;
+  }
+
+  List<LyricLine> _parsePlainLyrics(String plainContent) {
+    final List<LyricLine> lines = [];
+    final List<String> plainLines = plainContent.split('\n');
+    for (String text in plainLines) {
+      if (text.trim().isNotEmpty) {
+        lines.add(LyricLine(timestamp: Duration.zero, text: text.trim()));
+      }
+    }
+    return lines;
+  }
+
   Future<void> _updatePalette(Song? song) async {
     if (song == null || song.albumArtUrl.isEmpty) return;
     ImageProvider provider;
@@ -165,7 +329,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     super.dispose();
   }
 
-  // Method for downloading the current song - NOW USES PROVIDER
   Future<void> _downloadCurrentSong(Song song) async {
     // Use the CurrentSongProvider to handle the download
     Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
@@ -349,6 +512,48 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     );
   }
 
+  void _updateCurrentLyricIndex(Duration currentPosition) {
+    if (!_areLyricsSynced || _parsedLyrics.isEmpty) { 
+      if (_currentLyricIndex != -1 && _areLyricsSynced) { // Reset if they were synced but now aren't or are empty
+         if (mounted) {
+            setState(() {
+              _currentLyricIndex = -1;
+            });
+         }
+      }
+      return;
+    }
+
+    int newIndex = -1;
+    for (int i = 0; i < _parsedLyrics.length; i++) {
+      if (currentPosition >= _parsedLyrics[i].timestamp) {
+        if (i + 1 < _parsedLyrics.length) {
+          if (currentPosition < _parsedLyrics[i + 1].timestamp) {
+            newIndex = i;
+            break;
+          }
+        } else {
+          // Last lyric line
+          newIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (newIndex != _currentLyricIndex) {
+      setState(() {
+        _currentLyricIndex = newIndex;
+      });
+      if (newIndex != -1 && _lyricsScrollController.isAttached) {
+        _lyricsScrollController.scrollTo(
+          index: newIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.3, // Scroll to make the item appear 30% from the top
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -407,6 +612,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       albumArtWidget = _placeholderArt(context, isRadio);
     }
 
+    // Determine if lyrics should be shown (only if available and toggle is on)
+    // final bool canShowLyrics = _parsedLyrics.isNotEmpty && _showLyrics; // Old logic
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -429,13 +637,31 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             : null,
         centerTitle: true,
         actions: [
-          if (!isRadio) // "Queue" not applicable for radio
+          // Always visible Toggle Lyrics Button
+          IconButton(
+            icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
+            onPressed: () {
+              final song = _currentSongProvider.currentSong;
+              if (song == null) return;
+
+              bool newShowLyricsState = !_showLyrics;
+
+              if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
+                _loadAndProcessLyrics(song);
+              }
+              
+              setState(() {
+                _showLyrics = newShowLyricsState;
+              });
+            },
+            tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+          ),
+          if (!isRadio) 
           IconButton(
             icon: const Icon(Icons.playlist_play_rounded),
             onPressed: () => _showQueueBottomSheet(context),
             tooltip: 'Show Queue',
           ),
-          // Show download button only if not radio AND not already downloaded
           if (!isRadio && currentSong.isDownloaded == false) 
             IconButton(
               icon: const Icon(Icons.download_rounded),
@@ -450,7 +676,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             ),
         ],
             ),
-      body: GestureDetector( // GestureDetector for swipe down to close
+      body: GestureDetector( 
         onVerticalDragUpdate: (details) {
           // Accumulate drag distance when dragging downwards
           if (details.delta.dy > 0) {
@@ -473,17 +699,31 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(
-            color: _dominantColor, // use dominant album color
+            color: _dominantColor, 
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + kToolbarHeight),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Album Art Section
+                // Album Art Section OR Lyrics Section
                 Expanded(
                   flex: 5,
-                  child: GestureDetector( // GestureDetector for horizontal swipe (song navigation) on Album Art
+                  child: _showLyrics
+                      ? (_lyricsLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : (_parsedLyrics.isNotEmpty
+                              ? _buildLyricsView(context)
+                              : Center(
+                                  child: Text(
+                                    _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
+                                    style: textTheme.titleMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                            )
+                        )
+                      : GestureDetector( 
                     onHorizontalDragEnd: (details) {
                       if (details.primaryVelocity == null) return; // Should not happen
 
@@ -564,6 +804,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       builder: (context, snapshot) {
                         final position = snapshot.data ?? Duration.zero;
                         final duration = currentSongProvider.totalDuration ?? Duration.zero;
+                        
+                        // Update lyrics based on position
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                           if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position); // Only if synced
+                        });
+
                         return Column(
                           children: [
                             SliderTheme(
@@ -691,6 +937,53 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLyricsView(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false); // Get provider instance
+
+    // This specific check for _parsedLyrics.isEmpty is now handled in the main build method's conditional display.
+    // If _buildLyricsView is called, it means _parsedLyrics is not empty (or loading is finished).
+    // However, keeping a fallback here is safe.
+    if (_parsedLyrics.isEmpty) {
+      return Center(
+        child: Text(
+          "No lyrics available.", 
+          style: textTheme.titleMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+        ),
+      );
+    }
+
+    return ScrollablePositionedList.builder(
+      itemCount: _parsedLyrics.length,
+      itemScrollController: _lyricsScrollController,
+      itemPositionsListener: _lyricsPositionsListener,
+      itemBuilder: (context, index) {
+        final line = _parsedLyrics[index];
+        final bool isCurrent = _areLyricsSynced && index == _currentLyricIndex; // Highlight only if synced
+        return GestureDetector(
+          onTap: () {
+            if (_areLyricsSynced && currentSongProvider.currentSong != null && !currentSongProvider.isCurrentlyPlayingRadio) {
+              currentSongProvider.seek(line.timestamp);
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            child: Text(
+              line.text,
+              textAlign: TextAlign.center,
+              style: textTheme.titleLarge?.copyWith(
+                color: isCurrent ? colorScheme.secondary : colorScheme.onBackground.withOpacity(isCurrent ? 1.0 : 0.6),
+                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                fontSize: isCurrent ? 22 : 20, // Slightly larger for current line if synced
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

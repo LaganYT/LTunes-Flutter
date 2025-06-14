@@ -22,6 +22,10 @@ class Song {
   bool isDownloading;
   double downloadProgress;
 
+  // Lyrics fields
+  String? plainLyrics;
+  String? syncedLyrics;
+
   Song({
     required this.title,
     required this.id,
@@ -37,6 +41,8 @@ class Song {
     this.isDownloading = false, // Default value
     this.downloadProgress = 0.0, // Default value
     this.isImported = false, // Default to false
+    this.plainLyrics,
+    this.syncedLyrics,
   });
 
   Song copyWith({
@@ -54,6 +60,8 @@ class Song {
     bool? isDownloading,
     double? downloadProgress,
     bool? isImported, // Added isImported
+    String? plainLyrics,
+    String? syncedLyrics,
     
   }) {
     return Song(
@@ -71,6 +79,8 @@ class Song {
       isDownloading: isDownloading ?? this.isDownloading,
       downloadProgress: downloadProgress ?? this.downloadProgress,
       isImported: isImported ?? this.isImported, // Added isImported logic
+      plainLyrics: plainLyrics ?? this.plainLyrics,
+      syncedLyrics: syncedLyrics ?? this.syncedLyrics,
     );
   }
 
@@ -142,6 +152,8 @@ class Song {
       }
 
       final bool isImported = json['isImported'] as bool? ?? false; // Parse isImported
+      final String? plainLyrics = _asNullableString(json['plainLyrics']);
+      final String? syncedLyrics = _asNullableString(json['syncedLyrics']);
 
       return Song(
         title: title,
@@ -156,6 +168,8 @@ class Song {
         extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
         duration: parsedDuration, // Assign parsed duration
         isImported: isImported, // Assign parsed isImported
+        plainLyrics: plainLyrics,
+        syncedLyrics: syncedLyrics,
         // isDownloading and downloadProgress will use default constructor values
       );
     } catch (e) {
@@ -206,6 +220,7 @@ class Song {
       duration: duration,
       extras: extras,
       isImported: false, // API songs are not imported by default
+      // plainLyrics and syncedLyrics will be null by default
       // isDownloading and downloadProgress will use default constructor values
     );
   }
@@ -223,6 +238,8 @@ class Song {
         'extras': extras, // Added extras to JSON
         'duration_ms': duration?.inMilliseconds, // Serialize duration to milliseconds
         'isImported': isImported, // Serialize isImported
+        'plainLyrics': plainLyrics,
+        'syncedLyrics': syncedLyrics,
         // isDownloading and downloadProgress are typically transient state
         // and not included in toJson. If you need to persist them, add them here.
       };
