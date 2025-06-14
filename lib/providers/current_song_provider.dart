@@ -1001,8 +1001,10 @@ class CurrentSongProvider with ChangeNotifier {
 
     try {
       Song updatedSong = song.copyWith(
-        localFilePath: actualLocalFileName, 
-        isDownloaded: true
+        isDownloaded: true,
+        localFilePath: actualLocalFileName, // Use the actual filename from DownloadManager
+        isDownloading: false,
+        downloadProgress: 1.0,
       );
 
       // Fetch lyrics after successful download
@@ -1018,7 +1020,7 @@ class CurrentSongProvider with ChangeNotifier {
       await _persistSongMetadata(updatedSong);
       updateSongDetails(updatedSong); 
       PlaylistManagerService().updateSongInPlaylists(updatedSong);
-      debugPrint('Download complete: ${updatedSong.title}. Lyrics fetched: ${lyricsData != null}');
+      debugPrint('Download complete: ${updatedSong.title}. Lyrics fetched: ${lyricsData != null && (lyricsData.plainLyrics != null || lyricsData.syncedLyrics != null)}');
     } catch (e) {
       debugPrint("Error during post-download success processing for ${song.title}: $e");
     } finally {
