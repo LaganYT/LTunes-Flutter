@@ -509,4 +509,36 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     await stop(); // Or pause, depending on desired behavior
     return super.onNotificationDeleted();
   }
+
+  // Handle metadata‐update requests so MediaSession (and Bluetooth) sees new metadata
+  @override
+  @override
+  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (name == 'updateCurrentMediaItemMetadata') {
+      final mediaMap = extras?['mediaItem'] as Map<String, dynamic>?;
+      if (mediaMap != null) {
+        final updated = MediaItem(
+          id: mediaMap['id'] as String,
+          title: mediaMap['title'] as String,
+          artist: mediaMap['artist'] as String?,
+          album: mediaMap['album'] as String?,
+          artUri: mediaMap['artUri'] != null
+              ? Uri.tryParse(mediaMap['artUri'] as String)
+              : null,
+          duration: mediaMap['duration'] != null
+              ? Duration(milliseconds: mediaMap['duration'] as int)
+              : null,
+          extras: Map<String, dynamic>.from(mediaMap['extras'] as Map),
+        );
+        // update current item
+        mediaItem.add(updated);
+        // also sync into the queue list
+        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+          _playlist[_currentIndex] = updated;
+          queue.add(List.unmodifiable(_playlist));
+        }
+      }
+    }
+    return null;
+  }
 }
