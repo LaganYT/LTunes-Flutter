@@ -22,12 +22,11 @@ Future<void> main() async {
   _audioHandler = await AudioService.init(
     builder: () => AudioPlayerHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.LTunes.channel.audio', // Updated package name
+      androidNotificationChannelId: 'com.LTunes.channel.audio',
       androidNotificationChannelName: 'LTunes Audio Playback',
       androidNotificationOngoing: true,
-      // Other configurations as needed:
-      // androidStopForegroundOnPause: true,
-      // androidNotificationIcon: 'mipmap/ic_launcher', // default is 'mipmap/ic_launcher'
+      androidStopForegroundOnPause: true,
+      androidNotificationIcon: 'mipmap/ic_launcher',
     ),
   );
 

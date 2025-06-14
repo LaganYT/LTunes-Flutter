@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 import '../models/song.dart'; // Assuming Song model can give necessary info
+import 'package:audio_session/audio_session.dart';
 
 // Helper function to convert Song to MediaItem
 MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
@@ -48,6 +49,18 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   AudioPlayerHandler() {
     _notifyAudioHandlerAboutPlaybackEvents();
+
+    // Listen to OS audio interruptions and resume playback when interruption ends
+    AudioSession.instance.then((session) {
+      session.interruptionEventStream.listen((event) {
+        if (!event.begin // interruption ended
+            && (event.type == AudioInterruptionType.pause ||
+                event.type == AudioInterruptionType.unknown)) {
+          play();
+        }
+      });
+    });
+
     // Load the queue from persistent storage if necessary (not implemented here)
     // For now, queue is managed by CurrentSongProvider sending updates.
   }
