@@ -1,10 +1,17 @@
 # TODO
 
-## Features
+## Planned Features
+- [ ] Show artists in search results
 
-### Search and Library
-- Show artists in search results.
+### Playback
+- [ ] Cross-fade between tracks
+- [ ] Gapless playback
 
-### Settings
-- Add an option to disable UI animations (default: animations enabled).
-- Allow selecting which tabs show in the library, downloads tab is always there, all are shown by default
+### Library & Playlists
+- [ ] Smart playlists (most-played, recently added, favorites)
+
+### Social & Sharing
+- [ ] Share current song or playlist to social media
+
+### Integrations
+- [ ] Voice-activated playback (via assistant integration)
