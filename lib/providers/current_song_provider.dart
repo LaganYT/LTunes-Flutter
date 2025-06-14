@@ -615,12 +615,16 @@ class CurrentSongProvider with ChangeNotifier {
       if (await File(filePath).exists()) {
         return filePath;
       }
-      // If song is downloaded but file is missing, and it's NOT an imported song,
-      // then we might fall back to streaming.
-      // If it IS an imported song and file is missing, it's an error.
+      // Song was marked downloaded but the file is gone: reset its download state
+      {
+        final updatedSong = song.copyWith(isDownloaded: false, localFilePath: null);
+        await _persistSongMetadata(updatedSong);
+        updateSongDetails(updatedSong);
+        PlaylistManagerService().updateSongInPlaylists(updatedSong);
+      }
       if (song.isImported) {
-        debugPrint('Imported song "${song.title}" local file missing at $filePath. Cannot play or stream.');
-        return ''; // Return empty, preventing API fallback for imported songs.
+        debugPrint('Imported song "${song.title}" missing, cannot stream.');
+        return ''; 
       }
       debugPrint('Local file for ${song.title} missing at $filePath, falling back to streaming.');
     }
