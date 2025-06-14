@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p; // Import path package
 import 'package:audio_service/audio_service.dart';
 import '../services/audio_handler.dart'; // Assumed path to your audio_handler.dart
 import 'dart:async';
+import '../models/lyrics_data.dart';
 import 'package:resumable_downloader/resumable_downloader.dart';
 
 // Define LoopMode enum
@@ -474,19 +475,12 @@ class CurrentSongProvider with ChangeNotifier {
         // If we got here, it means the song is NOT playable locally.
         // If it was marked as downloaded (either originally or after merging), its status is now incorrect because the file is missing.
         // We should update 'effectiveSong' to reflect it's streaming.
-        if (effectiveSong.isDownloaded) {
-          debugPrint("Song ${effectiveSong.title} (ID: ${effectiveSong.id}) was marked downloaded, but local file was missing and no other valid audioUrl. Fetched API stream. Updating metadata to non-downloaded.");
-          effectiveSong = effectiveSong.copyWith(
-            isDownloaded: false, 
-            localFilePath: null, 
-            audioUrl: playableUrl // Set audioUrl to the fetched stream URL
-          );
-          metadataToPersistChanged = true; 
-        } else if (effectiveSong.audioUrl != playableUrl) {
-          // If it was never downloaded, and we fetched a new URL.
-          effectiveSong = effectiveSong.copyWith(audioUrl: playableUrl);
-          metadataToPersistChanged = true;
-        }
+        effectiveSong = effectiveSong.copyWith(
+          isDownloaded: false, 
+          localFilePath: null, 
+          audioUrl: playableUrl // Set audioUrl to the fetched stream URL
+        );
+        metadataToPersistChanged = true; 
       } else {
          throw Exception('Could not resolve playable URL for ${effectiveSong.title} (ID: ${effectiveSong.id}) after API fallback.');
       }
@@ -1391,5 +1385,35 @@ class CurrentSongProvider with ChangeNotifier {
     debugPrint('Playing URL directly: $url - This method might need adaptation for audio_service');
     final tempSong = Song(id: url, title: "Direct URL", artist: "", albumArtUrl: "", audioUrl: url);
     playSong(tempSong); // Or a more direct handler call
+  }
+
+  Future<void> updateSongLyrics(String songId, LyricsData lyricsData) async {
+    Song? songToUpdate;
+    int queueIndex = _queue.indexWhere((s) => s.id == songId);
+
+    if (queueIndex != -1) {
+      songToUpdate = _queue[queueIndex];
+    } else if (_currentSongFromAppLogic?.id == songId) {
+      songToUpdate = _currentSongFromAppLogic;
+    }
+
+    if (songToUpdate != null) {
+      final updatedSong = songToUpdate.copyWith(
+        plainLyrics: lyricsData.plainLyrics,
+        syncedLyrics: lyricsData.syncedLyrics,
+      );
+
+      // Persist the metadata for the individual song
+      await _persistSongMetadata(updatedSong);
+
+      // Update the song in the provider's state and notify audio_handler and UI
+      // updateSongDetails handles updating _queue, _currentSongFromAppLogic,
+      // notifying listeners, and updating AudioHandler's state.
+      updateSongDetails(updatedSong);
+      
+      debugPrint("Lyrics updated for song: ${updatedSong.title} (ID: ${updatedSong.id})");
+    } else {
+      debugPrint("Song with ID $songId not found for updating lyrics.");
+    }
   }
 }

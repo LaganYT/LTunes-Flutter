@@ -165,12 +165,59 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _updatePalette(newSong);
       _resetLyricsState(); // Reset lyrics state for the new song
 
+      // If the song is downloaded but lyrics are missing, try to fetch and save them.
+      if (newSong != null &&
+          newSong.isDownloaded &&
+          (newSong.syncedLyrics == null || newSong.syncedLyrics!.isEmpty) &&
+          (newSong.plainLyrics == null || newSong.plainLyrics!.isEmpty)) {
+        // Fire and forget: This will run in the background.
+        _fetchAndSaveLyricsForSong(newSong);
+      }
+
       if (_showLyrics && newSong != null) { // If lyrics view was active, load for new song
         _loadAndProcessLyrics(newSong);
       }
 
       _previousSongId = newSongId;
       _slideOffsetX = 0.0; // Reset for next non-skip change
+    }
+  }
+
+  // New method to fetch and save lyrics for a downloaded song
+  Future<void> _fetchAndSaveLyricsForSong(Song song) async {
+    // Early exit if song is no longer current or widget is unmounted.
+    if (!mounted || _currentSongProvider.currentSong?.id != song.id) {
+      return;
+    }
+
+    debugPrint("Auto-fetching lyrics for downloaded song: ${song.title}");
+    try {
+      LyricsData? lyricsData = await _apiService.fetchLyrics(song.artist, song.title);
+
+      // Check again if still mounted, song is current, and lyrics were actually found.
+      if (mounted &&
+          _currentSongProvider.currentSong?.id == song.id &&
+          lyricsData != null &&
+          (lyricsData.syncedLyrics?.isNotEmpty == true || lyricsData.plainLyrics?.isNotEmpty == true)) {
+        
+        // Assumes CurrentSongProvider.updateSongLyrics updates the song, persists, and notifies.
+        await _currentSongProvider.updateSongLyrics(song.id, lyricsData);
+        debugPrint("Lyrics auto-downloaded and saved for ${song.title}");
+
+        // If lyrics view is active for this song, refresh it.
+        // The provider's notification should ideally handle updating the song instance.
+        // Calling _loadAndProcessLyrics ensures the view updates with new local lyrics.
+        if (_showLyrics) {
+          final potentiallyUpdatedSong = _currentSongProvider.currentSong;
+          if (potentiallyUpdatedSong != null && potentiallyUpdatedSong.id == song.id) {
+             _loadAndProcessLyrics(potentiallyUpdatedSong);
+          }
+        }
+      } else if (lyricsData == null || (lyricsData.syncedLyrics?.isEmpty ?? true) && (lyricsData.plainLyrics?.isEmpty ?? true)) {
+        debugPrint("No lyrics found (auto-fetch) for ${song.title}");
+      }
+    } catch (e) {
+      debugPrint("Error auto-fetching lyrics for ${song.title}: $e");
     }
   }
 
@@ -181,9 +228,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _parsedLyrics = []; 
       _currentLyricIndex = -1;
       _areLyricsSynced = false;
+      // _lyricsFetchedForCurrentSong is reset in _resetLyricsState.
+      // It will be set to true in the finally block or if local lyrics are found.
     });
 
     // Check for local lyrics first
+    // currentSong should be the latest instance from the provider if a rebuild occurred.
     if ((currentSong.syncedLyrics != null && currentSong.syncedLyrics!.isNotEmpty) ||
         (currentSong.plainLyrics != null && currentSong.plainLyrics!.isNotEmpty)) {
       debugPrint("Using local lyrics for ${currentSong.title}");
@@ -206,6 +256,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     LyricsData? lyricsData;
     try {
       lyricsData = await _apiService.fetchLyrics(currentSong.artist, currentSong.title);
+      
+      // If lyrics were fetched from API, are not empty, and the song is downloaded, save them.
+      if (lyricsData != null &&
+          (lyricsData.syncedLyrics?.isNotEmpty == true || lyricsData.plainLyrics?.isNotEmpty == true) &&
+          currentSong.isDownloaded) {
+        
+        debugPrint("Lyrics fetched via API for downloaded song ${currentSong.title}. Saving them.");
+        // Assumes CurrentSongProvider.updateSongLyrics updates the song, persists, and notifies.
+        await _currentSongProvider.updateSongLyrics(currentSong.id, lyricsData);
+      }
+      
       _processLyricsForSongData(lyricsData);
     } catch (e) {
       debugPrint("Error loading lyrics in FullScreenPlayer: $e");
