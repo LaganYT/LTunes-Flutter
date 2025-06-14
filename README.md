@@ -10,6 +10,4 @@
 - Allow selecting which tabs show in the library, downloads tab is always there, all are shown by default
 
 ### Bug fixes
-- Fix issue where playback cannot be resumed from notification (audio service) after an audio interruption like playing a video (play button disabled). - IOS
-
 - Apparently bluetooth doesn't work with music (android) - ##CHECK THIS##
