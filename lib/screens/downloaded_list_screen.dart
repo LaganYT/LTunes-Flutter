@@ -44,8 +44,9 @@ class _DownloadedSongsScreenState extends State<DownloadedSongsScreen> {
     final f = File('${dir.path}/ltunes_downloads/${s.localFilePath}');
     if (await f.exists()) await f.delete();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('song_${s.id}', jsonEncode(s.copyWith(isDownloaded:false,localFilePath:null).toJson()));
-    Provider.of<CurrentSongProvider>(context,listen:false).updateSongDetails(s);
+    final updated = s.copyWith(isDownloaded:false, localFilePath:null);
+    await prefs.setString('song_${s.id}', jsonEncode(updated.toJson()));
+    Provider.of<CurrentSongProvider>(context,listen:false).updateSongDetails(updated);
     _load();
   }
 
@@ -60,9 +61,21 @@ class _DownloadedSongsScreenState extends State<DownloadedSongsScreen> {
               itemBuilder: (c, i) {
                 final s = _songs[i];
                 return ListTile(
-                  leading: s.albumArtUrl.isNotEmpty && !s.albumArtUrl.startsWith('http')
-                      ? Image.file(File(s.albumArtUrl), width: 40, height: 40, fit: BoxFit.cover)
-                      : const Icon(Icons.music_note),
+                  leading: s.albumArtUrl.isNotEmpty
+                    ? s.albumArtUrl.startsWith('http')
+                      ? Image.network(
+                          s.albumArtUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.file(
+                          File(s.albumArtUrl),
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                        )
+                    : const Icon(Icons.music_note, size: 40),
                   title: Text(s.title),
                   subtitle: Text(s.artist),
                   trailing: IconButton(
