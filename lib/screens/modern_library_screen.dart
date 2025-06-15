@@ -1172,7 +1172,27 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
               MaterialPageRoute(builder: (_) => const DownloadedSongsScreen()),
             ),
           ),
-
+          Consumer<CurrentSongProvider>(
+            builder: (context, provider, child) {
+              final active = provider.activeDownloadTasks.length;
+              final queued = provider.songsQueuedForDownload.length;
+              final total = active + queued;
+              if (total == 0) return const SizedBox.shrink();
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.downloading),
+                  title: Text('$total song(s) in download queue'),
+                  subtitle: const Text('Tap to view queue'),
+                  trailing: const Icon(Icons.chevron_right, size: 18),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DownloadQueueScreen()),
+                  ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 24),
           // section header
           const Padding(
