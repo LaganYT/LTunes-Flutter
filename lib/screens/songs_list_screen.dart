@@ -38,6 +38,7 @@ class _SongsScreenState extends State<SongsScreen> {
       final js = prefs.getString(k);
       if (js != null) {
         final s = Song.fromJson(jsonDecode(js));
+        if (!s.isDownloaded) continue; // Only include downloaded songs
         if (widget.artistFilter == null || s.artist == widget.artistFilter) {
           temp.add(s);
         }
@@ -66,9 +67,9 @@ class _SongsScreenState extends State<SongsScreen> {
       final f = File(p.join(dir.path, 'ltunes_downloads', s.localFilePath!));
       if (await f.exists()) await f.delete();
     }
-    // update prefs & provider
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('song_${s.id}', jsonEncode(s.copyWith(isDownloaded: false, localFilePath: null).toJson()));
+    await prefs.remove('song_${s.id}');
+
     Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(s);
 
     // also remove from any playlists that contain it
