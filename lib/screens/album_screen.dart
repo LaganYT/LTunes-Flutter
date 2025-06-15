@@ -319,7 +319,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-    final totalDuration = _calculateTotalDuration();
     final bool hasTracks = widget.album.tracks.isNotEmpty;
     final systemTopPadding = MediaQuery.of(context).padding.top;
 
@@ -458,19 +457,38 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                 children: [
                                   Text(
                                     widget.album.title,
-                                    style: textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold, shadows: const [Shadow(blurRadius: 3, color: Colors.black)]),
+                                    style: textTheme.headlineSmall
+                                        ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold, shadows: const [
+                                          Shadow(blurRadius: 3, color: Colors.black)
+                                        ]),
                                     maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.album.artistName,
+                                    style: textTheme.titleMedium
+                                        ?.copyWith(color: Colors.white70, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     '${widget.album.tracks.length} songs',
-                                    style: textTheme.titleMedium?.copyWith(color: Colors.white.withOpacity(0.85), shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                    style: textTheme.titleMedium?.copyWith(
+                                      color: Colors.white.withOpacity(0.85),
+                                      shadows: const [Shadow(blurRadius: 2, color: Colors.black87)],
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    _formatDuration(totalDuration),
-                                    style: textTheme.titleSmall?.copyWith(color: Colors.white.withOpacity(0.75), shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                    _formatDuration(_calculateTotalDuration()),
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: Colors.white70,
+                                      shadows: const [Shadow(blurRadius: 1, color: Colors.black54)],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
                               ),
