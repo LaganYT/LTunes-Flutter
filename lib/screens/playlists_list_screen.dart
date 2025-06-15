@@ -143,6 +143,37 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                 );
               },
             ),
+   floatingActionButton: FloatingActionButton(
+     onPressed: _createPlaylist,
+     child: const Icon(Icons.add),
+     tooltip: 'Create Playlist',
+   ),
     );
+  }
+
+  void _createPlaylist() async {
+    final nameCtrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('New Playlist'),
+        content: TextField(
+          controller: nameCtrl,
+          decoration: const InputDecoration(hintText: 'Playlist Name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, nameCtrl.text.trim()), child: const Text('Create')),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      await _manager.addPlaylist(Playlist(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: result,
+        songs: [],
+      ));
+      _reload();
+    }
   }
 }
