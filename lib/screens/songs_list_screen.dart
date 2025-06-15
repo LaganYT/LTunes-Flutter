@@ -365,11 +365,13 @@ Future<void> _loadDownloadedSongs() async {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _importSongs,
-        tooltip: 'Import Songs',
-        child: const Icon(Icons.file_upload_outlined),
-      ),
+      floatingActionButton: widget.artistFilter == null
+          ? FloatingActionButton(
+              onPressed: _importSongs,
+              tooltip: 'Import Songs',
+              child: const Icon(Icons.file_upload_outlined),
+            )
+          : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
