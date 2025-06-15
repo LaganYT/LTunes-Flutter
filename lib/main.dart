@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'screens/library_screen.dart';
 import './screens/settings_screen.dart';
 import './screens/search_screen.dart'; // Import the new SearchScreen
+import './screens/modern_library_screen.dart'; // Import the ModernLibraryScreen
 import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';
 import 'services/api_service.dart'; // Import ApiService
@@ -75,11 +76,12 @@ class TabView extends StatefulWidget {
 class _TabViewState extends State<TabView> {
   int _selectedIndex = 0;
 
-  static final List<Widget> _widgetOptions = <Widget>[
-    const SearchScreen(), // Search in the middle
-    const LibraryScreen(), // Library to the right of Search
-    const SettingsScreen(), // Settings remains at the end
-  ];
+  // Widget list is now built dynamically in the build method
+  // static final List<Widget> _widgetOptions = <Widget>[
+  //   const SearchScreen(),
+  //   const LibraryScreen(),
+  //   const SettingsScreen(),
+  // ];
 
   @override
   void initState() {
@@ -154,12 +156,20 @@ class _TabViewState extends State<TabView> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context); // Listen to ThemeProvider
+
+    final List<Widget> widgetOptions = <Widget>[
+      const SearchScreen(),
+      themeProvider.useModernLibrary ? const ModernLibraryScreen() : const LibraryScreen(), // Conditional library screen
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
       body: Column(
         children: [
           Expanded(
             child: Center(
-              child: _widgetOptions.elementAt(_selectedIndex),
+              child: widgetOptions.elementAt(_selectedIndex), // Use dynamic list
             ),
           ),
           const Playbar(),
