@@ -474,17 +474,17 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    '${widget.album.tracks.length} songs',
+                                    '${widget.album.tracks.length} Songs',
                                     style: textTheme.titleMedium?.copyWith(
-                                      color: Colors.white.withOpacity(0.85),
-                                      shadows: const [Shadow(blurRadius: 2, color: Colors.black87)],
+                                      color: Colors.white60,
+                                      shadows: const [Shadow(blurRadius: 2, color: Colors.black54)],
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     _formatDuration(_calculateTotalDuration()),
                                     style: textTheme.bodyMedium?.copyWith(
-                                      color: Colors.white70,
+                                      color: Colors.white60,
                                       shadows: const [Shadow(blurRadius: 1, color: Colors.black54)],
                                     ),
                                     maxLines: 1,
