@@ -35,31 +35,34 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
 
   // helper to build the 2×2 or single‐image preview
   Widget _playlistThumbnail(Playlist playlist) {
-    final arts = playlist.songs
-        .map((s) => s.albumArtUrl)
-        .where((u) => u.isNotEmpty)
-        .toSet()
-        .toList();
-    const size = 56.0;
-    if (arts.isEmpty) {
-      return Icon(Icons.playlist_play, size: size, color: Theme.of(context).colorScheme.primary);
-    }
-    if (arts.length == 1) {
-      return _buildArtWidget(arts.first, size);
-    }
-    // up to 4
-    final grid = arts.take(4).map((url) => _buildArtWidget(url, size / 2)).toList();
-    return SizedBox(
-      width: size,
-      height: size,
-      child: GridView.count(
+    return LayoutBuilder(builder: (_, constraints) {
+      final arts = playlist.songs
+          .map((s) => s.albumArtUrl)
+          .where((u) => u.isNotEmpty)
+          .toSet()
+          .toList();
+      final size = constraints.maxWidth;
+      if (arts.isEmpty) {
+        return Icon(
+          Icons.playlist_play,
+          size: size,
+          color: Theme.of(context).colorScheme.primary,
+        );
+      }
+      if (arts.length == 1) {
+        return _buildArtWidget(arts.first, size);
+      }
+      final grid = arts.take(4).map((url) => _buildArtWidget(url, size / 2)).toList();
+      return GridView.count(
         crossAxisCount: 2,
         mainAxisSpacing: 1,
         crossAxisSpacing: 1,
         padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         children: grid,
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildArtWidget(String url, double sz) {
@@ -91,24 +94,51 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       appBar: AppBar(title: const Text('Playlists')),
       body: _playlists.isEmpty
           ? const Center(child: Text('No playlists yet.'))
-          : ListView.builder(
+          : GridView.builder(
+              padding: const EdgeInsets.all(8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 0.75, // allow extra height for labels
+              ),
               itemCount: _playlists.length,
               itemBuilder: (c, i) {
                 final p = _playlists[i];
-                return ListTile(
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: _playlistThumbnail(p),
-                  ),
-                  title: Text(p.name),
-                  subtitle: Text('${p.songs.length} songs'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _manager.removePlaylist(p),
-                  ),
+                return GestureDetector(
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                     AspectRatio(
+                       aspectRatio: 1.0, // square cover area
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            color: Colors.white,
+                            child: Center(child: _playlistThumbnail(p)),
+                          ),
+                        ),
+                     ),
+                      const SizedBox(height: 6),
+                      Text(
+                        p.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${p.songs.length} songs',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ],
                   ),
                 );
               },
