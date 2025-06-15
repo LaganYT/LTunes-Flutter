@@ -193,28 +193,32 @@ class CurrentSongProvider with ChangeNotifier {
             newCurrentSongLogicCandidate = _queue.firstWhere((s) => s.id == songId,
                 orElse: () {
                   return Song(
-                      id: songId,
-                      title: mediaItem.title,
-                      artist: mediaItem.artist ?? 'Unknown Artist',
-                      artistId: mediaItem.extras?['artistId'] as String,
-                      album: mediaItem.album,
-                      albumArtUrl: mediaItem.artUri?.toString() ?? '',
-                      audioUrl: mediaItem.id,
-                      isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
-                      localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
+                    id: songId,
+                    title: mediaItem.title,
+                    artist: mediaItem.artist ?? 'Unknown Artist',
+                    artistId: mediaItem.extras?['artistId'] as String? ?? '',
+                    album: mediaItem.album,
+                    albumArtUrl: mediaItem.artUri?.toString() ?? '',
+                    audioUrl: mediaItem.id,
+                    isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
+                    localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false)
+                        ? p.basename(mediaItem.id)
+                        : null,
                   );
                 });
           } else {
             newCurrentSongLogicCandidate = Song(
-                id: mediaItem.id,
-                title: mediaItem.title,
-                artist: mediaItem.artist ?? 'Unknown Artist',
-                artistId: mediaItem.extras?['artistId'] as String,
-                album: mediaItem.album,
-                albumArtUrl: await _resolveArtUriPath(mediaItem),
-                audioUrl: mediaItem.id,
-                isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
-                localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false) ? p.basename(mediaItem.id) : null
+              id: mediaItem.id,
+              title: mediaItem.title,
+              artist: mediaItem.artist ?? 'Unknown Artist',
+              artistId: mediaItem.extras?['artistId'] as String? ?? '',
+              album: mediaItem.album,
+              albumArtUrl: await _resolveArtUriPath(mediaItem),
+              audioUrl: mediaItem.id,
+              isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
+              localFilePath: (mediaItem.extras?['isLocal'] as bool? ?? false)
+                  ? p.basename(mediaItem.id)
+                  : null,
             );
           }
           newStationNameCandidate = null;
