@@ -188,4 +188,21 @@ class PlaylistManagerService with ChangeNotifier {
       _savePlaylists();
     }
   }
+
+  /// Removes [song] from all playlists it appears in.
+  Future<void> removeSongFromAllPlaylists(Song song) async {
+    bool changed = false;
+    for (var i = 0; i < _playlists.length; i++) {
+      final pl = _playlists[i];
+      if (pl.songs.any((s) => s.id == song.id)) {
+        _playlists[i] = pl.copyWith(
+          songs: pl.songs.where((s) => s.id != song.id).toList(),
+        );
+        changed = true;
+      }
+    }
+    if (changed) {
+      await _savePlaylists();
+    }
+  }
 }
