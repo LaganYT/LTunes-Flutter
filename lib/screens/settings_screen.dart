@@ -549,6 +549,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // For simplicity, the existing refresh button will now refresh both.
             ),
             const Divider(),
+            // MOVED VERSION INFO AND UPDATE BUTTON HERE
+            ListTile(
+              title: const Text('Version Information'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Current Version: $_currentAppVersion'),
+                  Text('Latest Available Version: $_latestKnownVersion'),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  _performUpdateCheck();
+                },
+                style: ElevatedButton.styleFrom(
+                  // Optional: Use a different color or style for this button
+                  // backgroundColor: Theme.of(context).colorScheme.primary,
+                  // foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                ),
+                child: const Text('Check for Updates'),
+              ),
+            ),
+            const Divider(), // Added a divider for better separation
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: ElevatedButton(
@@ -627,32 +654,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: const Text('Reset All Settings to Default'),
               ),
             ),
-            const Divider(),
-            ListTile(
-              title: const Text('Version Information'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Current Version: $_currentAppVersion'),
-                  Text('Latest Available Version: $_latestKnownVersion'),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  _performUpdateCheck();
-                },
-                style: ElevatedButton.styleFrom(
-                  // Optional: Use a different color or style for this button
-                  // backgroundColor: Theme.of(context).colorScheme.primary,
-                  // foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
-                ),
-                child: const Text('Check for Updates'),
-              ),
-            ),
+            // REMOVED VERSION INFO AND UPDATE BUTTON FROM HERE
+            // const Divider(),
+            // ListTile(
+            //   title: const Text('Version Information'),
+            //   subtitle: Column(
+            //     crossAxisAlignment: CrossAxisAlignment.start,
+            //     children: [
+            //       Text('Current Version: $_currentAppVersion'),
+            //       Text('Latest Available Version: $_latestKnownVersion'),
+            //     ],
+            //   ),
+            // ),
+            // Padding(
+            //   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            //   child: ElevatedButton(
+            //     onPressed: () {
+            //       _performUpdateCheck();
+            //     },
+            //     style: ElevatedButton.styleFrom(
+            //       // Optional: Use a different color or style for this button
+            //       // backgroundColor: Theme.of(context).colorScheme.primary,
+            //       // foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            //       padding: const EdgeInsets.symmetric(vertical: 12.0),
+            //     ),
+            //     child: const Text('Check for Updates'),
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -803,7 +831,6 @@ class ThemeProvider extends ChangeNotifier {
                        // Since this is part of initial load, and other load methods also call it,
                        // it might be redundant or could be consolidated.
                        // For now, let's keep it simple. If issues arise, can revisit.
-                       // The main build method in LTunesApp listens to ThemeProvider, so changes will be picked up.
   }
 
 
