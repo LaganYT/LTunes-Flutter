@@ -268,16 +268,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
-    // If no current index or playlist is empty, try starting from the first item.
-    if (_currentIndex < 0 && _playlist.isNotEmpty) {
-      _currentIndex = 0;
-    }
     // Proceed if current index is valid.
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       await skipToQueueItem(_currentIndex); // skipToQueueItem handles art resolution and playback
     } else {
       // Optionally handle empty playlist scenario, e.g., log or update UI
-      debugPrint("Play called on empty or invalid queue index.");
+      // If _currentIndex is < 0, it means no item is selected.
+      // If playlist is empty, there's nothing to play.
+      debugPrint("Play called, but no valid current item is selected or playlist is empty. Current index: $_currentIndex, Playlist length: ${_playlist.length}");
     }
   }
 
