@@ -395,7 +395,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         : UrlSource(itemToPlay.id);
 
     try {
-      await _audioPlayer.play(source);
+      // Ensure playback starts from the beginning of the track.
+      await _audioPlayer.play(source, position: Duration.zero);
       // onPlayerStateChanged will update playing state
       // immediately fetch the duration if available
       final initialDur = await _audioPlayer.getDuration();

@@ -1,9 +1,5 @@
 # TODO
 
-### Bug Fixes:
-
-- Ensure songs always start at 0:00 when switching tracks
-
 ### New Features:
 
 - Add home screen widgets
