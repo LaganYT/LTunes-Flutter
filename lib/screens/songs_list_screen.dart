@@ -62,14 +62,12 @@ class _SongsScreenState extends State<SongsScreen> {
     );
     if (ok != true) return;
 
-    // It's crucial that CurrentSongProvider.updateSongDetails and PlaylistManagerService.removeSongFromAllPlaylists
-    // do NOT re-save the song object 's' to SharedPreferences under its original key 'song_${s.id}'.
-    // They should only use 's' to update their respective states (e.g., clear current song, modify playlist lists).
+    // Notify CurrentSongProvider to remove the song from its active state (queue, current song)
+    // This should happen before file deletion and SharedPreferences.remove
+    // so that CurrentSongProvider saves its state *without* the song.
+    await Provider.of<CurrentSongProvider>(context, listen: false).processSongLibraryRemoval(s.id);
 
-    // Notify CurrentSongProvider. It should handle logic like clearing the current player if 's' is playing.
-    Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(s);
-
-    // Remove song from any playlists. This should modify playlist data, not the song's own SharedPreferences entry.
+    // Remove song from any playlists. This should modify playlist data.
     await _playlistManager.removeSongFromAllPlaylists(s);
 
     final dir = await getApplicationDocumentsDirectory(); // Get app documents directory once
@@ -103,7 +101,7 @@ class _SongsScreenState extends State<SongsScreen> {
     // 3. Remove the song metadata from SharedPreferences - this should be the final action for this key.
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('song_${s.id}');
-    debugPrint('Removed song_${s.id} from SharedPreferences (final step)'); // Updated log
+    debugPrint('Removed song_${s.id} from SharedPreferences (final step)');
 
     // Update UI
     setState(() => _songs.removeWhere((song) => song.id == s.id));
