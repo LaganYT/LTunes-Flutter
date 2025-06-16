@@ -10,7 +10,6 @@ dependencies:
   flutter:
     sdk: flutter
   audio_service: ^0.18.18
-  flutter_lints: ^5.0.0
   http: ^1.4.0
   path_provider: ^2.0.11
   provider: ^6.1.5
@@ -32,6 +31,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.3
+  flutter_lints: ^5.0.0
 
 dependency_overrides:
   async: ^2.13.0
