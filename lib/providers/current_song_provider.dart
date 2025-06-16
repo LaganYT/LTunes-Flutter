@@ -738,7 +738,27 @@ class CurrentSongProvider with ChangeNotifier {
       // turning shuffle OFF: restore previous state
       _isShuffling = false;
       if (_previousQueueBeforeShuffle != null) {
-        await setQueue(_previousQueueBeforeShuffle!, initialIndex: _previousIndexBeforeShuffle ?? 0);
+        String? currentSongIdBeforeRestore = _currentSongFromAppLogic?.id;
+        List<Song> restoredQueue = List.from(_previousQueueBeforeShuffle!);
+        int newIndex = _previousIndexBeforeShuffle ?? 0; // Default to pre-shuffle index
+
+        if (currentSongIdBeforeRestore != null) {
+          int indexOfCurrentSongInRestoredQueue = restoredQueue.indexWhere((s) => s.id == currentSongIdBeforeRestore);
+          if (indexOfCurrentSongInRestoredQueue != -1) {
+            newIndex = indexOfCurrentSongInRestoredQueue;
+          }
+        }
+        
+        // Ensure newIndex is valid for the restored queue
+        if (newIndex < 0 || newIndex >= restoredQueue.length) {
+            newIndex = 0; // Fallback to the beginning of the queue if index is invalid
+        }
+        if (restoredQueue.isEmpty) {
+            newIndex = -1; // No valid index if queue is empty
+        }
+
+
+        await setQueue(restoredQueue, initialIndex: newIndex);
         _previousQueueBeforeShuffle = null;
         _previousIndexBeforeShuffle = null;
       }
