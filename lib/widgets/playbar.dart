@@ -109,8 +109,6 @@ class _PlaybarState extends State<Playbar> {
 
     return GestureDetector(
       onTap: () {
-        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-        currentSongProvider.playSong(currentSong); // Ensure the clicked song plays
         Navigator.push(
           context,
           PageRouteBuilder(
