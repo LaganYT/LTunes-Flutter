@@ -368,7 +368,6 @@ Future<void> _importSongs() async {
                   subtitle: Text(s.artist),
                   onTap: () {
                     final prov = Provider.of<CurrentSongProvider>(context, listen: false);
-                    prov.playSong(s);
                     prov.setQueue(_songs, initialIndex: i);
                   },
                   trailing: IconButton(
