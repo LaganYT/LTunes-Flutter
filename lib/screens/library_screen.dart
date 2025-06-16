@@ -19,11 +19,6 @@ import 'package:uuid/uuid.dart';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart'; // Import for metadata
 import 'download_queue_screen.dart'; // Import for the new Download Queue screen
 
-// Enum definitions for sorting
-enum PlaylistSortType { nameAsc, nameDesc, songCountAsc, songCountDesc }
-enum AlbumSortType { titleAsc, titleDesc, artistAsc, artistDesc }
-enum SongSortType { titleAsc, titleDesc, artistAsc, artistDesc }
-
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -51,17 +46,6 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // Sort state variables
-  PlaylistSortType _playlistSortType = PlaylistSortType.nameAsc;
-  AlbumSortType _albumSortType = AlbumSortType.titleAsc;
-  SongSortType _songSortType = SongSortType.titleAsc;
-
-  // SharedPreferences keys for sorting
-  static const String _playlistSortPrefKey = 'playlistSortType_v2';
-  static const String _albumSortPrefKey = 'albumSortType_v2';
-  static const String _songSortPrefKey = 'songSortType_v2';
-
-
   // cache local‐art lookup futures by filename
   // ignore: unused_field
   final Map<String, Future<String>> _localArtPathCache = {};
@@ -81,10 +65,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
     _searchController.addListener(_onSearchChanged);
     
-    _loadSortPreferences().then((_) {
-      // Initial loads after sort preferences are loaded
-      _loadDataAndApplySort();
-    });
+    _loadData(); // Renamed from _loadDataAndApplySort
     
 
     // Listen to PlaylistManagerService
@@ -101,90 +82,11 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     });
   }
 
-  void _loadDataAndApplySort() {
-    _loadDownloadedSongs(); // This will eventually call _applySortAndRefresh via its completion or listener
-    _loadPlaylists();       // This will eventually call _applySortAndRefresh
-    _loadSavedAlbums();     // This will eventually call _applySortAndRefresh
+  void _loadData() { // Renamed from _loadDataAndApplySort
+    _loadDownloadedSongs(); 
+    _loadPlaylists();       
+    _loadSavedAlbums();     
   }
-
-  Future<void> _loadSortPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _playlistSortType = _enumFromString(prefs.getString(_playlistSortPrefKey), PlaylistSortType.values, PlaylistSortType.nameAsc);
-      _albumSortType = _enumFromString(prefs.getString(_albumSortPrefKey), AlbumSortType.values, AlbumSortType.titleAsc);
-      _songSortType = _enumFromString(prefs.getString(_songSortPrefKey), SongSortType.values, SongSortType.titleAsc);
-    });
-  }
-
-  Future<void> _saveSortPreference(String key, String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
-  }
-
-  T _enumFromString<T>(String? value, List<T> enumValues, T defaultValue) {
-    if (value == null) return defaultValue;
-    return enumValues.firstWhere((e) => e.toString().split('.').last == value, orElse: () => defaultValue);
-  }
-
-  void _applySortAndRefresh() {
-    if (!mounted) return;
-
-    // Apply sorting based on current tab and sort type
-    if (_tabController?.index == 0) { // Playlists
-      _sortPlaylists();
-    } else if (_tabController?.index == 1) { // Albums
-      _sortAlbums();
-    } else if (_tabController?.index == 2) { // Downloads
-      _sortSongs();
-    }
-    setState(() {});
-  }
-
-  void _sortPlaylists() {
-    _playlists.sort((a, b) {
-      switch (_playlistSortType) {
-        case PlaylistSortType.nameAsc:
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        case PlaylistSortType.nameDesc:
-          return b.name.toLowerCase().compareTo(a.name.toLowerCase());
-        case PlaylistSortType.songCountAsc:
-          return a.songs.length.compareTo(b.songs.length);
-        case PlaylistSortType.songCountDesc:
-          return b.songs.length.compareTo(a.songs.length);
-      }
-    });
-  }
-
-  void _sortAlbums() {
-    _savedAlbums.sort((a, b) {
-      switch (_albumSortType) {
-        case AlbumSortType.titleAsc:
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        case AlbumSortType.titleDesc:
-          return b.title.toLowerCase().compareTo(a.title.toLowerCase());
-        case AlbumSortType.artistAsc:
-          return a.artistName.toLowerCase().compareTo(b.artistName.toLowerCase());
-        case AlbumSortType.artistDesc:
-          return b.artistName.toLowerCase().compareTo(a.artistName.toLowerCase());
-      }
-    });
-  }
-
-  void _sortSongs() {
-    _songs.sort((a, b) {
-      switch (_songSortType) {
-        case SongSortType.titleAsc:
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        case SongSortType.titleDesc:
-          return b.title.toLowerCase().compareTo(a.title.toLowerCase());
-        case SongSortType.artistAsc:
-          return a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
-        case SongSortType.artistDesc:
-          return b.artist.toLowerCase().compareTo(a.artist.toLowerCase());
-      }
-    });
-  }
-
 
   void _onSearchChanged() {
     if (!mounted) return;
@@ -206,13 +108,13 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   void _onPlaylistChanged() {
     // PlaylistManagerService notified changes, reload playlists
     if (mounted) {
-      _loadPlaylists(); // This will call _applySortAndRefresh after loading
+      _loadPlaylists(); // This will call setState after loading
     }
   }
 
   void _onSavedAlbumsChanged() { // New listener method
     if (mounted) {
-      _loadSavedAlbums(); // This will call _applySortAndRefresh after loading
+      _loadSavedAlbums(); // This will call setState after loading
     }
   }
 
@@ -220,7 +122,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // CurrentSongProvider notified changes (e.g., download finished, metadata updated)
     // Reload downloaded songs list
     if (mounted) {
-      _loadDownloadedSongs(); // This will call _applySortAndRefresh after loading
+      _loadDownloadedSongs(); // This will call setState after loading
     }
   }
 
@@ -327,7 +229,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       setState(() {
         _songs = loadedSongs;
       });
-      _applySortAndRefresh(); // Apply sort after songs are loaded
+      // _applySortAndRefresh(); // Apply sort after songs are loaded // Removed
     }
   }
 
@@ -336,7 +238,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       setState(() {
         _playlists = List.from(_playlistManager.playlists); // Create a mutable copy
       });
-      _applySortAndRefresh(); // Apply sort after playlists are loaded
+      // _applySortAndRefresh(); // Apply sort after playlists are loaded // Removed
     }
   }
   
@@ -345,7 +247,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
       setState(() {
         _savedAlbums = List.from(_albumManager.savedAlbums); // Create a mutable copy
       });
-      _applySortAndRefresh(); // Apply sort after albums are loaded
+      // _applySortAndRefresh(); // Apply sort after albums are loaded // Removed
     }
   }
 
@@ -745,7 +647,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
-            _loadDownloadedSongs(); // This will also trigger sorting
+            _loadDownloadedSongs(); // This will also trigger sorting // Comment updated, sorting is removed
         }
       } else {
         // User canceled the picker or no files selected
@@ -950,16 +852,16 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     // Do not listen here, we'll scope rebuilds to each item
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     
-    // _songs list already contains completed, downloaded songs, sorted by _sortSongs()
-    final List<Song> completedSortedSongs = List.from(_songs);
+    // _songs list already contains completed, downloaded songs
+    final List<Song> completedSongs = List.from(_songs);
 
     final activeDownloadsMap = currentSongProvider.activeDownloadTasks;
     final bool hasActiveDownloads = activeDownloadsMap.isNotEmpty;
 
     // Filter completed songs if search query is present
-    List<Song> songsToDisplay = completedSortedSongs;
+    List<Song> songsToDisplay = completedSongs;
     if (_searchQuery.isNotEmpty) {
-      songsToDisplay = completedSortedSongs.where((song) {
+      songsToDisplay = completedSongs.where((song) {
         return song.title.toLowerCase().contains(_searchQuery) ||
                (song.artist.toLowerCase().contains(_searchQuery));
       }).toList();
@@ -1048,19 +950,19 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                       onTap: () {
                         // When tapping a completed song, play it.
                         // The queue will be set to ALL completed downloaded songs,
-                        // respecting the current sort order of the Downloads tab.
+                        // respecting the current order of the Downloads tab (load order).
                         Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
 
-                        // Find the index of the tapped song within the full list of completed sorted songs.
-                        int queueIndex = completedSortedSongs.indexWhere((s) => s.id == songObj.id);
+                        // Find the index of the tapped song within the full list of completed songs.
+                        int queueIndex = completedSongs.indexWhere((s) => s.id == songObj.id);
                         
                         if (queueIndex != -1) {
-                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue(completedSortedSongs, initialIndex: queueIndex);
+                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue(completedSongs, initialIndex: queueIndex);
                         } else {
-                          // This case should ideally not happen if songObj comes from completedSortedSongs (via songsToDisplay filter).
+                          // This case should ideally not happen if songObj comes from completedSongs (via songsToDisplay filter).
                           // As a fallback, play the single song.
                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue([songObj], initialIndex: 0);
-                          debugPrint("Warning: Tapped song not found in the primary sorted list for queue. Setting queue with single song.");
+                          debugPrint("Warning: Tapped song not found in the primary list for queue. Setting queue with single song.");
                         }
                       },
                     );
@@ -1108,89 +1010,14 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     String hintText = 'Search...';
-    IconData sortIcon = Icons.sort; // Default, can be more specific
-    List<PopupMenuEntry<dynamic>> sortMenuItems = [];
-
     int currentTabIndex = _tabController?.index ?? 0;
 
     if (currentTabIndex == 0) { // Playlists
       hintText = 'Search Playlists...';
-      sortIcon = Icons.sort_by_alpha; // Example, adjust as needed
-      sortMenuItems = PlaylistSortType.values.map((sortType) {
-        String text = '';
-        switch (sortType) {
-          case PlaylistSortType.nameAsc: text = 'Name (A-Z)'; break;
-          case PlaylistSortType.nameDesc: text = 'Name (Z-A)'; break;
-          case PlaylistSortType.songCountAsc: text = 'Song Count (Fewest)'; break;
-          case PlaylistSortType.songCountDesc: text = 'Song Count (Most)'; break;
-        }
-        return PopupMenuItem(
-          value: sortType,
-          child: Row(
-            children: [
-              if (_playlistSortType == sortType) ...[
-                const Icon(Icons.check, size: 20.0),
-                const SizedBox(width: 8.0),
-              ] else ...[
-                const SizedBox(width: 28.0), // Placeholder for icon (20.0) + padding (8.0)
-              ],
-              Text(text),
-            ],
-          ),
-        );
-      }).toList();
     } else if (currentTabIndex == 1) { // Albums
       hintText = 'Search Saved Albums...';
-      sortIcon = Icons.sort_by_alpha; // Example
-      sortMenuItems = AlbumSortType.values.map((sortType) {
-        String text = '';
-        switch (sortType) {
-          case AlbumSortType.titleAsc: text = 'Title (A-Z)'; break;
-          case AlbumSortType.titleDesc: text = 'Title (Z-A)'; break;
-          case AlbumSortType.artistAsc: text = 'Artist (A-Z)'; break;
-          case AlbumSortType.artistDesc: text = 'Artist (Z-A)'; break;
-        }
-        return PopupMenuItem(
-          value: sortType,
-          child: Row(
-            children: [
-              if (_albumSortType == sortType) ...[
-                const Icon(Icons.check, size: 20.0),
-                const SizedBox(width: 8.0),
-              ] else ...[
-                const SizedBox(width: 28.0), // Placeholder for icon (20.0) + padding (8.0)
-              ],
-              Text(text),
-            ],
-          ),
-        );
-      }).toList();
     } else if (currentTabIndex == 2) { // Downloads
       hintText = 'Search Downloads...';
-      sortIcon = Icons.sort_by_alpha; // Example
-      sortMenuItems = SongSortType.values.map((sortType) {
-        String text = '';
-        switch (sortType) {
-          case SongSortType.titleAsc: text = 'Title (A-Z)'; break;
-          case SongSortType.titleDesc: text = 'Title (Z-A)'; break;
-          case SongSortType.artistAsc: text = 'Artist (A-Z)'; break;
-          case SongSortType.artistDesc: text = 'Artist (Z-A)'; break;
-        }
-        return PopupMenuItem(
-          value: sortType,
-          child: Row(
-            children: [
-              if (_songSortType == sortType) ...[
-                const Icon(Icons.check, size: 20.0),
-                const SizedBox(width: 8.0),
-              ] else ...[
-                const SizedBox(width: 28.0), // Placeholder for icon (20.0) + padding (8.0)
-              ],
-              Text(text),
-            ],
-          ),
-        );
-      }).toList();
     }
 
 
@@ -1245,24 +1072,6 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                           contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                         ),
                       ),
-                    ),
-                    PopupMenuButton(
-                      icon: Icon(sortIcon),
-                      tooltip: "Sort",
-                      onSelected: (selectedValue) {
-                        if (currentTabIndex == 0 && selectedValue is PlaylistSortType) {
-                          setState(() => _playlistSortType = selectedValue);
-                          _saveSortPreference(_playlistSortPrefKey, selectedValue.toString().split('.').last);
-                        } else if (currentTabIndex == 1 && selectedValue is AlbumSortType) {
-                          setState(() => _albumSortType = selectedValue);
-                           _saveSortPreference(_albumSortPrefKey, selectedValue.toString().split('.').last);
-                        } else if (currentTabIndex == 2 && selectedValue is SongSortType) {
-                          setState(() => _songSortType = selectedValue);
-                           _saveSortPreference(_songSortPrefKey, selectedValue.toString().split('.').last);
-                        }
-                        _applySortAndRefresh();
-                      },
-                      itemBuilder: (BuildContext context) => sortMenuItems,
                     ),
                   ],
                 ),
