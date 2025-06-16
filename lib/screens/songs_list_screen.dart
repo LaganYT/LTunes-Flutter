@@ -27,24 +27,111 @@ class _SongsScreenState extends State<SongsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _refreshSongs(); // Changed from _load()
   }
 
-  Future<void> _load() async {
+  Future<void> _refreshSongs() async { // Renamed from _loadDownloadedSongs and modified
     final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where((k) => k.startsWith('song_'));
-    final temp = <Song>[];
-    for (var k in keys) {
-      final js = prefs.getString(k);
-      if (js != null) {
-        final s = Song.fromJson(jsonDecode(js));
-        //if (!s.isDownloaded) continue; // Only include downloaded songs
-        if (widget.artistFilter == null || s.artist == widget.artistFilter) {
-          temp.add(s);
+    final Set<String> keys = prefs.getKeys();
+    final List<Song> allValidSongs = []; // Temporary list for all valid downloaded songs
+    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
+    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final String? songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            Song song = Song.fromJson(songMap);
+            bool metadataUpdated = false;
+
+            // Migration and validation for localFilePath
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              String fileName = song.localFilePath!;
+              if (song.localFilePath!.contains(Platform.pathSeparator)) { // It's a full path, needs migration
+                fileName = p.basename(song.localFilePath!);
+              }
+              // Correct path for checking existence, including the subdirectory
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
+              
+              if (await File(fullPath).exists()) {
+                if (song.localFilePath != fileName) { // Was a full path, now migrated to just filename
+                  song = song.copyWith(localFilePath: fileName);
+                  songMap['localFilePath'] = fileName; // Update map for saving
+                  metadataUpdated = true;
+                }
+              } else { // File doesn't exist in the expected subdirectory
+                song = song.copyWith(isDownloaded: false, localFilePath: null);
+                songMap['isDownloaded'] = false;
+                songMap['localFilePath'] = null;
+                metadataUpdated = true;
+              }
+            } else if (song.isDownloaded) { // Marked downloaded but path is null/empty
+                song = song.copyWith(isDownloaded: false, localFilePath: null);
+                songMap['isDownloaded'] = false;
+                songMap['localFilePath'] = null;
+                metadataUpdated = true;
+            }
+
+            // Migration and validation for albumArtUrl (if local and stored in root app docs)
+            if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+                String artFileName = song.albumArtUrl;
+                if (song.albumArtUrl.contains(Platform.pathSeparator)) { // Full path, needs migration
+                    artFileName = p.basename(song.albumArtUrl);
+                }
+                final fullArtPath = p.join(appDocDir.path, artFileName);
+
+                if (await File(fullArtPath).exists()) {
+                    if (song.albumArtUrl != artFileName) {
+                        song = song.copyWith(albumArtUrl: artFileName);
+                        songMap['albumArtUrl'] = artFileName;
+                        metadataUpdated = true;
+                    }
+                } else { // Local album art file missing
+                    // Optionally clear it or use a placeholder indicator.
+                    // For now, we keep the potentially broken filename if it was already a filename.
+                    // If it was a full path and file is missing, it effectively becomes "broken".
+                    // Consider if song = song.copyWith(albumArtUrl: ''); is desired here.
+                }
+            }
+            
+            if (metadataUpdated) {
+              await prefs.setString(key, jsonEncode(songMap));
+            }
+
+            // Add to list if downloaded and file exists
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              // Re-check after potential modifications if file truly exists with the (potentially migrated) filename
+              // in the correct subdirectory
+              final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
+              if (await checkFile.exists()){
+                  allValidSongs.add(song); // Add to the temporary list of all valid songs
+              }
+            }
+
+          } catch (e) {
+            debugPrint('Error decoding song from SharedPreferences for key $key: $e');
+            // Optionally remove corrupted data: await prefs.remove(key);
+          }
         }
       }
     }
-    setState(() => _songs = temp);
+
+    // Apply artist filter if present
+    List<Song> songsToDisplay = allValidSongs;
+    if (widget.artistFilter != null) {
+      songsToDisplay = allValidSongs.where((s) => s.artist == widget.artistFilter).toList();
+    }
+
+    // Sort songs alphabetically by title
+    songsToDisplay.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+
+    if (mounted) {
+      setState(() {
+        _songs = songsToDisplay;
+      });
+    }
   }
 
 
@@ -223,16 +310,6 @@ Future<void> _importSongs() async {
           }
         }
 
-        // await _loadDownloadedSongs(); // This will be triggered by _onSongDataChanged if CurrentSongProvider notifies appropriately
-                                // For direct import, if CurrentSongProvider isn't involved in notifying about these new files,
-                                // calling _loadDownloadedSongs() directly or ensuring a notification path is valid.
-                                // The listener _onSongDataChanged should handle updates if songs are managed via CurrentSongProvider.
-                                // If import directly modifies SharedPreferences, then _loadDownloadedSongs() is the correct refresh.
-                                // The listener _onSongDataChanged should ideally be triggered if these new songs are "globally" announced.
-                                // For now, assuming the provider pattern will eventually lead to a notification.
-                                // If not, a direct call to _loadDownloadedSongs() here after the loop would be needed.
-                                // However, the current structure relies on listeners.
-
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('$importCount song(s) imported successfully.')),
@@ -240,7 +317,7 @@ Future<void> _importSongs() async {
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
-            _loadDownloadedSongs(); // This will also trigger sorting
+            await _refreshSongs(); // Updated to call _refreshSongs
         }
       } else {
         // User canceled the picker or no files selected
@@ -253,99 +330,6 @@ Future<void> _importSongs() async {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('An error occurred during import: $e')),
       );
-    }
-  }
-
-Future<void> _loadDownloadedSongs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final Set<String> keys = prefs.getKeys();
-    final List<Song> loadedSongs = [];
-    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
-    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
-
-    for (String key in keys) {
-      if (key.startsWith('song_')) {
-        final String? songJson = prefs.getString(key);
-        if (songJson != null) {
-          try {
-            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
-            Song song = Song.fromJson(songMap);
-            bool metadataUpdated = false;
-
-            // Migration and validation for localFilePath
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              String fileName = song.localFilePath!;
-              if (song.localFilePath!.contains(Platform.pathSeparator)) { // It's a full path, needs migration
-                fileName = p.basename(song.localFilePath!);
-              }
-              // Correct path for checking existence, including the subdirectory
-              final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
-              
-              if (await File(fullPath).exists()) {
-                if (song.localFilePath != fileName) { // Was a full path, now migrated to just filename
-                  song = song.copyWith(localFilePath: fileName);
-                  songMap['localFilePath'] = fileName; // Update map for saving
-                  metadataUpdated = true;
-                }
-              } else { // File doesn't exist in the expected subdirectory
-                song = song.copyWith(isDownloaded: false, localFilePath: null);
-                songMap['isDownloaded'] = false;
-                songMap['localFilePath'] = null;
-                metadataUpdated = true;
-              }
-            } else if (song.isDownloaded) { // Marked downloaded but path is null/empty
-                song = song.copyWith(isDownloaded: false, localFilePath: null);
-                songMap['isDownloaded'] = false;
-                songMap['localFilePath'] = null;
-                metadataUpdated = true;
-            }
-
-            // Migration and validation for albumArtUrl (if local and stored in root app docs)
-            if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
-                String artFileName = song.albumArtUrl;
-                if (song.albumArtUrl.contains(Platform.pathSeparator)) { // Full path, needs migration
-                    artFileName = p.basename(song.albumArtUrl);
-                }
-                final fullArtPath = p.join(appDocDir.path, artFileName);
-
-                if (await File(fullArtPath).exists()) {
-                    if (song.albumArtUrl != artFileName) {
-                        song = song.copyWith(albumArtUrl: artFileName);
-                        songMap['albumArtUrl'] = artFileName;
-                        metadataUpdated = true;
-                    }
-                } else { // Local album art file missing
-                    // Optionally clear it or use a placeholder indicator.
-                    // For now, we keep the potentially broken filename if it was already a filename.
-                    // If it was a full path and file is missing, it effectively becomes "broken".
-                    // Consider if song = song.copyWith(albumArtUrl: ''); is desired here.
-                }
-            }
-            
-            if (metadataUpdated) {
-              await prefs.setString(key, jsonEncode(songMap));
-            }
-
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              // Re-check after potential modifications if file truly exists with the (potentially migrated) filename
-              // in the correct subdirectory
-              final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
-              if (await checkFile.exists()){
-                  loadedSongs.add(song);
-              }
-            }
-
-          } catch (e) {
-            debugPrint('Error decoding song from SharedPreferences for key $key: $e');
-            // Optionally remove corrupted data: await prefs.remove(key);
-          }
-        }
-      }
-    }
-    if (mounted) {
-      setState(() {
-        _songs = loadedSongs;
-      });
     }
   }
 
