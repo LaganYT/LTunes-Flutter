@@ -563,7 +563,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                 ? Icon(Icons.bar_chart_rounded, color: Theme.of(context).colorScheme.primary)
                                 : null,
                             onTap: () {
-                              currentSongProvider.playSong(song);
+                              currentSongProvider.playSong(song); // Ensure the clicked song plays
                               Navigator.pop(context); // Close the bottom sheet
                             },
                           );

@@ -109,11 +109,13 @@ class _PlaybarState extends State<Playbar> {
 
     return GestureDetector(
       onTap: () {
+        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+        currentSongProvider.playSong(currentSong); // Ensure the clicked song plays
         Navigator.push(
           context,
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
-            transitionDuration: const Duration(milliseconds: 350), // Adjust duration as needed
+            transitionDuration: const Duration(milliseconds: 350),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               const begin = Offset(0.0, 1.0); // Slide from bottom
               const end = Offset.zero; // Slide to center

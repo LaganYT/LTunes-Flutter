@@ -1219,7 +1219,6 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                 return GestureDetector(
                   onTap: () {
                     final prov = Provider.of<CurrentSongProvider>(context, listen: false);
-                    prov.playSong(song);
                     prov.setQueue(recentSongs, initialIndex: i); 
                   },
                   child: Container(
