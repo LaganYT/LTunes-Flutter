@@ -38,7 +38,7 @@ class _SongsScreenState extends State<SongsScreen> {
       final js = prefs.getString(k);
       if (js != null) {
         final s = Song.fromJson(jsonDecode(js));
-        if (!s.isDownloaded) continue; // Only include downloaded songs
+        //if (!s.isDownloaded) continue; // Only include downloaded songs
         if (widget.artistFilter == null || s.artist == widget.artistFilter) {
           temp.add(s);
         }
@@ -53,7 +53,7 @@ class _SongsScreenState extends State<SongsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Delete "${s.title}"?'),
-        content: const Text('This will remove the downloaded file if present.'),
+        content: const Text('This will remove the downloaded audio file and associated album art if present.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
@@ -61,20 +61,51 @@ class _SongsScreenState extends State<SongsScreen> {
       ),
     );
     if (ok != true) return;
-    // remove local file if exists
-    if (s.localFilePath != null) {
-      final dir = await getApplicationDocumentsDirectory();
-      final f = File(p.join(dir.path, 'ltunes_downloads', s.localFilePath!));
-      if (await f.exists()) await f.delete();
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('song_${s.id}');
 
+    // It's crucial that CurrentSongProvider.updateSongDetails and PlaylistManagerService.removeSongFromAllPlaylists
+    // do NOT re-save the song object 's' to SharedPreferences under its original key 'song_${s.id}'.
+    // They should only use 's' to update their respective states (e.g., clear current song, modify playlist lists).
+
+    // Notify CurrentSongProvider. It should handle logic like clearing the current player if 's' is playing.
     Provider.of<CurrentSongProvider>(context, listen: false).updateSongDetails(s);
 
-    // also remove from any playlists that contain it
+    // Remove song from any playlists. This should modify playlist data, not the song's own SharedPreferences entry.
     await _playlistManager.removeSongFromAllPlaylists(s);
 
+    final dir = await getApplicationDocumentsDirectory(); // Get app documents directory once
+
+    // 1. Delete the local audio file
+    if (s.localFilePath != null && s.localFilePath!.isNotEmpty) {
+      final audioFile = File(p.join(dir.path, 'ltunes_downloads', s.localFilePath!));
+      try {
+        if (await audioFile.exists()) {
+          await audioFile.delete();
+          debugPrint('Deleted audio file: ${audioFile.path}');
+        }
+      } catch (e) {
+        debugPrint('Error deleting audio file ${audioFile.path}: $e');
+      }
+    }
+
+    // 2. Delete the local album art file
+    if (s.albumArtUrl.isNotEmpty && !s.albumArtUrl.startsWith('http')) {
+      final albumArtFile = File(p.join(dir.path, s.albumArtUrl));
+      try {
+        if (await albumArtFile.exists()) {
+          await albumArtFile.delete();
+          debugPrint('Deleted album art file: ${albumArtFile.path}');
+        }
+      } catch (e) {
+        debugPrint('Error deleting album art file ${albumArtFile.path}: $e');
+      }
+    }
+
+    // 3. Remove the song metadata from SharedPreferences - this should be the final action for this key.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('song_${s.id}');
+    debugPrint('Removed song_${s.id} from SharedPreferences (final step)'); // Updated log
+
+    // Update UI
     setState(() => _songs.removeWhere((song) => song.id == s.id));
   }
 
