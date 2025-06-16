@@ -1188,7 +1188,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Recently Saved Songs',
+              'Recently Downloaded Songs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
