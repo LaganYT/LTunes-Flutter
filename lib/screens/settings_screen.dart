@@ -408,6 +408,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 8.0),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -415,209 +428,237 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: const Text('Settings'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView(
-          children: [
-            ValueListenableBuilder<bool?>( // Listen to nullable bool
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8.0), // Add padding around the ListView
+        children: [
+          _buildSectionTitle(context, 'General'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: ValueListenableBuilder<bool?>(
               valueListenable: usRadioOnlyNotifier,
               builder: (context, usRadioOnly, _) {
                 if (usRadioOnly == null) {
-                  // Setting is loading, show a placeholder
                   return const ListTile(
+                    leading: Icon(Icons.public),
                     title: Text('United States Radio Only'),
                     trailing: SizedBox(
-                      width: 50, // Approximate width of a Switch
-                      height: 30, // Approximate height of a Switch
+                      width: 50,
+                      height: 30,
                       child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
                     ),
                   );
                 }
-                // Setting has loaded, show the Switch
                 return ListTile(
+                  leading: const Icon(Icons.public),
                   title: const Text('United States Radio Only'),
                   trailing: Switch(
-                    value: usRadioOnly, // usRadioOnly is now a non-null bool
+                    value: usRadioOnly,
                     onChanged: (bool value) async {
-                      usRadioOnlyNotifier.value = value; // Update the notifier
-                      await _saveUSRadioOnlySetting(value); // Save the updated value
+                      usRadioOnlyNotifier.value = value;
+                      await _saveUSRadioOnlySetting(value);
                     },
                   ),
                 );
               },
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('New Library Design'),
-              trailing: Switch(
-                value: themeProvider.useModernLibrary,
-                onChanged: (bool value) {
-                  themeProvider.setUseModernLibrary(value);
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Accent Color'),
-              trailing: DropdownButton<MaterialColor>(
-                value: themeProvider.accentColor,
-                items: ThemeProvider.accentColorOptions.entries.map((entry) {
-                  String colorName = entry.key;
-                  MaterialColor colorValue = entry.value;
-                  return DropdownMenuItem<MaterialColor>(
-                    value: colorValue,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 20,
-                          height: 20,
-                          color: colorValue,
-                          margin: const EdgeInsets.only(right: 8.0),
-                        ),
-                        Text(colorName),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (MaterialColor? newValue) {
-                  if (newValue != null) {
-                    themeProvider.setAccentColor(newValue);
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Dark Mode'),
-              trailing: Switch(
-                value: themeProvider.isDarkMode,
-                onChanged: (bool value) {
-                  themeProvider.toggleTheme();
-                },
-              ),
-            ),
-            const Divider(), // Added a divider for better separation
-            ListTile(
-              title: const Text('Storage Used by Downloads'),
-              subtitle: ValueListenableBuilder<int>(
-                valueListenable: _refreshNotifier,
-                builder: (context, _, child) {
-                  return FutureBuilder<int>(
-                    future: _calculateStorageUsed(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Text('Calculating...');
-                      } else if (snapshot.hasError) {
-                        return Text('Error calculating storage', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                      } else if (snapshot.hasData) {
-                        return Text(_formatBytes(snapshot.data!));
-                      }
-                      return const Text('N/A');
+          ),
+          _buildSectionTitle(context, 'Appearance'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.view_quilt_outlined),
+                  title: const Text('New Library Design'),
+                  trailing: Switch(
+                    value: themeProvider.useModernLibrary,
+                    onChanged: (bool value) {
+                      themeProvider.setUseModernLibrary(value);
                     },
-                  );
-                }
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh Storage Calculation',
-                onPressed: () {
-                  _refreshNotifier.value++; // Increment to trigger ValueListenableBuilder
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Number of Downloaded Songs'),
-              subtitle: ValueListenableBuilder<int>(
-                valueListenable: _refreshNotifier,
-                builder: (context, _, child) {
-                  return FutureBuilder<int>(
-                    future: _getDownloadedSongsCount(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Text('Counting...');
-                      } else if (snapshot.hasError) {
-                        return Text('Error counting songs', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                      } else if (snapshot.hasData) {
-                        return Text('${snapshot.data} songs');
-                      }
-                      return const Text('N/A');
-                    },
-                  );
-                }
-              ),
-              // Optionally, share the refresh button or add another one
-              // For simplicity, the existing refresh button will now refresh both.
-            ),
-            const Divider(),
-            // MOVED VERSION INFO AND UPDATE BUTTON HERE
-            ListTile(
-              title: const Text('Version Information'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Current Version: $_currentAppVersion'),
-                  Text('Latest Available Version: $_latestKnownVersion'),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  _performUpdateCheck();
-                },
-                style: ElevatedButton.styleFrom(
-                  // Optional: Use a different color or style for this button
-                  // backgroundColor: Theme.of(context).colorScheme.primary,
-                  // foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  ),
                 ),
-                child: const Text('Check for Updates'),
-              ),
+                ListTile(
+                  leading: const Icon(Icons.color_lens_outlined),
+                  title: const Text('Accent Color'),
+                  trailing: DropdownButton<MaterialColor>(
+                    value: themeProvider.accentColor,
+                    items: ThemeProvider.accentColorOptions.entries.map((entry) {
+                      String colorName = entry.key;
+                      MaterialColor colorValue = entry.value;
+                      return DropdownMenuItem<MaterialColor>(
+                        value: colorValue,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              color: colorValue,
+                              margin: const EdgeInsets.only(right: 8.0),
+                            ),
+                            Text(colorName),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (MaterialColor? newValue) {
+                      if (newValue != null) {
+                        themeProvider.setAccentColor(newValue);
+                      }
+                    },
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.brightness_6_outlined),
+                  title: const Text('Dark Mode'),
+                  trailing: Switch(
+                    value: themeProvider.isDarkMode,
+                    onChanged: (bool value) {
+                      themeProvider.toggleTheme();
+                    },
+                  ),
+                ),
+              ],
             ),
-            const Divider(), // Added a divider for better separation
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: ElevatedButton(
-                onPressed: () async {
-                  bool? confirmDelete = await showDialog<bool>(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Delete All Downloads?'),
-                        content: const Text('Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.'),
-                        actions: <Widget>[
-                          TextButton(
-                            child: const Text('Cancel'),
-                            onPressed: () {
-                              Navigator.of(context).pop(false);
-                            },
-                          ),
-                          TextButton(
-                            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                            onPressed: () {
-                              Navigator.of(context).pop(true);
-                            },
-                          ),
-                        ],
+          ),
+          _buildSectionTitle(context, 'Storage'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.storage_outlined),
+                  title: const Text('Storage Used by Downloads'),
+                  subtitle: ValueListenableBuilder<int>(
+                    valueListenable: _refreshNotifier,
+                    builder: (context, _, child) {
+                      return FutureBuilder<int>(
+                        future: _calculateStorageUsed(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Text('Calculating...');
+                          } else if (snapshot.hasError) {
+                            return Text('Error calculating storage', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                          } else if (snapshot.hasData) {
+                            return Text(_formatBytes(snapshot.data!));
+                          }
+                          return const Text('N/A');
+                        },
                       );
                     },
-                  );
-                  if (confirmDelete == true) {
-                    await _deleteAllDownloads();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Theme.of(context).colorScheme.onError,
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh Storage Calculation',
+                    onPressed: () {
+                      _refreshNotifier.value++;
+                    },
+                  ),
                 ),
-                child: const Text('Delete All Downloaded Songs'),
-              ),
+                ListTile(
+                  leading: const Icon(Icons.music_note_outlined),
+                  title: const Text('Number of Downloaded Songs'),
+                  subtitle: ValueListenableBuilder<int>(
+                    valueListenable: _refreshNotifier,
+                    builder: (context, _, child) {
+                      return FutureBuilder<int>(
+                        future: _getDownloadedSongsCount(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Text('Counting...');
+                          } else if (snapshot.hasError) {
+                            return Text('Error counting songs', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                          } else if (snapshot.hasData) {
+                            return Text('${snapshot.data} songs');
+                          }
+                          return const Text('N/A');
+                        },
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    label: const Text('Delete All Downloaded Songs'),
+                    onPressed: () async {
+                      bool? confirmDelete = await showDialog<bool>(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Delete All Downloads?'),
+                            content: const Text('Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.'),
+                            actions: <Widget>[
+                              TextButton(
+                                child: const Text('Cancel'),
+                                onPressed: () {
+                                  Navigator.of(context).pop(false);
+                                },
+                              ),
+                              TextButton(
+                                child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                onPressed: () {
+                                  Navigator.of(context).pop(true);
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                      if (confirmDelete == true) {
+                        await _deleteAllDownloads();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Theme.of(context).colorScheme.onError,
+                      minimumSize: const Size(double.infinity, 48), // Make button wider
+                    ),
+                  ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), // Adjusted padding for consistency
-              child: ElevatedButton(
+          ),
+          _buildSectionTitle(context, 'Application'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('Version Information'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Current Version: $_currentAppVersion'),
+                      Text('Latest Available Version: $_latestKnownVersion'),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.system_update_alt),
+                    label: const Text('Check for Updates'),
+                    onPressed: () {
+                      _performUpdateCheck();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48), // Make button wider
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildSectionTitle(context, 'Actions'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.settings_backup_restore),
+                label: const Text('Reset All Settings to Default'),
                 onPressed: () async {
                   bool? confirmReset = await showDialog<bool>(
                     context: context,
@@ -649,40 +690,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.errorContainer,
                   foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  minimumSize: const Size(double.infinity, 48), // Make button wider
                 ),
-                child: const Text('Reset All Settings to Default'),
               ),
             ),
-            // REMOVED VERSION INFO AND UPDATE BUTTON FROM HERE
-            // const Divider(),
-            // ListTile(
-            //   title: const Text('Version Information'),
-            //   subtitle: Column(
-            //     crossAxisAlignment: CrossAxisAlignment.start,
-            //     children: [
-            //       Text('Current Version: $_currentAppVersion'),
-            //       Text('Latest Available Version: $_latestKnownVersion'),
-            //     ],
-            //   ),
-            // ),
-            // Padding(
-            //   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            //   child: ElevatedButton(
-            //     onPressed: () {
-            //       _performUpdateCheck();
-            //     },
-            //     style: ElevatedButton.styleFrom(
-            //       // Optional: Use a different color or style for this button
-            //       // backgroundColor: Theme.of(context).colorScheme.primary,
-            //       // foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            //       padding: const EdgeInsets.symmetric(vertical: 12.0),
-            //     ),
-            //     child: const Text('Check for Updates'),
-            //   ),
-            // ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16), // Add some space at the bottom
+        ],
       ),
     );
   }
