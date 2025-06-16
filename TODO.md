@@ -1,8 +1,13 @@
 # TODO
 
-## Bug Fixes
-- Fix playback: auto-plays the first song in queue instead of the selected one
+### Bug Fixes:
+
 - Ensure songs always start at 0:00 when switching tracks
 
-## New Features
+### New Features:
+
 - Add home screen widgets
+
+### Test out:
+
+- Having the lyrics take up more space when you open them in the full screen player
