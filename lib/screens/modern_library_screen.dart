@@ -22,7 +22,6 @@ import 'playlists_list_screen.dart';
 import 'artists_list_screen.dart';
 import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
-import 'downloaded_list_screen.dart';
 
 // Enum definitions for sorting
 enum PlaylistSortType { nameAsc, nameDesc, songCountAsc, songCountDesc }
@@ -1163,15 +1162,6 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
               MaterialPageRoute(builder: (_) => const SongsScreen()),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.download),
-            title: const Text('Downloaded'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DownloadedSongsScreen()),
-            ),
-          ),
           Consumer<CurrentSongProvider>(
             builder: (context, provider, child) {
               final active = provider.activeDownloadTasks.length;
@@ -1198,7 +1188,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Recently Downloaded Songs',
+              'Recently Saved Songs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
