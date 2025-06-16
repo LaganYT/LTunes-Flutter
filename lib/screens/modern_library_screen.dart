@@ -1115,7 +1115,20 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     // pick a small subset of _songs as "recently added"
-    final recent = _songs.take(10).toList(); 
+    final recentSongs = _songs.length > 10 ? _songs.sublist(_songs.length - 10).reversed.toList() : _songs.reversed.toList();
+
+    // Playlists are loaded from SharedPreferences; assuming they are in order of addition or have an ID that can be sorted.
+    // For simplicity, let's take the last few playlists. If playlists have a creation timestamp, sort by that.
+    // Assuming _playlists are loaded in a somewhat consistent order (e.g., by ID or addition time).
+    // To get "recent", we might need to sort them if they have a creation date, or just take the last few.
+    // For now, let's take the last 5 added. If PlaylistManager stores them in order of addition, this works.
+    // Otherwise, Playlist model would need a creationDate field.
+    final recentPlaylists = _playlists.length > 5 ? _playlists.sublist(_playlists.length - 5).reversed.toList() : _playlists.reversed.toList();
+
+    // Similarly for saved albums, take the last few.
+    // AlbumManagerService loads them, assuming order of addition or an ID that implies recency.
+    final recentSavedAlbums = _savedAlbums.length > 5 ? _savedAlbums.sublist(_savedAlbums.length - 5).reversed.toList() : _savedAlbums.reversed.toList();
+
 
     return Scaffold(
       appBar: AppBar(
@@ -1200,18 +1213,18 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: recent.length,
+              itemCount: recentSongs.length,
               itemBuilder: (context, i) {
-                final song = recent[i];
+                final song = recentSongs[i];
                 return GestureDetector(
                   onTap: () {
                     final prov = Provider.of<CurrentSongProvider>(context, listen: false);
                     prov.playSong(song);
-                    prov.setQueue(recent, initialIndex: i); // 'recent' is already a sub-list of _songs (load order)
+                    prov.setQueue(recentSongs, initialIndex: i); 
                   },
                   child: Container(
                     width: 140,
-                    margin: EdgeInsets.only(right: i == recent.length - 1 ? 0 : 12),
+                    margin: EdgeInsets.only(right: i == recentSongs.length - 1 ? 0 : 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1254,6 +1267,208 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
           ),
 
           const SizedBox(height: 24),
+
+          // Recently Added Playlists Section
+          if (recentPlaylists.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Recently Created Playlists',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180, // Adjust height as needed
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: recentPlaylists.length,
+                itemBuilder: (context, i) {
+                  final playlist = recentPlaylists[i];
+                  
+                  List<String> uniqueAlbumArtUrls = playlist.songs
+                      .map((song) => song.albumArtUrl)
+                      .where((artUrl) => artUrl.isNotEmpty)
+                      .toSet()
+                      .toList();
+
+                  Widget leadingWidget;
+                  const double itemArtSize = 120.0; // Size for the artwork in the carousel
+
+                  if (uniqueAlbumArtUrls.isEmpty) {
+                    leadingWidget = Container(
+                      width: itemArtSize,
+                      height: itemArtSize,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(Icons.playlist_play, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                    );
+                  } else if (uniqueAlbumArtUrls.length < 4) {
+                    leadingWidget = ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: _buildPlaylistArtWidget(uniqueAlbumArtUrls.first, itemArtSize));
+                  } else {
+                    List<Widget> gridImages = uniqueAlbumArtUrls
+                        .take(4)
+                        .map((artUrl) => _buildPlaylistArtWidget(artUrl, itemArtSize / 2))
+                        .toList();
+                    
+                    leadingWidget = ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: SizedBox(
+                        width: itemArtSize,
+                        height: itemArtSize,
+                        child: GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 1,
+                          crossAxisSpacing: 1,
+                          padding: EdgeInsets.zero,
+                          children: gridImages,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PlaylistDetailScreen(playlist: playlist),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 140, // Width of the entire card
+                      margin: EdgeInsets.only(right: i == recentPlaylists.length - 1 ? 0 : 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: itemArtSize, // Fixed height for the art part
+                            child: leadingWidget,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            playlist.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          Text(
+                            '${playlist.songs.length} songs',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Recently Saved Albums Section
+          if (recentSavedAlbums.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Recently Saved Albums',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180, // Adjust height as needed, consistent with other carousels
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: recentSavedAlbums.length,
+                itemBuilder: (context, i) {
+                  final album = recentSavedAlbums[i];
+                  const double itemArtSize = 120.0;
+
+                  Widget albumArtWidget;
+                  if (album.fullAlbumArtUrl.isNotEmpty) {
+                    albumArtWidget = Image.network(
+                      album.fullAlbumArtUrl,
+                      width: itemArtSize,
+                      height: itemArtSize,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: itemArtSize,
+                        height: itemArtSize,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      ),
+                    );
+                  } else {
+                    albumArtWidget = Container(
+                      width: itemArtSize,
+                      height: itemArtSize,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                    );
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AlbumScreen(album: album),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 140, // Width of the entire card
+                      margin: EdgeInsets.only(right: i == recentSavedAlbums.length - 1 ? 0 : 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: itemArtSize, // Fixed height for the art part
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: albumArtWidget,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            album.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          Text(
+                            album.artistName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
         ],
       ),
     );
