@@ -1,0 +1,47 @@
+# Flutter/Dart specific
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/build/
+**/pubspec.lock
+.dart_tool/
+build/
+
+# Android specific
+**/android/.gradle/
+**/android/local.properties
+**/android/gradle-wrapper.jar
+**/android/key.properties
+**/*.keystore
+**/*.jks
+
+# iOS specific
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Generated.xcconfig
+**/ios/.symlinks/
+**/ios/Pods/
+**/ios/Podfile.lock
+
+# macOS specific
+**/macos/Flutter/Flutter.framework/
+**/macos/Flutter/App.framework/
+**/macos/Flutter/Generated.xcconfig
+**/macos/.symlinks/
+**/macos/Pods/
+**/macos/Podfile.lock
+
+# Web specific
+**/web/.dart_tool/
+
+# VS Code specific
+**/.vscode/
+
+# IntelliJ specific
+**/.idea/
+**/*.iml
+
+# Miscellaneous
+**/*.log
+**/.DS_Store
+**/Thumbs.db

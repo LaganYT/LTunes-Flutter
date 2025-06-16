@@ -1,0 +1,178 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/current_song_provider.dart';
+import '../models/song.dart'; // For Song model
+
+class DownloadQueueScreen extends StatelessWidget {
+  const DownloadQueueScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Download Queue'),
+        actions: [
+          Consumer<CurrentSongProvider>( // Use Consumer here to access provider for button visibility
+            builder: (context, provider, child) {
+              final bool hasDownloads = provider.activeDownloadTasks.isNotEmpty || provider.songsQueuedForDownload.isNotEmpty;
+              if (hasDownloads) {
+                return IconButton(
+                  icon: const Icon(Icons.clear_all),
+                  tooltip: 'Cancel All Downloads',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        return AlertDialog(
+                          title: const Text('Cancel All Downloads?'),
+                          content: const Text('Are you sure you want to cancel all pending and active downloads?'),
+                          actions: <Widget>[
+                            TextButton(
+                              child: const Text('No'),
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop(); // Close the dialog
+                              },
+                            ),
+                            TextButton(
+                              child: const Text('Yes, Cancel All'),
+                              onPressed: () {
+                                provider.cancelAllDownloads();
+                                Navigator.of(dialogContext).pop(); // Close the dialog
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('All downloads cancelled.')),
+                                );
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              }
+              return const SizedBox.shrink(); // Return an empty widget if no downloads
+            },
+          ),
+        ],
+      ),
+      body: Consumer<CurrentSongProvider>(
+        builder: (context, provider, child) {
+          final activeTasksMap = provider.activeDownloadTasks;
+          final queuedSongsList = provider.songsQueuedForDownload;
+          final downloadProgressMap = provider.downloadProgress;
+
+          // Combine active tasks and queued songs for display.
+          // Active tasks are songs currently being processed by the provider/DownloadManager.
+          // Queued songs are waiting in the provider's internal queue.
+          final List<Song> allDownloadItems = [
+            ...activeTasksMap.values,
+            ...queuedSongsList,
+          ];
+
+          if (allDownloadItems.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Download queue is empty.',
+                  style: TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: allDownloadItems.length,
+            itemBuilder: (context, index) {
+              final song = allDownloadItems[index];
+              final bool isActive = activeTasksMap.containsKey(song.id);
+              final double? progress = downloadProgressMap[song.id];
+
+              Widget leadingWidget;
+              if (song.albumArtUrl.isNotEmpty) {
+                if (song.albumArtUrl.startsWith('http')) {
+                  leadingWidget = Image.network(
+                    song.albumArtUrl,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                  );
+                } else {
+                  // Placeholder for local album art if logic is added later
+                  // For now, using a generic icon if not an HTTP URL
+                  leadingWidget = const Icon(Icons.music_note, size: 40);
+                }
+              } else {
+                leadingWidget = const Icon(Icons.music_note, size: 40);
+              }
+
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                child: ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(4.0),
+                    child: leadingWidget,
+                  ),
+                  title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      if (isActive) ...[
+                        // Song is actively being processed
+                        if (progress != null) ...[
+                          LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Downloading... ${(progress * 100).toStringAsFixed(0)}%',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ] else ...[
+                          // Active, but progress not yet available (e.g., preparing)
+                          Text(
+                            'Preparing download...',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ] else ...[
+                        // Song is in the provider's queue, not yet active
+                        Text(
+                          'Queued',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ],
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.cancel_outlined),
+                    tooltip: 'Cancel Download',
+                    color: Colors.orangeAccent,
+                    onPressed: () {
+                      provider.cancelDownload(song.id);
+                      // Optional: Show a SnackBar
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Cancelled download for "${song.title}".')),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
