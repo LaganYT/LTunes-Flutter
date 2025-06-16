@@ -39,6 +39,7 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
 
 class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  PlayerState _lastPlayerState = PlayerState.stopped;
   final _playlist = <MediaItem>[];
   int _currentIndex = -1;
   bool _isRadioStream = false;
@@ -101,6 +102,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   void _notifyAudioHandlerAboutPlaybackEvents() {
     _audioPlayer.onPlayerStateChanged.listen((state) async {
+     _lastPlayerState = state;
       final playing = state == PlayerState.playing;
       // Get current position safely
       Duration currentPosition = Duration.zero;
@@ -268,13 +270,15 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
-    // Proceed if current index is valid.
+   // if previously paused, just resume at current position
+   if (_lastPlayerState == PlayerState.paused) {
+     await _audioPlayer.resume();
+     return;
+   }
+    // fresh start or first play
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-      await skipToQueueItem(_currentIndex); // skipToQueueItem handles art resolution and playback
+      await skipToQueueItem(_currentIndex);
     } else {
-      // Optionally handle empty playlist scenario, e.g., log or update UI
-      // If _currentIndex is < 0, it means no item is selected.
-      // If playlist is empty, there's nothing to play.
       debugPrint("Play called, but no valid current item is selected or playlist is empty. Current index: $_currentIndex, Playlist length: ${_playlist.length}");
     }
   }
