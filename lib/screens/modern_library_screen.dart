@@ -1225,7 +1225,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                     width: 140,
                     margin: EdgeInsets.only(right: i == recentSongs.length - 1 ? 0 : 12),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         // artwork
                         Expanded(
@@ -1250,12 +1250,14 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyLarge,
+                          textAlign: TextAlign.center,
                         ),
                         Text(
                           song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
@@ -1346,7 +1348,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       width: 140, // Width of the entire card
                       margin: EdgeInsets.only(right: i == recentPlaylists.length - 1 ? 0 : 12),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           SizedBox(
                             height: itemArtSize, // Fixed height for the art part
@@ -1358,12 +1360,14 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodyLarge,
+                            textAlign: TextAlign.center,
                           ),
                           Text(
                             '${playlist.songs.length} songs',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -1437,7 +1441,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       width: 140, // Width of the entire card
                       margin: EdgeInsets.only(right: i == recentSavedAlbums.length - 1 ? 0 : 12),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           SizedBox(
                             height: itemArtSize, // Fixed height for the art part
@@ -1452,12 +1456,14 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodyLarge,
+                            textAlign: TextAlign.center,
                           ),
                           Text(
                             album.artistName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
