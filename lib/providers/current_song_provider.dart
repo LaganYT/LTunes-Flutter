@@ -730,7 +730,16 @@ class CurrentSongProvider with ChangeNotifier {
           ..removeWhere((s) => current != null && s.id == current.id)
           ..shuffle();
         final newQueue = [if (current != null) current, ...remaining];
-        await setQueue(newQueue, initialIndex: 0);
+
+        // Update provider state
+        _queue = newQueue;
+        _currentIndexInAppQueue = (current != null) ? 0 : (_queue.isNotEmpty ? 0 : -1);
+        
+        // Update audio handler's queue without restarting the current song
+        final mediaItems = await Future.wait(
+            _queue.map((s) => _prepareMediaItem(s)).toList()
+        );
+        await _audioHandler.updateQueue(mediaItems);
       } else {
         _isShuffling = true;
       }
@@ -740,7 +749,7 @@ class CurrentSongProvider with ChangeNotifier {
       if (_previousQueueBeforeShuffle != null) {
         String? currentSongIdBeforeRestore = _currentSongFromAppLogic?.id;
         List<Song> restoredQueue = List.from(_previousQueueBeforeShuffle!);
-        int newIndex = _previousIndexBeforeShuffle ?? 0; // Default to pre-shuffle index
+        int newIndex = _previousIndexBeforeShuffle ?? 0;
 
         if (currentSongIdBeforeRestore != null) {
           int indexOfCurrentSongInRestoredQueue = restoredQueue.indexWhere((s) => s.id == currentSongIdBeforeRestore);
@@ -751,14 +760,19 @@ class CurrentSongProvider with ChangeNotifier {
         
         // Ensure newIndex is valid for the restored queue
         if (newIndex < 0 || newIndex >= restoredQueue.length) {
-            newIndex = 0; // Fallback to the beginning of the queue if index is invalid
-        }
-        if (restoredQueue.isEmpty) {
-            newIndex = -1; // No valid index if queue is empty
+            newIndex = restoredQueue.isNotEmpty ? 0 : -1;
         }
 
+        // Update provider state
+        _queue = restoredQueue;
+        _currentIndexInAppQueue = newIndex;
+        
+        // Update audio handler's queue without restarting the current song
+        final mediaItems = await Future.wait(
+            _queue.map((s) => _prepareMediaItem(s)).toList()
+        );
+        await _audioHandler.updateQueue(mediaItems);
 
-        await setQueue(restoredQueue, initialIndex: newIndex);
         _previousQueueBeforeShuffle = null;
         _previousIndexBeforeShuffle = null;
       }
