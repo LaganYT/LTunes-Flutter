@@ -106,6 +106,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                       context,
                       MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
                     ),
+                    onLongPress: () => _showPlaylistOptions(p),
                     child: SizedBox(
                       width: 140,
                       child: Column(
@@ -175,6 +176,77 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         songs: [],
       ));
       _reload();
+    }
+  }
+
+  void _showPlaylistOptions(Playlist playlist) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Wrap(
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Rename Playlist'),
+              onTap: () {
+                Navigator.pop(context);
+                _renamePlaylist(playlist);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+              title: Text('Delete Playlist', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onTap: () {
+                Navigator.pop(context);
+                _deletePlaylist(playlist);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _renamePlaylist(Playlist playlist) async {
+    final nameCtrl = TextEditingController(text: playlist.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rename Playlist'),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Playlist Name'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, nameCtrl.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (newName != null && newName.isNotEmpty && newName != playlist.name) {
+      await _manager.renamePlaylist(playlist.id, newName);
+    }
+  }
+
+  void _deletePlaylist(Playlist playlist) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Playlist'),
+        content: Text('Are you sure you want to delete "${playlist.name}"? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _manager.removePlaylist(playlist);
     }
   }
 }
