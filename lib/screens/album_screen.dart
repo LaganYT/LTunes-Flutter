@@ -585,48 +585,101 @@ class _AlbumScreenState extends State<AlbumScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final track = widget.album.tracks[index];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    leading: Text(
-                      '${index + 1}',
-                      style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-                    ),
-                    title: Text(
-                      track.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
-                    ),
-                    subtitle: Text(
-                      track.artist.isNotEmpty ? track.artist : widget.album.artistName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colorScheme.onSurface.withOpacity(0.7),
-                        // decoration: TextDecoration.underline, // Removed
+                  return Dismissible(
+                    key: Key(track.id),
+                    direction: DismissDirection.horizontal,
+                    dismissThresholds: const {
+                      DismissDirection.startToEnd: 0.25,
+                      DismissDirection.endToStart: 0.25,
+                    },
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.startToEnd) {
+                        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                        currentSongProvider.addToQueue(track);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('${track.title} added to queue')),
+                        );
+                        return false; // Do not dismiss the item
+                      } else if (direction == DismissDirection.endToStart) {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext dialogContext) {
+                            return AddToPlaylistDialog(song: track);
+                          },
+                        );
+                        return false; // Do not dismiss the item
+                      }
+                      return false;
+                    },
+                    background: Container(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                          const SizedBox(width: 8),
+                          Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                        ],
                       ),
                     ),
-                    trailing: Text(
-                      track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',
-                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                    secondaryBackground: Container(
+                      color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+                          const SizedBox(width: 8),
+                          Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
+                        ],
+                      ),
                     ),
-                    onTap: () {
-                      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                      currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
-                      currentSongProvider.playSong(widget.album.tracks[index]);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-                      );
-                    },
-                    onLongPress: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SongDetailScreen(song: track),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                      leading: Text(
+                        '${index + 1}',
+                        style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                      title: Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: Text(
+                        track.artist.isNotEmpty ? track.artist : widget.album.artistName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                          // decoration: TextDecoration.underline, // Removed
                         ),
-                      );
-                    },
+                      ),
+                      trailing: Text(
+                        track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',
+                        style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                      onTap: () {
+                        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                        currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
+                        currentSongProvider.playSong(widget.album.tracks[index]);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+                        );
+                      },
+                      onLongPress: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SongDetailScreen(song: track),
+                          ),
+                        );
+                      },
+                    ),
                   );
                 },
                 childCount: widget.album.tracks.length,

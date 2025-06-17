@@ -8,6 +8,7 @@ import 'dart:io'; // Required for File
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import 'song_detail_screen.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -669,45 +670,98 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
                     // Each item in ReorderableList needs a Material ancestor for proper visuals during drag.
                     // ReorderableDelayedDragStartListener makes the whole tile draggable after a delay.
-                    return ReorderableDelayedDragStartListener(
-                      key: itemKey,
-                      index: index,
-                      child: Material( // Added Material widget
-                        color: Colors.transparent, // To maintain list background, or set specific item background
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: listItemLeading,
+                    return Dismissible(
+                      key: Key('dismissible_${song.id}'),
+                      direction: DismissDirection.horizontal,
+                      dismissThresholds: const {
+                        DismissDirection.startToEnd: 0.25,
+                        DismissDirection.endToStart: 0.25,
+                      },
+                      confirmDismiss: (direction) async {
+                        if (direction == DismissDirection.startToEnd) {
+                          final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                          currentSongProvider.addToQueue(song);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('${song.title} added to queue')),
+                          );
+                          return false; // Do not dismiss the item
+                        } else if (direction == DismissDirection.endToStart) {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext dialogContext) {
+                              return AddToPlaylistDialog(song: song);
+                            },
+                          );
+                          return false; // Do not dismiss the item
+                        }
+                        return false;
+                      },
+                      background: Container(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                            const SizedBox(width: 8),
+                            Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                          ],
+                        ),
+                      ),
+                      secondaryBackground: Container(
+                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+                            const SizedBox(width: 8),
+                            Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
+                          ],
+                        ),
+                      ),
+                      child: ReorderableDelayedDragStartListener(
+                        key: itemKey,
+                        index: index,
+                        child: Material( // Added Material widget
+                          color: Colors.transparent, // To maintain list background, or set specific item background
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: listItemLeading,
+                            ),
+                            title: Text(
+                              song.title,
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
+                               maxLines: 1, overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                               maxLines: 1, overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                                  tooltip: 'Remove from playlist',
+                                  onPressed: () {
+                                    _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
+                                  },
+                                ),
+                                const SizedBox(width: 8), // Spacing before drag handle
+                                Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                              ],
+                            ),
+                            onTap: () {
+                              currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: index); // Use currentPlaylist
+                              currentSongProvider.playSong(song);
+                            },
                           ),
-                          title: Text(
-                            song.title,
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
-                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                             maxLines: 1, overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                                tooltip: 'Remove from playlist',
-                                onPressed: () {
-                                  _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
-                                },
-                              ),
-                              const SizedBox(width: 8), // Spacing before drag handle
-                              Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
-                            ],
-                          ),
-                          onTap: () {
-                            currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: index); // Use currentPlaylist
-                            currentSongProvider.playSong(song);
-                          },
                         ),
                       ),
                     );

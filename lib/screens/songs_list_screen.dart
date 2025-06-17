@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
+import 'song_detail_screen.dart';
 
 class SongsScreen extends StatefulWidget {
   final String? artistFilter;
@@ -345,34 +346,87 @@ Future<void> _importSongs() async {
               itemCount: _songs.length,
               itemBuilder: (c, i) {
                 final s = _songs[i];
-                return ListTile(
-                  leading: s.albumArtUrl.isNotEmpty
-                      ? (s.albumArtUrl.startsWith('http')
-                          ? Image.network(s.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover)
-                          : FutureBuilder<String>(
-                              future: () async {
-                                final dir = await getApplicationDocumentsDirectory();
-                                final fname = p.basename(s.albumArtUrl);
-                                final path = p.join(dir.path, fname);
-                                return await File(path).exists() ? path : '';
-                              }(),
-                              builder: (_, snap) {
-                                if (snap.connectionState == ConnectionState.done && snap.hasData && snap.data!.isNotEmpty) {
-                                  return Image.file(File(snap.data!), width: 40, height: 40, fit: BoxFit.cover);
-                                }
-                                return const Icon(Icons.album, size: 40);
-                              },
-                            ))
-                      : const Icon(Icons.album, size: 40),
-                  title: Text(s.title),
-                  subtitle: Text(s.artist),
-                  onTap: () {
-                    final prov = Provider.of<CurrentSongProvider>(context, listen: false);
-                    prov.setQueue(_songs, initialIndex: i);
+                return Dismissible(
+                  key: Key(s.id),
+                  direction: DismissDirection.horizontal,
+                  dismissThresholds: const {
+                    DismissDirection.startToEnd: 0.25,
+                    DismissDirection.endToStart: 0.25,
                   },
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteSong(s),
+                  confirmDismiss: (direction) async {
+                    if (direction == DismissDirection.startToEnd) {
+                      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                      currentSongProvider.addToQueue(s);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${s.title} added to queue')),
+                      );
+                      return false; // Do not dismiss the item
+                    } else if (direction == DismissDirection.endToStart) {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext dialogContext) {
+                          return AddToPlaylistDialog(song: s);
+                        },
+                      );
+                      return false; // Do not dismiss the item
+                    }
+                    return false;
+                  },
+                  background: Container(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
+                        const SizedBox(width: 8),
+                        Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                      ],
+                    ),
+                  ),
+                  secondaryBackground: Container(
+                    color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+                        const SizedBox(width: 8),
+                        Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
+                      ],
+                    ),
+                  ),
+                  child: ListTile(
+                    leading: s.albumArtUrl.isNotEmpty
+                        ? (s.albumArtUrl.startsWith('http')
+                            ? Image.network(s.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover)
+                            : FutureBuilder<String>(
+                                future: () async {
+                                  final dir = await getApplicationDocumentsDirectory();
+                                  final fname = p.basename(s.albumArtUrl);
+                                  final path = p.join(dir.path, fname);
+                                  return await File(path).exists() ? path : '';
+                                }(),
+                                builder: (_, snap) {
+                                  if (snap.connectionState == ConnectionState.done && snap.hasData && snap.data!.isNotEmpty) {
+                                    return Image.file(File(snap.data!), width: 40, height: 40, fit: BoxFit.cover);
+                                  }
+                                  return const Icon(Icons.album, size: 40);
+                                },
+                              ))
+                        : const Icon(Icons.album, size: 40),
+                    title: Text(s.title),
+                    subtitle: Text(s.artist),
+                    onTap: () {
+                      final prov = Provider.of<CurrentSongProvider>(context, listen: false);
+                      prov.setQueue(_songs, initialIndex: i);
+                    },
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteSong(s),
+                    ),
                   ),
                 );
               },
