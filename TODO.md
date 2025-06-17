@@ -1,9 +1,5 @@
 # TODO
 
-## UI Improvements
-- Show where the song is playing from (playlist or album name) at the top bar next to the show lyrics button
-- All overflow text should move back and forth (like Spotify)
-
 ## Features
 - Add a like song feature
 - Add a place in the library for favorited radio stations (also allow you to favorite radio stations)
