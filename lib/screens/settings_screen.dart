@@ -619,7 +619,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          _buildSectionTitle(context, 'Application'),
+          _buildSectionTitle(context, 'Version Information'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Column(
@@ -651,7 +651,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          _buildSectionTitle(context, 'Actions'),
+          _buildSectionTitle(context, 'Danger Zone'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Padding(
