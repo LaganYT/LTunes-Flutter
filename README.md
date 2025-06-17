@@ -66,7 +66,7 @@ Add screenshots of the app below (replace paths as needed):
 
 | Light Mode | Dark Mode |
 | ---------- | --------- |
-| <img src="assets/screenshots/light.png" alt="Light mode" width="200"/> | <img src="assets/screenshots/dark.png" alt="Dark mode" width="200"/> |
+| <img src="assets/screenshots/light-mode/readme.png" alt="Light mode" width="200"/> | <img src="assets/screenshots/dark-mode/readme.png" alt="Dark mode" width="200"/> |
 
 ## Contributing
 
