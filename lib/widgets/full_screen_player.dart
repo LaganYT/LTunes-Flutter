@@ -716,6 +716,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             : null,
         centerTitle: true,
         actions: [
+          if (!isRadio)
           // Always visible Toggle Lyrics Button
           IconButton(
             icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
@@ -881,9 +882,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                     StreamBuilder<Duration>(
                       stream: currentSongProvider.onPositionChanged,
                       builder: (context, snapshot) {
-                        final position = snapshot.data ?? Duration.zero;
+                        var position = snapshot.data ?? Duration.zero;
                         final duration = currentSongProvider.totalDuration ?? Duration.zero;
                         
+                        // When looping a single song, the position reported can exceed the duration
+                        // just before it loops. To provide a smoother UI experience and show it
+                        // resetting to 0:00 as requested, we adjust the position value here.
+                        if (loopMode == LoopMode.song && !isRadio && duration > Duration.zero && position >= duration) {
+                          position = Duration.zero;
+                        }
+
                         // Update lyrics based on position
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                            if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position); // Only if synced
@@ -893,21 +901,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           children: [
                             SliderTheme(
                               data: SliderTheme.of(context).copyWith(
-                                trackHeight: 3.0,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7.0),
-                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-                                activeTrackColor: colorScheme.secondary,
-                                inactiveTrackColor: colorScheme.onSurface.withOpacity(0.2),
-                                thumbColor: colorScheme.secondary,
                                 overlayColor: colorScheme.secondary.withOpacity(0.2),
                               ),
                               child: Slider(
-                                value: (duration.inMilliseconds > 0 && position.inMilliseconds <= duration.inMilliseconds)
-                                    ? position.inMilliseconds.toDouble()
-                                    : 0.0,
+                                value: position.inMilliseconds.toDouble().clamp(0.0, duration.inMilliseconds.toDouble()),
                                 min: 0.0,
-                                max: duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1.0,
-                                onChanged: isRadio ? null : (value) {
+                                max: duration.inMilliseconds.toDouble() > 0 ? duration.inMilliseconds.toDouble() : 1.0,
+                                onChanged: (value) {
+                                  if (isRadio) return;
                                   currentSongProvider.seek(Duration(milliseconds: value.round()));
                                 },
                               ),
