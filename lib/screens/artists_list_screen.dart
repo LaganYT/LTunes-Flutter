@@ -68,25 +68,7 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
                       AspectRatio(
                         aspectRatio: 1.0,
                         child: ClipOval(
-                          child: artUrl.startsWith('http')
-                              ? Image.network(
-                                  artUrl,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                )
-                              : artUrl.isNotEmpty
-                                  ? Image.file(
-                                      File(artUrl),
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                    )
-                                  : Icon(
-                                      Icons.person,
-                                      size: 40,
-                                      color: Theme.of(context).colorScheme.primary,
-                                    ),
+                          child: _artistImage(artUrl),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -103,5 +85,40 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
               },
             ),
     );
+  }
+
+  /// Loads network or local image, falls back to placeholder on error.
+  Widget _artistImage(String artUrl) {
+    final placeholder = Icon(
+      Icons.person,
+      size: 120,
+      color: Theme.of(context).colorScheme.primary,
+    );
+    // remote
+    if (artUrl.startsWith('http')) {
+      return Image.network(
+        artUrl,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => placeholder,
+      );
+    }
+    // strip file:// if present
+    final path = artUrl.startsWith('file://')
+        ? Uri.parse(artUrl).toFilePath()
+        : artUrl;
+    // local file
+    if (path.isNotEmpty) {
+      return Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => placeholder,
+      );
+    }
+    // fallback
+    return placeholder;
   }
 }
