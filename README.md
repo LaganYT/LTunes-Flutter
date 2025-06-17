@@ -43,7 +43,7 @@ A Flutter-based music app for streaming, downloading, and organizing songs, albu
 2. Clone this repository:
    ```bash
    git clone https://github.com/LaganYT/LTunes-Flutter.git
-   cd LTunes\ Flutter
+   cd "LTunes Flutter"
    ```
 3. Get dependencies:
    ```bash
@@ -59,6 +59,14 @@ A Flutter-based music app for streaming, downloading, and organizing songs, albu
 - **Search**: Use the bottom navigation to select “Search,” enter a query, and tap a song or station to play.  
 - **Library**: View, play, import, and delete downloaded songs or manage playlists and albums.  
 - **Settings**: Customize themes, radio region, and clear storage or check for updates.
+
+## Screenshots
+
+Add screenshots of the app below (replace paths as needed):
+
+| Light Mode | Dark Mode |
+| ---------- | --------- |
+| <img src="assets/screenshots/light.png" alt="Light mode" width="200"/> | <img src="assets/screenshots/dark.png" alt="Dark mode" width="200"/> |
 
 ## Contributing
 
