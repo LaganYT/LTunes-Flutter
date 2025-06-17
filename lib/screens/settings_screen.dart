@@ -431,37 +431,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8.0), // Add padding around the ListView
         children: [
-          _buildSectionTitle(context, 'General'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: ValueListenableBuilder<bool?>(
-              valueListenable: usRadioOnlyNotifier,
-              builder: (context, usRadioOnly, _) {
-                if (usRadioOnly == null) {
-                  return const ListTile(
-                    leading: Icon(Icons.public),
-                    title: Text('United States Radio Only'),
-                    trailing: SizedBox(
-                      width: 50,
-                      height: 30,
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
-                    ),
-                  );
-                }
-                return ListTile(
-                  leading: const Icon(Icons.public),
-                  title: const Text('United States Radio Only'),
-                  trailing: Switch(
-                    value: usRadioOnly,
-                    onChanged: (bool value) async {
-                      usRadioOnlyNotifier.value = value;
-                      await _saveUSRadioOnlySetting(value);
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
           _buildSectionTitle(context, 'Appearance'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
@@ -476,6 +445,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       themeProvider.setUseModernLibrary(value);
                     },
                   ),
+                ),
+                // Moved US Radio Only toggle into Appearance
+                ValueListenableBuilder<bool?>(
+                  valueListenable: usRadioOnlyNotifier,
+                  builder: (context, usRadioOnly, _) {
+                    if (usRadioOnly == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.public),
+                        title: Text('United States Radio Only'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.public),
+                      title: const Text('United States Radio Only'),
+                      trailing: Switch(
+                        value: usRadioOnly,
+                        onChanged: (bool value) async {
+                          usRadioOnlyNotifier.value = value;
+                          await _saveUSRadioOnlySetting(value);
+                        },
+                      ),
+                    );
+                  },
                 ),
                 ListTile(
                   leading: const Icon(Icons.color_lens_outlined),
