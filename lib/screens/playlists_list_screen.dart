@@ -43,10 +43,12 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           .toList();
       final size = constraints.maxWidth;
       if (arts.isEmpty) {
-        return Icon(
-          Icons.playlist_play,
-          size: size,
-          color: Theme.of(context).colorScheme.primary,
+        return Center(
+          child: Icon(
+            Icons.playlist_play,
+            size: 70,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         );
       }
       if (arts.length == 1) {
@@ -68,7 +70,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   Widget _buildArtWidget(String url, double sz) {
     if (url.startsWith('http')) {
       return Image.network(url, width: sz, height: sz, fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 24));
+        errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.music_note, size: 24)));
     }
     // local file case
     return FutureBuilder<String>(
@@ -81,9 +83,9 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.done && snap.data!.isNotEmpty) {
           return Image.file(File(snap.data!), width: sz, height: sz, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 24));
+            errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.music_note, size: 24)));
         }
-        return const Icon(Icons.music_note, size: 24);
+        return const Center(child: Icon(Icons.music_note, size: 24));
       },
     );
   }
@@ -94,56 +96,55 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       appBar: AppBar(title: const Text('Playlists')),
       body: _playlists.isEmpty
           ? const Center(child: Text('No playlists yet.'))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Wrap(
-                spacing: 16.0,
-                runSpacing: 16.0,
-                alignment: WrapAlignment.center,
-                children: _playlists.map((p) {
-                  return GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
-                    ),
-                    onLongPress: () => _showPlaylistOptions(p),
-                    child: SizedBox(
-                      width: 140,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 140,
-                            height: 140,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                color: Colors.grey[800],
-                                child: _playlistThumbnail(p),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            p.name,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '${p.songs.length} songs',
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
+          : GridView.builder(
+              padding: const EdgeInsets.all(24.0),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 24.0,
+                mainAxisSpacing: 24.0,
+                childAspectRatio: 0.75,
               ),
+              itemCount: _playlists.length,
+              itemBuilder: (context, index) {
+                final p = _playlists[index];
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
+                  ),
+                  onLongPress: () => _showPlaylistOptions(p),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 1.0,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            color: Colors.grey[800],
+                            child: _playlistThumbnail(p),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        p.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${p.songs.length} songs',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createPlaylist,
