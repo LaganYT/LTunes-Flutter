@@ -69,4 +69,4 @@ A Flutter-based music app for streaming, downloading, and organizing songs, albu
 
 ## License
 
-MIT © Logan Latham / LaganDevs
+The Unlicense © Logan Latham / LaganDevs
