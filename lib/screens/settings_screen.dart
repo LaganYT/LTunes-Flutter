@@ -13,6 +13,7 @@ import '../models/update_info.dart';   // Import UpdateInfo
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
 import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
+import 'modern_library_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -604,6 +605,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                       if (confirmDelete == true) {
                         await _deleteAllDownloads();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Theme.of(context).colorScheme.onError,
+                      minimumSize: const Size(double.infinity, 48), // Make button wider
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.clear_all_outlined),
+                    label: const Text('Clear Recently Played Stations'),
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (BuildContext dialogContext) {
+                          return AlertDialog(
+                            title: const Text('Clear Recent Stations?'),
+                            content: const Text(
+                                'This will clear the list of recently played radio stations. This action cannot be undone.'),
+                            actions: <Widget>[
+                              TextButton(
+                                child: const Text('Cancel'),
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(false),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                    foregroundColor:
+                                        Theme.of(context).colorScheme.error),
+                                child: const Text('Clear'),
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(true),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (confirmed == true) {
+                        await radioRecentsManager.clearRecentStations();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Recently played stations cleared.')),
+                          );
+                        }
                       }
                     },
                     style: ElevatedButton.styleFrom(

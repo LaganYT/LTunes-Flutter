@@ -540,7 +540,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     final extras = Map<String, dynamic>.from(effectiveSong.extras ?? {});
-    extras['isRadio'] = false;
+    extras['isRadio'] = effectiveSong.artist == 'Radio Station';
     extras['songId'] = effectiveSong.id; // CRITICAL: ensure this is the ID of effectiveSong
     extras['isLocal'] = effectiveSong.isDownloaded;
     if (effectiveSong.isDownloaded && effectiveSong.localFilePath != null && effectiveSong.albumArtUrl.isNotEmpty && !effectiveSong.albumArtUrl.startsWith('http')) {

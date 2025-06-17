@@ -23,6 +23,131 @@ import 'artists_list_screen.dart';
 import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
 
+// A simple model for a radio station.
+class RadioStation {
+  final String id;
+  final String name;
+  final String imageUrl;
+  final String streamUrl;
+
+  RadioStation({
+    required this.id,
+    required this.name,
+    required this.imageUrl,
+    required this.streamUrl,
+  });
+
+  // fromJson and toJson for SharedPreferences
+  factory RadioStation.fromJson(Map<String, dynamic> json) {
+    return RadioStation(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      imageUrl: json['imageUrl'] as String,
+      streamUrl: json['streamUrl'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'imageUrl': imageUrl,
+      'streamUrl': streamUrl,
+    };
+  }
+}
+
+// Global manager for recently played radio stations.
+final radioRecentsManager = RadioRecentsManager();
+
+class RadioRecentsManager extends ChangeNotifier {
+  static final RadioRecentsManager _instance = RadioRecentsManager._internal();
+  factory RadioRecentsManager() => _instance;
+  RadioRecentsManager._internal();
+
+  CurrentSongProvider? _provider;
+  bool _isInitialized = false;
+
+  void init(CurrentSongProvider provider) {
+    if (_isInitialized) return;
+    _provider = provider;
+    _provider!.addListener(_handleMediaItemChange);
+    _isInitialized = true;
+  }
+
+  @override
+  void dispose() {
+    _provider?.removeListener(_handleMediaItemChange);
+    _isInitialized = false; // Allow re-initialization if needed
+    super.dispose();
+  }
+
+  Future<void> clearRecentStations() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('recent_radio_stations');
+    notifyListeners();
+  }
+
+  Future<void> _addStationToRecents(RadioStation station) async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? stationsJson = prefs.getStringList('recent_radio_stations');
+    List<RadioStation> currentStations = [];
+    if (stationsJson != null) {
+      try {
+        currentStations = stationsJson
+            .map((s) => RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint('Could not parse recent stations: $e');
+      }
+    }
+
+    // Prevent adding the same station multiple times if the listener fires rapidly
+    if (currentStations.isNotEmpty && currentStations.first.id == station.id) {
+      return;
+    }
+
+    // Remove if it already exists to move it to the front
+    currentStations.removeWhere((s) => s.id == station.id);
+
+    // Add to the front
+    currentStations.insert(0, station);
+
+    // Limit to a reasonable number, e.g., 20
+    if (currentStations.length > 20) {
+      currentStations = currentStations.sublist(0, 20);
+    }
+
+    // Save back to SharedPreferences
+    final List<String> updatedStationsJson = currentStations.map((s) => jsonEncode(s.toJson())).toList();
+    await prefs.setStringList('recent_radio_stations', updatedStationsJson);
+    
+    // Notify listeners that the list of recent stations has changed.
+    notifyListeners();
+  }
+
+  void _handleMediaItemChange() {
+    final mediaItem = _provider?.audioHandler.mediaItem.value;
+    if (mediaItem == null) return;
+
+    // Heuristic to identify a radio stream.
+    if (mediaItem.artist == 'Radio Station') {
+      final audioUrl = mediaItem.extras?['audioUrl'] as String? ?? mediaItem.id;
+
+      final station = RadioStation(
+        id: mediaItem.extras?['songId'] as String? ?? mediaItem.id,
+        name: mediaItem.title,
+        imageUrl: mediaItem.artUri?.toString() ?? '',
+        streamUrl: audioUrl,
+      );
+
+      if (station.id.isNotEmpty && station.name.isNotEmpty && station.streamUrl.isNotEmpty) {
+        _addStationToRecents(station);
+      }
+    }
+  }
+}
+
 // Enum definitions for sorting
 // enum PlaylistSortType { nameAsc, nameDesc, songCountAsc, songCountDesc } // Removed
 // enum AlbumSortType { titleAsc, titleDesc, artistAsc, artistDesc } // Removed
@@ -39,6 +164,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
   List<Song> _songs = [];
   List<Playlist> _playlists = [];
   List<Album> _savedAlbums = []; // New list for saved albums
+  List<RadioStation> _recentStations = []; // New list for recent stations
   final AudioPlayer audioPlayer = AudioPlayer();
   // ignore: unused_field
   String? _currentlyPlayingSongPath;
@@ -84,6 +210,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     // This listener will call _loadPlaylists when playlist data changes.
     _playlistManager.addListener(_onPlaylistChanged);
     _albumManager.addListener(_onSavedAlbumsChanged); // Listen to AlbumManagerService
+    radioRecentsManager.addListener(_loadRecentStations); // Listen for global changes
     
     audioPlayer.onPlayerComplete.listen((event) {
       setState(() {
@@ -98,6 +225,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     _loadDownloadedSongs(); 
     _loadPlaylists();       
     _loadSavedAlbums();     
+    _loadRecentStations();
   }
 
   // Future<void> _loadSortPreferences() async { // Removed
@@ -197,6 +325,8 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     // This listener will call _loadDownloadedSongs when song data changes (e.g., download status).
     _currentSongProvider.addListener(_onSongDataChanged);
+    // Initialize the global manager. It will only init once.
+    radioRecentsManager.init(_currentSongProvider);
   }
 
   void _onPlaylistChanged() {
@@ -229,6 +359,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     _playlistManager.removeListener(_onPlaylistChanged);
     _albumManager.removeListener(_onSavedAlbumsChanged); // Remove listener
     _currentSongProvider.removeListener(_onSongDataChanged); // Remove listener
+    radioRecentsManager.removeListener(_loadRecentStations); // Clean up listener
     super.dispose();
   }
 
@@ -341,6 +472,31 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
         _savedAlbums = List.from(_albumManager.savedAlbums); // Create a mutable copy
       });
       // _applySortAndRefresh(); // Apply sort after albums are loaded // Removed
+    }
+  }
+
+  Future<void> _loadRecentStations() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? stationsJson = prefs.getStringList('recent_radio_stations');
+    if (stationsJson != null) {
+      try {
+        final stations = stationsJson
+            .map((s) => RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
+            .toList();
+        if (mounted) {
+          setState(() {
+            _recentStations = stations;
+          });
+        }
+      } catch (e) {
+        debugPrint('Could not load recent stations, clearing them. Error: $e');
+        await prefs.remove('recent_radio_stations');
+        if (mounted) {
+          setState(() {
+            _recentStations = [];
+          });
+        }
+      }
     }
   }
 
@@ -1129,6 +1285,9 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     // AlbumManagerService loads them, assuming order of addition or an ID that implies recency.
     final recentSavedAlbums = _savedAlbums.length > 5 ? _savedAlbums.sublist(_savedAlbums.length - 5).reversed.toList() : _savedAlbums.reversed.toList();
 
+    // Take all recent stations, assuming they are already ordered by recency.
+    final recentStations = _recentStations;
+
 
     return Scaffold(
       appBar: AppBar(
@@ -1465,6 +1624,104 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // Recently Played Radio Stations Section
+          if (recentStations.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Recently Played Stations',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 190, // Consistent height
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: recentStations.length,
+                itemBuilder: (context, i) {
+                  final station = recentStations[i];
+                  const double itemArtSize = 140.0;
+
+                  Widget stationArtWidget;
+                  if (station.imageUrl.isNotEmpty) {
+                    stationArtWidget = Image.network(
+                      station.imageUrl,
+                      width: itemArtSize,
+                      height: itemArtSize,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: itemArtSize,
+                        height: itemArtSize,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      ),
+                    );
+                  } else {
+                    stationArtWidget = Container(
+                      width: itemArtSize,
+                      height: itemArtSize,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                    );
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      // When a recent station is tapped, play it.
+                      // The listener _handleRadioStationPlay will automatically move it to the top of recents.
+                      final song = Song(
+                        id: station.id,
+                        title: station.name,
+                        artist: 'Radio Station', // Marker for our listener
+                        album: 'Live Radio',
+                        albumArtUrl: station.imageUrl,
+                        audioUrl: station.streamUrl,
+                        isDownloaded: false,
+                        localFilePath: null,
+                        duration: null,
+                        isImported: false,
+                      );
+                      Provider.of<CurrentSongProvider>(context, listen: false).playSong(song);
+                    },
+                    child: Container(
+                      width: 140, // Width of the entire card
+                      margin: EdgeInsets.only(right: i == recentStations.length - 1 ? 0 : 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: itemArtSize, // Fixed height for the art part
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: stationArtWidget,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            station.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyLarge,
                             textAlign: TextAlign.center,
                           ),
                         ],
