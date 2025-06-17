@@ -3,8 +3,6 @@
 ## UI Improvements
 - Show where the song is playing from (playlist or album name) at the top bar next to the show lyrics button
 - All overflow text should move back and forth (like Spotify)
-- Center text on the albums and playlists on modern library design page
-- Increase the playlists, songs, and albums covers to be universally the same size
 
 ## Features
 - Add a like song feature

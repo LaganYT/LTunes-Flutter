@@ -94,60 +94,61 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       appBar: AppBar(title: const Text('Playlists')),
       body: _playlists.isEmpty
           ? const Center(child: Text('No playlists yet.'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                childAspectRatio: 0.75, // allow extra height for labels
-              ),
-              itemCount: _playlists.length,
-              itemBuilder: (c, i) {
-                final p = _playlists[i];
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                     AspectRatio(
-                       aspectRatio: 1.0, // square cover area
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            color: Colors.white,
-                            child: Center(child: _playlistThumbnail(p)),
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Wrap(
+                spacing: 16.0,
+                runSpacing: 16.0,
+                alignment: WrapAlignment.center,
+                children: _playlists.map((p) {
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
+                    ),
+                    child: SizedBox(
+                      width: 140,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 140,
+                            height: 140,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                color: Colors.grey[800],
+                                child: _playlistThumbnail(p),
+                              ),
+                            ),
                           ),
-                        ),
-                     ),
-                      const SizedBox(height: 6),
-                      Text(
-                        p.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                          const SizedBox(height: 6),
+                          Text(
+                            p.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '${p.songs.length} songs',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                        ],
                       ),
-                      Text(
-                        '${p.songs.length} songs',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-   floatingActionButton: FloatingActionButton(
-     onPressed: _createPlaylist,
-     child: const Icon(Icons.add),
-     tooltip: 'Create Playlist',
-   ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _createPlaylist,
+        child: const Icon(Icons.add),
+        tooltip: 'Create Playlist',
+      ),
     );
   }
 

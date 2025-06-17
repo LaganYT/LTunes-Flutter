@@ -825,7 +825,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                       child: ListTile(
                         leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(4.0), // Match album art clip
+                          borderRadius: BorderRadius.circular(8.0), // Match album art clip
                           child: leadingWidget,
                         ),
                         title: Text(playlist.name, style: Theme.of(context).textTheme.titleMedium),
@@ -890,7 +890,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
           child: ListTile(
             leading: ClipRRect(
-              borderRadius: BorderRadius.circular(4.0),
+              borderRadius: BorderRadius.circular(8.0),
               child: leadingImage,
             ),
             title: Text(album.title, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1012,7 +1012,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                     return ListTile(
                       key: Key(songObj.id),
                       leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(4.0),
+                        borderRadius: BorderRadius.circular(8.0),
                         child: songObj.albumArtUrl.isNotEmpty
                           ? (songObj.albumArtUrl.startsWith('http')
                               ? Image.network(
@@ -1209,7 +1209,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
 
           // horizontal carousel of recent songs
           SizedBox(
-            height: 180,
+            height: 190,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1228,9 +1228,11 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         // artwork
-                        Expanded(
+                        SizedBox(
+                          width: 140,
+                          height: 140,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(8),
                             child: song.albumArtUrl.isNotEmpty
                                 ? (song.albumArtUrl.startsWith('http')
                                     ? Image.network(song.albumArtUrl, fit: BoxFit.cover)
@@ -1280,7 +1282,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 180, // Adjust height as needed
+              height: 190, // Adjust height as needed
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1295,7 +1297,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       .toList();
 
                   Widget leadingWidget;
-                  const double itemArtSize = 120.0; // Size for the artwork in the carousel
+                  const double itemArtSize = 140.0; // Size for the artwork in the carousel
 
                   if (uniqueAlbumArtUrls.isEmpty) {
                     leadingWidget = Container(
@@ -1303,13 +1305,13 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       height: itemArtSize,
                       decoration: BoxDecoration(
                         color: Colors.grey[800],
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(Icons.playlist_play, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                     );
                   } else if (uniqueAlbumArtUrls.length < 4) {
                     leadingWidget = ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                         child: _buildPlaylistArtWidget(uniqueAlbumArtUrls.first, itemArtSize));
                   } else {
                     List<Widget> gridImages = uniqueAlbumArtUrls
@@ -1318,7 +1320,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                         .toList();
                     
                     leadingWidget = ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(8),
                       child: SizedBox(
                         width: itemArtSize,
                         height: itemArtSize,
@@ -1390,14 +1392,14 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 180, // Adjust height as needed, consistent with other carousels
+              height: 190, // Adjust height as needed, consistent with other carousels
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: recentSavedAlbums.length,
                 itemBuilder: (context, i) {
                   final album = recentSavedAlbums[i];
-                  const double itemArtSize = 120.0;
+                  const double itemArtSize = 140.0;
 
                   Widget albumArtWidget;
                   if (album.fullAlbumArtUrl.isNotEmpty) {
@@ -1411,7 +1413,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                         height: itemArtSize,
                         decoration: BoxDecoration(
                           color: Colors.grey[800],
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                       ),
@@ -1422,7 +1424,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                       height: itemArtSize,
                       decoration: BoxDecoration(
                         color: Colors.grey[800],
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                     );
@@ -1446,7 +1448,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                           SizedBox(
                             height: itemArtSize, // Fixed height for the art part
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(8),
                               child: albumArtWidget,
                             ),
                           ),

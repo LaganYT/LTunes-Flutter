@@ -399,24 +399,27 @@ Future<void> _importSongs() async {
                     ),
                   ),
                   child: ListTile(
-                    leading: s.albumArtUrl.isNotEmpty
-                        ? (s.albumArtUrl.startsWith('http')
-                            ? Image.network(s.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover)
-                            : FutureBuilder<String>(
-                                future: () async {
-                                  final dir = await getApplicationDocumentsDirectory();
-                                  final fname = p.basename(s.albumArtUrl);
-                                  final path = p.join(dir.path, fname);
-                                  return await File(path).exists() ? path : '';
-                                }(),
-                                builder: (_, snap) {
-                                  if (snap.connectionState == ConnectionState.done && snap.hasData && snap.data!.isNotEmpty) {
-                                    return Image.file(File(snap.data!), width: 40, height: 40, fit: BoxFit.cover);
-                                  }
-                                  return const Icon(Icons.album, size: 40);
-                                },
-                              ))
-                        : const Icon(Icons.album, size: 40),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: s.albumArtUrl.isNotEmpty
+                          ? (s.albumArtUrl.startsWith('http')
+                              ? Image.network(s.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover)
+                              : FutureBuilder<String>(
+                                  future: () async {
+                                    final dir = await getApplicationDocumentsDirectory();
+                                    final fname = p.basename(s.albumArtUrl);
+                                    final path = p.join(dir.path, fname);
+                                    return await File(path).exists() ? path : '';
+                                  }(),
+                                  builder: (_, snap) {
+                                    if (snap.connectionState == ConnectionState.done && snap.hasData && snap.data!.isNotEmpty) {
+                                      return Image.file(File(snap.data!), width: 40, height: 40, fit: BoxFit.cover);
+                                    }
+                                    return const Icon(Icons.album, size: 40);
+                                  },
+                                ))
+                          : const Icon(Icons.album, size: 40),
+                    ),
                     title: Text(s.title),
                     subtitle: Text(s.artist),
                     onTap: () {
