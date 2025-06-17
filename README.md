@@ -62,7 +62,7 @@ A Flutter-based music app for streaming, downloading, and organizing songs, albu
 
 ## Screenshots
 
-Add screenshots of the app below (replace paths as needed):
+### Search Page
 
 | Light Mode | Dark Mode |
 | ---------- | --------- |
