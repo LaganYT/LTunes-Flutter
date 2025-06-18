@@ -718,7 +718,7 @@ class CurrentSongProvider with ChangeNotifier {
   List<Song>? _previousQueueBeforeShuffle;
   int? _previousIndexBeforeShuffle;
 
-  void toggleShuffle() async {
+  Future<void> toggleShuffle() async {
     if (!_isShuffling) {
       // turning shuffle ON: save current state
       if (_queue.isNotEmpty) {

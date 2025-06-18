@@ -270,6 +270,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
+    if (playbackState.value.playing) return;
    // if previously paused, just resume at current position
    if (_lastPlayerState == PlayerState.paused) {
      await _audioPlayer.resume();

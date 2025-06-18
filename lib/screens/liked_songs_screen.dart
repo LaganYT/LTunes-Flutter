@@ -144,9 +144,11 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: hasSongs
-                              ? () {
-                                  provider.setQueue(_likedSongs, initialIndex: 0);
-                                  provider.playSong(_likedSongs.first);
+                              ? () async {
+                                  await provider.setQueue(_likedSongs, initialIndex: 0);
+                                  if (provider.queue.isNotEmpty) {
+                                    provider.playSong(provider.queue.first);
+                                  }
                                 }
                               : null,
                           icon: const Icon(Icons.play_arrow),
@@ -161,10 +163,15 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: hasSongs
-                              ? () {
-                                  if (!provider.isShuffling) provider.toggleShuffle();
-                                  provider.setQueue(_likedSongs, initialIndex: 0);
-                                  provider.playNext();
+                              ? () async {
+                                  await provider.setQueue(_likedSongs,
+                                      initialIndex: 0);
+                                  if (provider.queue.isNotEmpty) {
+                                    if (!provider.isShuffling) {
+                                      await provider.toggleShuffle();
+                                    }
+                                    provider.playSong(provider.queue.first);
+                                  }
                                 }
                               : null,
                           icon: const Icon(Icons.shuffle),
@@ -293,9 +300,12 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                         icon: Icon(Icons.favorite, color: Theme.of(context).colorScheme.secondary),
                         onPressed: () => _removeLikedSong(song),
                       ),
-                      onTap: () {
+                      onTap: () async {
                         // queue all liked songs and play starting at this one
-                        provider.setQueue(_likedSongs, initialIndex: i);
+                        await provider.setQueue(_likedSongs, initialIndex: i);
+                        if (provider.queue.length > i) {
+                          provider.playSong(provider.queue[i]);
+                        }
                       },
                     ),
                   );
