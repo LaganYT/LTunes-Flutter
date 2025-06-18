@@ -25,6 +25,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // Initialize with null to represent loading state
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
+  final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   // final ValueNotifier<bool?> useModernLibraryNotifier = ValueNotifier<bool?>(null); // Removed, will be handled by ThemeProvider
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
@@ -37,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadUSRadioOnlySetting();
+    _loadShowRadioTab();
     _loadCurrentAppVersion();
     _storageUsedFuture = _calculateStorageUsed();
   }
@@ -64,6 +66,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveUSRadioOnlySetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('usRadioOnly', value);
+  }
+
+  Future<void> _loadShowRadioTab() async {
+    final prefs = await SharedPreferences.getInstance();
+    showRadioTabNotifier.value = prefs.getBool('showRadioTab') ?? true;
+  }
+
+  Future<void> _saveShowRadioTab(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('showRadioTab', value);
   }
 
   // ignore: unused_element
@@ -475,6 +487,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: showRadioTabNotifier,
+                  builder: (context, showRadioTab, _) {
+                    if (showRadioTab == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.radio),
+                        title: Text('Show Radio Tab in Search'),
+                        trailing: SizedBox(
+                          width: 24, height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.radio),
+                      title: const Text('Show Radio Tab in Search'),
+                      trailing: Switch(
+                        value: showRadioTab,
+                        onChanged: (value) {
+                          showRadioTabNotifier.value = value;
+                          _saveShowRadioTab(value);
+                        },
+                      ),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.color_lens_outlined),
                   title: const Text('Accent Color'),
@@ -752,6 +790,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     usRadioOnlyNotifier.dispose();
+    showRadioTabNotifier.dispose();
     _refreshNotifier.dispose(); // Dispose the new notifier
     // useModernLibraryNotifier.dispose(); // Removed
     super.dispose();

@@ -27,6 +27,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   final ApiService _apiService = ApiService();
   // ignore: unused_field
   final PlaylistManagerService _playlistManagerService = PlaylistManagerService(); // Instance of PlaylistManagerService
+  bool _showRadioTab = true;
 
   @override
   bool get wantKeepAlive => true;
@@ -34,9 +35,17 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
+    _loadShowRadioTab();
     _songsFuture = _getSongsFuture(); // Use new method
     _stationsFuture = _fetchRadioStations();
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
+  }
+
+  Future<void> _loadShowRadioTab() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _showRadioTab = prefs.getBool('showRadioTab') ?? true;
+    });
   }
 
   // Renamed from _fetchSongs and returns Future
@@ -140,6 +149,45 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     super.build(context); // Important for AutomaticKeepAliveClientMixin
+
+    if (!_showRadioTab) {
+      // only music search when radio tab is disabled
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Search'),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearch,
+                decoration: InputDecoration(
+                  hintText: 'Search...',
+                  prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _onSearch('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[900]
+                      : Colors.grey[200],
+                ),
+              ),
+            ),
+          ),
+        ),
+        body: _buildMusicTab(),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search'),

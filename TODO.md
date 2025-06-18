@@ -8,4 +8,3 @@
 ## Search
 - Redo the search to show albums and artists in the search itself 
 - Add radio stations into this new search system (without need for a different tab to search for them)
-- Allow disabling the radio tab in search (maybe?)
