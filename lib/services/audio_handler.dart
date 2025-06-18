@@ -57,7 +57,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         if (!event.begin // interruption ended
             && (event.type == AudioInterruptionType.pause ||
                 event.type == AudioInterruptionType.unknown)) {
-          play();
+          _audioPlayer.resume();
         }
       });
     });
