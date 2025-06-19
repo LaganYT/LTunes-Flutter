@@ -190,19 +190,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     _audioPlayer.onPlayerComplete.listen((_) async {
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.one) {
-        seek(Duration.zero);
-        // No need to call play() if ReleaseMode.loop is set, but if it's handled manually:
-        // play(); 
-        // However, with ReleaseMode.loop, audioplayers handles the looping.
-        // If play() is called, ensure state is correctly managed.
-        // For simplicity, if ReleaseMode.loop is effective, this explicit play might be redundant
-        // or could conflict. Let's assume audioplayer's loop is sufficient.
-        // If manual looping is preferred (e.g. for cross-platform consistency independent of audioplayers):
-        // await _audioPlayer.seek(Duration.zero); // Seek to start
-        // await _audioPlayer.resume(); // Resume playback
-        // And ensure ReleaseMode is not .loop for this case.
-        // Given current setRepeatMode, ReleaseMode.loop is used for .one, so manual play() here is okay.
-        play();
+        await seek(Duration.zero);
+        // Explicitly update playback state to playing and position zero
+        playbackState.add(playbackState.value.copyWith(
+          playing: true,
+          processingState: AudioProcessingState.ready,
+          updatePosition: Duration.zero,
+        ));
+        await play();
       } else {
         if (_currentIndex + 1 < _playlist.length || playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
           await skipToNext();
