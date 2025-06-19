@@ -59,8 +59,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   final ItemScrollController _lyricsScrollController = ItemScrollController();
   final ItemPositionsListener _lyricsPositionsListener = ItemPositionsListener.create();
 
-  bool _isLiked = false; // new field
-
   @override
   void initState() {
     super.initState();
@@ -116,7 +114,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     });
 
     _currentSongProvider.addListener(_onSongChanged);
-    _loadLikeState(); // load initial like state
   }
 
   void _resetLyricsState() {
@@ -183,9 +180,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
       _previousSongId = newSongId;
       _slideOffsetX = 0.0; // Reset for next non-skip change
-
-      // reload like button state for the newly loaded song
-      _loadLikeState();
     }
   }
 
@@ -640,41 +634,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
   }
 
-  Future<void> _loadLikeState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final liked = prefs.getStringList('liked_songs') ?? [];
-    final id = _currentSongProvider.currentSong?.id;
-    setState(() {
-      _isLiked = id != null && liked.any((s) {
-        try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == id;
-        } catch (_) {
-          return false;
-        }
-      });
-    });
-  }
-
-  Future<void> _toggleLike() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('liked_songs') ?? [];
-    final song = _currentSongProvider.currentSong!;
-    final jsonStr = jsonEncode(song.toJson());
-    if (_isLiked) {
-      list.removeWhere((s) {
-        try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == song.id;
-        } catch (_) {
-          return false;
-        }
-      });
-    } else {
-      list.add(jsonStr);
-    }
-    await prefs.setStringList('liked_songs', list);
-    setState(() => _isLiked = !_isLiked);
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context);
@@ -776,11 +735,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               });
             },
             tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
-          ),
-          IconButton(
-            icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
-            onPressed: _toggleLike,
-            tooltip: _isLiked ? 'Unlike' : 'Like',
           ),
           if (!isRadio) 
           IconButton(

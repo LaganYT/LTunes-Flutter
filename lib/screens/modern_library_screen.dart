@@ -22,7 +22,6 @@ import 'playlists_list_screen.dart';
 import 'artists_list_screen.dart';
 import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
-import 'liked_songs_screen.dart'; // new import
 
 // A simple model for a radio station.
 class RadioStation {
@@ -1299,15 +1298,6 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           // main categories
-          ListTile(                      
-            leading: Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Liked Songs'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const LikedSongsScreen()),
-            ),
-          ),
           ListTile(
             leading: const Icon(Icons.playlist_play),
             title: const Text('Playlists'),
