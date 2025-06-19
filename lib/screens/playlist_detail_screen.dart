@@ -120,32 +120,26 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 if (wasPlayingRemovedSong) {
                   if (updatedPlaylistSongs.isEmpty) {
                     currentSongProvider.setQueue([], initialIndex: 0);
-                    // Consider adding currentSongProvider.stop() or currentSongProvider.clearCurrentSong()
-                    // if available and necessary to fully clear player state.
                   } else {
                     int newPlayIndex = originalIndexInPlaylist;
                     if (newPlayIndex >= updatedPlaylistSongs.length) {
-                      newPlayIndex = 0; // Play first if last was removed or index is now out of bounds
+                      newPlayIndex = 0;
                     }
-                     if (newPlayIndex < 0) newPlayIndex = 0; // Safety check
-
+                    if (newPlayIndex < 0) newPlayIndex = 0;
                     currentSongProvider.setQueue(updatedPlaylistSongs, initialIndex: newPlayIndex);
                     currentSongProvider.playSong(updatedPlaylistSongs[newPlayIndex]);
                   }
-                } else { // Removed song was not playing, or no song was playing
+                } else {
                   Song? songThatWasPlaying = currentlyPlayingSong;
                   int newIndexOfSongThatWasPlaying = -1;
                   if (songThatWasPlaying != null) {
+                    // Use ID for matching
                     newIndexOfSongThatWasPlaying = updatedPlaylistSongs.indexWhere((s) => s.id == songThatWasPlaying.id);
                   }
 
                   if (newIndexOfSongThatWasPlaying != -1) {
-                    // Song that was playing is still in the list, update queue and its index.
-                    // Playback should continue.
                     currentSongProvider.setQueue(updatedPlaylistSongs, initialIndex: newIndexOfSongThatWasPlaying);
                   } else {
-                    // No song was playing, or the song that was playing is no longer in this updated list.
-                    // Reset queue. Player might auto-play first if its logic dictates and queue not empty.
                     currentSongProvider.setQueue(updatedPlaylistSongs, initialIndex: 0);
                   }
                 }

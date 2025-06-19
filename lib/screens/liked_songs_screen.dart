@@ -143,8 +143,10 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: hasSongs
-                              ? () {
-                                  provider.setQueue(_likedSongs, initialIndex: 0);
+                              ? () async {
+                                  // Always use canonical downloaded versions
+                                  final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+                                  await provider.setQueue(_likedSongs, initialIndex: 0);
                                   provider.playSong(_likedSongs.first);
                                 }
                               : null,
@@ -160,9 +162,10 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: hasSongs
-                              ? () {
+                              ? () async {
+                                  final provider = Provider.of<CurrentSongProvider>(context, listen: false);
                                   if (!provider.isShuffling) provider.toggleShuffle();
-                                  provider.setQueue(_likedSongs, initialIndex: 0);
+                                  await provider.setQueue(_likedSongs, initialIndex: 0);
                                   provider.playNext();
                                 }
                               : null,

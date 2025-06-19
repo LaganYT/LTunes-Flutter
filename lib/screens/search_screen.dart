@@ -319,23 +319,24 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                 confirmDismiss: (direction) async {
                   if (direction == DismissDirection.startToEnd) {
                     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                    currentSongProvider.addToQueue(song);
+                    // Always use canonical downloaded version
+                    final songToAdd = await _getSongWithDownloadStatusInternal(song);
+                    currentSongProvider.addToQueue(songToAdd);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('${song.title} added to queue')),
                     );
-                    return false; // Do not dismiss the item
+                    return false;
                   } else if (direction == DismissDirection.endToStart) {
-                    // Show add to playlist dialog
-                    // _showAddToPlaylistDialog(song); // Old call
+                    final songToAdd = await _getSongWithDownloadStatusInternal(song);
                     showDialog(
                       context: context,
                       builder: (BuildContext dialogContext) {
-                        return AddToPlaylistDialog(song: song);
+                        return AddToPlaylistDialog(song: songToAdd);
                       }
                     );
-                    return false; // Do not dismiss the item, dialog handles action
+                    return false;
                   }
-                  return false; // Default to not dismissing
+                  return false;
                 },
                 background: Container(
                   color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
