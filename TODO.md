@@ -10,5 +10,5 @@
 - Add radio stations into this new search system (without need for a different tab to search for them)
 
 ## Bug Fixes
-- Fix loop functionallity
-- Fix bugs
+- Memory!!! It takes up so much memory and stuff, please fix this.
+- Performance: work on optimization of code and performance issues.
