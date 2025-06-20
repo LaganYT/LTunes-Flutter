@@ -24,13 +24,11 @@
 - Add a setting to allow auto downloading liked songs
 
 ## Bug Fixes
-- fix the bug that sometimes when i pause a song it displays the current duration ad 0:00 but when i unpause it fixes it
+- fix the bug that sometimes when i pause a song it displays the current duration at 0:00 but when i unpause it fixes it
 - fix icons not displaying on playbar sometimes
 - fix weird gap at the top for the album details page
-- fix icons not showing in playlists list screen (some song icons don’t show for some reason - probably a local file issue)
 - fix the bug where us radio isn’t on by default
 - fix weird display issues with lyrics
-- fix weird visual jump when pausing/unpausing
 
 ## Performance
 - try anything for making song playing faster

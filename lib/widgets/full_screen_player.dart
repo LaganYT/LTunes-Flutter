@@ -1029,7 +1029,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       ),
                       child: IconButton(
                         icon: isLoading 
-                            ? SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
+                            ? SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
                             : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
                         iconSize: 48,
                         color: colorScheme.onSecondary,
