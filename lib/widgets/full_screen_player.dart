@@ -756,51 +756,64 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         centerTitle: true,
         actions: [
           if (!isRadio) // Like button not applicable for radio
-          IconButton(
-            icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
-            onPressed: _toggleLike,
-            tooltip: _isLiked ? 'Unlike' : 'Like',
-          ),
-          if (!isRadio)
-          // Always visible Toggle Lyrics Button
-          IconButton(
-            icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
-            onPressed: () {
-              final song = _currentSongProvider.currentSong;
-              if (song == null) return;
-
-              bool newShowLyricsState = !_showLyrics;
-
-              if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
-                _loadAndProcessLyrics(song);
-              }
-              
-              setState(() {
-                _showLyrics = newShowLyricsState;
-              });
-            },
-            tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
-          ),
-          if (!isRadio) 
-          IconButton(
-            icon: const Icon(Icons.playlist_play_rounded),
-            onPressed: () => _showQueueBottomSheet(context),
-            tooltip: 'Show Queue',
-          ),
-          if (!isRadio && currentSong.isDownloaded == false) 
             IconButton(
-              icon: const Icon(Icons.download_rounded),
-              onPressed: () => _downloadCurrentSong(currentSong),
-              tooltip: 'Download Song',
+              icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+              onPressed: _toggleLike,
+              tooltip: _isLiked ? 'Unlike' : 'Like',
+              iconSize: 22.0, // Slightly larger for better visibility
             ),
+          if (!isRadio)
+            // Always visible Toggle Lyrics Button
+            IconButton(
+              icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
+              onPressed: () {
+                final song = _currentSongProvider.currentSong;
+                if (song == null) return;
+
+                bool newShowLyricsState = !_showLyrics;
+
+                if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
+                  _loadAndProcessLyrics(song);
+                }
+                
+                setState(() {
+                  _showLyrics = newShowLyricsState;
+                });
+              },
+              iconSize: 22.0,
+              tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+            ),
+          if (!isRadio)
+            IconButton(
+              icon: const Icon(Icons.playlist_play_rounded),
+              onPressed: () => _showQueueBottomSheet(context),
+              tooltip: 'Show Queue',
+              iconSize: 24.0, // Slightly larger for better visibility
+            ),
+          if (!isRadio)
+            if (currentSong.isDownloaded)
+              const IconButton(
+                icon: Icon(Icons.check_circle_outline_rounded),
+                tooltip: 'Downloaded',
+                onPressed: null, // Disabled as it's already downloaded
+                iconSize: 24.0, // Slightly larger for better visibility
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.download_rounded),
+                onPressed: () => _downloadCurrentSong(currentSong),
+                tooltip: 'Download Song',
+                iconSize: 24.0, // Slightly larger for better visibility
+              ),
           if (!isRadio) // "Add to Playlist" not applicable for radio
             IconButton(
               icon: const Icon(Icons.playlist_add_rounded),
               onPressed: () => _showAddToPlaylistDialog(context, currentSong),
               tooltip: 'Add to Playlist',
+              iconSize: 24.0, // Slightly larger for better visibility
             ),
         ],
-            ),
+      ),
       body: GestureDetector( 
         onVerticalDragUpdate: (details) {
           // Accumulate drag distance when dragging downwards
@@ -946,7 +959,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           children: [
                             SliderTheme(
                               data: SliderTheme.of(context).copyWith(
+                                trackHeight: 4.0,
+                                activeTrackColor: colorScheme.secondary,
+                                inactiveTrackColor: colorScheme.onBackground.withOpacity(0.3),
+                                thumbColor: colorScheme.secondary,
                                 overlayColor: colorScheme.secondary.withOpacity(0.2),
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8.0),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
                               ),
                               child: Slider(
                                 value: position.inMilliseconds.toDouble().clamp(0.0, duration.inMilliseconds.toDouble()),
