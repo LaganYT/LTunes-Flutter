@@ -37,8 +37,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   Widget _playlistThumbnail(Playlist playlist) {
     return LayoutBuilder(builder: (_, constraints) {
       final arts = playlist.songs
-          .take(4)
           .map((s) => s.albumArtUrl)
+          .where((u) => u.isNotEmpty)
           .toSet()
           .toList();
       final size = constraints.maxWidth;
