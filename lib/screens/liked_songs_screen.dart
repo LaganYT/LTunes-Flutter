@@ -28,6 +28,7 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
   Future<void> _loadLikedSongs() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('liked_songs') ?? [];
+    if (!mounted) return;
     setState(() {
       _likedSongs = raw.map((s) {
         try {
@@ -83,7 +84,7 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
         if (songIndex != -1) {
           final songData =
               jsonDecode(rawSongs[songIndex]) as Map<String, dynamic>;
-          songData['filePath'] = filePath;
+          songData['localFilePath'] = filePath;
           rawSongs[songIndex] = jsonEncode(songData);
           await prefs.setStringList('liked_songs', rawSongs);
           return true;
