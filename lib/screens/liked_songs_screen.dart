@@ -111,7 +111,6 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
   }
 
   // resolve a local art filename to a full path or return empty
-  // ignore: unused_element
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
     final dir = await getApplicationDocumentsDirectory();
@@ -326,13 +325,25 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                                     placeholder: (context, url) => const Icon(Icons.album, size: 40),
                                     errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
                                   )
-                                : Image.file(
-                                    File(song.albumArtUrl),
-                                    width: 40,
-                                    height: 40,
-                                    cacheWidth: 80,
-                                    cacheHeight: 80,
-                                    fit: BoxFit.cover,
+                                : FutureBuilder<String>(
+                                    future: _resolveLocalArtPath(song.albumArtUrl),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                        return Image.file(
+                                          File(snapshot.data!),
+                                          width: 40,
+                                          height: 40,
+                                          cacheWidth: 80,
+                                          cacheHeight: 80,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 40),
+                                        );
+                                      }
+                                      if (snapshot.connectionState == ConnectionState.waiting) {
+                                        return const Icon(Icons.album, size: 40);
+                                      }
+                                      return const Icon(Icons.error, size: 40);
+                                    },
                                   ))
                             : const Icon(Icons.album, size: 40),
                       ),
