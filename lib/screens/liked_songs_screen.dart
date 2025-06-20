@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart'; // ensure this is present
 import 'package:path/path.dart' as p;
+import 'package:http/http.dart' as http;
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
@@ -50,6 +51,94 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
     });
     await prefs.setStringList('liked_songs', raw);
     setState(() => _likedSongs.removeWhere((s) => s.id == song.id));
+  }
+
+  Future<bool> _downloadSong(Song song) async {
+    if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+      if (await File(song.localFilePath!).exists()) {
+        return true; // Already downloaded
+      }
+    }
+
+    try {
+      if (song.audioUrl.isEmpty) return false;
+
+      final response = await http.get(Uri.parse(song.audioUrl));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = p.join(directory.path, '${song.id}.mp3');
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+
+        final prefs = await SharedPreferences.getInstance();
+        final rawSongs = prefs.getStringList('liked_songs') ?? [];
+        final songIndex = rawSongs.indexWhere((s) {
+          try {
+            return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
+          } catch (_) {
+            return false;
+          }
+        });
+
+        if (songIndex != -1) {
+          final songData =
+              jsonDecode(rawSongs[songIndex]) as Map<String, dynamic>;
+          songData['filePath'] = filePath;
+          rawSongs[songIndex] = jsonEncode(songData);
+          await prefs.setStringList('liked_songs', rawSongs);
+          return true;
+        }
+        return false;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _downloadAllLikedSongs() async {
+    final songsToDownload = <Song>[];
+    for (final song in _likedSongs) {
+      bool isDownloaded = false;
+      if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+        if (await File(song.localFilePath!).exists()) {
+          isDownloaded = true;
+        }
+      }
+      if (!isDownloaded) {
+        songsToDownload.add(song);
+      }
+    }
+
+    if (!mounted) return;
+
+    if (songsToDownload.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All liked songs are already downloaded.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Downloading ${songsToDownload.length} songs...')),
+    );
+
+    int successCount = 0;
+    for (final song in songsToDownload) {
+      if (await _downloadSong(song)) {
+        successCount++;
+      }
+    }
+
+    await _loadLikedSongs();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(
+              'Downloaded $successCount of ${songsToDownload.length} songs.')),
+    );
   }
 
   // resolve a local art filename to a full path or return empty
@@ -185,11 +274,7 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: hasSongs
-                              ? () {
-                                  // TODO: download all functionality
-                                }
-                              : null,
+                          onPressed: hasSongs ? _downloadAllLikedSongs : null,
                           icon: const Icon(Icons.download_rounded),
                           label: const Text('Download'),
                           style: OutlinedButton.styleFrom(
