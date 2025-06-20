@@ -73,6 +73,7 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
       }
     });
     await prefs.setStringList('liked_songs', raw);
+    if (!mounted) return;
     setState(() => _likedSongs.removeWhere((s) => s.id == song.id));
   }
 
