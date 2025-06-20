@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import 'dart:convert'; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import 'package:cached_network_image/cached_network_image.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -153,6 +154,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   }
 
   // Helper method to resolve local album art path
+  // ignore: unused_element
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
     final directory = await getApplicationDocumentsDirectory();
@@ -321,33 +323,28 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               // but we include the check for robustness or future changes.
               if (song.albumArtUrl.isNotEmpty) {
                 if (song.albumArtUrl.startsWith('http')) {
-                  leadingImage = Image.network(
-                    song.albumArtUrl,
-                    width: 56,
-                    height: 56,
+                  leadingImage = CachedNetworkImage(
+                    imageUrl: song.albumArtUrl,
+                    width: 40,
+                    height: 40,
+                    memCacheWidth: 80,
+                    memCacheHeight: 80,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
+                    placeholder: (context, url) => const Icon(Icons.album, size: 40),
+                    errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
                   );
                 } else {
-                  // This case is less likely for search results from an API, but included for completeness
-                  leadingImage = FutureBuilder<String>(
-                    future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                        return Image.file(
-                          File(snapshot.data!),
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, size: 40),
-                        );
-                      }
-                      return const Icon(Icons.music_note, size: 40); // Placeholder
-                    },
+                  leadingImage = Image.file(
+                    File(song.albumArtUrl),
+                    width: 40,
+                    height: 40,
+                    cacheWidth: 80,
+                    cacheHeight: 80,
+                    fit: BoxFit.cover,
                   );
                 }
               } else {
-                leadingImage = const Icon(Icons.music_note, size: 40);
+                leadingImage = const Icon(Icons.album, size: 40);
               }
 
               return Dismissible(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class LyricsScreen extends StatefulWidget {
   final String songTitle;
@@ -89,23 +90,10 @@ class AlbumArtView extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8.0),
-              child: Image.network(
-                albumArtUrl,
-                fit: BoxFit.cover,
-                // Placeholder and error widgets are good practice
-                loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                          : null,
-                    ),
-                  );
-                },
-                errorBuilder: (BuildContext context, Object exception, StackTrace? stackTrace) {
-                  return const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey));
-                },
+              child: CachedNetworkImage(
+                imageUrl: albumArtUrl,
+                placeholder: (context, url) => const CircularProgressIndicator(),
+                errorWidget: (context, url, error) => const Icon(Icons.error),
               ),
             ),
           ),
@@ -114,3 +102,4 @@ class AlbumArtView extends StatelessWidget {
     );
   }
 }
+                

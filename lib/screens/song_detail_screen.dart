@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart'; // Use PlaylistManagerService
@@ -311,77 +312,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                 borderRadius: BorderRadius.circular(16),
                 child: widget.song.albumArtUrl.isNotEmpty
                     ? (widget.song.albumArtUrl.startsWith('http')
-                        ? Image.network(
-                            widget.song.albumArtUrl,
-                            width: MediaQuery.of(context).size.width * 0.7,
-                            height: MediaQuery.of(context).size.width * 0.7,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              width: MediaQuery.of(context).size.width * 0.7,
-                              height: MediaQuery.of(context).size.width * 0.7,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceVariant,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Icon(
-                                Icons.music_note,
-                                size: 100,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
+                        ? CachedNetworkImage(
+                            imageUrl: widget.song.albumArtUrl,
+                            placeholder: (context, url) => const CircularProgressIndicator(),
+                            errorWidget: (context, url, error) => const Icon(Icons.error),
                           )
-                        : FutureBuilder<String>( // Changed to FutureBuilder<String> to resolve full path
-                            future: _getLocalImagePath(widget.song.albumArtUrl), // Helper to get full path
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                                return Image.file(
-                                  File(snapshot.data!), // Use resolved full path
-                                  width: MediaQuery.of(context).size.width * 0.7,
-                                  height: MediaQuery.of(context).size.width * 0.7,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Container(
-                                    width: MediaQuery.of(context).size.width * 0.7,
-                                    height: MediaQuery.of(context).size.width * 0.7,
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.surfaceVariant,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Icon(
-                                      Icons.music_note,
-                                      size: 100,
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return Container( // Placeholder
-                                width: MediaQuery.of(context).size.width * 0.7,
-                                height: MediaQuery.of(context).size.width * 0.7,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceVariant,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(
-                                  Icons.music_note,
-                                  size: 100,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              );
-                            },
-                          ))
-                    : Container(
-                        width: MediaQuery.of(context).size.width * 0.7,
-                        height: MediaQuery.of(context).size.width * 0.7,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceVariant,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.music_note,
-                          size: 100,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                        : Image.file(File(widget.song.albumArtUrl)))
+                    : const Icon(Icons.album, size: 150),
               ),
               const SizedBox(height: 24),
               Text(
@@ -612,6 +549,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     );
   }
 
+  // ignore: unused_element
   Future<String> _getLocalImagePath(String imageFileName) async {
     if (imageFileName.isEmpty || imageFileName.startsWith('http')) return '';
     final directory = await getApplicationDocumentsDirectory();
@@ -883,4 +821,3 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     );
   }
 }
-

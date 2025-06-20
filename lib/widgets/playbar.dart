@@ -6,6 +6,7 @@ import '../providers/current_song_provider.dart'; // Ensure this is the correct 
 import '../widgets/full_screen_player.dart';
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
+import 'package:cached_network_image/cached_network_image.dart';
 
 
 class Playbar extends StatefulWidget {
@@ -34,6 +35,7 @@ class _PlaybarState extends State<Playbar> {
   }
 
   // Helper method to resolve local album art path
+  // ignore: unused_element
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
     final directory = await getApplicationDocumentsDirectory();
@@ -63,32 +65,24 @@ class _PlaybarState extends State<Playbar> {
     Widget albumArtContent;
     if (currentSong.albumArtUrl.isNotEmpty) {
       if (currentSong.albumArtUrl.startsWith('http')) {
-        albumArtContent = Image.network(
-          currentSong.albumArtUrl,
-          width: 48,
-          height: 48,
+        albumArtContent = CachedNetworkImage(
+          imageUrl: currentSong.albumArtUrl,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
+          width: 50,
+          height: 50,
+          memCacheWidth: 100,
+          memCacheHeight: 100,
+          placeholder: (context, url) => const Icon(Icons.album, size: 40),
+          errorWidget: (context, url, error) => const Icon(Icons.error),
         );
       } else {
-        // Assume it's a local file path (filename)
-        albumArtContent = FutureBuilder<String>(
-          future: _resolveLocalArtPath(currentSong.albumArtUrl),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(
-                File(snapshot.data!),
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
-              );
-            }
-            // Show placeholder while checking or if file doesn't exist/path is empty
-            return Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
-          },
+        albumArtContent = Image.file(
+          File(currentSong.albumArtUrl),
+          fit: BoxFit.cover,
+          width: 50,
+          height: 50,
+          cacheHeight: 100,
+          cacheWidth: 100,
         );
       }
     } else {

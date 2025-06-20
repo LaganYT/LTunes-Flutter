@@ -640,37 +640,63 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   Future<void> _loadLikeState() async {
     final prefs = await SharedPreferences.getInstance();
-    final liked = prefs.getStringList('liked_songs') ?? [];
     final id = _currentSongProvider.currentSong?.id;
-    setState(() {
-      _isLiked = id != null && liked.any((s) {
-        try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == id;
-        } catch (_) {
-          return false;
+    if (id == null) {
+      if (mounted) setState(() => _isLiked = false);
+      return;
+    }
+
+    // Check for new format first
+    var likedJson = prefs.getString('liked_songs_map');
+    if (likedJson == null) {
+      // If new format doesn't exist, try to migrate from old format
+      final oldLikedList = prefs.getStringList('liked_songs');
+      if (oldLikedList != null) {
+        final Map<String, String> newLikedMap = {};
+        for (final songJson in oldLikedList) {
+          try {
+            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            final songId = songMap['id'] as String?;
+            if (songId != null) {
+              newLikedMap[songId] = songJson;
+            }
+          } catch (_) {}
         }
-      });
-    });
+        likedJson = jsonEncode(newLikedMap);
+        await prefs.setString('liked_songs_map', likedJson);
+        await prefs.remove('liked_songs'); // Clean up old key
+        debugPrint("Migrated liked songs to new format.");
+      }
+    }
+
+    if (likedJson != null) {
+      final likedMap = jsonDecode(likedJson) as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _isLiked = likedMap.containsKey(id);
+        });
+      }
+    } else {
+      if (mounted) setState(() => _isLiked = false);
+    }
   }
 
   Future<void> _toggleLike() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('liked_songs') ?? [];
     final song = _currentSongProvider.currentSong!;
-    final jsonStr = jsonEncode(song.toJson());
-    if (_isLiked) {
-      list.removeWhere((s) {
-        try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == song.id;
-        } catch (_) {
-          return false;
-        }
-      });
-    } else {
-      list.add(jsonStr);
+    final likedJson = prefs.getString('liked_songs_map') ?? '{}';
+    final likedMap = Map<String, dynamic>.from(jsonDecode(likedJson));
+
+    if (_isLiked) { // It is liked, so we unlike it
+      likedMap.remove(song.id);
+    } else { // It is not liked, so we like it
+      likedMap[song.id] = jsonEncode(song.toJson());
     }
-    await prefs.setStringList('liked_songs', list);
-    setState(() => _isLiked = !_isLiked);
+
+    await prefs.setString('liked_songs_map', jsonEncode(likedMap));
+    if (mounted) {
+      setState(() => _isLiked = !_isLiked);
+    }
   }
 
   @override

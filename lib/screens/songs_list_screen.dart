@@ -247,7 +247,8 @@ Future<void> _importSongs() async {
             if (!skipMetadata) {
               try {
                 // getImage: true to attempt to load album art
-                metadata = await readMetadata(copiedFile, getImage: true); 
+                // Disabling album art extraction during import to save memory.
+                metadata = await readMetadata(copiedFile, getImage: false); 
               } catch (e) {
                 debugPrint('Error reading metadata for $originalFileName: $e');
                 // Proceed with default values if metadata reading fails

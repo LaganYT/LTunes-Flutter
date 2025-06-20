@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
 import '../providers/current_song_provider.dart';
 import '../models/song.dart'; // For Song model
 
@@ -92,20 +94,28 @@ class DownloadQueueScreen extends StatelessWidget {
               Widget leadingWidget;
               if (song.albumArtUrl.isNotEmpty) {
                 if (song.albumArtUrl.startsWith('http')) {
-                  leadingWidget = Image.network(
-                    song.albumArtUrl,
-                    width: 50,
-                    height: 50,
+                  leadingWidget = CachedNetworkImage(
+                    imageUrl: song.albumArtUrl,
+                    width: 40,
+                    height: 40,
+                    memCacheWidth: 80,
+                    memCacheHeight: 80,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                    placeholder: (context, url) => const Icon(Icons.album, size: 40),
+                    errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
                   );
                 } else {
-                  // Placeholder for local album art if logic is added later
-                  // For now, using a generic icon if not an HTTP URL
-                  leadingWidget = const Icon(Icons.music_note, size: 40);
+                  leadingWidget = Image.file(
+                    File(song.albumArtUrl),
+                    width: 40,
+                    height: 40,
+                    cacheWidth: 80,
+                    cacheHeight: 80,
+                    fit: BoxFit.cover,
+                  );
                 }
               } else {
-                leadingWidget = const Icon(Icons.music_note, size: 40);
+                leadingWidget = const Icon(Icons.album, size: 40);
               }
 
               return Card(

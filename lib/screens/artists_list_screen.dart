@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import 'songs_list_screen.dart';
 
@@ -31,6 +31,19 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
     }
     final uniq = temp.map((s) => s.artist).toSet().toList()..sort();
     setState(() { _songs = temp; _artists = uniq; });
+  }
+
+  /// Loads network or local image, falls back to placeholder on error.
+  Widget _artistImage(String artUrl) {
+    if (artUrl.isEmpty) {
+      return const Icon(Icons.person, size: 80, color: Colors.white54);
+    }
+    return CachedNetworkImage(
+      imageUrl: artUrl,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+      errorWidget: (context, url, error) => const Icon(Icons.person, size: 80, color: Colors.white54),
+    );
   }
 
   @override
@@ -85,40 +98,5 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
               },
             ),
     );
-  }
-
-  /// Loads network or local image, falls back to placeholder on error.
-  Widget _artistImage(String artUrl) {
-    final placeholder = Icon(
-      Icons.person,
-      size: 120,
-      color: Theme.of(context).colorScheme.primary,
-    );
-    // remote
-    if (artUrl.startsWith('http')) {
-      return Image.network(
-        artUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (_, __, ___) => placeholder,
-      );
-    }
-    // strip file:// if present
-    final path = artUrl.startsWith('file://')
-        ? Uri.parse(artUrl).toFilePath()
-        : artUrl;
-    // local file
-    if (path.isNotEmpty) {
-      return Image.file(
-        File(path),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (_, __, ___) => placeholder,
-      );
-    }
-    // fallback
-    return placeholder;
   }
 }

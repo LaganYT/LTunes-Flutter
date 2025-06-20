@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/album.dart';
 import '../services/album_manager_service.dart';
 import 'album_screen.dart';
@@ -53,20 +54,22 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                     MaterialPageRoute(builder: (_) => AlbumScreen(album: a)),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       AspectRatio(
                         aspectRatio: 1.0,
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(4.0),
                           child: Container(
-                            color: Colors.grey[800],
                             child: a.fullAlbumArtUrl.isNotEmpty
-                                ? Image.network(
-                                    a.fullAlbumArtUrl,
+                                ? CachedNetworkImage(
+                                    imageUrl: a.fullAlbumArtUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
+                                    memCacheWidth: 300,
+                                    memCacheHeight: 300,
+                                    placeholder: (context, url) =>
                                         const Center(child: Icon(Icons.album, size: 40)),
+                                    errorWidget: (context, url, error) =>
+                                        const Center(child: Icon(Icons.error, size: 40)),
                                   )
                                 : const Center(child: Icon(Icons.album, size: 40)),
                           ),
