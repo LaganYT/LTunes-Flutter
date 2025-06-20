@@ -427,6 +427,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                         ? Icon(Icons.favorite, color: Theme.of(context).colorScheme.secondary)
                         : const Icon(Icons.favorite_border),
                     color: Theme.of(context).colorScheme.onSurface,
+                    iconSize: 20,
                     onPressed: () => _toggleLike(song),
                   ),
                   onLongPress: () {
