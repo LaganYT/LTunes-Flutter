@@ -918,6 +918,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     _isProcessingProviderDownload = true;
+    // For O(1) performance, _downloadQueue should be a `Queue` from `dart:collection`.
     final Song songToDownload = _downloadQueue.removeAt(0);
     _activeDownloads[songToDownload.id] = songToDownload;
     _downloadProgress[songToDownload.id] = _downloadProgress[songToDownload.id] ?? 0.0;

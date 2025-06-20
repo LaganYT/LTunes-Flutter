@@ -42,26 +42,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return;
     }
 
-    int songsToDownloadCount = 0;
-    for (final song in currentPlaylist.songs) {
-      // Add all songs to the download queue in CurrentSongProvider
-      if (song.isImported) { // Skip imported songs
-        continue;
-      }
-      if (!song.isDownloaded) {
-        // Corrected line: Use queueSongForDownload
-        currentSongProvider.queueSongForDownload(song);
-        songsToDownloadCount++;
-      }
+    final songsToDownload = currentPlaylist.songs.where((s) => !s.isImported && !s.isDownloaded).toList();
+
+    for (final song in songsToDownload) {
+      currentSongProvider.queueSongForDownload(song);
     }
 
-    if (songsToDownloadCount > 0) {
+    if (songsToDownload.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Queued $songsToDownloadCount song(s) for download...')),
+        SnackBar(content: Text('Queued ${songsToDownload.length} songs for download.')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All songs in this playlist are already downloaded.')),
+        const SnackBar(content: Text('All songs are already downloaded or imported.')),
       );
     }
   }
