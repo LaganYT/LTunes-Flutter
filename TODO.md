@@ -5,4 +5,4 @@
 - Add radio stations into this new search system (without need for a different tab to search for them)
 
 ## Bug Fixes
-- Fix: album arts not downloading when songs are downloaded
+-

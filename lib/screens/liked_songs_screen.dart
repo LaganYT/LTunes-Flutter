@@ -56,8 +56,10 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
   }
 
   Future<bool> _downloadSong(Song song) async {
-    if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-      if (await File(song.localFilePath!).exists()) {
+    if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = p.join(directory.path, song.localFilePath!);
+      if (await File(filePath).exists()) {
         return true; // Already downloaded
       }
     }
@@ -68,9 +70,30 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
       final response = await http.get(Uri.parse(song.audioUrl));
       if (response.statusCode == 200) {
         final directory = await getApplicationDocumentsDirectory();
-        final filePath = p.join(directory.path, '${song.id}.mp3');
+        final fileName = '${song.id}.mp3';
+        final filePath = p.join(directory.path, fileName);
         final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
+
+        String albumArtValue = song.albumArtUrl;
+        if (song.albumArtUrl.startsWith('http')) {
+          try {
+            final artResponse = await http.get(Uri.parse(song.albumArtUrl));
+            if (artResponse.statusCode == 200) {
+              final uri = Uri.parse(song.albumArtUrl);
+              String extension = p.extension(uri.path);
+              if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
+                extension = '.jpg';
+              }
+              final artFileName = 'art_${song.id}$extension';
+              final artFilePath = p.join(directory.path, artFileName);
+              await File(artFilePath).writeAsBytes(artResponse.bodyBytes);
+              albumArtValue = artFileName;
+            }
+          } catch (e) {
+            debugPrint("Failed to download album art for liked song: $e");
+          }
+        }
 
         final prefs = await SharedPreferences.getInstance();
         final rawSongs = prefs.getStringList('liked_songs') ?? [];
@@ -85,7 +108,9 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
         if (songIndex != -1) {
           final songData =
               jsonDecode(rawSongs[songIndex]) as Map<String, dynamic>;
-          songData['localFilePath'] = filePath;
+          songData['localFilePath'] = fileName;
+          songData['isDownloaded'] = true;
+          songData['albumArtUrl'] = albumArtValue;
           rawSongs[songIndex] = jsonEncode(songData);
           await prefs.setStringList('liked_songs', rawSongs);
           return true;
@@ -101,8 +126,10 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
 
   Future<void> _downloadAllLikedSongs() async {
     final songsToDownload = (await Future.wait(_likedSongs.map((song) async {
-      if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-        if (await File(song.localFilePath!).exists()) {
+      if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = p.join(directory.path, song.localFilePath!);
+        if (await File(filePath).exists()) {
           return null;
         }
       }

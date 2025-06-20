@@ -169,15 +169,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _resetLyricsState(); // Reset lyrics state for the new song
 
       // If the song is downloaded but lyrics are missing, try to fetch and save them.
-      if (newSong != null &&
-          newSong.isDownloaded &&
-          (newSong.syncedLyrics == null || newSong.syncedLyrics!.isEmpty) &&
-          (newSong.plainLyrics == null || newSong.plainLyrics!.isEmpty)) {
-        // Fire and forget: This will run in the background.
-        _fetchAndSaveLyricsForSong(newSong);
+      // This also handles album art for songs downloaded before this feature was added.
+      final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+      final currentSong = provider.currentSong;
+      if (currentSong != null && currentSong.isDownloaded) {
+        // Fire and forget, provider handles the background update.
+        provider.updateMissingMetadata(currentSong);
       }
 
-      if (_showLyrics && newSong != null) { // If lyrics view was active, load for new song
+      // If lyrics view was active, load for new song
+      if (_showLyrics && newSong != null) { 
         _loadAndProcessLyrics(newSong);
       }
 
@@ -188,6 +189,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   // New method to fetch and save lyrics for a downloaded song
+  // ignore: unused_element
   Future<void> _fetchAndSaveLyricsForSong(Song song) async {
     // Early exit if song is no longer current or widget is unmounted.
     if (!mounted || _currentSongProvider.currentSong?.id != song.id) {

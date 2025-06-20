@@ -13,6 +13,7 @@ import '../services/audio_handler.dart'; // Assumed path to your audio_handler.d
 import 'dart:async';
 import '../models/lyrics_data.dart';
 import 'package:resumable_downloader/resumable_downloader.dart';
+import 'package:http/http.dart' as http;
 
 // Define LoopMode enum
 enum LoopMode { none, queue, song }
@@ -107,6 +108,31 @@ class CurrentSongProvider with ChangeNotifier {
     _initializeDownloadManager(); // Initialize DownloadManager
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
+  }
+
+  Future<String?> _downloadAlbumArt(String url, String songId) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final directory = await getApplicationDocumentsDirectory();
+        final uri = Uri.parse(url);
+        String extension = p.extension(uri.path);
+        if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
+          extension = '.jpg';
+        }
+        final fileName = 'art_$songId$extension';
+        final filePath = p.join(directory.path, fileName);
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        debugPrint('Album art downloaded to: $filePath');
+        return fileName; // Return just the filename
+      } else {
+        debugPrint('Failed to download album art. Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint("Exception downloading album art from $url: $e");
+    }
+    return null;
   }
 
   Future<void> _initializeDownloadManager() async {
@@ -1057,6 +1083,14 @@ class CurrentSongProvider with ChangeNotifier {
         downloadProgress: 1.0,
       );
 
+      // Download album art if it's a network URL
+      if (updatedSong.albumArtUrl.startsWith('http')) {
+        final localArtFileName = await _downloadAlbumArt(updatedSong.albumArtUrl, updatedSong.id);
+        if (localArtFileName != null) {
+          updatedSong = updatedSong.copyWith(albumArtUrl: localArtFileName);
+        }
+      }
+
       // Fetch lyrics after successful download
       final apiService = ApiService();
       final lyricsData = await apiService.fetchLyrics(updatedSong.artist, updatedSong.title);
@@ -1477,6 +1511,40 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> seek(Duration position) async {
     await _audioHandler.seek(position);
+  }
+
+  Future<void> updateMissingMetadata(Song song) async {
+    if (!song.isDownloaded) return;
+
+    Song updatedSong = song;
+    bool needsUpdate = false;
+
+    // Check and download album art if it's a network URL
+    if (updatedSong.albumArtUrl.startsWith('http')) {
+      final localArtFileName = await _downloadAlbumArt(updatedSong.albumArtUrl, updatedSong.id);
+      if (localArtFileName != null) {
+        updatedSong = updatedSong.copyWith(albumArtUrl: localArtFileName);
+        needsUpdate = true;
+      }
+    }
+
+    // Check for lyrics
+    if (updatedSong.plainLyrics == null && updatedSong.syncedLyrics == null) {
+      final apiService = ApiService();
+      final newLyrics = await apiService.fetchLyrics(updatedSong.artist, updatedSong.title);
+      if (newLyrics != null) {
+        updatedSong = updatedSong.copyWith(
+          plainLyrics: newLyrics.plainLyrics,
+          syncedLyrics: newLyrics.syncedLyrics,
+        );
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      await _persistSongMetadata(updatedSong);
+      updateSongDetails(updatedSong);
+    }
   }
 
   // playUrl is not used by current app structure, can be removed or adapted
