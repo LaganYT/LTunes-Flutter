@@ -1309,7 +1309,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.playlist_play),
+            leading: Icon(Icons.playlist_play, color: Theme.of(context).colorScheme.primary),
             title: const Text('Playlists'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
@@ -1318,7 +1318,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.person),
+            leading: Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
             title: const Text('Artists'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
@@ -1327,7 +1327,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.album),
+            leading: Icon(Icons.album, color: Theme.of(context).colorScheme.primary),
             title: const Text('Albums'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
@@ -1336,7 +1336,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.music_note),
+            leading: Icon(Icons.music_note, color: Theme.of(context).colorScheme.primary),
             title: const Text('Songs'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
