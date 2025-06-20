@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart'; // ensure this is present
 import 'package:path/path.dart' as p;
+// ignore: unused_import
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
@@ -24,6 +25,19 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
   void initState() {
     super.initState();
     _loadLikedSongs();
+    Provider.of<CurrentSongProvider>(context, listen: false).addListener(_onSongDataChanged);
+  }
+
+  @override
+  void dispose() {
+    Provider.of<CurrentSongProvider>(context, listen: false).removeListener(_onSongDataChanged);
+    super.dispose();
+  }
+
+  void _onSongDataChanged() {
+    if (mounted) {
+      _loadLikedSongs();
+    }
   }
 
   Future<void> _loadLikedSongs() async {
@@ -33,7 +47,14 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
     setState(() {
       _likedSongs = raw.map((s) {
         try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>);
+          final songData = jsonDecode(s) as Map<String, dynamic>;
+          final songId = songData['id'];
+          // Check for an updated canonical version in SharedPreferences
+          final canonicalSongJson = prefs.getString('song_$songId');
+          if (canonicalSongJson != null) {
+            return Song.fromJson(jsonDecode(canonicalSongJson) as Map<String, dynamic>);
+          }
+          return Song.fromJson(songData);
         } catch (_) {
           return null;
         }
@@ -53,75 +74,6 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
     });
     await prefs.setStringList('liked_songs', raw);
     setState(() => _likedSongs.removeWhere((s) => s.id == song.id));
-  }
-
-  Future<bool> _downloadSong(Song song) async {
-    if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-      final directory = await getApplicationDocumentsDirectory();
-      final filePath = p.join(directory.path, song.localFilePath!);
-      if (await File(filePath).exists()) {
-        return true; // Already downloaded
-      }
-    }
-
-    try {
-      if (song.audioUrl.isEmpty) return false;
-
-      final response = await http.get(Uri.parse(song.audioUrl));
-      if (response.statusCode == 200) {
-        final directory = await getApplicationDocumentsDirectory();
-        final fileName = '${song.id}.mp3';
-        final filePath = p.join(directory.path, fileName);
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-
-        String albumArtValue = song.albumArtUrl;
-        if (song.albumArtUrl.startsWith('http')) {
-          try {
-            final artResponse = await http.get(Uri.parse(song.albumArtUrl));
-            if (artResponse.statusCode == 200) {
-              final uri = Uri.parse(song.albumArtUrl);
-              String extension = p.extension(uri.path);
-              if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
-                extension = '.jpg';
-              }
-              final artFileName = 'art_${song.id}$extension';
-              final artFilePath = p.join(directory.path, artFileName);
-              await File(artFilePath).writeAsBytes(artResponse.bodyBytes);
-              albumArtValue = artFileName;
-            }
-          } catch (e) {
-            debugPrint("Failed to download album art for liked song: $e");
-          }
-        }
-
-        final prefs = await SharedPreferences.getInstance();
-        final rawSongs = prefs.getStringList('liked_songs') ?? [];
-        final songIndex = rawSongs.indexWhere((s) {
-          try {
-            return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
-          } catch (_) {
-            return false;
-          }
-        });
-
-        if (songIndex != -1) {
-          final songData =
-              jsonDecode(rawSongs[songIndex]) as Map<String, dynamic>;
-          songData['localFilePath'] = fileName;
-          songData['isDownloaded'] = true;
-          songData['albumArtUrl'] = albumArtValue;
-          rawSongs[songIndex] = jsonEncode(songData);
-          await prefs.setStringList('liked_songs', rawSongs);
-          return true;
-        }
-        return false;
-      } else {
-        return false;
-      }
-    } catch (e) {
-      return false;
-    }
   }
 
   Future<void> _downloadAllLikedSongs() async {
@@ -147,24 +99,13 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Downloading ${songsToDownload.length} songs...')),
-    );
-
-    int successCount = 0;
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     for (final song in songsToDownload) {
-      if (await _downloadSong(song)) {
-        successCount++;
-      }
+      currentSongProvider.queueSongForDownload(song);
     }
 
-    await _loadLikedSongs();
-
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(
-              'Downloaded $successCount of ${songsToDownload.length} songs.')),
+      SnackBar(content: Text('Queued ${songsToDownload.length} songs for download.')),
     );
   }
 

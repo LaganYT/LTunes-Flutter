@@ -110,19 +110,34 @@ class CurrentSongProvider with ChangeNotifier {
     _listenToAudioHandler();
   }
 
-  Future<String?> _downloadAlbumArt(String url, String songId) async {
+  Future<String?> _downloadAlbumArt(String url, Song song) async {
     try {
+      final directory = await getApplicationDocumentsDirectory();
+      
+      String albumIdentifier;
+      if (song.album != null && song.album!.isNotEmpty) {
+        albumIdentifier = '${song.album}_${song.artist}'.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      } else {
+        // Fallback to song ID if no album info, to avoid overwriting art for songs with no album
+        albumIdentifier = song.id;
+      }
+
+      final uri = Uri.parse(url);
+      String extension = p.extension(uri.path);
+      if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
+        extension = '.jpg';
+      }
+      final fileName = 'art_$albumIdentifier$extension';
+      final filePath = p.join(directory.path, fileName);
+      final file = File(filePath);
+
+      if (await file.exists()) {
+        debugPrint('Album art for "${song.album ?? song.title}" already exists: $fileName');
+        return fileName;
+      }
+
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        final directory = await getApplicationDocumentsDirectory();
-        final uri = Uri.parse(url);
-        String extension = p.extension(uri.path);
-        if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
-          extension = '.jpg';
-        }
-        final fileName = 'art_$songId$extension';
-        final filePath = p.join(directory.path, fileName);
-        final file = File(filePath);
         await file.writeAsBytes(response.bodyBytes);
         debugPrint('Album art downloaded to: $filePath');
         return fileName; // Return just the filename
@@ -1085,7 +1100,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       // Download album art if it's a network URL
       if (updatedSong.albumArtUrl.startsWith('http')) {
-        final localArtFileName = await _downloadAlbumArt(updatedSong.albumArtUrl, updatedSong.id);
+        final localArtFileName = await _downloadAlbumArt(updatedSong.albumArtUrl, updatedSong);
         if (localArtFileName != null) {
           updatedSong = updatedSong.copyWith(albumArtUrl: localArtFileName);
         }
@@ -1521,7 +1536,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     // Check and download album art if it's a network URL
     if (updatedSong.albumArtUrl.startsWith('http')) {
-      final localArtFileName = await _downloadAlbumArt(updatedSong.albumArtUrl, updatedSong.id);
+      final localArtFileName = await _downloadAlbumArt(updatedSong.albumArtUrl, updatedSong);
       if (localArtFileName != null) {
         updatedSong = updatedSong.copyWith(albumArtUrl: localArtFileName);
         needsUpdate = true;

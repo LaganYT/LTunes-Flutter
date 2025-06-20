@@ -173,7 +173,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       final provider = Provider.of<CurrentSongProvider>(context, listen: false);
       final currentSong = provider.currentSong;
       if (currentSong != null && currentSong.isDownloaded) {
-        // Fire and forget, provider handles the background update.
         provider.updateMissingMetadata(currentSong);
       }
 

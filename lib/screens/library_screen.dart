@@ -591,12 +591,22 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 }
                 // Add more formats as needed
                 
-                albumArtFileName = 'albumart_${songId}$extension'; // Just the filename
+                String albumIdentifier;
+                if (metadata?.album != null && metadata!.album!.isNotEmpty) {
+                  albumIdentifier = '${metadata.album}_${metadata.artist ?? 'Unknown Artist'}'.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+                } else {
+                  albumIdentifier = songId; // Fallback to song ID if no album
+                }
+                albumArtFileName = 'art_$albumIdentifier$extension';
+
                 // Album art is saved in the root of appDocDir, not the downloadsSubDir
                 String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
                 
                 try {
-                  await File(fullAlbumArtPath).writeAsBytes(picture.bytes);
+                  final artFile = File(fullAlbumArtPath);
+                  if (!await artFile.exists()) {
+                    await artFile.writeAsBytes(picture.bytes);
+                  }
                   // albumArtPath = fullAlbumArtFullPath; // No, store filename
                 } catch (e) {
                   debugPrint('Error saving album art for $originalFileName: $e');
