@@ -42,24 +42,29 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
 
   Future<void> _loadLikedSongs() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('liked_songs') ?? [];
     if (!mounted) return;
-    setState(() {
-      _likedSongs = raw.map((s) {
-        try {
-          final songData = jsonDecode(s) as Map<String, dynamic>;
-          final songId = songData['id'];
-          // Check for an updated canonical version in SharedPreferences
-          final canonicalSongJson = prefs.getString('song_$songId');
-          if (canonicalSongJson != null) {
-            return Song.fromJson(jsonDecode(canonicalSongJson) as Map<String, dynamic>);
-          }
-          return Song.fromJson(songData);
-        } catch (_) {
-          return null;
+
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final songs = raw.map((s) {
+      try {
+        final songData = jsonDecode(s) as Map<String, dynamic>;
+        final songId = songData['id'];
+        // Check for an updated canonical version in SharedPreferences
+        final canonicalSongJson = prefs.getString('song_$songId');
+        if (canonicalSongJson != null) {
+          return Song.fromJson(jsonDecode(canonicalSongJson) as Map<String, dynamic>);
         }
-      }).whereType<Song>().toList();
-    });
+        return Song.fromJson(songData);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<Song>().toList();
+
+    if (mounted) {
+      setState(() {
+        _likedSongs = songs;
+      });
+    }
   }
 
   Future<void> _removeLikedSong(Song song) async {
