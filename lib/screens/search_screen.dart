@@ -28,6 +28,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   // ignore: unused_field
   final PlaylistManagerService _playlistManagerService = PlaylistManagerService(); // Instance of PlaylistManagerService
   bool _showRadioTab = true;
+  Set<String> _likedSongIds = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -39,6 +40,46 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     _songsFuture = _getSongsFuture(); // Use new method
     _stationsFuture = _fetchRadioStations();
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
+    _loadLikedSongIds();
+  }
+
+  Future<void> _loadLikedSongIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final ids = raw.map((s) {
+      try {
+        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+      } catch (_) {
+        return null;
+      }
+    }).whereType<String>().toSet();
+    if (mounted) {
+      setState(() {
+        _likedSongIds = ids;
+      });
+    }
+  }
+
+  Future<void> _toggleLike(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final isLiked = _likedSongIds.contains(song.id);
+
+    if (isLiked) {
+      raw.removeWhere((s) {
+        try {
+          return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
+        } catch (_) {
+          return false;
+        }
+      });
+      _likedSongIds.remove(song.id);
+    } else {
+      raw.add(jsonEncode(song.toJson()));
+      _likedSongIds.add(song.id);
+    }
+    setState(() {}); // Rebuild to update icon
+    await prefs.setStringList('liked_songs', raw);
   }
 
   Future<void> _loadShowRadioTab() async {
@@ -382,17 +423,20 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.info_outline),
+                    icon: _likedSongIds.contains(song.id)
+                        ? Icon(Icons.favorite, color: Theme.of(context).colorScheme.secondary)
+                        : const Icon(Icons.favorite_border),
                     color: Theme.of(context).colorScheme.onSurface,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SongDetailScreen(song: song),
-                        ),
-                      );
-                    },
+                    onPressed: () => _toggleLike(song),
                   ),
+                  onLongPress: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SongDetailScreen(song: song),
+                      ),
+                    );
+                  },
                   onTap: () async {
                     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
                     showDialog(
