@@ -38,6 +38,8 @@ class CurrentSongProvider with ChangeNotifier {
   // ignore: unused_field
   bool _isProcessingProviderDownload = false;
 
+  int _playRequestCounter = 0;
+
   bool _isLoadingAudio = false; // For UI feedback when initiating play
   final Map<String, double> _downloadProgress = {}; // songId -> progress (0.0 to 1.0)
   Duration _currentPosition = Duration.zero;
@@ -565,6 +567,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> playSong(Song songToPlay, {bool isResumingOrLooping = false}) async {
+    _playRequestCounter++;
+    final int currentPlayRequest = _playRequestCounter;
+
     _isLoadingAudio = true;
     // Tentatively update _currentSongFromAppLogic. This might be refined if the song
     // is found in _queue (and that instance is more up-to-date), or if _prepareMediaItem updates it.
@@ -576,6 +581,8 @@ class CurrentSongProvider with ChangeNotifier {
     notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info, show loading)
 
     try {
+      if (currentPlayRequest != _playRequestCounter) return;
+
       if (!isResumingOrLooping) {
         int indexInExistingQueue = _queue.indexWhere((s) => s.id == songToPlay.id);
 
@@ -595,6 +602,7 @@ class CurrentSongProvider with ChangeNotifier {
           List<MediaItem> fullQueueMediaItems = await Future.wait(
             _queue.map((sInQueue) => _prepareMediaItem(sInQueue)).toList()
           );
+          if (currentPlayRequest != _playRequestCounter) return;
           await _audioHandler.updateQueue(fullQueueMediaItems);
 
         } else {
@@ -603,24 +611,31 @@ class CurrentSongProvider with ChangeNotifier {
           // Call _prepareMediaItem for this song. It will update _currentSongFromAppLogic
           // if its URL changes (due to the side effect in _prepareMediaItem).
           MediaItem mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
+          if (currentPlayRequest != _playRequestCounter) return;
           // After _prepareMediaItem, _currentSongFromAppLogic is the definitive Song object.
           _queue = [_currentSongFromAppLogic!];
           _currentIndexInAppQueue = 0;
           await _audioHandler.updateQueue([mediaItem]);
         }
         // _currentSongFromAppLogic should be correct now, pointing to the actual instance being played.
+        if (currentPlayRequest != _playRequestCounter) return;
         await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
       }
 
+      if (currentPlayRequest != _playRequestCounter) return;
       await _audioHandler.play();
       _prefetchNextSongs();
       _saveCurrentSongToStorage(); // Save state including potentially updated queue/song
 
     } catch (e) {
-      // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
-      debugPrint('Error playing song (${_currentSongFromAppLogic?.title ?? songToPlay.title}): $e');
-      _isLoadingAudio = false;
-      notifyListeners();
+      if (currentPlayRequest == _playRequestCounter) {
+        // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
+        debugPrint('Error playing song (${_currentSongFromAppLogic?.title ?? songToPlay.title}): $e');
+        _isLoadingAudio = false;
+        notifyListeners();
+      } else {
+        debugPrint('Error in stale play request for ${songToPlay.title}, ignoring.');
+      }
     }
   }
 
@@ -1241,6 +1256,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
+    _playRequestCounter++;
+    final int currentPlayRequest = _playRequestCounter;
+
     _isLoadingAudio = true;
     // _currentSongFromAppLogic = null; // Clear regular song // This will be set to the radio song object
     _stationName = stationName;
@@ -1269,6 +1287,7 @@ class CurrentSongProvider with ChangeNotifier {
     );
     notifyListeners(); // Notify after _currentSongFromAppLogic and station details are set, and to show loading
 
+    if (currentPlayRequest != _playRequestCounter) return;
 
     // Update the queue in the handler to just this radio stream
     // Or, if you want radio to be outside the main queue, handle accordingly.
@@ -1282,6 +1301,9 @@ class CurrentSongProvider with ChangeNotifier {
       extras: {'isRadio': true, 'songId': radioSongId},
     );
     await _audioHandler.playMediaItem(mediaItem);
+
+    if (currentPlayRequest != _playRequestCounter) return;
+
     _saveCurrentSongToStorage(); // Save that we are playing a radio stream
     // _isLoadingAudio will be set to false by _listenToAudioHandler
   }
