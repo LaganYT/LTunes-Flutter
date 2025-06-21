@@ -24,7 +24,7 @@
 - Add a setting to allow auto downloading liked songs
 
 ## Bug Fixes
-- fix weird display issues with lyrics
+- 
 
 ## Performance
 - try anything for making song playing faster

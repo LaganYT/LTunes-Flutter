@@ -15,6 +15,7 @@ import '../services/playlist_manager_service.dart';
 import '../services/api_service.dart'; // Import ApiService
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
+import 'dart:math'; // Added for min/max in lyrics scroll
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -638,12 +639,29 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _currentLyricIndex = newIndex;
       });
       if (newIndex != -1 && _lyricsScrollController.isAttached) {
-        _lyricsScrollController.scrollTo(
-          index: newIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          alignment: 0.3, // Scroll to make the item appear 30% from the top
-        );
+        // Only scroll if the new index is outside the current visible range to prevent bouncing
+        final positions = _lyricsPositionsListener.itemPositions.value;
+        const int bufferLines = 2;
+        if (positions.isEmpty) {
+          _lyricsScrollController.scrollTo(
+            index: newIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: 0.3,
+          );
+        } else {
+          final indices = positions.map((p) => p.index);
+          final minVisible = indices.reduce(min);
+          final maxVisible = indices.reduce(max);
+          if (newIndex > minVisible + bufferLines && newIndex < maxVisible - bufferLines) {
+            _lyricsScrollController.scrollTo(
+              index: newIndex,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: 0.3,
+            );
+          }
+        }
       }
     }
   }
