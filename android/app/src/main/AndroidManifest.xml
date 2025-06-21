@@ -45,7 +45,6 @@
           <intent-filter>
             <action android:name="android.media.browse.MediaBrowserService" />
           </intent-filter>
-          <meta-data android:name="com.ryanheise.audioservice.notification_icon" android:resource="@mipmap/ic_launcher_foreground" />
         </service>
 
         <!-- ADD THIS "RECEIVER" element -->
