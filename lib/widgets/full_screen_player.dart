@@ -687,6 +687,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     final song = _currentSongProvider.currentSong!;
     final jsonStr = jsonEncode(song.toJson());
     if (_isLiked) {
+      // unlike: just remove from liked list
       list.removeWhere((s) {
         try {
           return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == song.id;
@@ -695,7 +696,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         }
       });
     } else {
+      // like: add and queue if auto-download enabled
       list.add(jsonStr);
+      final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
+      if (autoDL) {
+        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Queued "${song.title}" for download.')),
+        );
+      }
     }
     await prefs.setStringList('liked_songs', list);
     setState(() => _isLiked = !_isLiked);

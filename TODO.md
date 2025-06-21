@@ -24,7 +24,7 @@
 - Add a setting to allow auto downloading liked songs
 
 ## Bug Fixes
-- Make sure that no matter what playbar and full screen player were in sync
+- 
 
 ## Performance
 - try anything for making song playing faster
@@ -33,3 +33,34 @@
 ## Potential Future Features
 - try adding podcast support
 - add shareplay support?
+
+
+[ERROR:flutter/runtime/dart_vm_initializer.cc(40)] Unhandled Exception: 'package:flutter/src/widgets/framework.dart': Failed assertion: line 5238 pos 12: '_lifecycleState != _ElementLifecycle.defunct': is not true.
+#0      _AssertionError._doThrowNew (dart:core-patch/errors_patch.dart:67:4)
+#1      _AssertionError._throwNew (dart:core-patch/errors_patch.dart:49:5)
+#2      Element.markNeedsBuild (package:flutter/src/widgets/framework.dart:5238:12)
+#3      State.setState (package:flutter/src/widgets/framework.dart:1219:15)
+#4      _LikedSongsScreenState._loadLikedSongs (package:LTunes/screens/liked_songs_screen.dart:64:7)
+<asynchronous suspension>
+
+flutter: Error loading artUri: Invalid argument(s): No host specified in URI art_GNX_Kendrick_Lamar.jpg
+#0      _HttpClient._openUrl (dart:_http/http_impl.dart:3019:9)
+#1      _HttpClient.openUrl (dart:_http/http_impl.dart:2875:7)
+#2      IOClient.send (package:http/src/io_client.dart:117:38)
+#3      HttpFileService.get (package:flutter_cache_manager/src/web/file_service.dart:37:44)
+#4      WebHelper._download (package:flutter_cache_manager/src/web/web_helper.dart:115:24)
+#5      WebHelper._updateFile (package:flutter_cache_manager/src/web/web_helper.dart:96:28)
+<asynchronous suspension>
+#6      WebHelper._downloadOrAddToQueue (package:flutter_cache_manager/src/web/web_helper.dart:64:7)
+<asynchronous suspension>
+
+flutter: Error loading artUri: Invalid argument(s): No host specified in URI art_The_Marshall_Mathers_LP2__Deluxe__Eminem.jpg
+#0      _HttpClient._openUrl (dart:_http/http_impl.dart:3019:9)
+#1      _HttpClient.openUrl (dart:_http/http_impl.dart:2875:7)
+#2      IOClient.send (package:http/src/io_client.dart:117:38)
+#3      HttpFileService.get (package:flutter_cache_manager/src/web/file_service.dart:37:44)
+#4      WebHelper._download (package:flutter_cache_manager/src/web/web_helper.dart:115:24)
+#5      WebHelper._updateFile (package:flutter_cache_manager/src/web/web_helper.dart:96:28)
+<asynchronous suspension>
+#6      WebHelper._downloadOrAddToQueue (package:flutter_cache_manager/src/web/web_helper.dart:64:7)
+<asynchronous suspension>

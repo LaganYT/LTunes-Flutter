@@ -67,6 +67,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     final isLiked = _likedSongIds.contains(song.id);
 
     if (isLiked) {
+      // just unlike, remove from list
       raw.removeWhere((s) {
         try {
           return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
@@ -76,11 +77,20 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       });
       _likedSongIds.remove(song.id);
     } else {
+      // like and queue if auto-download enabled
       raw.add(jsonEncode(song.toJson()));
       _likedSongIds.add(song.id);
+      final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
+      if (autoDL) {
+        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Queued "${song.title}" for download.')),
+        );
+      }
     }
-    setState(() {}); // Rebuild to update icon
+
     await prefs.setStringList('liked_songs', raw);
+    setState(() {});
   }
 
   Future<void> _loadShowRadioTab() async {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../providers/current_song_provider.dart';
 import '../models/song.dart'; // For Song model
 
@@ -92,7 +94,25 @@ class DownloadQueueScreen extends StatelessWidget {
               final double? progress = downloadProgressMap[song.id];
 
               Widget leadingWidget;
-              if (song.albumArtUrl.isNotEmpty) {
+              if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+                leadingWidget = FutureBuilder<String>(
+                  future: () async {
+                    final dir = await getApplicationDocumentsDirectory();
+                    final fullPath = p.join(dir.path, 'ltunes_downloads', song.localFilePath!);
+                    return (await File(fullPath).exists()) ? fullPath : '';
+                  }(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                      return Image.file(
+                        File(snapshot.data!),
+                        width: 40, height: 40, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
+                      );
+                    }
+                    return const Icon(Icons.album, size: 40);
+                  },
+                );
+              } else if (song.albumArtUrl.isNotEmpty) {
                 if (song.albumArtUrl.startsWith('http')) {
                   leadingWidget = CachedNetworkImage(
                     imageUrl: song.albumArtUrl,

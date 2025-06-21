@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Initialize with null to represent loading state
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
+  final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
   // final ValueNotifier<bool?> useModernLibraryNotifier = ValueNotifier<bool?>(null); // Removed, will be handled by ThemeProvider
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadUSRadioOnlySetting();
     _loadShowRadioTab();
+    _loadAutoDownloadLikedSongsSetting();
     _loadCurrentAppVersion();
     _storageUsedFuture = _calculateStorageUsed();
   }
@@ -76,6 +78,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveShowRadioTab(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('showRadioTab', value);
+  }
+
+  Future<void> _loadAutoDownloadLikedSongsSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    autoDownloadLikedSongsNotifier.value = prefs.getBool('autoDownloadLikedSongs') ?? false;
+  }
+
+  Future<void> _saveAutoDownloadLikedSongsSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autoDownloadLikedSongs', value);
   }
 
   // ignore: unused_element
@@ -513,6 +525,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: autoDownloadLikedSongsNotifier,
+                  builder: (context, autoDownloadLikedSongs, _) {
+                    if (autoDownloadLikedSongs == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.download),
+                        title: Text('Auto-Download Liked Songs'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.download),
+                      title: const Text('Auto-Download Liked Songs'),
+                      trailing: Switch(
+                        value: autoDownloadLikedSongs,
+                        onChanged: (bool value) async {
+                          autoDownloadLikedSongsNotifier.value = value;
+                          await _saveAutoDownloadLikedSongsSetting(value);
+                        },
+                      ),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.color_lens_outlined),
                   title: const Text('Accent Color'),
@@ -791,6 +830,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     usRadioOnlyNotifier.dispose();
     showRadioTabNotifier.dispose();
+    autoDownloadLikedSongsNotifier.dispose();
     _refreshNotifier.dispose(); // Dispose the new notifier
     // useModernLibraryNotifier.dispose(); // Removed
     super.dispose();
