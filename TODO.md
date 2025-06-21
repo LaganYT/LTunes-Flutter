@@ -24,7 +24,7 @@
 - Add a setting to allow auto downloading liked songs
 
 ## Bug Fixes
-- 
+- Make sure that no matter what playbar and full screen player were in sync
 
 ## Performance
 - try anything for making song playing faster
