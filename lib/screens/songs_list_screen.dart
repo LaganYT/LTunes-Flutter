@@ -340,6 +340,31 @@ Future<void> _importSongs() async {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.artistFilter == null ? 'Songs' : widget.artistFilter!),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48.0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search songs...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              onChanged: (query) {
+                setState(() {
+                  _songs = _songs.where((song) => song.title.toLowerCase().contains(query.toLowerCase())).toList();
+                });
+              },
+            ),
+          ),
+        ),
       ),
       body: _songs.isEmpty
           ? const Center(child: Text('No songs found.'))

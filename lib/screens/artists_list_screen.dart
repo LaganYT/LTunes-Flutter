@@ -14,6 +14,7 @@ class ArtistsListScreen extends StatefulWidget {
 class _ArtistsListScreenState extends State<ArtistsListScreen> {
   List<Song> _songs = [];
   List<String> _artists = [];
+  List<String> _allArtists = []; // Keep a copy of all artists for search
 
   @override
   void initState() {
@@ -30,7 +31,11 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
       if (json != null) temp.add(Song.fromJson(jsonDecode(json)));
     }
     final uniq = temp.map((s) => s.artist).toSet().toList()..sort();
-    setState(() { _songs = temp; _artists = uniq; });
+    setState(() {
+      _songs = temp;
+      _artists = uniq;
+      _allArtists = uniq; // Initialize the copy
+    });
   }
 
   /// Loads network or local image, falls back to placeholder on error.
@@ -49,7 +54,34 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Artists')),
+      appBar: AppBar(
+        title: const Text('Artists'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48.0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search artists...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              onChanged: (query) {
+                setState(() {
+                  _artists = _allArtists.where((artist) => artist.toLowerCase().contains(query.toLowerCase())).toList();
+                });
+              },
+            ),
+          ),
+        ),
+      ),
       body: _artists.isEmpty
           ? const Center(child: Text('No artists found.'))
           : GridView.builder(

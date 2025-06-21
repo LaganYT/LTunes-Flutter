@@ -6,7 +6,6 @@
 
 ## Features
 - Show if a song is explicit, add explicit filter
-- Add search bars to library (universal one on modern library screen (maybe) and then individual ones for songs, album, playlists page.)
 - make playbar show up in more places
 - when viewing the album or lyrics from the albums details page have them preloaded for faster load times
 - Also preload the artist page

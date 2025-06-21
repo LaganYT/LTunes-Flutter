@@ -95,7 +95,34 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Playlists')),
+      appBar: AppBar(
+        title: const Text('Playlists'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48.0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search playlists...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              onChanged: (query) {
+                setState(() {
+                  _playlists = _manager.playlists.where((playlist) => playlist.name.toLowerCase().contains(query.toLowerCase())).toList();
+                });
+              },
+            ),
+          ),
+        ),
+      ),
       body: _playlists.isEmpty
           ? const Center(child: Text('No playlists yet.'))
           : GridView.builder(

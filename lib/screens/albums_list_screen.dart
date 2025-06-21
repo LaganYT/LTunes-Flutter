@@ -36,7 +36,34 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Albums')),
+      appBar: AppBar(
+        title: const Text('Albums'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48.0),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search albums...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+              ),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              onChanged: (query) {
+                setState(() {
+                  _albums = _manager.savedAlbums.where((album) => album.title.toLowerCase().contains(query.toLowerCase())).toList();
+                });
+              },
+            ),
+          ),
+        ),
+      ),
       body: _albums.isEmpty
           ? const Center(child: Text('No saved albums yet.'))
           : GridView.builder(
