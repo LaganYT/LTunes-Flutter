@@ -15,8 +15,6 @@
 - add where the radio isn’t loading have a popup saying radio failed to load or something
 - if possible add an auto installer on android (it fetches and then installs the apk file for you)
 - when you pause a radio for longer than 10 seconds have it skip to live instead of pickup where you left off (disable-able in settings)
-- make the swipe down animation for playbar/fullscreen player more interactive
-- test adding the heart and download buttons next to the title/artist of the song
 
 ## Bug Fixes
 - 
@@ -28,3 +26,4 @@
 ## Potential Future Features
 - try adding podcast support
 - add shareplay support?
+- test adding the heart and download buttons next to the title/artist of the song
