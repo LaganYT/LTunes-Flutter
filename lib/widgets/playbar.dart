@@ -73,16 +73,24 @@ class _PlaybarState extends State<Playbar> {
           memCacheWidth: 100,
           memCacheHeight: 100,
           placeholder: (context, url) => const Icon(Icons.album, size: 40),
-          errorWidget: (context, url, error) => const Icon(Icons.error),
+          errorWidget: (context, url, error) => Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
         );
       } else {
-        albumArtContent = Image.file(
-          File(currentSong.albumArtUrl),
-          fit: BoxFit.cover,
-          width: 50,
-          height: 50,
-          cacheHeight: 100,
-          cacheWidth: 100,
+        albumArtContent = FutureBuilder<String>(
+          future: _resolveLocalArtPath(currentSong.albumArtUrl),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return Image.file(
+                File(snapshot.data!),
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
+              );
+            }
+            return const SizedBox.shrink();
+          },
         );
       }
     } else {
