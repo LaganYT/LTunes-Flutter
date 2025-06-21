@@ -947,7 +947,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         // When looping a single song, the position reported can exceed the duration
                         // just before it loops. To provide a smoother UI experience and show it
                         // resetting to 0:00 as requested, we adjust the position value here.
-                        if (loopMode == LoopMode.song && !isRadio && duration > Duration.zero && position >= duration) {
+                        if (isPlaying && loopMode == LoopMode.song && !isRadio && duration > Duration.zero && position >= duration) {
                           position = Duration.zero;
                         }
 
