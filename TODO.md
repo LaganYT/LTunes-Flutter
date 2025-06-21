@@ -24,7 +24,6 @@
 - Add a setting to allow auto downloading liked songs
 
 ## Bug Fixes
-- fix weird gap at the top for the album details page
 - fix weird display issues with lyrics
 
 ## Performance

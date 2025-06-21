@@ -307,7 +307,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+              SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: widget.song.albumArtUrl.isNotEmpty
