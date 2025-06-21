@@ -2,9 +2,11 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart';
 import 'playlist_detail_screen.dart';
+import '../providers/current_song_provider.dart';
 
 class PlaylistsScreen extends StatefulWidget {
   const PlaylistsScreen({super.key});
@@ -195,6 +197,14 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.queue_music),
+              title: const Text('Add to Queue'),
+              onTap: () {
+                Navigator.pop(context);
+                _addPlaylistToQueue(playlist);
+              },
+            ),
+            ListTile(
               leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
               title: Text('Delete Playlist', style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onTap: () {
@@ -249,5 +259,15 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     if (confirm == true) {
       await _manager.removePlaylist(playlist);
     }
+  }
+
+  void _addPlaylistToQueue(Playlist playlist) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    for (final song in playlist.songs) {
+      currentSongProvider.addToQueue(song);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Added ${playlist.songs.length} songs from "${playlist.name}" to queue')),
+    );
   }
 }
