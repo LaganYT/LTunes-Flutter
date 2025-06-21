@@ -97,7 +97,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
 
   Future<List<dynamic>> _fetchRadioStations() async {
     final prefs = await SharedPreferences.getInstance();
-    final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
+    final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
     final country = usRadioOnly ? 'United States' : '';
     return _apiService.fetchStationsByCountry(country, name: _searchQuery);
   }
@@ -111,7 +111,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       _apiService.clearSongCache(oldQuery);
 
       final prefs = await SharedPreferences.getInstance();
-      final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
+      final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
       final country = usRadioOnly ? 'United States' : '';
       _apiService.clearRadioStationCache(country, oldQuery);
     }

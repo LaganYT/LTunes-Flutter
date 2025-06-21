@@ -27,7 +27,6 @@
 - fix the bug that sometimes when i pause a song it displays the current duration at 0:00 but when i unpause it fixes it
 - fix icons not displaying on playbar sometimes
 - fix weird gap at the top for the album details page
-- fix the bug where us radio isn’t on by default
 - fix weird display issues with lyrics
 
 ## Performance
