@@ -61,9 +61,13 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
     }).whereType<Song>().toList();
 
     if (mounted) {
-      setState(() {
-        _likedSongs = songs;
-      });
+      try {
+        setState(() {
+          _likedSongs = songs;
+        });
+      } catch (_) {
+        // Widget no longer mounted, ignore
+      }
     }
   }
 

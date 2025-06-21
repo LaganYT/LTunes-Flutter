@@ -60,7 +60,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4.0),
                           child: Container(
-                            child: a.fullAlbumArtUrl.isNotEmpty
+                            child: a.fullAlbumArtUrl.startsWith('http')
                                 ? CachedNetworkImage(
                                     imageUrl: a.fullAlbumArtUrl,
                                     fit: BoxFit.cover,

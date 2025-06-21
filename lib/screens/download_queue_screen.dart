@@ -112,31 +112,27 @@ class DownloadQueueScreen extends StatelessWidget {
                     return const Icon(Icons.album, size: 40);
                   },
                 );
-              } else if (song.albumArtUrl.isNotEmpty) {
-                if (song.albumArtUrl.startsWith('http')) {
-                  leadingWidget = CachedNetworkImage(
-                    imageUrl: song.albumArtUrl,
-                    width: 40,
-                    height: 40,
-                    memCacheWidth: 80,
-                    memCacheHeight: 80,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => const Icon(Icons.album, size: 40),
-                    errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
-                  );
-                } else {
-                  leadingWidget = Image.file(
-                    File(song.albumArtUrl),
-                    width: 40,
-                    height: 40,
-                    cacheWidth: 80,
-                    cacheHeight: 80,
-                    fit: BoxFit.cover,
-                  );
-                }
-              } else {
-                leadingWidget = const Icon(Icons.album, size: 40);
-              }
+              } else if (song.albumArtUrl.startsWith('http')) {
+                 leadingWidget = CachedNetworkImage(
+                   imageUrl: song.albumArtUrl,
+                   width: 40,
+                   height: 40,
+                   memCacheWidth: 80,
+                   memCacheHeight: 80,
+                   fit: BoxFit.cover,
+                   placeholder: (context, url) => const Icon(Icons.album, size: 40),
+                   errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
+                 );
+               } else {
+                 leadingWidget = Image.file(
+                   File(song.albumArtUrl),
+                   width: 40,
+                   height: 40,
+                   cacheWidth: 80,
+                   cacheHeight: 80,
+                   fit: BoxFit.cover,
+                 );
+               }
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),

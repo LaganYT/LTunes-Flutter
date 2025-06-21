@@ -35,7 +35,7 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
 
   /// Loads network or local image, falls back to placeholder on error.
   Widget _artistImage(String artUrl) {
-    if (artUrl.isEmpty) {
+    if (artUrl.isEmpty || !artUrl.startsWith('http')) {
       return const Icon(Icons.person, size: 80, color: Colors.white54);
     }
     return CachedNetworkImage(
