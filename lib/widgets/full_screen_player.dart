@@ -60,6 +60,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   final ItemPositionsListener _lyricsPositionsListener = ItemPositionsListener.create();
 
   bool _isLiked = false;
+  Future<String>? _localArtPathFuture;
 
   @override
   void initState() {
@@ -91,6 +92,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
+
+    if (_currentSongProvider.currentSong != null) {
+      _localArtPathFuture = _resolveLocalArtPath(_currentSongProvider.currentSong!.albumArtUrl);
+    }
 
     // Initial lyrics state reset (lyrics will be loaded on demand or if _showLyrics is true)
     _resetLyricsState();
@@ -151,6 +156,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           effectiveSlideOffsetX = 0.3; // Default slide from right for first song
       } else if (_slideOffsetX == 0.0 && newSongId != null) { // Song changed by non-skip action (e.g. queue end, direct selection)
           effectiveSlideOffsetX = 0.3; // Default slide from right
+      }
+
+      if (newSong != null) {
+        _localArtPathFuture = _resolveLocalArtPath(newSong.albumArtUrl);
       }
 
 
@@ -713,7 +722,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         );
       } else {
         albumArtWidget = FutureBuilder<String>(
-          future: _resolveLocalArtPath(currentSong.albumArtUrl),
+          future: _localArtPathFuture,
           key: ValueKey<String>('art_${currentSong.id}_local'),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {

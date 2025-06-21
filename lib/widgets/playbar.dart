@@ -20,11 +20,25 @@ class Playbar extends StatefulWidget {
 }
 
 class _PlaybarState extends State<Playbar> {
+  Future<String>? _localArtPathFuture;
+  String? _previousSongId;
+
   @override
   void initState() {
     super.initState();
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    // Cache initial art path
+    final currentSong = currentSongProvider.currentSong;
+    _previousSongId = currentSong?.id;
+    if (currentSong != null) {
+      _localArtPathFuture = _resolveLocalArtPath(currentSong.albumArtUrl);
+    }
     currentSongProvider.addListener(() {
+      final newSong = currentSongProvider.currentSong;
+      if (newSong?.id != _previousSongId) {
+        _previousSongId = newSong?.id;
+        _localArtPathFuture = _resolveLocalArtPath(newSong?.albumArtUrl ?? '');
+      }
       setState(() {});
     });
   }
@@ -77,7 +91,7 @@ class _PlaybarState extends State<Playbar> {
         );
       } else {
         albumArtContent = FutureBuilder<String>(
-          future: _resolveLocalArtPath(currentSong.albumArtUrl),
+          future: _localArtPathFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
               return Image.file(
