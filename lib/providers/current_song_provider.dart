@@ -1556,6 +1556,18 @@ class CurrentSongProvider with ChangeNotifier {
       }
     }
 
+    if (song.isDownloaded && song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+      final directory = await getApplicationDocumentsDirectory();
+      final fullPath = p.join(directory.path, 'ltunes_downloads', song.albumArtUrl);
+      if (!await File(fullPath).exists()) {
+        final downloadedArt = await _downloadAlbumArt(song.albumArtUrl, song);
+        if (downloadedArt != null) {
+          final updatedSong = song.copyWith(albumArtUrl: downloadedArt);
+          updateSongDetails(updatedSong);
+        }
+      }
+    }
+
     if (needsUpdate) {
       await _persistSongMetadata(updatedSong);
       updateSongDetails(updatedSong);
