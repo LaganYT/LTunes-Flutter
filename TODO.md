@@ -14,7 +14,6 @@
 - add ways to display errors (like failed to fetch error with bad connection or something)
 - add where the radio isn’t loading have a popup saying radio failed to load or something
 - if possible add an auto installer on android (it fetches and then installs the apk file for you)
-- when you pause a radio for longer than 10 seconds have it skip to live instead of pickup where you left off (disable-able in settings)
 
 ## Bug Fixes
 - 

@@ -384,28 +384,23 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       // Calculate how "collapsed" the bar is.
                       // currentExtent goes from maxExtent down to minExtent.
                       // We want the title to appear when currentExtent is very close to minExtent.
+                      // Calculate opacity for title fade-in, safely guarding division by zero
                       final double delta = settings.maxExtent - settings.minExtent;
-                      // Threshold for when the title starts becoming visible.
-                      // Let's say it starts appearing when 90% collapsed.
-                      final double collapseThreshold = delta * 0.1; // 10% of the scroll range remains
-                      
-                      double opacity = 0.0;
-                      if (delta > 0) { // Avoid division by zero
-                        // When currentExtent is at minExtent, settings.currentExtent - settings.minExtent is 0.
-                        // We want opacity to be 1.0 when fully collapsed (or very near it).
-                        // And 0.0 when it's more expanded than our threshold.
-                        if ((settings.currentExtent - settings.minExtent) < collapseThreshold) {
-                            // Smoothly fade in as it approaches full collapse within the threshold
-                            opacity = 1.0 - ((settings.currentExtent - settings.minExtent) / collapseThreshold);
-                            opacity = opacity.clamp(0.0, 1.0); // Ensure opacity is between 0 and 1
-                        }
-                      } else if (settings.currentExtent == settings.minExtent) {
-                        opacity = 1.0; // Fully collapsed
+                      final double collapseThreshold = delta * 0.1;
+                      final double extentDelta = settings.currentExtent - settings.minExtent;
+                      double opacity;
+                      if (collapseThreshold > 0) {
+                        // Fade in when within threshold of collapse
+                        opacity = extentDelta < collapseThreshold
+                            ? (1.0 - (extentDelta / collapseThreshold)).clamp(0.0, 1.0)
+                            : 0.0;
+                      } else {
+                        // If no scroll range, show only when fully collapsed
+                        opacity = (settings.currentExtent == settings.minExtent) ? 1.0 : 0.0;
                       }
 
 
-                      return Opacity(
-                        opacity: opacity,
+                      return Opacity(opacity: opacity,
                         child: Text(
                           currentPlaylist.name, // Use currentPlaylist
                           style: const TextStyle(
