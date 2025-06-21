@@ -112,7 +112,7 @@ class _PlaybarState extends State<Playbar> {
     }
 
     Widget leadingWidget = Hero(
-      tag: 'current-song-art',
+      tag: 'current-song-art', // ensure tag matches full screen player
       child: SizedBox( // Ensure consistent size for the Hero child content
         width: 48,
         height: 48,

@@ -921,7 +921,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         child: SlideTransition(
                           position: _albumArtSlideAnimation,
                           child: Hero(
-                            tag: 'albumArt_${currentSong.id}',
+                            tag: 'current-song-art',
                             child: Material(
                               elevation: 12.0,
                               borderRadius: BorderRadius.circular(16.0),
