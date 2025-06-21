@@ -30,18 +30,3 @@
 ## Potential Future Features
 - try adding podcast support
 - add shareplay support?
-
-[ERROR:flutter/runtime/dart_vm_initializer.cc(40)] Unhandled Exception: Looking up a deactivated widget's ancestor is unsafe.
-At this point the state of the widget's element tree is no longer stable.
-To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
-#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:4945:9)
-#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:4959:6)
-#2      Element.findAncestorWidgetOfExactType (package:flutter/src/widgets/framework.dart:5020:12)
-#3      debugCheckHasScaffoldMessenger.<anonymous closure> (package:flutter/src/material/debug.dart:181:17)
-#4      debugCheckHasScaffoldMessenger (package:flutter/src/material/debug.dart:195:4)
-#5      ScaffoldMessenger.of (package:flutter/src/material/scaffold.dart:156:12)
-#6      _AlbumsListScreenState._addAlbumToPlaylist (package:LTunes/screens/albums_list_screen.dart:155:25)
-<asynchronous suspension>
-#7      _AlbumsListScreenState._showAlbumOptions.<anonymous closure>.<anonymous closure> (package:LTunes/screens/albums_list_screen.dart:115:17)
-<asynchronous suspension>
-
