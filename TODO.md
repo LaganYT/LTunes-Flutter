@@ -17,7 +17,6 @@
 - when you pause a radio for longer than 10 seconds have it skip to live instead of pickup where you left off (disable-able in settings)
 - make the swipe down animation for playbar/fullscreen player more interactive
 - test adding the heart and download buttons next to the title/artist of the song
-- Add a setting to allow auto downloading liked songs
 
 ## Bug Fixes
 - 
