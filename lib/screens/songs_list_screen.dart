@@ -359,7 +359,11 @@ Future<void> _importSongs() async {
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {
                 setState(() {
-                  _songs = _songs.where((song) => song.title.toLowerCase().contains(query.toLowerCase())).toList();
+                  if (query.isEmpty) {
+                    _refreshSongs(); // Refresh the songs list when query is empty
+                  } else {
+                    _songs = _songs.where((song) => song.title.toLowerCase().contains(query.toLowerCase())).toList();
+                  }
                 });
               },
             ),
