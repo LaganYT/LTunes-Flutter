@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart'; // Import AudioPlayer from audioplayers package
+import 'package:just_audio/just_audio.dart' as just_audio;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -563,10 +563,10 @@ class CurrentSongProvider with ChangeNotifier {
 
     Duration? songDuration = effectiveSong.duration;
     if (songDuration == null || songDuration == Duration.zero) {
-      final audioPlayer = AudioPlayer();
+      final audioPlayer = just_audio.AudioPlayer();
       try {
-        await audioPlayer.setSourceUrl(playableUrl); // Use the confirmed playableUrl
-        songDuration = await audioPlayer.getDuration();
+        final fetchedDuration = await audioPlayer.setUrl(playableUrl); // Use the confirmed playableUrl
+        songDuration = fetchedDuration;
         if (songDuration != null && songDuration != Duration.zero && effectiveSong.duration != songDuration) {
             effectiveSong = effectiveSong.copyWith(duration: songDuration);
             metadataToPersistChanged = true;

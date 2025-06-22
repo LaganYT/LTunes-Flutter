@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -39,7 +39,6 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
 
 class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer = AudioPlayer();
-  PlayerState _lastPlayerState = PlayerState.stopped;
   final _playlist = <MediaItem>[];
   int _currentIndex = -1;
   bool _isRadioStream = false;
@@ -54,10 +53,28 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // Listen to OS audio interruptions and resume playback when interruption ends
     AudioSession.instance.then((session) {
       session.interruptionEventStream.listen((event) {
-        if (!event.begin // interruption ended
-            && (event.type == AudioInterruptionType.pause ||
-                event.type == AudioInterruptionType.unknown)) {
-          _audioPlayer.resume();
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              if (_audioPlayer.volume > 0) _audioPlayer.setVolume(_audioPlayer.volume / 2);
+              break;
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              pause();
+              break;
+          }
+        } else {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              _audioPlayer.setVolume(
+                  (_audioPlayer.volume * 2).clamp(0.0, 1.0));
+              break;
+            case AudioInterruptionType.pause:
+              play();
+              break;
+            case AudioInterruptionType.unknown:
+              break;
+          }
         }
       });
     });
@@ -101,48 +118,22 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
 
   void _notifyAudioHandlerAboutPlaybackEvents() {
-    _audioPlayer.onPlayerStateChanged.listen((state) async {
-     _lastPlayerState = state;
-      final playing = state == PlayerState.playing;
-      // Get current position safely
-      Duration currentPosition = Duration.zero;
-      try {
-        currentPosition = await _audioPlayer.getCurrentPosition() ?? Duration.zero;
-      } catch (e) {
-        // Handle error, e.g. player not initialized
-        debugPrint("Error getting current position: $e");
-      }
-
+    _audioPlayer.playerStateStream.listen((playerState) {
+      final playing = playerState.playing;
+      final processingState = playerState.processingState;
       playbackState.add(playbackState.value.copyWith(
-        controls: [
-          MediaControl.skipToPrevious,
-          playing ? MediaControl.pause : MediaControl.play,
-          MediaControl.stop,
-          MediaControl.skipToNext,
-        ],
-        systemActions: const {
-          MediaAction.seek,
-          MediaAction.seekForward,
-          MediaAction.seekBackward,
-        },
-        androidCompactActionIndices: const [0, 1, 3],
-        processingState: {
-          PlayerState.stopped: AudioProcessingState.idle,
-          PlayerState.playing: AudioProcessingState.ready,
-          PlayerState.paused: AudioProcessingState.ready,
-          PlayerState.completed: AudioProcessingState.completed,
-          PlayerState.disposed: AudioProcessingState.idle, // Or handle appropriately
-        }[state] ?? AudioProcessingState.loading, // Default to loading or error
         playing: playing,
-        updatePosition: currentPosition, // Use fetched position
-        bufferedPosition: Duration.zero, // Placeholder as audioplayers does not provide bufferedPosition
-        speed: _audioPlayer.playbackRate, // Consider safety if player can be uninitialized
-        queueIndex: _currentIndex,
-        // Removed invalid 'duration' parameter
+        processingState: {
+          ProcessingState.idle: AudioProcessingState.idle,
+          ProcessingState.loading: AudioProcessingState.loading,
+          ProcessingState.buffering: AudioProcessingState.buffering,
+          ProcessingState.ready: AudioProcessingState.ready,
+          ProcessingState.completed: AudioProcessingState.completed,
+        }[processingState]!,
       ));
     });
 
-    _audioPlayer.onDurationChanged.listen((newDuration) {
+    _audioPlayer.durationStream.listen((newDuration) {
       final currentItem = mediaItem.value;
       
       if (currentItem == null) return; // No current item to update
@@ -150,19 +141,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       // Use currentItem.extras first, then fallback to handler's _isRadioStream as a secondary check.
       bool isRadio = currentItem.extras?['isRadio'] as bool? ?? _isRadioStream;
       
-      if (!isRadio) {
-        // Only update if duration is valid and different
-        if (newDuration > Duration.zero && currentItem.duration != newDuration) {
-          final updatedItem = currentItem.copyWith(duration: newDuration);
-          mediaItem.add(updatedItem); // Broadcast the change
-
-          // Update in _playlist if _currentIndex is valid and points to this item
-          if (_currentIndex >= 0 && _currentIndex < _playlist.length && 
-              _playlist[_currentIndex].id == updatedItem.id) {
-            _playlist[_currentIndex] = updatedItem;
-          }
-        
-          
+      if (!isRadio && newDuration != null) {
+        final newItem = currentItem.copyWith(duration: newDuration);
+        if (mediaItem.value != newItem) {
+          mediaItem.add(newItem);
         }
       }
       // If it IS a radio stream, we let onPositionChanged handle setting the duration
@@ -170,42 +152,24 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       // from stream metadata from being set on the MediaItem for radio.
     });
 
-    _audioPlayer.onPositionChanged.listen((position) {
+    _audioPlayer.positionStream.listen((position) {
        final currentMediaItem = mediaItem.value;
 
        if (_isRadioStream && currentMediaItem != null) {
-         final updatedItem = currentMediaItem.copyWith(duration: position);
-         mediaItem.add(updatedItem);
-
-         // Update in _playlist if _currentIndex is valid and points to this item
-         if (_currentIndex >= 0 && _currentIndex < _playlist.length &&
-             _playlist[_currentIndex].id == updatedItem.id) {
-           _playlist[_currentIndex] = updatedItem;
-         }
+        final newItem = currentMediaItem.copyWith(duration: position);
+        if (mediaItem.value != newItem) {
+          mediaItem.add(newItem);
+        }
        }
       playbackState.add(playbackState.value.copyWith(
         updatePosition: position,
       ));
     });
 
-    _audioPlayer.onPlayerComplete.listen((_) async {
-      if (playbackState.value.repeatMode == AudioServiceRepeatMode.one) {
-        await seek(Duration.zero);
-        // Explicitly update playback state to playing and position zero
-        playbackState.add(playbackState.value.copyWith(
-          playing: true,
-          processingState: AudioProcessingState.ready,
-          updatePosition: Duration.zero,
-        ));
-        await play();
-      } else {
-        if (_currentIndex + 1 < _playlist.length || playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
-          await skipToNext();
-        } else {
-          // Reached end of queue and not repeating all
-          playbackState.add(playbackState.value.copyWith(processingState: AudioProcessingState.completed));
-          // Optionally stop: await stop();
-        }
+    _audioPlayer.processingStateStream.listen((state) async {
+      if (state == ProcessingState.completed) {
+        // LoopMode.one is handled by the player, so we only need to handle other cases
+        await skipToNext();
       }
     });
   }
@@ -265,17 +229,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
-    if (playbackState.value.playing) return;
-   // if previously paused, just resume at current position
-   if (_lastPlayerState == PlayerState.paused) {
-     await _audioPlayer.resume();
-     return;
-   }
-    // fresh start or first play
-    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+    if (_audioPlayer.playing) return;
+    // If we are paused, resume.
+    if (_audioPlayer.processingState != ProcessingState.idle) {
+        await _audioPlayer.play();
+    } 
+    // If we are idle (stopped), start from current index.
+    else if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       await skipToQueueItem(_currentIndex);
-    } else {
-      debugPrint("Play called, but no valid current item is selected or playlist is empty. Current index: $_currentIndex, Playlist length: ${_playlist.length}");
     }
   }
 
@@ -390,28 +351,21 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     ));
 
     _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
-    Source source = (itemToPlay.extras?['isLocal'] as bool? ?? false)
-        ? DeviceFileSource(itemToPlay.id)
-        : UrlSource(itemToPlay.id);
+    
+    AudioSource source;
+    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
+      source = AudioSource.file(itemToPlay.id);
+    } else {
+      source = AudioSource.uri(Uri.parse(itemToPlay.id));
+    }
 
     try {
       // Ensure playback starts from the beginning of the track.
-      await _audioPlayer.play(source, position: Duration.zero);
-      // onPlayerStateChanged will update playing state
-      // immediately fetch the duration if available
-      final initialDur = await _audioPlayer.getDuration();
-      if (!_isRadioStream && initialDur != null && initialDur > Duration.zero) {
-        final cur = mediaItem.value;
-        if (cur != null && cur.duration != initialDur) {
-          final updated = cur.copyWith(duration: initialDur);
-          _playlist[_currentIndex] = updated;
-          mediaItem.add(updated);
-        }
-      }
+      await _audioPlayer.setAudioSource(source);
+      await _audioPlayer.play();
     } catch (e) {
       debugPrint("Error playing source ${itemToPlay.id}: $e");
       playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.error,
         playing: false,
       ));
     }
@@ -420,17 +374,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
     playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
-    // audioplayers specific loop mode if applicable, or handle in onPlayerComplete
     switch (repeatMode) {
         case AudioServiceRepeatMode.none:
-            _audioPlayer.setReleaseMode(ReleaseMode.stop);
+            await _audioPlayer.setLoopMode(LoopMode.off);
             break;
         case AudioServiceRepeatMode.one:
-            _audioPlayer.setReleaseMode(ReleaseMode.loop);
+            await _audioPlayer.setLoopMode(LoopMode.one);
             break;
         case AudioServiceRepeatMode.all:
         case AudioServiceRepeatMode.group: // Treat group as all for now
-            _audioPlayer.setReleaseMode(ReleaseMode.stop); // Handled by skipToNext logic
+            await _audioPlayer.setLoopMode(LoopMode.off); // Handled by skipToNext
             break;
     }
   }

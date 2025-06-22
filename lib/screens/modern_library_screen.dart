@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:convert'; // Required for jsonDecode
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Required for SharedPreferences
 import '../models/song.dart';
@@ -166,7 +165,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
   List<Playlist> _playlists = [];
   List<Album> _savedAlbums = []; // New list for saved albums
   List<RadioStation> _recentStations = []; // New list for recent stations
-  final AudioPlayer audioPlayer = AudioPlayer();
+  // final AudioPlayer audioPlayer = AudioPlayer(); // REMOVED
   // ignore: unused_field
   String? _currentlyPlayingSongPath;
   bool isPlaying = false;
@@ -213,13 +212,13 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     _albumManager.addListener(_onSavedAlbumsChanged); // Listen to AlbumManagerService
     radioRecentsManager.addListener(_loadRecentStations); // Listen for global changes
     
-    audioPlayer.onPlayerComplete.listen((event) {
-      setState(() {
-        isPlaying = false;
-        _currentlyPlayingSongPath = null;
-        // Consider updating based on CurrentSongProvider state if it's managing global playback
-      });
-    });
+    // audioPlayer.onPlayerComplete.listen((event) { // REMOVED
+    //   setState(() {
+    //     isPlaying = false;
+    //     _currentlyPlayingSongPath = null;
+    //     // Consider updating based on CurrentSongProvider state if it's managing global playback
+    //   });
+    // });
   }
 
   void _loadData() { // Renamed from _loadDataAndApplySort
@@ -355,7 +354,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
-    audioPlayer.dispose();
+    // audioPlayer.dispose(); // REMOVED
     _playlistNameController.dispose();
     _playlistManager.removeListener(_onPlaylistChanged);
     _albumManager.removeListener(_onSavedAlbumsChanged); // Remove listener
