@@ -165,38 +165,38 @@ class _TabViewState extends State<TabView> {
     ];
 
     return Scaffold(
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: widgetOptions.elementAt(_selectedIndex), // Use dynamic list
-            ),
-          ),
-          const Playbar(),
-        ],
+      body: Center(
+        child: widgetOptions.elementAt(_selectedIndex),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // Ensure icons and labels align properly
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search, size: 28), // Place search in the middle
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.library_music, size: 28), // Place library to the right of search
-            label: 'Library',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings, size: 28), // Keep settings at the end
-            label: 'Settings',
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Playbar(),
+          BottomNavigationBar(
+            type: BottomNavigationBarType.fixed, // Ensure icons and labels align properly
+            items: const <BottomNavigationBarItem>[
+              BottomNavigationBarItem(
+                icon: Icon(Icons.search, size: 28), // Place search in the middle
+                label: 'Search',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.library_music, size: 28), // Place library to the right of search
+                label: 'Library',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings, size: 28), // Keep settings at the end
+                label: 'Settings',
+              ),
+            ],
+            currentIndex: _selectedIndex,
+            selectedItemColor: Theme.of(context).colorScheme.primary, // Use theme's primary color
+            unselectedItemColor: Colors.grey, // Add unselected color for better contrast
+            onTap: _onItemTapped,
+            showUnselectedLabels: true, // Ensure labels are visible for all items
           ),
         ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Theme.of(context).colorScheme.primary, // Use theme's primary color
-        unselectedItemColor: Colors.grey, // Add unselected color for better contrast
-        onTap: _onItemTapped,
-        showUnselectedLabels: true, // Ensure labels are visible for all items
       ),
     );
   }
 }
+
