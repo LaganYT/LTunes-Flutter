@@ -1,7 +1,7 @@
 # TODO
 
 ## Search
-- Redo the search to show albums and artists in the search itself 
+- Redo the search to show albums and artists in the search itself
 - Add radio stations into this new search system (without need for a different tab to search for them)
 
 ## Features
@@ -15,7 +15,7 @@
 
 ## Bug Fixes
 - Fix: art not showing properly on audio session
-- Fix: have it resync the current lyric position on reopening the app 
+- Fix: have it resync the current lyric position on reopening the app
 
 ## Performance
 - try anything for making song playing faster
