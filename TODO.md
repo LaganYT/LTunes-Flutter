@@ -7,7 +7,7 @@
 ## Features
 - Show if a song is explicit, add explicit filter
 - make playbar show up in more places
-- when viewing the album or lyrics from the albums details page have them preloaded for faster load times
+- when viewing the album or lyrics from the song details page have them preloaded for faster load times
 - Also preload the artist page
 - Add more details to artist page (maybe using Spotify api?)
 - add ways to display errors (like failed to fetch error with bad connection or something)
