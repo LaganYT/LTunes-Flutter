@@ -104,7 +104,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     
     AudioSource source;
     if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
-      source = AudioSource.file(itemToPlay.id);
+      // Using Uri.file for local files is generally more robust.
+      source = AudioSource.uri(Uri.file(itemToPlay.id));
     } else {
       source = AudioSource.uri(Uri.parse(itemToPlay.id));
     }
