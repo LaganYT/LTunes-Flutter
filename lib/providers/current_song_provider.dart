@@ -188,6 +188,11 @@ class CurrentSongProvider with ChangeNotifier {
           playbackState.processingState == AudioProcessingState.buffering;
       // _isShuffling is now managed internally, no longer synced from handler
 
+      // If playback has just been paused, save the current state.
+      if (oldIsPlaying && !_isPlaying) {
+        _saveCurrentSongToStorage();
+      }
+
       // _totalDuration is managed by _mediaItemSubscription and _positionSubscription (for radio)
       if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
         notifyListeners();
@@ -395,6 +400,7 @@ class CurrentSongProvider with ChangeNotifier {
     if (_currentSongFromAppLogic != null) {
       await prefs.setString('current_song_v2', jsonEncode(_currentSongFromAppLogic!.toJson()));
       await prefs.setInt('current_index_v2', _currentIndexInAppQueue);
+      await prefs.setInt('current_position_v2', _currentPosition.inMilliseconds);
       List<String> queueJson = _queue.map((song) => jsonEncode(song.toJson())).toList();
       await prefs.setStringList('current_queue_v2', queueJson);
       if (_isShuffling && _unshuffledQueue.isNotEmpty) {
@@ -406,6 +412,7 @@ class CurrentSongProvider with ChangeNotifier {
     } else {
       await prefs.remove('current_song_v2');
       await prefs.remove('current_index_v2');
+      await prefs.remove('current_position_v2');
       await prefs.remove('current_queue_v2');
       await prefs.remove('current_unshuffled_queue_v2');
     }
@@ -418,6 +425,7 @@ class CurrentSongProvider with ChangeNotifier {
   Future<void> _loadCurrentSongFromStorage() async {
     final prefs = await SharedPreferences.getInstance();
     final songJson = prefs.getString('current_song_v2');
+    final savedPositionMilliseconds = prefs.getInt('current_position_v2');
 
     // Load and set loop mode
     final savedLoopModeIndex = prefs.getInt('loop_mode_v2');
@@ -466,6 +474,10 @@ class CurrentSongProvider with ChangeNotifier {
           // Prepare the item at the saved index without playing it.
           await _audioHandler.customAction('prepareToPlay', {'index': _currentIndexInAppQueue});
 
+          if (savedPositionMilliseconds != null) {
+            await _audioHandler.seek(Duration(milliseconds: savedPositionMilliseconds));
+          }
+
         } else if (_currentSongFromAppLogic != null) { // Handles single song or radio stream
           // For radio, fetchSongUrl will just return its existing audioUrl (the stream URL)
           // For regular song, it will fetch if necessary.
@@ -508,6 +520,9 @@ class CurrentSongProvider with ChangeNotifier {
                 'extras': mediaItem.extras,
               }
             });
+            if (savedPositionMilliseconds != null) {
+              await _audioHandler.seek(Duration(milliseconds: savedPositionMilliseconds));
+            }
           }
         }
         notifyListeners();
@@ -515,6 +530,7 @@ class CurrentSongProvider with ChangeNotifier {
         debugPrint('Error loading current song/queue from storage (v2): $e');
         await prefs.remove('current_song_v2');
         await prefs.remove('current_index_v2');
+        await prefs.remove('current_position_v2');
         await prefs.remove('current_queue_v2');
       }
     }
@@ -1647,7 +1663,6 @@ class CurrentSongProvider with ChangeNotifier {
         );
         needsUpdate = true;
       }
-    }
 
     if (song.isDownloaded && song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
       final directory = await getApplicationDocumentsDirectory();
@@ -1665,6 +1680,7 @@ class CurrentSongProvider with ChangeNotifier {
       await _persistSongMetadata(updatedSong);
       updateSongDetails(updatedSong);
     }
+  }
   }
 
   // playUrl is not used by current app structure, can be removed or adapted

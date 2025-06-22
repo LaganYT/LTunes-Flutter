@@ -426,13 +426,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> onTaskRemoved() async {
-    await stop();
+    await pause();
     return super.onTaskRemoved();
   }
 
   @override
   Future<void> onNotificationDeleted() async {
-    await stop(); // Or pause, depending on desired behavior
+    await pause(); // Or pause, depending on desired behavior
     return super.onNotificationDeleted();
   }
 

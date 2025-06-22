@@ -16,7 +16,6 @@
 ## Bug Fixes
 - Fix: art not showing properly on audio session
 - Fix: have it resync the current lyric position on reopening the app
-- Fix: save time of song, not just song so when I reopen the app it resumes from same spot in the song
 
 ## Performance
 - try anything for making song playing faster
