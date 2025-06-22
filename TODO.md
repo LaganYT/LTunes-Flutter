@@ -16,6 +16,7 @@
 ## Bug Fixes
 - Fix: art not showing properly on audio session
 - Fix: have it resync the current lyric position on reopening the app
+- For the queue have it scrolled down to the current song
 
 ## Performance
 - try anything for making song playing faster
