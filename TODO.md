@@ -14,7 +14,6 @@
 - add where the radio isn’t loading have a popup saying radio failed to load or something
 
 ## Bug Fixes
-- Fix: art not showing properly on audio session
 
 ## Performance
 - try anything for making song playing faster
