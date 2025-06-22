@@ -232,7 +232,6 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                                   final provider = Provider.of<CurrentSongProvider>(context, listen: false);
                                   if (!provider.isShuffling) provider.toggleShuffle();
                                   await provider.setQueue(_likedSongs, initialIndex: 0);
-                                  provider.playNext();
                                 }
                               : null,
                           icon: const Icon(Icons.shuffle),

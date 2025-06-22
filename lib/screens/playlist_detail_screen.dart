@@ -521,7 +521,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                     onPressed: hasSongs ? () {
                                       if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
                                       currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: 0); // Use currentPlaylist
-                                      currentSongProvider.playNext();
                                     } : null,
                                     icon: const Icon(Icons.shuffle),
                                     label: const Text('Shuffle'),

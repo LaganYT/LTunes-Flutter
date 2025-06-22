@@ -987,6 +987,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           position = Duration.zero;
                         }
 
+                        // Clamp position to be within [Duration.zero, duration] to prevent slider assertion errors.
+                        if (position > duration) {
+                          position = duration;
+                        }
+
                         // Update lyrics based on position
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                            if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position); // Only if synced

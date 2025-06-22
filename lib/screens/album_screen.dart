@@ -182,9 +182,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
   void _playAlbumShuffle() {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     if (widget.album.tracks.isNotEmpty) {
-      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0); // Initial index can be 0, shuffle handles the rest
-      currentSongProvider.audioHandler.setShuffleMode(AudioServiceShuffleMode.all);
-      currentSongProvider.playSong(widget.album.tracks.first); // Play the first song, handler will shuffle next
+      // Ensure shuffle is on
+      if (!currentSongProvider.isShuffling) {
+        currentSongProvider.toggleShuffle();
+      }
+      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0); // This will shuffle if needed and start playing
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),

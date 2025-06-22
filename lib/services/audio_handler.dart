@@ -13,7 +13,11 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
   Uri? artUri;
   if (song.albumArtUrl.isNotEmpty) {
     // If albumArtUrl is an absolute URL (http/https), parse it.
-    artUri = Uri.tryParse(song.albumArtUrl);
+    if (song.albumArtUrl.startsWith('http')) {
+      artUri = Uri.tryParse(song.albumArtUrl);
+    }
+    // For local files, we leave artUri as null. It will be resolved later
+    // by _resolveArtForItem into a proper file:// URI.
   }
 
   return MediaItem(
@@ -81,6 +85,36 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     // Load the queue from persistent storage if necessary (not implemented here)
     // For now, queue is managed by CurrentSongProvider sending updates.
+  }
+
+  Future<void> _prepareToPlay(int index) async {
+    if (index < 0 || index >= _playlist.length) return;
+    _currentIndex = index;
+
+    MediaItem itemToPlay = _playlist[_currentIndex];
+    itemToPlay = await _resolveArtForItem(itemToPlay);
+    _playlist[_currentIndex] = itemToPlay;
+    mediaItem.add(itemToPlay);
+
+    playbackState.add(playbackState.value.copyWith(
+        queueIndex: _currentIndex,
+    ));
+
+    _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
+    
+    AudioSource source;
+    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
+      source = AudioSource.file(itemToPlay.id);
+    } else {
+      source = AudioSource.uri(Uri.parse(itemToPlay.id));
+    }
+
+    try {
+      // Set source but do not play.
+      await _audioPlayer.setAudioSource(source);
+    } catch (e) {
+      debugPrint("Error setting source for ${itemToPlay.id}: $e");
+    }
   }
 
   // Renamed and repurposed _resolveArtUri to _resolveArtForItem
@@ -181,22 +215,22 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   }
 
   @override
-  Future<void> addQueueItem(MediaItem item) async {
-    _playlist.add(item);
+  Future<void> addQueueItem(MediaItem mediaItem) async {
+    _playlist.add(mediaItem);
     queue.add(List.unmodifiable(_playlist));
   }
 
   @override
-  Future<void> insertQueueItem(int index, MediaItem item) async {
-    _playlist.insert(index, item);
+  Future<void> insertQueueItem(int index, MediaItem mediaItem) async {
+    _playlist.insert(index, mediaItem);
     queue.add(List.unmodifiable(_playlist));
   }
 
   @override
-  Future<void> updateQueue(List<MediaItem> newQueue) async {
+  Future<void> updateQueue(List<MediaItem> queue) async {
     _playlist.clear();
-    _playlist.addAll(newQueue);
-    queue.add(List.unmodifiable(_playlist));
+    _playlist.addAll(queue);
+    this.queue.add(List.unmodifiable(_playlist));
     // If current index is out of bounds, reset it
     if (_currentIndex >= _playlist.length) {
         _currentIndex = _playlist.isNotEmpty ? 0 : -1;
@@ -268,31 +302,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> skipToNext() async {
     if (_playlist.isEmpty) return;
     
-    int newIndex = _currentIndex; // Start with current index
-
-    if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all && _playlist.length > 1) {
-        int tempIndex;
-        do {
-            tempIndex = DateTime.now().millisecondsSinceEpoch % _playlist.length;
-        } while (tempIndex == _currentIndex && _playlist.length > 1); // Ensure different if possible
-        newIndex = tempIndex;
-    } else {
-        newIndex++; // Move to next
-    }
+    int newIndex = _currentIndex + 1;
     
     if (newIndex >= _playlist.length) {
         if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
             newIndex = 0; // Wrap around for repeat all
         } else {
-            // Reached end of queue, not repeating all.
-            // Optionally, stop playback or mark as completed.
-            // For now, let's stop, consistent with onPlayerComplete behavior for non-repeating queue end.
-            await _audioPlayer.stop(); // Stop the player
-            playbackState.add(playbackState.value.copyWith(
-                processingState: AudioProcessingState.completed, // Or idle if stopping
-                playing: false));
-            // mediaItem.add(null); // Optionally clear media item
-            return; // Do not proceed to play
+            return; // Stop at the end if not repeating
         }
     }
     await skipToQueueItem(newIndex);
@@ -302,31 +318,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> skipToPrevious() async {
     if (_playlist.isEmpty) return;
 
-    int newIndex = _currentIndex; // Start with current index
-
-    if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all && _playlist.length > 1) {
-        int tempIndex;
-        do {
-            tempIndex = DateTime.now().millisecondsSinceEpoch % _playlist.length;
-        } while (tempIndex == _currentIndex && _playlist.length > 1);
-        newIndex = tempIndex;
-    } else {
-        newIndex--; // Move to previous
-    }
+    int newIndex = _currentIndex - 1;
 
     if (newIndex < 0) {
         if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
             newIndex = _playlist.length - 1; // Wrap around for repeat all
         } else {
-            // Reached beginning of queue, not repeating all.
-            // Behavior can vary: stop, go to first item and pause, or seek to 0 of current.
-            // For now, let's stop.
-            await _audioPlayer.stop();
-            playbackState.add(playbackState.value.copyWith(
-                processingState: AudioProcessingState.completed, // Or idle
-                playing: false));
-            // mediaItem.add(null);
-            return; // Do not proceed to play
+            return; // Stop at the beginning if not repeating
         }
     }
     await skipToQueueItem(newIndex);
@@ -334,40 +332,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   
   @override
   Future<void> skipToQueueItem(int index) async {
-    if (index < 0 || index >= _playlist.length) return;
-    _currentIndex = index;
-
-    MediaItem itemToPlay = _playlist[_currentIndex];
-    itemToPlay = await _resolveArtForItem(itemToPlay);
-    _playlist[_currentIndex] = itemToPlay;
-    mediaItem.add(itemToPlay);
-
-    // Update playback state with the new queue index BEFORE playing.
-    // The playing state will be updated by the onPlayerStateChanged listener.
-    playbackState.add(playbackState.value.copyWith(
-        queueIndex: _currentIndex,
-        // Removed invalid 'duration' parameter
-        // Reset processing state to loading/buffering if needed, or let onPlayerStateChanged handle it
-    ));
-
-    _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
-    
-    AudioSource source;
-    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
-      source = AudioSource.file(itemToPlay.id);
-    } else {
-      source = AudioSource.uri(Uri.parse(itemToPlay.id));
-    }
-
-    try {
-      // Ensure playback starts from the beginning of the track.
-      await _audioPlayer.setAudioSource(source);
-      await _audioPlayer.play();
-    } catch (e) {
-      debugPrint("Error playing source ${itemToPlay.id}: $e");
-      playbackState.add(playbackState.value.copyWith(
-        playing: false,
-      ));
+    await _prepareToPlay(index);
+    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+      try {
+        await _audioPlayer.play();
+      } catch (e) {
+        debugPrint("Error playing source ${_playlist[_currentIndex].id}: $e");
+        playbackState.add(playbackState.value.copyWith(
+          playing: false,
+        ));
+      }
     }
   }
 
@@ -398,21 +372,21 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   // Handle playing a specific media item, potentially adding it to queue
   @override
-  Future<void> playMediaItem(MediaItem item) async {
-    // The passed 'item' might have an unresolved artUri.
+  Future<void> playMediaItem(MediaItem mediaItem) async {
+    // The passed 'mediaItem' might have an unresolved artUri.
     // It will be resolved by skipToQueueItem after being placed in the playlist.
-    int index = _playlist.indexWhere((element) => element.id == item.id);
+    int index = _playlist.indexWhere((element) => element.id == mediaItem.id);
     
     if (index == -1) {
       // Item not in queue. For simplicity, clear current queue and add this item.
       // App specific logic might differ (e.g. add to end, play next, etc.)
       _playlist.clear();
-      _playlist.add(item); // Add the original item (art will be resolved by skipToQueueItem)
+      _playlist.add(mediaItem); // Add the original item (art will be resolved by skipToQueueItem)
       queue.add(List.unmodifiable(_playlist)); // Broadcast new queue
       index = 0; // It's now the first (and only) item
     } else {
-      // Item already in queue. We could update it if 'item' has new metadata.
-      _playlist[index] = item; // Replace existing item with potentially new metadata
+      // Item already in queue. We could update it if 'mediaItem' has new metadata.
+      _playlist[index] = mediaItem; // Replace existing item with potentially new metadata
                                // Art will be resolved by skipToQueueItem.
     }
     
@@ -464,31 +438,68 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   // Handle metadata‐update requests so MediaSession (and Bluetooth) sees new metadata
   @override
-  @override
   Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
     if (name == 'updateCurrentMediaItemMetadata') {
       final mediaMap = extras?['mediaItem'] as Map<String, dynamic>?;
       if (mediaMap != null) {
-        final updated = MediaItem(
+        final currentItem = mediaItem.value;
+        // Ensure we have a current item and a valid index
+        if (currentItem != null && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+          final newArtUri = mediaMap['artUri'] as String?;
+          final updatedItem = currentItem.copyWith(
+            title: mediaMap['title'] as String? ?? currentItem.title,
+            artist: mediaMap['artist'] as String? ?? currentItem.artist,
+            album: mediaMap['album'] as String? ?? currentItem.album,
+            artUri: (newArtUri != null && newArtUri.isNotEmpty) ? Uri.tryParse(newArtUri) : currentItem.artUri,
+            duration: (mediaMap['duration'] != null) ? Duration(milliseconds: mediaMap['duration'] as int) : currentItem.duration,
+            extras: (mediaMap['extras'] as Map<String, dynamic>?) ?? currentItem.extras,
+          );
+          // Update the item in the playlist to maintain state consistency
+          _playlist[_currentIndex] = updatedItem;
+          // Broadcast the updated media item
+          mediaItem.add(updatedItem);
+          // Broadcast the updated queue to reflect the metadata change
+          queue.add(List.unmodifiable(_playlist));
+        }
+      }
+    } else if (name == 'setQueueIndex') {
+      final index = extras?['index'] as int?;
+      if (index != null && index >= 0 && index < _playlist.length) {
+        // Only update the index, do not trigger playback.
+        // This is used for things like shuffle where the song should continue playing.
+        _currentIndex = index;
+        playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
+      }
+    } else if (name == 'prepareToPlay') {
+      final index = extras?['index'] as int?;
+      if (index != null) {
+        await _prepareToPlay(index);
+      }
+    } else if (name == 'prepareMediaItem') {
+      final mediaMap = extras?['mediaItem'] as Map<String, dynamic>?;
+      if (mediaMap != null) {
+        final artUriString = mediaMap['artUri'] as String?;
+        final durationMillis = mediaMap['duration'] as int?;
+        final mediaItemToPrepare = MediaItem(
           id: mediaMap['id'] as String,
           title: mediaMap['title'] as String,
           artist: mediaMap['artist'] as String?,
           album: mediaMap['album'] as String?,
-          artUri: mediaMap['artUri'] != null
-              ? Uri.tryParse(mediaMap['artUri'] as String)
-              : null,
-          duration: mediaMap['duration'] != null
-              ? Duration(milliseconds: mediaMap['duration'] as int)
-              : null,
-          extras: Map<String, dynamic>.from(mediaMap['extras'] as Map),
+          artUri: artUriString != null ? Uri.tryParse(artUriString) : null,
+          duration: durationMillis != null ? Duration(milliseconds: durationMillis) : null,
+          extras: mediaMap['extras'] as Map<String, dynamic>?,
         );
-        // update current item
-        mediaItem.add(updated);
-        // also sync into the queue list
-        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-          _playlist[_currentIndex] = updated;
+        // Logic from playMediaItem but without playing
+        int index = _playlist.indexWhere((element) => element.id == mediaItemToPrepare.id);
+        if (index == -1) {
+          _playlist.clear();
+          _playlist.add(mediaItemToPrepare);
           queue.add(List.unmodifiable(_playlist));
+          index = 0;
+        } else {
+          _playlist[index] = mediaItemToPrepare;
         }
+        await _prepareToPlay(index);
       }
     }
     return null;

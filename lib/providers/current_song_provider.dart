@@ -26,6 +26,8 @@ class CurrentSongProvider with ChangeNotifier {
   // bool _isLooping = false; // Replaced by LoopMode logic derived from audio_handler
   bool _isShuffling = false; // Manage shuffle state by shuffling queue once
   List<Song> _queue = [];
+  // ignore: unused_field
+  List<Song> _unshuffledQueue = [];
   int _currentIndexInAppQueue = -1; // Index in the _queue (app's perspective)
 
   DownloadManager? _downloadManager;
@@ -180,15 +182,14 @@ class CurrentSongProvider with ChangeNotifier {
     _playbackStateSubscription = _audioHandler.playbackState.listen((playbackState) {
       final oldIsPlaying = _isPlaying;
       final oldIsLoading = _isLoadingAudio;
-      final oldIsShuffling = _isShuffling;
 
       _isPlaying = playbackState.playing;
       _isLoadingAudio = playbackState.processingState == AudioProcessingState.loading ||
           playbackState.processingState == AudioProcessingState.buffering;
-      _isShuffling = playbackState.shuffleMode == AudioServiceShuffleMode.all;
+      // _isShuffling is now managed internally, no longer synced from handler
 
       // _totalDuration is managed by _mediaItemSubscription and _positionSubscription (for radio)
-      if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio || oldIsShuffling != _isShuffling) {
+      if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
         notifyListeners();
       }
     });
@@ -396,15 +397,22 @@ class CurrentSongProvider with ChangeNotifier {
       await prefs.setInt('current_index_v2', _currentIndexInAppQueue);
       List<String> queueJson = _queue.map((song) => jsonEncode(song.toJson())).toList();
       await prefs.setStringList('current_queue_v2', queueJson);
+      if (_isShuffling && _unshuffledQueue.isNotEmpty) {
+        List<String> unshuffledQueueJson = _unshuffledQueue.map((song) => jsonEncode(song.toJson())).toList();
+        await prefs.setStringList('current_unshuffled_queue_v2', unshuffledQueueJson);
+      } else {
+        await prefs.remove('current_unshuffled_queue_v2');
+      }
     } else {
       await prefs.remove('current_song_v2');
       await prefs.remove('current_index_v2');
       await prefs.remove('current_queue_v2');
+      await prefs.remove('current_unshuffled_queue_v2');
     }
     // Save loop mode
     await prefs.setInt('loop_mode_v2', _audioHandler.playbackState.value.repeatMode.index);
     // Save shuffle mode
-    await prefs.setBool('shuffle_mode_v2', _audioHandler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all);
+    await prefs.setBool('shuffle_mode_v2', _isShuffling);
   }
 
   Future<void> _loadCurrentSongFromStorage() async {
@@ -420,7 +428,7 @@ class CurrentSongProvider with ChangeNotifier {
     // Load and set shuffle mode
     final savedShuffleMode = prefs.getBool('shuffle_mode_v2') ?? false;
     _isShuffling = savedShuffleMode;
-    await _audioHandler.setShuffleMode(savedShuffleMode ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none);
+    await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none); // Always none, we manage it.
 
     if (songJson != null) {
       try {
@@ -439,12 +447,24 @@ class CurrentSongProvider with ChangeNotifier {
           _queue = queueJsonStrings.map((sJson) => Song.fromJson(jsonDecode(sJson))).toList();
         }
 
+        if (_isShuffling) {
+          List<String>? unshuffledQueueJsonStrings = prefs.getStringList('current_unshuffled_queue_v2');
+          if (unshuffledQueueJsonStrings != null) {
+            _unshuffledQueue = unshuffledQueueJsonStrings.map((sJson) => Song.fromJson(jsonDecode(sJson))).toList();
+          } else if (_queue.isNotEmpty) {
+            // Fallback: if shuffled but no unshuffled queue saved, it means something went wrong or it's an old version.
+            // We can't perfectly reconstruct the original order. We can leave _unshuffledQueue empty,
+            // so toggling shuffle off will just keep the current order.
+            _unshuffledQueue = List.from(_queue); // At least have something to revert to.
+          }
+        }
+
         // Restore state to audio_handler
         if (!isRadioStream && _queue.isNotEmpty && _currentIndexInAppQueue != -1 && _currentIndexInAppQueue < _queue.length) {
           final mediaItems = await Future.wait(_queue.map((s) async => await _prepareMediaItem(s)).toList());
           await _audioHandler.updateQueue(mediaItems);
-          await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
-          await _audioHandler.pause();
+          // Prepare the item at the saved index without playing it.
+          await _audioHandler.customAction('prepareToPlay', {'index': _currentIndexInAppQueue});
 
         } else if (_currentSongFromAppLogic != null) { // Handles single song or radio stream
           // For radio, fetchSongUrl will just return its existing audioUrl (the stream URL)
@@ -461,14 +481,33 @@ class CurrentSongProvider with ChangeNotifier {
             radioExtras['isRadio'] = true;
             radioExtras['songId'] = _currentSongFromAppLogic!.id; // Ensure original radio songId is used
             final radioMediaItem = mediaItem.copyWith(extras: radioExtras, id: _currentSongFromAppLogic!.audioUrl, title: _stationName ?? 'Unknown Station', artist: "Radio Station");
-            await _audioHandler.playMediaItem(radioMediaItem); // Use playMediaItem for consistency
-            await _audioHandler.pause();
+            // Prepare the radio item without playing it.
+            await _audioHandler.customAction('prepareMediaItem', {
+              'mediaItem': {
+                'id': radioMediaItem.id,
+                'title': radioMediaItem.title,
+                'artist': radioMediaItem.artist,
+                'album': radioMediaItem.album,
+                'artUri': radioMediaItem.artUri?.toString(),
+                'duration': radioMediaItem.duration?.inMilliseconds,
+                'extras': radioMediaItem.extras,
+              }
+            });
 
 
           } else {
-            await _audioHandler.updateQueue([mediaItem]);
-            await _audioHandler.skipToQueueItem(0);
-            await _audioHandler.pause();
+            // Prepare the single song item without playing it.
+            await _audioHandler.customAction('prepareMediaItem', {
+              'mediaItem': {
+                'id': mediaItem.id,
+                'title': mediaItem.title,
+                'artist': mediaItem.artist,
+                'album': mediaItem.album,
+                'artUri': mediaItem.artUri?.toString(),
+                'duration': mediaItem.duration?.inMilliseconds,
+                'extras': mediaItem.extras,
+              }
+            });
           }
         }
         notifyListeners();
@@ -784,18 +823,56 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> toggleShuffle() async {
-    final currentShuffleMode = _audioHandler.playbackState.value.shuffleMode;
-    final newMode = currentShuffleMode == AudioServiceShuffleMode.none
-        ? AudioServiceShuffleMode.all
-        : AudioServiceShuffleMode.none;
-    
-    await _audioHandler.setShuffleMode(newMode);
+    final newShuffleState = !_isShuffling;
+    _isShuffling = newShuffleState;
 
-    // The listener on playbackState will update _isShuffling and notify.
-    // For immediate UI feedback, we can update the state here too.
-    _isShuffling = newMode == AudioServiceShuffleMode.all;
+    if (_queue.isEmpty) {
+      notifyListeners();
+      _saveCurrentSongToStorage();
+      return;
+    }
+
+    final currentSongBeforeAction = _currentSongFromAppLogic;
+
+    if (newShuffleState) {
+      // Turning shuffle ON
+      _unshuffledQueue = List.from(_queue);
+      _queue.shuffle();
+    } else {
+      // Turning shuffle OFF
+      if (_unshuffledQueue.isNotEmpty) {
+        _queue = List.from(_unshuffledQueue);
+      }
+    }
+
+    // Find the new index of the current song
+    if (currentSongBeforeAction != null) {
+      _currentIndexInAppQueue = _queue.indexWhere((s) => s.id == currentSongBeforeAction.id);
+      if (_currentIndexInAppQueue == -1) {
+        _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
+        _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
+      }
+    } else {
+      _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
+      _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
+    }
+
+    // Update the audio handler with the new queue order
+    final mediaItems = await Future.wait(
+        _queue.map((s) => _prepareMediaItem(s)).toList()
+    );
+    await _audioHandler.updateQueue(mediaItems);
+    
+    // Update the current playing item's index in the handler without restarting the song.
+    if (_currentIndexInAppQueue != -1) {
+        await _audioHandler.customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+    }
+    
+    // The audio_handler's shuffle mode should always be NONE now.
+    await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
+    
     notifyListeners();
-    _saveCurrentSongToStorage();
+    await _saveCurrentSongToStorage();
   }
 
   Future<void> setQueue(List<Song> songs, {int initialIndex = 0}) async {
@@ -817,16 +894,32 @@ class CurrentSongProvider with ChangeNotifier {
         canonicalSongs.add(s);
       }
     }
+    _unshuffledQueue = List.from(canonicalSongs); // Always save the natural order
     _queue = List.from(canonicalSongs);
-    if (_queue.isNotEmpty && initialIndex >= 0 && initialIndex < _queue.length) {
-      _currentIndexInAppQueue = initialIndex;
+
+    if (_isShuffling) {
+      _queue.shuffle();
+    }
+
+    if (_queue.isNotEmpty) {
+      Song? initialSong;
+      if (initialIndex >= 0 && initialIndex < _unshuffledQueue.length) {
+        initialSong = _unshuffledQueue[initialIndex];
+      }
+
+      if (initialSong != null) {
+        _currentIndexInAppQueue = _queue.indexWhere((s) => s.id == initialSong!.id);
+        if (_currentIndexInAppQueue == -1) {
+          // Fallback if song not found (should not happen)
+          _currentIndexInAppQueue = 0;
+        }
+      } else {
+        _currentIndexInAppQueue = 0;
+      }
       _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
-    } else if (_queue.isEmpty) {
+    } else {
       _currentIndexInAppQueue = -1;
       _currentSongFromAppLogic = null;
-    } else {
-      _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
-      _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
     }
 
     final mediaItems = await Future.wait(
@@ -1612,3 +1705,4 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 }
+
