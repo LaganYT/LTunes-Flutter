@@ -6,7 +6,6 @@ import '../providers/current_song_provider.dart';
 import '../services/album_manager_service.dart';
 import '../widgets/full_screen_player.dart'; // For navigation to player
 import '../screens/song_detail_screen.dart'; // For navigation to song details
-import 'package:audio_service/audio_service.dart'; // Required for AudioServiceShuffleMode
 
 class AlbumScreen extends StatefulWidget {
   final Album album;
