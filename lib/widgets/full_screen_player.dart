@@ -675,7 +675,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           final indices = positions.map((p) => p.index);
           final minVisible = indices.reduce(min);
           final maxVisible = indices.reduce(max);
-          if (newIndex > minVisible + bufferLines && newIndex < maxVisible - bufferLines) {
+          if (newIndex < minVisible + bufferLines || newIndex > maxVisible - bufferLines) {
             _lyricsScrollController.scrollTo(
               index: newIndex,
               duration: const Duration(milliseconds: 300),
