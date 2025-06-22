@@ -21,6 +21,4 @@
 
 ## Potential Future Features
 - try adding podcast support
-- add shareplay support?
 - test adding the heart and download buttons next to the title/artist of the song
-- if possible add an auto installer on android (it fetches and then installs the apk file for you)
