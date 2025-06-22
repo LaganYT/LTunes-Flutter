@@ -16,7 +16,8 @@
 ## Bug Fixes
 - Fix: art not showing properly on audio session
 - Fix: have it resync the current lyric position on reopening the app
-- For the queue have it scrolled down to the current song
+- Fix: have the scaffold messages display above the playbar and not overlay it
+- Fix: when I cancel all downloads have the display update immediatly 
 
 ## Performance
 - try anything for making song playing faster
