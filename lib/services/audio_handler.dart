@@ -52,10 +52,17 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   // Stream<dynamic> get customEventStream => _customEventController.stream;
 
   AudioPlayerHandler() {
+    _audioPlayer.setAndroidAudioAttributes(
+      const AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.music,
+        usage: AndroidAudioUsage.media,
+      ),
+    );
     _notifyAudioHandlerAboutPlaybackEvents();
 
     // Listen to OS audio interruptions and resume playback when interruption ends
-    AudioSession.instance.then((session) {
+    AudioSession.instance.then((session) async {
+      await session.configure(const AudioSessionConfiguration.music());
       session.interruptionEventStream.listen((event) {
         if (event.begin) {
           switch (event.type) {
@@ -157,6 +164,18 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       final playing = playerState.playing;
       final processingState = playerState.processingState;
       playbackState.add(playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.stop,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [0, 1, 3],
         playing: playing,
         processingState: {
           ProcessingState.idle: AudioProcessingState.idle,
