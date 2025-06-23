@@ -1268,6 +1268,58 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     );
   }
 
+  // ignore: unused_element
+  Widget _buildSongTile(Song song) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage: song.albumArtUrl.isNotEmpty
+            ? NetworkImage(song.albumArtUrl)
+            : null,
+        child: song.albumArtUrl.isEmpty
+            ? const Icon(Icons.music_note)
+            : null,
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              song.title,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          if (song.isExplicit)
+            Container(
+              margin: const EdgeInsets.only(left: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(3.0),
+                border: Border.all(color: Colors.red, width: 0.5),
+              ),
+              child: Text(
+                'E',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+      subtitle: Text(
+        song.artist,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      trailing: song.isDownloaded
+          ? const Icon(Icons.download_done, color: Colors.green)
+          : null,
+      onTap: () {
+        // Play song logic
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // pick a small subset of _songs as "recently added"

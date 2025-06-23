@@ -15,7 +15,6 @@ import '../providers/current_song_provider.dart';
 import '../services/api_service.dart';
 import 'album_screen.dart';
 import 'lyrics_screen.dart';
-import 'artist_screen.dart';
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -375,6 +374,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
     final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
 
+    // ignore: unused_local_variable
     final Song songForDisplay; // Use a different variable for clarity
     if (isCurrentSongInProvider && currentSongProvider.currentSong != null) {
       songForDisplay = currentSongProvider.currentSong!;
@@ -422,50 +422,57 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                     : const Icon(Icons.album, size: 150),
               ),
               const SizedBox(height: 24),
-              Text(
-                songForDisplay.title, // Use songForDisplay
-                style: textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              // artist line replaced with InkWell
-              InkWell(
-                onTap: () {
-                  if (songForDisplay.artist.isNotEmpty) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ArtistScreen(artistId: songForDisplay.artist),
-                      ),
-                    );
-                  }
-                },
-                child: Text(
-                  songForDisplay.artist.isNotEmpty ? songForDisplay.artist : 'Unknown Artist',
-                  style: textTheme.titleMedium
-                      ?.copyWith(color: colorScheme.onSurfaceVariant, decoration: TextDecoration.underline),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              if (songForDisplay.album != null && songForDisplay.album!.isNotEmpty) ...[ // Use songForDisplay
-                const SizedBox(height: 4),
-                Text(
-                  '${songForDisplay.album!} ${songForDisplay.releaseDate != null && songForDisplay.releaseDate!.isNotEmpty ? "(${songForDisplay.releaseDate!})" : ""}', // Use songForDisplay
-                  style: textTheme.bodyLarge?.copyWith(
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              const SizedBox(height: 32),
               
-              // Row for Play/Pause and Download/Delete Buttons
+              // Song info section with explicit indicator
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.song.title,
+                                  style: Theme.of(context).textTheme.headlineSmall,
+                                ),
+                              ),
+                              if (widget.song.isExplicit)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 8.0),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4.0),
+                                    border: Border.all(color: Colors.red, width: 1.0),
+                                  ),
+                                  child: Text(
+                                    'E',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Text(
+                            widget.song.artist,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
               Row(
                 children: [
-                  // Play/Pause Button
                   Expanded(
                     child: SizedBox(
                       width: double.infinity, // Ensures button takes full width of Expanded

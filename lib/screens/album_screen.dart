@@ -313,6 +313,78 @@ class _AlbumScreenState extends State<AlbumScreen> {
     );
   }
 
+  // ignore: unused_element
+  Widget _buildTrackList() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: widget.album.tracks.length,
+      itemBuilder: (context, index) {
+        final track = widget.album.tracks[index];
+        return ListTile(
+          leading: Text(
+            '${index + 1}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  track.title,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              if (track.isExplicit)
+                Container(
+                  margin: const EdgeInsets.only(left: 8.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(3.0),
+                    border: Border.all(color: Colors.red, width: 0.5),
+                  ),
+                  child: Text(
+                    'E',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          subtitle: Text(
+            track.artist,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          trailing: track.duration != null
+              ? Text(
+                  _formatDuration(track.duration),
+                  style: Theme.of(context).textTheme.bodySmall,
+                )
+              : null,
+          onTap: () {
+            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+            currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
+            currentSongProvider.playSong(widget.album.tracks[index]);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+            );
+          },
+          onLongPress: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SongDetailScreen(song: track),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
