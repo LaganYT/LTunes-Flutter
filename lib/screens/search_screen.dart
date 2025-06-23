@@ -208,6 +208,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       return Scaffold(
         appBar: AppBar(
           title: const Text('Search'),
+          centerTitle: true,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(56),
             child: Padding(
@@ -244,6 +245,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search'),
+        centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(

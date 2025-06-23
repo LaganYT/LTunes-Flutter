@@ -452,6 +452,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
+        centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8.0), // Add padding around the ListView
