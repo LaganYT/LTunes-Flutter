@@ -792,7 +792,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           ),
         ),
         bottomNavigationBar: Container(
-          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
           child: const Playbar(),
         ),
       ),

@@ -127,7 +127,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
               },
             ),
       bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
         child: Playbar(),
       ),
     );

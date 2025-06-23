@@ -182,7 +182,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         tooltip: 'Create Playlist',
       ),
       bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
         child: Playbar(),
       ),
     );
