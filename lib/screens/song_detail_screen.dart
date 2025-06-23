@@ -4,16 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
-import '../services/playlist_manager_service.dart'; // Use PlaylistManagerService
+import '../models/album.dart'; // Add import for Album model
+import '../models/lyrics_data.dart'; // Add import for Lyrics model
+import '../services/playlist_manager_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart'; // Ensure this is imported
-import 'package:path/path.dart' as p; // Ensure this is imported
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
-import '../services/api_service.dart'; // Import ApiService
-import 'album_screen.dart'; // Import AlbumScreen
-import 'lyrics_screen.dart'; // Import the new LyricsScreen
-import 'artist_screen.dart';  // new import
+import '../services/api_service.dart';
+import 'album_screen.dart';
+import 'lyrics_screen.dart';
+import 'artist_screen.dart';
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -35,6 +37,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   bool _isLoadingAlbum = false; // For View Album button
   bool _isLoadingLyrics = false;
   String? _lyrics;
+  
+  // Add preloading variables
+  Album? _preloadedAlbum;
+  LyricsData? _preloadedLyrics;
+  bool _isPreloadingAlbum = false;
+  bool _isPreloadingLyrics = false;
+  // ignore: unused_field
+  String? _cachedAlbumId;
 
   @override
   void initState() {
@@ -50,6 +60,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         });
       }
     });
+
+    // Start preloading data
+    _preloadAlbumData();
+    _preloadLyricsData();
   }
 
   @override
@@ -167,10 +181,81 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     await prefs.setString('song_${song.id}', songData); // Use song.id for unique key
   }
 
+  Future<void> _preloadAlbumData() async {
+    if (widget.song.album == null || widget.song.album!.isEmpty || widget.song.artist.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isPreloadingAlbum = true;
+    });
+
+    try {
+      final apiService = ApiService();
+      final albumDetails = await apiService.getAlbum(widget.song.album!, widget.song.artist);
+      
+      if (mounted && albumDetails != null) {
+        setState(() {
+          _preloadedAlbum = albumDetails;
+          _cachedAlbumId = albumDetails.id; // Cache the album ID
+        });
+      }
+    } catch (e) {
+      debugPrint('Error preloading album data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreloadingAlbum = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _preloadLyricsData() async {
+    if (widget.song.id.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isPreloadingLyrics = true;
+    });
+
+    try {
+      final apiService = ApiService();
+      final lyricsData = await apiService.fetchLyrics(widget.song.artist, widget.song.title);
+      
+      if (mounted && lyricsData != null) {
+        setState(() {
+          _preloadedLyrics = lyricsData;
+          _lyrics = lyricsData.plainLyrics;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error preloading lyrics data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreloadingLyrics = false;
+        });
+      }
+    }
+  }
+
   Future<void> _viewAlbum(BuildContext context) async {
     if (widget.song.album == null || widget.song.album!.isEmpty || widget.song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Album information is not available for this song.')),
+      );
+      return;
+    }
+
+    // Use preloaded data if available
+    if (_preloadedAlbum != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AlbumScreen(album: _preloadedAlbum!),
+        ),
       );
       return;
     }
@@ -221,9 +306,25 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       return;
     }
 
+    // Use preloaded data if available
+    if (_preloadedLyrics != null && _lyrics != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LyricsScreen(
+            songTitle: widget.song.title,
+            lyrics: _lyrics!,
+            albumArtUrl: widget.song.albumArtUrl,
+            songId: widget.song.id, // Pass the current song ID as lyric ID
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoadingLyrics = true;
-      _lyrics = null; // Reset previous lyrics
+      _lyrics = null;
     });
 
     try {
@@ -232,15 +333,15 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
       if (mounted) {
         if (lyricsData != null) {
-          _lyrics = lyricsData.plainLyrics; // extract the string field
-          // Navigate to the new LyricsScreen
+          _lyrics = lyricsData.plainLyrics;
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => LyricsScreen(
                 songTitle: widget.song.title,
                 lyrics: _lyrics!,
-                albumArtUrl: widget.song.albumArtUrl, // Pass the album art URL
+                albumArtUrl: widget.song.albumArtUrl,
+                songId: widget.song.id, // Pass the current song ID as lyric ID
               ),
             ),
           );
@@ -467,11 +568,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   if (widget.song.album != null && widget.song.album!.isNotEmpty)
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: _isLoadingAlbum
+                        icon: (_isLoadingAlbum || _isPreloadingAlbum)
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                             : const Icon(Icons.album_outlined),
                         label: const Text('View Album'),
-                        onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
+                        onPressed: (_isLoadingAlbum || _isPreloadingAlbum) ? null : () => _viewAlbum(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).colorScheme.secondary,
                           foregroundColor: Theme.of(context).colorScheme.onSecondary,
@@ -487,11 +588,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   // View Lyrics button
                   Expanded(
                     child: ElevatedButton.icon(
-                      icon: _isLoadingLyrics
+                      icon: (_isLoadingLyrics || _isPreloadingLyrics)
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.lyrics_outlined),
                       label: const Text('View Lyrics'),
-                      onPressed: _isLoadingLyrics ? null : () => _fetchAndShowLyrics(context),
+                      onPressed: (_isLoadingLyrics || _isPreloadingLyrics) ? null : () => _fetchAndShowLyrics(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.tertiaryContainer,
                         foregroundColor: colorScheme.onTertiaryContainer,

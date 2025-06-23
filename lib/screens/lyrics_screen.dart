@@ -5,13 +5,15 @@ import 'dart:io';
 class LyricsScreen extends StatefulWidget {
   final String songTitle;
   final String lyrics;
-  final String albumArtUrl; // Added album art URL
+  final String albumArtUrl;
+  final String? songId; // Add optional songId parameter
 
   const LyricsScreen({
     super.key,
     required this.songTitle,
     required this.lyrics,
-    required this.albumArtUrl, // Made albumArtUrl required
+    required this.albumArtUrl,
+    this.songId, // Optional songId for identification
   });
 
   @override
