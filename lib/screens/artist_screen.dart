@@ -293,7 +293,16 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   }
 
   Widget _buildAlbums() {
-    if (_albums == null || _albums!.isEmpty) {
+    if (_albums == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+    if (_albums!.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32.0),
@@ -308,76 +317,124 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         crossAxisCount: 2,
         crossAxisSpacing: 16.0,
         mainAxisSpacing: 16.0,
-        childAspectRatio: 0.8,
+        childAspectRatio: 0.75,
       ),
       itemCount: _albums!.length,
       itemBuilder: (context, index) {
         final album = _albums![index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8.0),
-          child: ListTile(
-            leading: SizedBox(
-              width: 50,
-              height: 50,
-              child: album.fullAlbumArtUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(4.0),
-                      child: CachedNetworkImage(
-                        imageUrl: album.fullAlbumArtUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Icon(
-                          Icons.album,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant,
-                        borderRadius: BorderRadius.circular(4.0),
-                      ),
-                      child: Icon(
-                        Icons.album,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-            ),
-            title: Text(
-              album.title,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              album.releaseDate.isNotEmpty && album.releaseDate.length >= 4
-                  ? album.releaseDate.substring(0, 4)
-                  : 'Unknown Year',
-            ),
-            onTap: () async {
-              final api = ApiService();
-              try {
-                final fullAlbum = await api.fetchAlbumDetailsById(album.id);
-                if (fullAlbum != null && mounted) {
+        return GestureDetector(
+          onTap: () async {
+            // Show loading dialog
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (BuildContext context) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              },
+            );
+
+            final api = ApiService();
+            try {
+              final fullAlbum = await api.fetchAlbumDetailsById(album.id);
+              if (mounted) {
+                Navigator.pop(context); // Remove loading dialog
+                if (fullAlbum != null) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => AlbumScreen(album: fullAlbum),
                     ),
                   );
-                } else if (mounted) {
+                } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                         content: Text('Could not load album details.')),
                   );
                 }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
               }
-            },
+            } catch (e) {
+              if (mounted) {
+                Navigator.pop(context); // Remove loading dialog
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            }
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Album Cover
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12.0),
+                    child: album.fullAlbumArtUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: album.fullAlbumArtUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Theme.of(context).colorScheme.surfaceVariant,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Theme.of(context).colorScheme.surfaceVariant,
+                              child: Icon(
+                                Icons.album,
+                                size: 48,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            child: Icon(
+                              Icons.album,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Album Title
+              Text(
+                album.title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              
+              // Release Year
+              Text(
+                album.releaseDate.isNotEmpty && album.releaseDate.length >= 4
+                    ? album.releaseDate.substring(0, 4)
+                    : 'Unknown Year',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         );
       },

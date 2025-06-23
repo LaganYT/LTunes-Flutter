@@ -291,34 +291,35 @@ class ApiService {
 
   Future<List<Album>> getArtistAlbums(String artistId) async {
     try {
-      final response = await http.get(
-        Uri.parse('${baseUrl}artist/$artistId/albums'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        // The API response has a 'data' property which is an array of albums.
-        if (data is Map<String, dynamic> &&
-            data.containsKey('data') &&
-            data['data'] is List) {
-          final List<dynamic> albumList = data['data'];
-          return albumList
-              .map((albumData) =>
-                  Album.fromJson(albumData as Map<String, dynamic>))
-              .toList();
+      final response = await _get('${baseUrl}artist/$artistId/albums');
+      
+      final data = json.decode(response.body);
+      
+      // Handle different possible response structures
+      List<dynamic> albumList = [];
+      
+      if (data is List) {
+        // If the response is directly an array of albums
+        albumList = data;
+      } else if (data is Map<String, dynamic>) {
+        // If the response is an object with albums in a 'data' property
+        if (data.containsKey('data') && data['data'] is List) {
+          albumList = data['data'];
+        } else if (data.containsKey('albums') && data['albums'] is List) {
+          albumList = data['albums'];
+        } else {
+          // If the response object itself contains album data
+          return [Album.fromJson(data)];
         }
-
-        return [];
-      } else if (response.statusCode == 404) {
-        // Handle 404 specifically - return empty list
-        return [];
-      } else {
-        throw Exception(
-            'Failed to fetch artist albums: ${response.statusCode}');
       }
+      
+      return albumList
+          .map((albumData) => Album.fromJson(albumData as Map<String, dynamic>))
+          .toList();
+          
     } catch (e) {
-      throw Exception('Failed to fetch artist albums: $e');
+      debugPrint('Error fetching artist albums for ID "$artistId": $e');
+      return [];
     }
   }
 }
