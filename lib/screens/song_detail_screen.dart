@@ -16,6 +16,7 @@ import '../providers/current_song_provider.dart';
 import '../services/api_service.dart';
 import 'album_screen.dart';
 import 'lyrics_screen.dart';
+import 'artist_screen.dart'; // Import artist screen
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -441,6 +442,36 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
+  Future<void> _viewArtist(BuildContext context) async {
+    if (widget.song.artist.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Artist information is not available for this song.')),
+      );
+      return;
+    }
+
+    try {
+      // Use artistId if available, otherwise use artist name
+      final artistQuery = widget.song.artistId.isNotEmpty 
+          ? widget.song.artistId 
+          : widget.song.artist;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ArtistScreen(
+            artistId: artistQuery,
+            artistName: widget.song.artist,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error opening artist page: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context); // Listen to changes
@@ -545,10 +576,16 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      widget.song.artist,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      textAlign: TextAlign.center,
+                    GestureDetector(
+                      onTap: () => _viewArtist(context),
+                      child: Text(
+                        widget.song.artist,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.secondary,
+                          decoration: TextDecoration.underline,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                 ),

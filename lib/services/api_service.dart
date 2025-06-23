@@ -60,7 +60,7 @@ class ApiService {
     }
   }
 
-  Future<Album?> _fetchAlbumDetailsById(String albumId) async {
+  Future<Album?> fetchAlbumDetailsById(String albumId) async {
     if (_albumDetailCache.containsKey(albumId)) {
       return _albumDetailCache[albumId];
     }
@@ -80,7 +80,7 @@ class ApiService {
   Future<Album?> getAlbum(String albumName, String artistName) async {
     final albumId = await _searchForAlbumId(albumName, artistName);
     if (albumId != null) {
-      return await _fetchAlbumDetailsById(albumId);
+      return await fetchAlbumDetailsById(albumId);
     }
     return null;
   }
@@ -265,29 +265,22 @@ class ApiService {
 
   Future<Map<String, dynamic>> getArtistById(String query) async {
     try {
-      String artistId;
-
-      // If query is already a numeric ID, skip the search step
+      late String artistId;
       if (RegExp(r'^\d+$').hasMatch(query)) {
         artistId = query;
       } else {
-        // 1) Search for artists matching the query
         final searchUrl = '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
         final searchResp = await _get(searchUrl);
         final List<dynamic> results = jsonDecode(searchResp.body) as List<dynamic>;
-
         if (results.isEmpty) {
           throw Exception('No artists found for query: "$query"');
         }
-
-        // 2) Extract the first ART_ID
         artistId = results.first['ART_ID']?.toString() ?? '';
         if (artistId.isEmpty) {
           throw Exception('Artist ID missing in search results for "$query"');
         }
       }
 
-      // 3) Fetch full artist info by the resolved ID
       final detailUrl = '${baseUrl}artist/$artistId';
       final detailResp = await _get(detailUrl);
       return jsonDecode(detailResp.body) as Map<String, dynamic>;
@@ -295,5 +288,37 @@ class ApiService {
       throw Exception('getArtistById failed for "$query": $e');
     }
   }
-}
 
+  Future<List<Album>> getArtistAlbums(String artistId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${baseUrl}artist/$artistId/albums'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        // The API response has a 'data' property which is an array of albums.
+        if (data is Map<String, dynamic> &&
+            data.containsKey('data') &&
+            data['data'] is List) {
+          final List<dynamic> albumList = data['data'];
+          return albumList
+              .map((albumData) =>
+                  Album.fromJson(albumData as Map<String, dynamic>))
+              .toList();
+        }
+
+        return [];
+      } else if (response.statusCode == 404) {
+        // Handle 404 specifically - return empty list
+        return [];
+      } else {
+        throw Exception(
+            'Failed to fetch artist albums: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch artist albums: $e');
+    }
+  }
+}

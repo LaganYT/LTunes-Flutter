@@ -6,7 +6,7 @@ class Album {
   final String artistName;
   final String albumArtPictureId;
   final String releaseDate;
-  final List<Song> tracks;
+  List<Song> tracks;
   final String? upc;
   final int? durationSeconds; // Total album duration in seconds
   final int? trackCount;
