@@ -7,6 +7,7 @@ import '../models/playlist.dart';
 import '../models/album.dart'; // Add import for Album model
 import '../models/lyrics_data.dart'; // Add import for Lyrics model
 import '../services/playlist_manager_service.dart';
+import '../services/album_manager_service.dart'; // Add import for AlbumManagerService
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -45,6 +46,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   // ignore: unused_field
   String? _cachedAlbumId;
 
+  Set<String> _likedSongIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +66,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     // Start preloading data
     _preloadAlbumData();
     _preloadLyricsData();
+    _loadLikedSongIds();
   }
 
   @override
@@ -366,6 +370,77 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
+  Future<void> _loadLikedSongIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final ids = raw.map((s) {
+      try {
+        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+      } catch (_) {
+        return null;
+      }
+    }).whereType<String>().toSet();
+    if (mounted) {
+      setState(() {
+        _likedSongIds = ids;
+      });
+    }
+  }
+
+  Future<void> _toggleLike(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final isLiked = _likedSongIds.contains(song.id);
+
+    if (isLiked) {
+      // unlike, remove from list
+      raw.removeWhere((s) {
+        try {
+          return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
+        } catch (_) {
+          return false;
+        }
+      });
+      _likedSongIds.remove(song.id);
+    } else {
+      // like and queue if auto-download enabled
+      raw.add(jsonEncode(song.toJson()));
+      _likedSongIds.add(song.id);
+      final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
+      if (autoDL) {
+        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Queued "${song.title}" for download.')),
+        );
+      }
+    }
+
+    await prefs.setStringList('liked_songs', raw);
+    setState(() {});
+  }
+
+  Future<void> _saveAlbum() async {
+    if (_preloadedAlbum == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Album data not available')),
+      );
+      return;
+    }
+
+    try {
+      final albumManager = AlbumManagerService();
+      await albumManager.addSavedAlbum(_preloadedAlbum!);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Album "${_preloadedAlbum!.title}" saved to library')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving album: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context); // Listen to changes
@@ -402,6 +477,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           title: Text(widget.song.album ?? 'Song Details'),
           backgroundColor: Colors.transparent,
           elevation: 0,
+          actions: [
+            IconButton(
+              icon: _likedSongIds.contains(widget.song.id)
+                  ? Icon(Icons.favorite, color: Theme.of(context).colorScheme.secondary)
+                  : const Icon(Icons.favorite_border),
+              onPressed: () => _toggleLike(widget.song),
+            ),
+          ],
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -423,59 +506,61 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 24),
               
-              // Song info section with explicit indicator
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
+              // Song info section with explicit indicator - CENTERED
+              Container(
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  widget.song.title,
-                                  style: Theme.of(context).textTheme.headlineSmall,
-                                ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.song.title,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                        ),
+                        if (widget.song.isExplicit)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4.0),
+                              border: Border.all(color: Colors.red, width: 1.0),
+                            ),
+                            child: Text(
+                              'E',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
                               ),
-                              if (widget.song.isExplicit)
-                                Container(
-                                  margin: const EdgeInsets.only(left: 8.0),
-                                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4.0),
-                                    border: Border.all(color: Colors.red, width: 1.0),
-                                  ),
-                                  child: Text(
-                                    'E',
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                            ),
                           ),
-                          Text(
-                            widget.song.artist,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                        ],
-                      ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.song.artist,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
               ),
               
+              const SizedBox(height: 24),
+              
               Row(
                 children: [
                   Expanded(
                     child: SizedBox(
-                      width: double.infinity, // Ensures button takes full width of Expanded
+                      width: double.infinity,
                       child: ElevatedButton.icon(
                         icon: isLoadingThisSong
                             ? SizedBox(
@@ -489,7 +574,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                             : Icon(
                                 isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded,
                                 size: 28,
-                                color: colorScheme.onPrimary, // Explicitly set icon color
+                                color: colorScheme.onPrimary,
                               ), 
                         label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
@@ -513,11 +598,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16), // Spacing between buttons
+                  const SizedBox(width: 16),
 
                   // Download/Delete Button
                   Expanded(
-                    child: Column( // Column to handle progress bar and button
+                    child: Column(
                       children: [
                         if (currentSongProvider.isDownloadingSong && currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id)) ...[
                           LinearProgressIndicator(
@@ -529,19 +614,16 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                             'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
                             style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                           ),
-                          // To maintain consistent height with the button, add a placeholder or adjust padding
-                          // For simplicity, we'll let the button define the height when not downloading.
-                          // If a fixed height is needed, wrap the Text in a SizedBox or Container.
                         ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.tonalIcon(
                               icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
-                              label: Text('Delete', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer, fontSize: 16)), // Adjusted text
+                              label: Text('Delete', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer, fontSize: 16)),
                               style: FilledButton.styleFrom(
                                 backgroundColor: colorScheme.errorContainer,
                                 foregroundColor: colorScheme.onErrorContainer,
-                                padding: const EdgeInsets.symmetric(vertical: 16), // Match play button padding
+                                padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: _deleteSong,
@@ -552,9 +634,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                             width: double.infinity,
                             child: FilledButton.tonalIcon(
                               icon: const Icon(Icons.download_rounded),
-                              label: Text('Download', style: textTheme.labelLarge?.copyWith(fontSize: 16)), // Adjusted text
+                              label: Text('Download', style: textTheme.labelLarge?.copyWith(fontSize: 16)),
                                style: FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16), // Match play button padding
+                                padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: isRadioPlayingGlobal ? null : _downloadSong,
@@ -566,7 +648,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16), // Spacing after the button row
+              const SizedBox(height: 16),
 
               // Row for View Album and View Lyrics buttons
               Row(
@@ -574,21 +656,53 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   // View Album button
                   if (widget.song.album != null && widget.song.album!.isNotEmpty)
                     Expanded(
-                      child: ElevatedButton.icon(
-                        icon: (_isLoadingAlbum || _isPreloadingAlbum)
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.album_outlined),
-                        label: const Text('View Album'),
-                        onPressed: (_isLoadingAlbum || _isPreloadingAlbum) ? null : () => _viewAlbum(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.secondary,
-                          foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: GestureDetector(
+                        onLongPress: () {
+                          showModalBottomSheet(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return Container(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      leading: const Icon(Icons.album_outlined),
+                                      title: const Text('View Album'),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _viewAlbum(context);
+                                      },
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(Icons.bookmark_add),
+                                      title: const Text('Save Album'),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _saveAlbum();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                        child: ElevatedButton.icon(
+                          icon: (_isLoadingAlbum || _isPreloadingAlbum)
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.album_outlined),
+                          label: const Text('View Album'),
+                          onPressed: (_isLoadingAlbum || _isPreloadingAlbum) ? null : () => _viewAlbum(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.secondary,
+                            foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
                         ),
                       ),
                     ),
-                  // Add spacing if both buttons are visible
                   if (widget.song.album != null && widget.song.album!.isNotEmpty)
                     const SizedBox(width: 16),
               
@@ -610,7 +724,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24), // Spacing before Action Row
+              const SizedBox(height: 24),
 
               // Action Row: Add to Playlist & Add to Queue
               Row(
@@ -636,20 +750,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   ),
                 ],
               ),
-              // const SizedBox(height: 20), // This SizedBox might be redundant or need adjustment
-              // View Album button - MOVED UP
-              // if (widget.song.album != null && widget.song.album!.isNotEmpty)
-              //   ElevatedButton.icon(
-              //     icon: _isLoadingAlbum 
-              //           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
-              //           : const Icon(Icons.album_outlined),
-              //     label: const Text('View Album'),
-              //     onPressed: _isLoadingAlbum ? null : () => _viewAlbum(context),
-              //     style: ElevatedButton.styleFrom(
-              //       backgroundColor: Theme.of(context).colorScheme.secondary,
-              //       foregroundColor: Theme.of(context).colorScheme.onSecondary,
-              //     ),
-              //   ),
             ],
           ),
         ),

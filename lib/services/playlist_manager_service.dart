@@ -186,6 +186,7 @@ class PlaylistManagerService with ChangeNotifier {
     }
     if (changed) {
       _savePlaylists();
+      notifyListeners();
     }
   }
 
