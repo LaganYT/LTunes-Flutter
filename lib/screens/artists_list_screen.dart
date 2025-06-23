@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
+import '../widgets/playbar.dart';
 import 'songs_list_screen.dart';
 
 class ArtistsListScreen extends StatefulWidget {
@@ -82,53 +83,63 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
           ),
         ),
       ),
-      body: _artists.isEmpty
-          ? const Center(child: Text('No artists found.'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.8,
-              ),
-              itemCount: _artists.length,
-              itemBuilder: (c, i) {
-                final name = _artists[i];
-                final arts = _songs
-                    .where((s) => s.artist == name && s.albumArtUrl.isNotEmpty)
-                    .map((s) => s.albumArtUrl)
-                    .toList();
-                final artUrl = arts.isNotEmpty ? arts.first : '';
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SongsScreen(artistFilter: name),
-                    ),
+      body: Stack(
+        children: [
+          _artists.isEmpty
+              ? const Center(child: Text('No artists found.'))
+              : GridView.builder(
+                  padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 88), // Add bottom padding for playbar
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.8,
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      AspectRatio(
-                        aspectRatio: 1.0,
-                        child: ClipOval(
-                          child: _artistImage(artUrl),
+                  itemCount: _artists.length,
+                  itemBuilder: (c, i) {
+                    final name = _artists[i];
+                    final arts = _songs
+                        .where((s) => s.artist == name && s.albumArtUrl.isNotEmpty)
+                        .map((s) => s.albumArtUrl)
+                        .toList();
+                    final artUrl = arts.isNotEmpty ? arts.first : '';
+                    return GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongsScreen(artistFilter: name),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        name,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 1.0,
+                            child: ClipOval(
+                              child: _artistImage(artUrl),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            name,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                    );
+                  },
+                ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: const Playbar(),
+          ),
+        ],
+      ),
     );
   }
 }

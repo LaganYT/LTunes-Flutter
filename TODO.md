@@ -5,8 +5,6 @@
 - Add radio stations into this new search system (without need for a different tab to search for them)
 
 ## Features
-- make playbar show up in more places
-- Also preload the artist page
 - add ways to display errors (like failed to fetch error with bad connection or something)
 - add where the radio isn’t loading have a popup saying radio failed to load or something
 

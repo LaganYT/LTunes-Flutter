@@ -5,6 +5,7 @@ import '../models/song.dart';
 import '../models/album.dart';
 import 'song_detail_screen.dart';
 import 'album_screen.dart';
+import '../widgets/playbar.dart';
 
 class ArtistScreen extends StatefulWidget {
   final String artistId;
@@ -522,6 +523,10 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
             _buildAlbums(),
           ],
         ),
+      ),
+      bottomNavigationBar: const Padding(
+        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+        child: Playbar(),
       ),
     );
   }

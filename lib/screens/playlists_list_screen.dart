@@ -1,12 +1,13 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart';
 import 'playlist_detail_screen.dart';
 import '../providers/current_song_provider.dart';
+import '../widgets/playbar.dart';
 
 class PlaylistsScreen extends StatefulWidget {
   const PlaylistsScreen({super.key});
@@ -179,6 +180,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         onPressed: _createPlaylist,
         child: const Icon(Icons.add),
         tooltip: 'Create Playlist',
+      ),
+      bottomNavigationBar: const Padding(
+        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+        child: Playbar(),
       ),
     );
   }

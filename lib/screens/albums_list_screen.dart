@@ -5,6 +5,7 @@ import '../services/album_manager_service.dart';
 import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart';
 import 'album_screen.dart';
+import '../widgets/playbar.dart';
 
 class AlbumsListScreen extends StatefulWidget {
   const AlbumsListScreen({super.key});
@@ -125,6 +126,10 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                 );
               },
             ),
+      bottomNavigationBar: const Padding(
+        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+        child: Playbar(),
+      ),
     );
   }
 

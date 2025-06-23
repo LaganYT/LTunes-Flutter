@@ -171,7 +171,10 @@ class _TabViewState extends State<TabView> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Playbar(),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Playbar(),
+          ),
           BottomNavigationBar(
             type: BottomNavigationBarType.fixed, // Ensure icons and labels align properly
             items: const <BottomNavigationBarItem>[

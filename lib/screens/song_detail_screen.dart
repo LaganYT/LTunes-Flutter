@@ -17,6 +17,7 @@ import '../services/api_service.dart';
 import 'album_screen.dart';
 import 'lyrics_screen.dart';
 import 'artist_screen.dart'; // Import artist screen
+import '../widgets/playbar.dart'; // Add import for Playbar
 
 class SongDetailScreen extends StatefulWidget {
   final Song song;
@@ -789,6 +790,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
             ],
           ),
+        ),
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+          child: const Playbar(),
         ),
       ),
     );

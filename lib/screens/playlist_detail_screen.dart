@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'song_detail_screen.dart';
+import '../widgets/playbar.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -810,6 +811,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   },
                 ),
             ],
+          ),
+          bottomNavigationBar: const Padding(
+            padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+            child: Playbar(),
           ),
         );
       },

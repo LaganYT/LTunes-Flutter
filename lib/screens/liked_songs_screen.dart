@@ -11,6 +11,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
+import '../widgets/playbar.dart';
 
 class LikedSongsScreen extends StatefulWidget {
   const LikedSongsScreen({Key? key}) : super(key: key);
@@ -374,6 +375,10 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
             ),
           ],
         ],
+      ),
+      bottomNavigationBar: const Padding(
+        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 24.0),
+        child: Playbar(),
       ),
     );
   }

@@ -117,7 +117,7 @@ class _PlaybarState extends State<Playbar> {
         width: 48,
         height: 48,
         child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
-          borderRadius: BorderRadius.circular(4.0),
+          borderRadius: BorderRadius.circular(6.0),
           child: albumArtContent,
         ),
       ),
@@ -162,6 +162,8 @@ class _PlaybarState extends State<Playbar> {
         child: Material(
           elevation: 8.0,
           color: colorScheme.surfaceVariant.withOpacity(0.95),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          clipBehavior: Clip.antiAlias,
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 500),
             transitionBuilder: (Widget child, Animation<double> animation) {
