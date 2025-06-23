@@ -9,7 +9,7 @@
 - add where the radio isn’t loading have a popup saying radio failed to load or something
 
 ## Bug Fixes
-- 
+- Fix (iPhone) display of detached playbar, have it take up whole bottom area instead of rounded thing. (view on ios to see what i mean)
 
 ## Performance
 - try anything for making song playing faster
