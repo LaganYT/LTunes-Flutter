@@ -303,12 +303,9 @@ class CurrentSongProvider with ChangeNotifier {
     });
 
     _positionSubscription = AudioService.position.listen((position) {
+      notifyListeners();
+      
       bool needsNotifyForTotalDuration = false;
-      if (_currentPosition != position) {
-        _currentPosition = position;
-        // UI listening to AudioService.position will update the current seek time.
-        // No need to call notifyListeners() just for _currentPosition change if UI handles it.
-      }
 
       // Handle "live" duration for radio streams
       if (isCurrentlyPlayingRadio) {
@@ -1663,6 +1660,7 @@ class CurrentSongProvider with ChangeNotifier {
         );
         needsUpdate = true;
       }
+    }
 
     if (song.isDownloaded && song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
       final directory = await getApplicationDocumentsDirectory();
@@ -1680,7 +1678,6 @@ class CurrentSongProvider with ChangeNotifier {
       await _persistSongMetadata(updatedSong);
       updateSongDetails(updatedSong);
     }
-  }
   }
 
   // playUrl is not used by current app structure, can be removed or adapted
