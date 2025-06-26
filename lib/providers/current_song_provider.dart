@@ -303,8 +303,9 @@ class CurrentSongProvider with ChangeNotifier {
     });
 
     _positionSubscription = AudioService.position.listen((position) {
-      notifyListeners();
-      
+      _currentPosition = position; // <-- Always update current position
+      notifyListeners(); // <-- Always notify so UI (seekbar) is in sync
+
       bool needsNotifyForTotalDuration = false;
 
       // Handle "live" duration for radio streams
@@ -787,6 +788,8 @@ class CurrentSongProvider with ChangeNotifier {
     if (_currentSongFromAppLogic != null) {
       _isLoadingAudio = true; // UI feedback
       notifyListeners();
+      // Seek to the last known position before resuming playback
+      await _audioHandler.seek(_currentPosition);
       await _audioHandler.play();
       // _isLoadingAudio will be set to false by _listenToAudioHandler
     }
@@ -965,7 +968,10 @@ class CurrentSongProvider with ChangeNotifier {
       _isLoadingAudio = true;
       notifyListeners();
     }
-    _audioHandler.skipToNext();
+    _audioHandler.skipToNext().then((_) {
+      // If the current song is not downloaded, notify listeners so UI can update position/state.
+        notifyListeners();
+    });
   }
 
   Future<void> queueSongForDownload(Song song) async {
@@ -1632,6 +1638,11 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> seek(Duration position) async {
     await _audioHandler.seek(position);
+    // Remove manual position update and notification here.
+    // The _positionSubscription will handle updating _currentPosition
+    // and notifying listeners when the stream reports the new position.
+    // _currentPosition = position; // Immediately update local position for UI
+    // notifyListeners(); // Notify UI immediately after seek
   }
 
   Future<void> updateMissingMetadata(Song song) async {
@@ -1650,6 +1661,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     // Check for lyrics
+
     if (updatedSong.plainLyrics == null && updatedSong.syncedLyrics == null) {
       final apiService = ApiService();
       final newLyrics = await apiService.fetchLyrics(updatedSong.artist, updatedSong.title);
