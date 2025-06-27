@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p; // For path joining
 import 'dart:io'; // For File operations
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
+import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
 // ignore: unused_import
 import '../services/playlist_manager_service.dart';
 import '../services/api_service.dart'; // Import ApiService
@@ -66,6 +67,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable(); // Prevent sleep when player is open
     _apiService = ApiService();
 
     _textFadeController = AnimationController(
@@ -417,6 +419,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   @override
   void dispose() {
+    WakelockPlus.disable(); // Allow sleep when player is closed
     _currentSongProvider.removeListener(_onSongChanged);
     _textFadeController.dispose();
     _albumArtSlideController.dispose();
