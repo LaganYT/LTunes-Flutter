@@ -1638,11 +1638,8 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> seek(Duration position) async {
     await _audioHandler.seek(position);
-    // Remove manual position update and notification here.
-    // The _positionSubscription will handle updating _currentPosition
-    // and notifying listeners when the stream reports the new position.
-    // _currentPosition = position; // Immediately update local position for UI
-    // notifyListeners(); // Notify UI immediately after seek
+    _currentPosition = position; // Immediately update local position for UI
+    notifyListeners(); // Notify UI immediately after seek
   }
 
   Future<void> updateMissingMetadata(Song song) async {
