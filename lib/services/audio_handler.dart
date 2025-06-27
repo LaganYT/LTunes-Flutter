@@ -227,17 +227,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     });
 
     _audioPlayer.positionStream.listen((position) {
-       final currentMediaItem = mediaItem.value;
 
-       if (_isRadioStream && currentMediaItem != null) {
-        final newItem = currentMediaItem.copyWith(duration: position);
-        if (mediaItem.value != newItem) {
-          mediaItem.add(newItem);
-        }
-       }
-      playbackState.add(playbackState.value.copyWith(
-        updatePosition: position,
-      ));
+       // Remove radio-only duration update logic; always update position
+       // If you want to update MediaItem duration for radio, keep that logic, but always update playbackState
+
+       playbackState.add(playbackState.value.copyWith(
+         updatePosition: position,
+       ));
     });
 
     _audioPlayer.processingStateStream.listen((state) async {

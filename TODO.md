@@ -11,6 +11,7 @@
 
 ## Bug Fixes
 - Fix: ios background playback not working (ending after one song)
+- Fix: Seekbar and position not constantly being in sync when streaming a song from a url
 
 ## Performance
 - try anything for making song playing faster

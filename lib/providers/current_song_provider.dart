@@ -99,7 +99,7 @@ class CurrentSongProvider with ChangeNotifier {
   bool get isLoadingAudio => _isLoadingAudio;
   Duration? get totalDuration => _totalDuration;
   // Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Replaced
-  Stream<Duration> get onPositionChanged => AudioService.position;
+  Stream<Duration> get positionStream => AudioService.position;
 
   bool get isCurrentlyPlayingRadio {
     final mediaItem = _audioHandler.mediaItem.value;

@@ -1000,7 +1000,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 Column(
                   children: [
                     StreamBuilder<Duration>(
-                      stream: currentSongProvider.onPositionChanged,
+                      stream: currentSongProvider.positionStream, // Listen to the continuous position stream
                       builder: (context, snapshot) {
                         var position = snapshot.data ?? Duration.zero;
                         final duration = currentSongProvider.totalDuration ?? Duration.zero;
@@ -1013,9 +1013,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         }
 
                         // Clamp position to be within [Duration.zero, duration] to prevent slider assertion errors.
-                        if (position > duration) {
+                        /*if (position > duration) {
                           position = duration;
-                        }
+                        }*/
 
                         // Update lyrics based on position
                         WidgetsBinding.instance.addPostFrameCallback((_) {
