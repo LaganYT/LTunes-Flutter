@@ -58,6 +58,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         usage: AndroidAudioUsage.media,
       ),
     );
+
+    configureAudioSession();
+
     _notifyAudioHandlerAboutPlaybackEvents();
 
     // Listen to OS audio interruptions and resume playback when interruption ends
@@ -93,6 +96,23 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // Load the queue from persistent storage if necessary (not implemented here)
     // For now, queue is managed by CurrentSongProvider sending updates.
   }
+
+  Future<void> configureAudioSession() async {
+  final session = await AudioSession.instance;
+  await session.configure(AudioSessionConfiguration(
+    avAudioSessionCategory: AVAudioSessionCategory.playback,
+    avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
+        AVAudioSessionCategoryOptions.allowAirPlay |
+        AVAudioSessionCategoryOptions.defaultToSpeaker,
+    avAudioSessionMode: AVAudioSessionMode.defaultMode,
+    androidAudioAttributes: const AndroidAudioAttributes(
+      contentType: AndroidAudioContentType.music,
+      usage: AndroidAudioUsage.media,
+    ),
+    androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+    androidWillPauseWhenDucked: false,
+  ));
+}
 
   Future<void> _prepareToPlay(int index) async {
     if (index < 0 || index >= _playlist.length) return;
