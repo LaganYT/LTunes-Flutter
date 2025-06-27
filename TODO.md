@@ -10,7 +10,7 @@
 - Feature add: show download queue in notifications
 
 ## Bug Fixes
-- When the full screen player is open don't let the phone go to sleep
+- 
 
 ## Performance
 - try anything for making song playing faster
