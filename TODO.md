@@ -10,7 +10,7 @@
 - Feature add: show download queue in notifications
 
 ## Bug Fixes
-- 
+- Fix: ios background playback not working (ending after one song)
 
 ## Performance
 - try anything for making song playing faster
