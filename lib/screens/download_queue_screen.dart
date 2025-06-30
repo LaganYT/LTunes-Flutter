@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../providers/current_song_provider.dart';
 import '../models/song.dart'; // For Song model
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class DownloadQueueScreen extends StatefulWidget {
   const DownloadQueueScreen({super.key});
@@ -16,6 +17,30 @@ class DownloadQueueScreen extends StatefulWidget {
 
 class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
   bool _isCancelling = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ensure wakelock is set correctly when screen appears
+    final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _updateWakelock(provider);
+  }
+
+  void _updateWakelock(CurrentSongProvider provider) {
+    final bool hasDownloads = provider.activeDownloadTasks.isNotEmpty || provider.songsQueuedForDownload.isNotEmpty;
+    if (hasDownloads) {
+      WakelockPlus.enable();
+    } else {
+      WakelockPlus.disable();
+    }
+  }
+
+  @override
+  void dispose() {
+    // Disable wakelock when leaving the screen
+    WakelockPlus.disable();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +95,11 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
         children: [
           Consumer<CurrentSongProvider>(
             builder: (context, provider, child) {
+              // Update wakelock whenever the queue changes
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _updateWakelock(provider);
+              });
+
               final activeTasksMap = provider.activeDownloadTasks;
               final queuedSongsList = provider.songsQueuedForDownload;
               final downloadProgressMap = provider.downloadProgress;
