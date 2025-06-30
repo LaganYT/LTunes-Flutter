@@ -21,22 +21,21 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
   }
 
   return MediaItem(
-    id: playableUrl, // This MUST be the playable URL or local file path
+    id: playableUrl,
     title: song.title,
     artist: song.artist,
     album: song.album,
     artUri: artUri,
     duration: (duration != null && duration > Duration.zero)
         ? duration
-        : song.duration, // Use song duration from API if not provided
+        : song.duration,
     extras: {
-      'songId': song.id, // Original song ID from your app's model
+      'songId': song.id,
       'isLocal': song.isDownloaded,
-      // Only set localArtFileName if albumArtUrl is not an http/https URL and is not empty.
       'localArtFileName': (!song.albumArtUrl.startsWith('http') && song.albumArtUrl.isNotEmpty)
           ? song.albumArtUrl
           : null,
-      'isRadio': song.isRadio, // Use the new getter from Song model
+      'isRadio': song.isRadio,
     },
   );
 }
@@ -46,10 +45,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   final _playlist = <MediaItem>[];
   int _currentIndex = -1;
   bool _isRadioStream = false;
-
-  // Stream controllers for custom events or states if needed later
-  // final _customEventController = StreamController<dynamic>.broadcast();
-  // Stream<dynamic> get customEventStream => _customEventController.stream;
 
   AudioPlayerHandler() {
     _audioPlayer.setAndroidAudioAttributes(
@@ -209,36 +204,24 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     _audioPlayer.durationStream.listen((newDuration) {
       final currentItem = mediaItem.value;
-      
-      if (currentItem == null) return; // No current item to update
-
-      // Use currentItem.extras first, then fallback to handler's _isRadioStream as a secondary check.
+      if (currentItem == null) return;
       bool isRadio = currentItem.extras?['isRadio'] as bool? ?? _isRadioStream;
-      
       if (!isRadio && newDuration != null) {
         final newItem = currentItem.copyWith(duration: newDuration);
         if (mediaItem.value != newItem) {
           mediaItem.add(newItem);
         }
       }
-      // If it IS a radio stream, we let onPositionChanged handle setting the duration
-      // to the current position. This prevents potentially incorrect fixed durations (like 0:00)
-      // from stream metadata from being set on the MediaItem for radio.
     });
 
     _audioPlayer.positionStream.listen((position) {
-
-       // Remove radio-only duration update logic; always update position
-       // If you want to update MediaItem duration for radio, keep that logic, but always update playbackState
-
-       playbackState.add(playbackState.value.copyWith(
-         updatePosition: position,
-       ));
+      playbackState.add(playbackState.value.copyWith(
+        updatePosition: position,
+      ));
     });
 
     _audioPlayer.processingStateStream.listen((state) async {
       if (state == ProcessingState.completed) {
-        // LoopMode.one is handled by the player, so we only need to handle other cases
         await skipToNext();
       }
     });

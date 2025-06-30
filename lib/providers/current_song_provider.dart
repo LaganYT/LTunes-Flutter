@@ -67,6 +67,7 @@ class CurrentSongProvider with ChangeNotifier {
 
   // Getter for LoopMode based on AudioHandler's state
   LoopMode get loopMode {
+    // Always derive from audio_handler's playbackState
     final currentAudioHandlerMode = _audioHandler.playbackState.value.repeatMode;
     switch (currentAudioHandlerMode) {
       case AudioServiceRepeatMode.none:
@@ -75,7 +76,7 @@ class CurrentSongProvider with ChangeNotifier {
         return LoopMode.queue;
       case AudioServiceRepeatMode.one:
         return LoopMode.song;
-      default: // group or other unhandled states
+      default:
         return LoopMode.none;
     }
   }
@@ -99,7 +100,7 @@ class CurrentSongProvider with ChangeNotifier {
   bool get isLoadingAudio => _isLoadingAudio;
   Duration? get totalDuration => _totalDuration;
   // Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Replaced
-  Stream<Duration> get positionStream => AudioService.position;
+  Stream<Duration> get positionStream => AudioService.position; // UI should listen to this for seekbar
 
   bool get isCurrentlyPlayingRadio {
     final mediaItem = _audioHandler.mediaItem.value;
@@ -179,6 +180,7 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void _listenToAudioHandler() {
+    // Listen to playback state for play/pause/loading
     _playbackStateSubscription = _audioHandler.playbackState.listen((playbackState) {
       final oldIsPlaying = _isPlaying;
       final oldIsLoading = _isLoadingAudio;
@@ -186,19 +188,19 @@ class CurrentSongProvider with ChangeNotifier {
       _isPlaying = playbackState.playing;
       _isLoadingAudio = playbackState.processingState == AudioProcessingState.loading ||
           playbackState.processingState == AudioProcessingState.buffering;
-      // _isShuffling is now managed internally, no longer synced from handler
 
-      // If playback has just been paused, save the current state.
+      // Save state on pause
       if (oldIsPlaying && !_isPlaying) {
         _saveCurrentSongToStorage();
       }
 
-      // _totalDuration is managed by _mediaItemSubscription and _positionSubscription (for radio)
+      // Notify UI if play/pause/loading state changed
       if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
         notifyListeners();
       }
     });
 
+    // Listen to media item changes for song/metadata updates
     _mediaItemSubscription = _audioHandler.mediaItem.listen((mediaItem) async {
       bool needsNotification = false;
 
@@ -302,9 +304,10 @@ class CurrentSongProvider with ChangeNotifier {
       }
     });
 
+    // Listen to position stream for seekbar and lyrics sync
     _positionSubscription = AudioService.position.listen((position) {
-      _currentPosition = position; // <-- Always update current position
-      notifyListeners(); // <-- Always notify so UI (seekbar) is in sync
+      _currentPosition = position;
+      notifyListeners(); // UI seekbar and lyrics sync
 
       bool needsNotifyForTotalDuration = false;
 
@@ -683,16 +686,9 @@ class CurrentSongProvider with ChangeNotifier {
         if (indexInExistingQueue != -1) {
           // Song is part of the existing _queue. Play from this queue.
           _currentIndexInAppQueue = indexInExistingQueue;
-          // Ensure _currentSongFromAppLogic points to the instance from _queue,
-          // as it might have been updated by a previous _prepareMediaItem call or other logic.
           _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
 
-          // Refresh the entire queue in AudioHandler.
-          // This ensures that if radio was playing, or if any song URLs needed re-fetching,
-          // the handler gets the latest set of MediaItems.
-          // _prepareMediaItem will be called for each song in _queue.
-          // If a song's URL is fetched, _prepareMediaItem updates that Song object within _queue
-          // and potentially _currentSongFromAppLogic if it's the current song.
+          // Prepare queue for handler, ensuring MediaItems are up to date
           List<MediaItem> fullQueueMediaItems = await Future.wait(
             _queue.map((sInQueue) => _prepareMediaItem(sInQueue)).toList()
           );
@@ -706,12 +702,10 @@ class CurrentSongProvider with ChangeNotifier {
           // if its URL changes (due to the side effect in _prepareMediaItem).
           MediaItem mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
           if (currentPlayRequest != _playRequestCounter) return;
-          // After _prepareMediaItem, _currentSongFromAppLogic is the definitive Song object.
           _queue = [_currentSongFromAppLogic!];
           _currentIndexInAppQueue = 0;
           await _audioHandler.updateQueue([mediaItem]);
         }
-        // _currentSongFromAppLogic should be correct now, pointing to the actual instance being played.
         if (currentPlayRequest != _playRequestCounter) return;
         await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
       }
@@ -784,11 +778,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void resumeSong() async {
-    // _audioHandler.play() will resume if paused on the current item.
     if (_currentSongFromAppLogic != null) {
-      _isLoadingAudio = true; // UI feedback
+      _isLoadingAudio = true;
       notifyListeners();
-      // Seek to the last known position before resuming playback
       await _audioHandler.seek(_currentPosition);
       await _audioHandler.play();
       // _isLoadingAudio will be set to false by _listenToAudioHandler
@@ -800,18 +792,9 @@ class CurrentSongProvider with ChangeNotifier {
     _currentSongFromAppLogic = null;
     _totalDuration = null;
     _currentIndexInAppQueue = -1;
-    _isLoadingAudio = false; // Ensure loading is false on stop
-    // _queue.clear(); // Decide if stopping clears the queue
-    // await _audioHandler.updateQueue([]);
-
-    // Reset modes to default on explicit stop, or retain user preference
-    // For now, let's retain user preference as it's saved/loaded separately.
-    // If you want to reset them:
-    // await _audioHandler.setRepeatMode(AudioServiceRepeatMode.none);
-    // await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
-
+    _isLoadingAudio = false;
     notifyListeners();
-    _saveCurrentSongToStorage(); // Save cleared state (and current modes)
+    _saveCurrentSongToStorage();
   }
 
   void toggleLoop() {
@@ -819,23 +802,21 @@ class CurrentSongProvider with ChangeNotifier {
     AudioServiceRepeatMode nextMode;
     switch (currentMode) {
       case AudioServiceRepeatMode.none:
-        nextMode = AudioServiceRepeatMode.all; // -> Loop Queue
+        nextMode = AudioServiceRepeatMode.all;
         break;
       case AudioServiceRepeatMode.all:
-        nextMode = AudioServiceRepeatMode.one; // -> Loop Song
+        nextMode = AudioServiceRepeatMode.one;
         break;
       case AudioServiceRepeatMode.one:
-        nextMode = AudioServiceRepeatMode.none; // -> Loop Off
+        nextMode = AudioServiceRepeatMode.none;
         break;
-      default: // group or other unhandled states
+      default:
         nextMode = AudioServiceRepeatMode.none;
         break;
     }
     _audioHandler.setRepeatMode(nextMode);
-    // No need to call notifyListeners() here if UI listens to _audioHandler.playbackState
-    // However, if FullScreenPlayer relies on provider's loopMode getter, then notify.
     notifyListeners();
-    _saveCurrentSongToStorage(); // Save the new mode
+    _saveCurrentSongToStorage();
   }
 
   Future<void> toggleShuffle() async {
@@ -851,11 +832,9 @@ class CurrentSongProvider with ChangeNotifier {
     final currentSongBeforeAction = _currentSongFromAppLogic;
 
     if (newShuffleState) {
-      // Turning shuffle ON
       _unshuffledQueue = List.from(_queue);
       _queue.shuffle();
     } else {
-      // Turning shuffle OFF
       if (_unshuffledQueue.isNotEmpty) {
         _queue = List.from(_unshuffledQueue);
       }
@@ -1727,4 +1706,3 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 }
-

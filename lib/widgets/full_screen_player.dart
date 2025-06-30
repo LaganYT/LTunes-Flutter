@@ -1000,28 +1000,22 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 Column(
                   children: [
                     StreamBuilder<Duration>(
-                      stream: currentSongProvider.positionStream, // Listen to the continuous position stream
+                      stream: currentSongProvider.positionStream, // Listen to provider's position stream
                       builder: (context, snapshot) {
                         var position = snapshot.data ?? Duration.zero;
                         final duration = currentSongProvider.totalDuration ?? Duration.zero;
-                        
-                        // When looping a single song, the position reported can exceed the duration
-                        // just before it loops. To provide a smoother UI experience and show it
-                        // resetting to 0:00 as requested, we adjust the position value here.
                         if (isPlaying && loopMode == LoopMode.song && !isRadio && duration > Duration.zero && position >= duration) {
                           position = Duration.zero;
                         }
-
-                        // Clamp position to be within [Duration.zero, duration] to prevent slider assertion errors.
-                        /*if (position > duration) {
+                        // Clamp position to be within [Duration.zero, duration]
+                        if (position > duration && duration > Duration.zero) {
                           position = duration;
-                        }*/
+                        }
 
                         // Update lyrics based on position
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                           if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position); // Only if synced
+                           if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position);
                         });
-
                         return Column(
                           children: [
                             SliderTheme(
@@ -1076,7 +1070,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                        iconSize: 42,
                        color: colorScheme.onBackground,
                        onPressed: () {
-                        _slideOffsetX = -1.0; // Slide from left
+                        _slideOffsetX = -1.0;
                         currentSongProvider.playPrevious();
                        },
                        tooltip: 'Previous Song',
@@ -1115,7 +1109,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                        iconSize: 42,
                        color: colorScheme.onBackground,
                        onPressed: () {
-                         _slideOffsetX = 1.0; // Slide from right
+                         _slideOffsetX = 1.0;
                          currentSongProvider.playNext();
                        },
                        tooltip: 'Next Song',
