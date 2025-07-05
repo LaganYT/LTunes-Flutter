@@ -179,6 +179,37 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       ));
     } catch (e) {
       debugPrint("Error setting source for ${itemToPlay.id}: $e");
+      
+      // Show error dialog for radio streams
+      if (_isRadioStream) {
+        _showRadioErrorDialog(itemToPlay.title);
+      }
+    }
+  }
+
+  // Helper method to show radio error dialog
+  void _showRadioErrorDialog(String stationName) {
+    // Use the global navigator key to show dialog from anywhere
+    final navigator = globalNavigatorKey.currentState;
+    if (navigator != null) {
+      showDialog(
+        context: navigator.context,
+        barrierDismissible: true,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Radio Stream Error'),
+            content: Text('Failed to load radio station "$stationName". The stream may be temporarily unavailable or the URL may be invalid.'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('OK'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
     }
   }
 
@@ -303,12 +334,26 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           // For repeat one, the just_audio loop mode should handle this automatically
           // But we need to ensure the UI state is correct
           if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-            await _prepareToPlay(_currentIndex);
-            await _audioPlayer.play();
+            try {
+              await _prepareToPlay(_currentIndex);
+              await _audioPlayer.play();
+            } catch (e) {
+              debugPrint("Error repeating song: $e");
+              if (_isRadioStream) {
+                _showRadioErrorDialog(_playlist[_currentIndex].title);
+              }
+            }
           }
         } else {
           // For other modes, try to play next song
-          await skipToNext();
+          try {
+            await skipToNext();
+          } catch (e) {
+            debugPrint("Error skipping to next song: $e");
+            if (_isRadioStream && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+              _showRadioErrorDialog(_playlist[_currentIndex].title);
+            }
+          }
         }
       }
     });
@@ -374,22 +419,31 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // Ensure audio session is active before playing
     await _ensureAudioSessionActive();
 
-    // If we are idle (e.g., stopped or just started), we need to prepare the source.
-    if (_audioPlayer.processingState == ProcessingState.idle) {
-      if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-        await _prepareToPlay(_currentIndex);
+    try {
+      // If we are idle (e.g., stopped or just started), we need to prepare the source.
+      if (_audioPlayer.processingState == ProcessingState.idle) {
+        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+          await _prepareToPlay(_currentIndex);
+          await _audioPlayer.play();
+        }
+      } 
+      // If we are paused or have completed a seek, we can just play.
+      else if (_audioPlayer.processingState == ProcessingState.ready) {
+        await _audioPlayer.play();
+      } 
+      // If we are in any other state (loading, buffering, completed), and not playing,
+      // it's safest to just call play and let just_audio handle it.
+      // This covers resuming from a completed state to replay, or from buffering.
+      else {
         await _audioPlayer.play();
       }
-    } 
-    // If we are paused or have completed a seek, we can just play.
-    else if (_audioPlayer.processingState == ProcessingState.ready) {
-      await _audioPlayer.play();
-    } 
-    // If we are in any other state (loading, buffering, completed), and not playing,
-    // it's safest to just call play and let just_audio handle it.
-    // This covers resuming from a completed state to replay, or from buffering.
-    else {
-      await _audioPlayer.play();
+    } catch (e) {
+      debugPrint("Error playing audio: $e");
+      
+      // Show error dialog for radio streams
+      if (_isRadioStream && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+        _showRadioErrorDialog(_playlist[_currentIndex].title);
+      }
     }
   }
 
@@ -436,7 +490,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
             return;
         }
     }
-    await skipToQueueItem(newIndex);
+    try {
+      await skipToQueueItem(newIndex);
+    } catch (e) {
+      debugPrint("Error skipping to next: $e");
+      if (_isRadioStream && newIndex >= 0 && newIndex < _playlist.length) {
+        _showRadioErrorDialog(_playlist[newIndex].title);
+      }
+    }
   }
 
   @override
@@ -454,7 +515,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
             return;
         }
     }
-    await skipToQueueItem(newIndex);
+    try {
+      await skipToQueueItem(newIndex);
+    } catch (e) {
+      debugPrint("Error skipping to previous: $e");
+      if (_isRadioStream && newIndex >= 0 && newIndex < _playlist.length) {
+        _showRadioErrorDialog(_playlist[newIndex].title);
+      }
+    }
   }
   
   @override
@@ -477,6 +545,11 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         playbackState.add(playbackState.value.copyWith(
           playing: false,
         ));
+        
+        // Show error dialog for radio streams
+        if (_isRadioStream) {
+          _showRadioErrorDialog(_playlist[_currentIndex].title);
+        }
       }
     }
   }
@@ -509,50 +582,69 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   // Handle playing a specific media item, potentially adding it to queue
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
-    // The passed 'mediaItem' might have an unresolved artUri.
-    // It will be resolved by skipToQueueItem after being placed in the playlist.
-    int index = _playlist.indexWhere((element) => element.id == mediaItem.id);
-    
-    if (index == -1) {
-      // Item not in queue. For simplicity, clear current queue and add this item.
-      // App specific logic might differ (e.g. add to end, play next, etc.)
-      _playlist.clear();
-      _playlist.add(mediaItem); // Add the original item (art will be resolved by skipToQueueItem)
-      queue.add(List.unmodifiable(_playlist)); // Broadcast new queue
-      index = 0; // It's now the first (and only) item
-    } else {
-      // Item already in queue. We could update it if 'mediaItem' has new metadata.
-      _playlist[index] = mediaItem; // Replace existing item with potentially new metadata
-                               // Art will be resolved by skipToQueueItem.
+    try {
+      // The passed 'mediaItem' might have an unresolved artUri.
+      // It will be resolved by skipToQueueItem after being placed in the playlist.
+      int index = _playlist.indexWhere((element) => element.id == mediaItem.id);
+      
+      if (index == -1) {
+        // Item not in queue. For simplicity, clear current queue and add this item.
+        // App specific logic might differ (e.g. add to end, play next, etc.)
+        _playlist.clear();
+        _playlist.add(mediaItem); // Add the original item (art will be resolved by skipToQueueItem)
+        queue.add(List.unmodifiable(_playlist)); // Broadcast new queue
+        index = 0; // It's now the first (and only) item
+      } else {
+        // Item already in queue. We could update it if 'mediaItem' has new metadata.
+        _playlist[index] = mediaItem; // Replace existing item with potentially new metadata
+                                 // Art will be resolved by skipToQueueItem.
+      }
+      
+      await skipToQueueItem(index);
+    } catch (e) {
+      debugPrint("Error playing media item ${mediaItem.title}: $e");
+      
+      // Show error dialog for radio streams
+      if (mediaItem.extras?['isRadio'] as bool? ?? false) {
+        _showRadioErrorDialog(mediaItem.title);
+      }
     }
-    
-    await skipToQueueItem(index);
   }
 
   @override
   Future<void> playFromMediaId(String mediaId, [Map<String, dynamic>? extras]) async {
-    // This method is called when a media ID is received, e.g., from a voice command.
-    // We need to find the MediaItem with this ID in our playlist or fetch it.
-    // For now, assuming mediaId is the playable URL/path.
-    final index = _playlist.indexWhere((item) => item.id == mediaId);
-    if (index != -1) {
-      await skipToQueueItem(index);
-    } else {
-      if (Uri.tryParse(mediaId)?.isAbsolute ?? false) {
-        final newItem = MediaItem(
-          id: mediaId, 
-          title: extras?['title'] as String? ?? mediaId.split('/').last, 
-          artist: extras?['artist'] as String? ?? "Unknown Artist",
-          album: extras?['album'] as String?,
-          artUri: extras?['artUri'] is String ? Uri.tryParse(extras!['artUri']) : null,
-          extras: extras, // Pass along all extras
-        );
-        // Add to queue (art will be resolved by skipToQueueItem)
-        _playlist.add(newItem);
-        queue.add(List.unmodifiable(_playlist));
-        await skipToQueueItem(_playlist.length - 1); // Play the newly added item
+    try {
+      // This method is called when a media ID is received, e.g., from a voice command.
+      // We need to find the MediaItem with this ID in our playlist or fetch it.
+      // For now, assuming mediaId is the playable URL/path.
+      final index = _playlist.indexWhere((item) => item.id == mediaId);
+      if (index != -1) {
+        await skipToQueueItem(index);
       } else {
-        debugPrint("AudioPlayerHandler: Cannot play from mediaId '$mediaId' - not found in queue and not a URL.");
+        if (Uri.tryParse(mediaId)?.isAbsolute ?? false) {
+          final newItem = MediaItem(
+            id: mediaId, 
+            title: extras?['title'] as String? ?? mediaId.split('/').last, 
+            artist: extras?['artist'] as String? ?? "Unknown Artist",
+            album: extras?['album'] as String?,
+            artUri: extras?['artUri'] is String ? Uri.tryParse(extras!['artUri']) : null,
+            extras: extras, // Pass along all extras
+          );
+          // Add to queue (art will be resolved by skipToQueueItem)
+          _playlist.add(newItem);
+          queue.add(List.unmodifiable(_playlist));
+          await skipToQueueItem(_playlist.length - 1); // Play the newly added item
+        } else {
+          debugPrint("AudioPlayerHandler: Cannot play from mediaId '$mediaId' - not found in queue and not a URL.");
+        }
+      }
+    } catch (e) {
+      debugPrint("Error playing from media ID $mediaId: $e");
+      
+      // Show error dialog for radio streams
+      if (extras?['isRadio'] as bool? ?? false) {
+        final title = extras?['title'] as String? ?? mediaId.split('/').last;
+        _showRadioErrorDialog(title);
       }
     }
   }

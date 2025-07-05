@@ -5,7 +5,6 @@
 
 ## Features
 - add ways to display errors (like failed to fetch error with bad connection or something)
-- add where the radio isn’t loading have a popup saying radio failed to load or something
 
 ## Bug Fixes
 - Fix: ios background playback not working (ending after one song)
