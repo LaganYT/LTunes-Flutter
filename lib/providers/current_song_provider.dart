@@ -136,7 +136,6 @@ class CurrentSongProvider with ChangeNotifier {
       final file = File(filePath);
 
       if (await file.exists()) {
-        debugPrint('Album art for "${song.album ?? song.title}" already exists: $fileName');
         return fileName;
       }
 
