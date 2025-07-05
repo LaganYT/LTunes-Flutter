@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:audio_service/audio_service.dart';
 import '../models/song.dart';
 
 class DownloadNotificationService {
@@ -13,7 +12,7 @@ class DownloadNotificationService {
   Function(String)? _onNotificationAction;
   
   // AudioHandler instance for handling custom actions
-  dynamic? _audioHandler;
+  dynamic _audioHandler;
 
   static const int _downloadNotificationId = 1001;
   static const String _downloadChannelId = 'com.LTunes.channel.downloads';
