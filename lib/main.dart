@@ -41,6 +41,9 @@ Future<void> main() async {
       rewindInterval: Duration(seconds: 10),
       // Enable background audio for iOS
       androidNotificationClickStartsActivity: true,
+      // iOS background audio configuration
+      artDownscaleWidth: 300,
+      artDownscaleHeight: 300,
     ),
   );
 
@@ -119,6 +122,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       case AppLifecycleState.inactive:
         // App is going to background, ensure audio session is maintained
         _audioHandler.customAction('ensureBackgroundPlayback');
+        // Specifically activate iOS background audio
+        _audioHandler.customAction('activateIOSBackgroundAudio');
         break;
       case AppLifecycleState.resumed:
         // App is coming back to foreground, reactivate audio session
@@ -130,6 +135,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       case AppLifecycleState.hidden:
         // App is hidden (iOS specific)
         _audioHandler.customAction('ensureBackgroundPlayback');
+        // Specifically activate iOS background audio
+        _audioHandler.customAction('activateIOSBackgroundAudio');
         break;
     }
   }
