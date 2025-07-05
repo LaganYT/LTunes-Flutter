@@ -769,34 +769,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       );
     }
 
-    Widget albumArtWidget;
-    if (currentSong.albumArtUrl.isNotEmpty) {
-      if (currentSong.albumArtUrl.startsWith('http')) {
-        albumArtWidget = Image.network(
-          currentSong.albumArtUrl,
-          fit: BoxFit.cover,
-          key: ValueKey<String>('art_${currentSong.id}_network'),
-          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-        );
-      } else {
-        albumArtWidget = FutureBuilder<String>(
-          future: _localArtPathFuture,
-          key: ValueKey<String>('art_${currentSong.id}_local'),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(
-                File(snapshot.data!),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-              );
-            }
-            return _placeholderArt(context, isRadio);
-          },
-        );
-      }
-    } else {
-      albumArtWidget = _placeholderArt(context, isRadio);
-    }
+    final albumArtWidget = _buildAlbumArtWidget(currentSong, isRadio);
 
     // Determine if lyrics should be shown (only if available and toggle is on)
     // final bool canShowLyrics = _parsedLyrics.isNotEmpty && _showLyrics; // Old logic
@@ -1009,6 +982,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       stream: currentSongProvider.positionStream, // Listen to provider's position stream
                       builder: (context, snapshot) {
                         var position = snapshot.data ?? Duration.zero;
+                        
+                        // If the stream returns zero but we have a current position from the provider,
+                        // use the provider's position as a fallback to prevent showing 0:00
+                        if (position == Duration.zero && currentSongProvider.currentPosition != Duration.zero) {
+                          position = currentSongProvider.currentPosition;
+                        }
+                        
                         if (isRadio) {
                           // For radio, we don't show a seek bar, just a "Live" indicator.
                           return const Padding(
@@ -1211,6 +1191,43 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         );
       },
     );
+  }
+
+  Widget _buildAlbumArtWidget(Song currentSong, bool isRadio) {
+    // Use a more specific key that includes the album art URL to ensure proper caching
+    final artKey = ValueKey<String>('art_${currentSong.id}_${currentSong.albumArtUrl}');
+    
+    if (currentSong.albumArtUrl.isNotEmpty) {
+      if (currentSong.albumArtUrl.startsWith('http')) {
+        return Image.network(
+          currentSong.albumArtUrl,
+          fit: BoxFit.cover,
+          key: artKey,
+          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+          // Add caching headers to prevent unnecessary reloads
+          headers: const {
+            'Cache-Control': 'max-age=31536000', // 1 year cache
+          },
+        );
+      } else {
+        return FutureBuilder<String>(
+          future: _localArtPathFuture,
+          key: artKey,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return Image.file(
+                File(snapshot.data!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+              );
+            }
+            return _placeholderArt(context, isRadio);
+          },
+        );
+      }
+    } else {
+      return _placeholderArt(context, isRadio);
+    }
   }
 
   Widget _placeholderArt(BuildContext context, bool isRadio) {

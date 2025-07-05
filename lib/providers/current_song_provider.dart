@@ -99,6 +99,7 @@ class CurrentSongProvider with ChangeNotifier {
   List<Song> get songsQueuedForDownload => List.unmodifiable(_downloadQueue); // Added
   bool get isLoadingAudio => _isLoadingAudio;
   Duration? get totalDuration => _totalDuration;
+  Duration get currentPosition => _currentPosition;
   // Stream<Duration> get onPositionChanged => _audioPlayer.onPositionChanged; // Replaced
   Stream<Duration> get positionStream => AudioService.position; // UI should listen to this for seekbar
 
@@ -836,16 +837,8 @@ class CurrentSongProvider with ChangeNotifier {
       _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
     }
 
-    // Update the audio handler with the new queue order
-    final mediaItems = await Future.wait(
-        _queue.map((s) => _prepareMediaItem(s)).toList()
-    );
-    await _audioHandler.updateQueue(mediaItems);
-    
-    // Update the current playing item's index in the handler without restarting the song.
-    if (_currentIndexInAppQueue != -1) {
-        await _audioHandler.customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
-    }
+    // Don't update the audio handler's queue immediately to avoid position interference
+    // The queue will be updated when the next song plays or when explicitly needed
     
     // The audio_handler's shuffle mode should always be NONE now.
     await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
@@ -921,8 +914,15 @@ class CurrentSongProvider with ChangeNotifier {
     if (_queue.isNotEmpty) {
       _isLoadingAudio = true;
       notifyListeners();
+      
+      // Update the audio handler's queue with current provider queue order
+      // This ensures shuffle order is respected when moving to previous song
+      _updateAudioHandlerQueue().then((_) {
+        _audioHandler.skipToPrevious();
+      });
+    } else {
+      _audioHandler.skipToPrevious();
     }
-    _audioHandler.skipToPrevious();
   }
 
   void playNext() {
@@ -930,11 +930,34 @@ class CurrentSongProvider with ChangeNotifier {
     if (_queue.isNotEmpty) {
       _isLoadingAudio = true;
       notifyListeners();
-    }
-    _audioHandler.skipToNext().then((_) {
-      // If the current song is not downloaded, notify listeners so UI can update position/state.
+      
+      // Update the audio handler's queue with current provider queue order
+      // This ensures shuffle order is respected when moving to next song
+      _updateAudioHandlerQueue().then((_) {
+        _audioHandler.skipToNext().then((_) {
+          // If the current song is not downloaded, notify listeners so UI can update position/state.
+          notifyListeners();
+        });
+      });
+    } else {
+      _audioHandler.skipToNext().then((_) {
         notifyListeners();
-    });
+      });
+    }
+  }
+
+  Future<void> _updateAudioHandlerQueue() async {
+    if (_queue.isEmpty) return;
+    
+    final mediaItems = await Future.wait(
+        _queue.map((s) => _prepareMediaItem(s)).toList()
+    );
+    await _audioHandler.updateQueue(mediaItems);
+    
+    // Update the current playing item's index in the handler
+    if (_currentIndexInAppQueue != -1) {
+        await _audioHandler.customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+    }
   }
 
   Future<void> queueSongForDownload(Song song) async {
