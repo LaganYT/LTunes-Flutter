@@ -4,7 +4,7 @@
 - Redo the search to show albums and artists in the search itself
 
 ## Bug Fixes
-- Fix: ios background playback not working (ending after one song)
+- Fix: ios background playback not working (ending after one song when the screen is off)
 
 ## Potential Future Features
 - try adding podcast support

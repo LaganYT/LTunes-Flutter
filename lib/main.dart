@@ -39,6 +39,8 @@ Future<void> main() async {
       // iOS specific configuration
       fastForwardInterval: Duration(seconds: 10),
       rewindInterval: Duration(seconds: 10),
+      // Enable background audio for iOS
+      androidNotificationClickStartsActivity: true,
     ),
   );
 
@@ -85,7 +87,7 @@ class TabView extends StatefulWidget {
   _TabViewState createState() => _TabViewState();
 }
 
-class _TabViewState extends State<TabView> {
+class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   int _selectedIndex = 0;
 
   // Widget list is now built dynamically in the build method
@@ -98,7 +100,38 @@ class _TabViewState extends State<TabView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeVersionAndCheckForUpdates();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        // App is going to background, ensure audio session is maintained
+        _audioHandler.customAction('ensureBackgroundPlayback');
+        break;
+      case AppLifecycleState.resumed:
+        // App is coming back to foreground, reactivate audio session
+        _audioHandler.customAction('handleAppForeground');
+        break;
+      case AppLifecycleState.detached:
+        // App is being terminated
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden (iOS specific)
+        _audioHandler.customAction('ensureBackgroundPlayback');
+        break;
+    }
   }
 
   Future<void> _initializeVersionAndCheckForUpdates() async {
