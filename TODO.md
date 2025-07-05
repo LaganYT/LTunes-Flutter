@@ -3,9 +3,6 @@
 ## Search
 - Redo the search to show albums and artists in the search itself
 
-## Features
-- add ways to display errors (like failed to fetch error with bad connection or something)
-
 ## Bug Fixes
 - Fix: ios background playback not working (ending after one song)
 
