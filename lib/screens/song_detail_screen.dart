@@ -8,6 +8,7 @@ import '../models/album.dart'; // Add import for Album model
 import '../models/lyrics_data.dart'; // Add import for Lyrics model
 import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart'; // Add import for AlbumManagerService
+import '../services/error_handler_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -30,6 +31,7 @@ class SongDetailScreen extends StatefulWidget {
 
 class _SongDetailScreenState extends State<SongDetailScreen> {
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
@@ -171,11 +173,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Error deleting song: $e');
+      _errorHandler.logError(e, context: 'deleteSong');
       if (mounted) {
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(content: Text('Error deleting song: $e')),
-        );
+        _errorHandler.showErrorSnackBar(currentContext, e, errorContext: 'deleting song');
       }
     }
   }
@@ -207,7 +207,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error preloading album data: $e');
+      _errorHandler.logError(e, context: 'preloadAlbumData');
     } finally {
       if (mounted) {
         setState(() {
@@ -237,7 +237,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error preloading lyrics data: $e');
+      _errorHandler.logError(e, context: 'preloadLyricsData');
     } finally {
       if (mounted) {
         setState(() {
@@ -285,7 +285,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error preloading artist data: $e');
+      _errorHandler.logError(e, context: 'preloadArtistData');
     } finally {
       if (mounted) {
         setState(() { _isPreloadingArtist = false; });

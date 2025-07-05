@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/song.dart';
 import 'song_detail_screen.dart'; // Ensure AddToPlaylistDialog is accessible
 import '../services/api_service.dart';
+import '../services/error_handler_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,6 +29,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   late TabController _tabController;
   final ApiService _apiService = ApiService();
   final PlaylistManagerService _playlistManagerService = PlaylistManagerService();
+  final ErrorHandlerService _errorHandler = ErrorHandlerService();
   bool _showRadioTab = true;
   Set<String> _likedSongIds = {};
   
@@ -165,16 +167,27 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         return songs;
       }
     } catch (e) {
-      debugPrint('Error fetching songs: $e');
+      _errorHandler.logError(e, context: 'fetchSongs');
+      if (mounted) {
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'fetching songs');
+      }
       return [];
     }
   }
 
   Future<List<dynamic>> _fetchRadioStations() async {
-    final prefs = await SharedPreferences.getInstance();
-    final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
-    final country = usRadioOnly ? 'United States' : '';
-    return _apiService.fetchStationsByCountry(country, name: _searchQuery);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
+      final country = usRadioOnly ? 'United States' : '';
+      return await _apiService.fetchStationsByCountry(country, name: _searchQuery);
+    } catch (e) {
+      _errorHandler.logError(e, context: 'fetchRadioStations');
+      if (mounted) {
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'fetching radio stations');
+      }
+      return [];
+    }
   }
 
   // Performance: Debounced search
@@ -506,35 +519,32 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                               return const Center(child: CircularProgressIndicator());
                             }
                             if (snapshot.hasError) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.error_outline, size: 64, color: Colors.grey),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Error loading songs: ${snapshot.error}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
+                              return _errorHandler.buildLoadingErrorWidget(
+                                context,
+                                snapshot.error!,
+                                title: 'Failed to Load Songs',
+                                onRetry: () {
+                                  setState(() {
+                                    _songsFuture = _getSongsFuture();
+                                  });
+                                },
                               );
                             }
                             final songs = snapshot.data ?? [];
                             if (songs.isEmpty) {
-                              return const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.music_note, size: 64, color: Colors.grey),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      'No songs found',
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
+                              return _errorHandler.buildEmptyStateWidget(
+                                context,
+                                title: _searchQuery.isEmpty ? 'No Songs Available' : 'No Songs Found',
+                                message: _searchQuery.isEmpty 
+                                    ? 'Unable to load top charts. Please check your connection and try again.'
+                                    : 'No songs found for "${_searchQuery}". Try a different search term.',
+                                icon: _searchQuery.isEmpty ? Icons.cloud_off : Icons.search_off,
+                                onAction: _searchQuery.isEmpty ? () {
+                                  setState(() {
+                                    _songsFuture = _getSongsFuture();
+                                  });
+                                } : null,
+                                actionText: _searchQuery.isEmpty ? 'Retry' : null,
                               );
                             }
                             return ListView.builder(
@@ -565,35 +575,32 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                               return const Center(child: CircularProgressIndicator());
                             }
                             if (snapshot.hasError) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.radio, size: 64, color: Colors.grey),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Error loading radio stations: ${snapshot.error}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
+                              return _errorHandler.buildLoadingErrorWidget(
+                                context,
+                                snapshot.error!,
+                                title: 'Failed to Load Radio Stations',
+                                onRetry: () {
+                                  setState(() {
+                                    _stationsFuture = _fetchRadioStations();
+                                  });
+                                },
                               );
                             }
                             final stations = snapshot.data ?? [];
                             if (stations.isEmpty) {
-                              return const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.radio, size: 64, color: Colors.grey),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      'No radio stations found',
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
+                              return _errorHandler.buildEmptyStateWidget(
+                                context,
+                                title: _searchQuery.isEmpty ? 'No Radio Stations Available' : 'No Radio Stations Found',
+                                message: _searchQuery.isEmpty 
+                                    ? 'Unable to load radio stations. Please check your connection and try again.'
+                                    : 'No radio stations found for "${_searchQuery}". Try a different search term.',
+                                icon: _searchQuery.isEmpty ? Icons.radio : Icons.search_off,
+                                onAction: _searchQuery.isEmpty ? () {
+                                  setState(() {
+                                    _stationsFuture = _fetchRadioStations();
+                                  });
+                                } : null,
+                                actionText: _searchQuery.isEmpty ? 'Retry' : null,
                               );
                             }
                             return ListView.builder(

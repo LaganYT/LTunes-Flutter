@@ -6,6 +6,7 @@ import '../models/song.dart';
 import '../models/update_info.dart'; // Import the new model
 import '../models/album.dart'; // Import the new Album model
 import '../models/lyrics_data.dart'; // Import LyricsData
+import 'error_handler_service.dart';
 import 'dart:async';
 
 // Performance: Cache entry with TTL
@@ -35,6 +36,8 @@ class ApiService {
   }
 
   ApiService._internal(); // Private constructor
+
+  final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
   static const String baseUrl = 'https://ltn-api.vercel.app/api/';
   static const String updateUrl = 'https://ltn-api.vercel.app/updates/update.json';
@@ -174,7 +177,7 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      debugPrint('Error searching for album ID for "$query": $e');
+      _errorHandler.logError(e, context: 'searchForAlbumId');
       return null;
     }
   }
@@ -196,7 +199,7 @@ class ApiService {
       
       return album;
     } catch (e) {
-      debugPrint('Error fetching album details for ID "$albumId": $e');
+      _errorHandler.logError(e, context: 'fetchAlbumDetailsById');
       return null;
     }
   }
@@ -242,7 +245,7 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      debugPrint('Error fetching audio URL: $e');
+      _errorHandler.logError(e, context: 'fetchAudioUrl');
       return null;
     }
   }
@@ -388,7 +391,7 @@ class ApiService {
       }
       return null; 
     } catch (e) {
-      debugPrint('Error fetching lyrics for "$artist - $musicName": $e');
+      _errorHandler.logError(e, context: 'fetchLyrics');
       if (e.toString().contains('404')) {
         return null; 
       }
@@ -451,7 +454,7 @@ class ApiService {
           .toList();
           
     } catch (e) {
-      debugPrint('Error fetching artist albums for ID "$artistId": $e');
+      _errorHandler.logError(e, context: 'getArtistAlbums');
       return [];
     }
   }

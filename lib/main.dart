@@ -6,6 +6,7 @@ import './screens/settings_screen.dart'; // Import for ThemeProvider
 import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';
 import 'services/api_service.dart'; // Import ApiService
+import 'services/error_handler_service.dart'; // Import ErrorHandlerService
 import 'models/update_info.dart';   // Import UpdateInfo
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
@@ -111,13 +112,15 @@ class _TabViewState extends State<TabView> {
 
   Future<void> _checkForUpdates(String currentAppVersion) async {
     final apiService = ApiService();
+    final errorHandler = ErrorHandlerService();
     try {
       final updateInfo = await apiService.checkForUpdate(currentAppVersion);
       if (updateInfo != null && mounted) {
         _showUpdateDialog(updateInfo);
       }
     } catch (e) {
-      debugPrint("Error in _checkForUpdates: $e");
+      errorHandler.logError(e, context: 'checkForUpdates');
+      // Don't show error to user for update checks as they're not critical
     }
   }
 

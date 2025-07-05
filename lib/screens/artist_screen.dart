@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/api_service.dart';
+import '../services/error_handler_service.dart';
 import '../models/song.dart';
 import '../models/album.dart';
 import 'song_detail_screen.dart';
@@ -25,6 +26,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   bool _error = false;
   String? _errorMessage;
   late TabController _tabController;
+  final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
   @override
   void initState() {
@@ -87,12 +89,14 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         });
       }
     } catch (e) {
+      _errorHandler.logError(e, context: 'loadArtistData');
       if (mounted) {
         setState(() {
           _error = true;
           _errorMessage = e.toString();
           _loading = false;
         });
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'loading artist data');
       }
     }
   }
@@ -468,35 +472,11 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
           title: Text(widget.artistName ?? 'Artist'),
         ),
         body: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Failed to load artist',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _errorMessage!,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _loadArtistData,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
+          child: _errorHandler.buildLoadingErrorWidget(
+            context,
+            _errorMessage ?? 'Failed to load artist data',
+            title: 'Failed to Load Artist',
+            onRetry: _loadArtistData,
           ),
         ),
       );

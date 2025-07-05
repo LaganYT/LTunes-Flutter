@@ -6,6 +6,7 @@ import 'dart:io';
 import '../models/song.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../services/error_handler_service.dart';
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'package:path/path.dart' as p; // Import path package
 import 'package:audio_service/audio_service.dart';
@@ -62,6 +63,7 @@ class CurrentSongProvider with ChangeNotifier {
   
   // Download notification service
   final DownloadNotificationService _downloadNotificationService = DownloadNotificationService();
+  final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
   Song? get currentSong => _currentSongFromAppLogic;
   bool get isPlaying => _isPlaying;
@@ -191,7 +193,7 @@ class CurrentSongProvider with ChangeNotifier {
         debugPrint('Failed to download album art. Status code: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint("Exception downloading album art from $url: $e");
+      _errorHandler.logError(e, context: 'downloadAlbumArt');
     }
     return null;
   }
@@ -745,7 +747,7 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       if (currentPlayRequest == _playRequestCounter) {
         // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
-        debugPrint('Error playing song (${_currentSongFromAppLogic?.title ?? songToPlay.title}): $e');
+        _errorHandler.logError(e, context: 'playSong');
         _isLoadingAudio = false;
         notifyListeners();
       } else {
@@ -1282,14 +1284,14 @@ class CurrentSongProvider with ChangeNotifier {
 
     try {
       if (song != null) {
-        debugPrint('Download failed for ${song.title}: $error');
+        _errorHandler.logError(error, context: 'downloadSong');
       } else {
         debugPrint('Handling download error for songId $songId (not in _activeDownloads by provider). Error: $error');
         // If song is null, it means it wasn't the one _isProcessingProviderDownload was true for,
         // or state is inconsistent.
       }
     } catch (e) {
-      debugPrint("Internal error in _handleDownloadError for songId $songId: $e");
+      _errorHandler.logError(e, context: 'handleDownloadError');
     } finally {
       if (_activeDownloads.containsKey(songId)) {
         _activeDownloads.remove(songId);
