@@ -204,14 +204,12 @@ class CurrentSongProvider with ChangeNotifier {
     _mediaItemSubscription = _audioHandler.mediaItem.listen((mediaItem) async {
       bool needsNotification = false;
 
-      // Update _totalDuration
-      // For non-radio, _totalDuration comes from mediaItem.duration.
-      // For radio, _totalDuration is handled by _positionSubscription to be "live".
-      if (!(mediaItem?.extras?['isRadio'] as bool? ?? false)) {
-        if (_totalDuration != mediaItem?.duration) {
-          _totalDuration = mediaItem?.duration;
-          needsNotification = true;
-        }
+      // Update _totalDuration.
+      // For radio streams, duration will be null, and we handle it as a "live" stream.
+      // For regular tracks, this will update when audio_handler gets the duration.
+      if (_totalDuration != mediaItem?.duration) {
+        _totalDuration = mediaItem?.duration;
+        needsNotification = true;
       }
 
       // Update _currentSongFromAppLogic, _stationName, _stationFavicon
@@ -308,20 +306,6 @@ class CurrentSongProvider with ChangeNotifier {
     _positionSubscription = AudioService.position.listen((position) {
       _currentPosition = position;
       notifyListeners(); // UI seekbar and lyrics sync
-
-      bool needsNotifyForTotalDuration = false;
-
-      // Handle "live" duration for radio streams
-      if (isCurrentlyPlayingRadio) {
-        if (_totalDuration != position) {
-          _totalDuration = position;
-          needsNotifyForTotalDuration = true; // _totalDuration changed, FullScreenPlayer needs this
-        }
-      }
-
-      if (needsNotifyForTotalDuration) {
-        notifyListeners();
-      }
     });
   }
 
@@ -1617,8 +1601,6 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> seek(Duration position) async {
     await _audioHandler.seek(position);
-    _currentPosition = position; // Immediately update local position for UI
-    notifyListeners(); // Notify UI immediately after seek
   }
 
   Future<void> updateMissingMetadata(Song song) async {

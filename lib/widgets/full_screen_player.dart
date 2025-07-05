@@ -8,6 +8,7 @@ import '../models/lyrics_data.dart'; // Import LyricsData
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
 import 'dart:io'; // For File operations
+import 'dart:async'; // For StreamSubscription
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
@@ -63,6 +64,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   bool _isLiked = false;
   Future<String>? _localArtPathFuture;
+
+  // New state for seek bar
+  double? _sliderValue;
+  bool _isSeeking = false;
 
   @override
   void initState() {
@@ -631,6 +636,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     );
   }
 
+  // ignore: unused_element
   void _updateCurrentLyricIndex(Duration currentPosition) {
     if (!_areLyricsSynced || _parsedLyrics.isEmpty) { 
       if (_currentLyricIndex != -1 && _areLyricsSynced) { // Reset if they were synced but now aren't or are empty
@@ -1003,40 +1009,63 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       stream: currentSongProvider.positionStream, // Listen to provider's position stream
                       builder: (context, snapshot) {
                         var position = snapshot.data ?? Duration.zero;
+                        if (isRadio) {
+                          // For radio, we don't show a seek bar, just a "Live" indicator.
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32.0), // Adjust padding as needed
+                            child: Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold)),
+                          );
+                        }
                         final duration = currentSongProvider.totalDuration ?? Duration.zero;
-                        if (isPlaying && loopMode == LoopMode.song && !isRadio && duration > Duration.zero && position >= duration) {
-                          position = Duration.zero;
-                        }
-                        // Clamp position to be within [Duration.zero, duration]
-                        if (position > duration && duration > Duration.zero) {
-                          position = duration;
-                        }
 
                         // Update lyrics based on position
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                           if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position);
+                          if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position);
                         });
+
+                        // compute slider max and clamp the current position
+                        final double maxValue = duration.inMilliseconds.toDouble() > 0
+                            ? duration.inMilliseconds.toDouble()
+                            : 1.0;
+                        final double clampedValue = position.inMilliseconds
+                            .toDouble()
+                            .clamp(0.0, maxValue);
+
+                        if (!_isSeeking) {
+                          _sliderValue = clampedValue;
+                        }
+
                         return Column(
                           children: [
-                            SliderTheme(
-                              data: SliderTheme.of(context),
-                              child: Slider(
-                                value: position.inMilliseconds.toDouble(),
-                                min: 0.0,
-                                max: duration.inMilliseconds.toDouble() > 0 ? duration.inMilliseconds.toDouble() : 1.0,
-                                onChanged: (value) {
-                                  if (isRadio) return;
-                                  currentSongProvider.seek(Duration(milliseconds: value.round()));
-                                },
-                              ),
+                            Slider(
+                              value: _sliderValue ?? clampedValue,
+                              max: maxValue,
+                              min: 0.0,
+                              onChangeStart: (value) {
+                                setState(() {
+                                  _isSeeking = true;
+                                });
+                              },
+                              onChanged: (value) {
+                                setState(() {
+                                  _sliderValue = value;
+                                });
+                              },
+                              onChangeEnd: (value) {
+                                setState(() {
+                                  _isSeeking = false;
+                                  _sliderValue = null; // Reset to use actual position from stream
+                                });
+                                currentSongProvider.seek(Duration(milliseconds: value.round()));
+                              },
                             ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(_formatDuration(position), style: textTheme.bodySmall?.copyWith(color: colorScheme.onBackground.withOpacity(0.7))),
-                                  Text(_formatDuration(duration), style: textTheme.bodySmall?.copyWith(color: colorScheme.onBackground.withOpacity(0.7))),
+                                  Text(_formatDuration(Duration(milliseconds: (_sliderValue ?? clampedValue).round())), style: textTheme.bodySmall),
+                                  Text(_formatDuration(duration), style: textTheme.bodySmall),
                                 ],
                               ),
                             ),

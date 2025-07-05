@@ -82,6 +82,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
               play();
               break;
             case AudioInterruptionType.unknown:
+              pause();
               break;
           }
         }
@@ -97,8 +98,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   await session.configure(AudioSessionConfiguration(
     avAudioSessionCategory: AVAudioSessionCategory.playback,
     avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-        AVAudioSessionCategoryOptions.allowAirPlay |
-        AVAudioSessionCategoryOptions.defaultToSpeaker,
+        AVAudioSessionCategoryOptions.allowAirPlay,
     avAudioSessionMode: AVAudioSessionMode.defaultMode,
     androidAudioAttributes: const AndroidAudioAttributes(
       contentType: AndroidAudioContentType.music,
@@ -135,6 +135,12 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     try {
       // Set source but do not play.
       await _audioPlayer.setAudioSource(source);
+      
+      // Reset position to 0:00 when a new song is prepared
+      // This ensures the seekbar shows the beginning of the song
+      playbackState.add(playbackState.value.copyWith(
+        updatePosition: Duration.zero,
+      ));
     } catch (e) {
       debugPrint("Error setting source for ${itemToPlay.id}: $e");
     }
@@ -206,7 +212,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       final currentItem = mediaItem.value;
       if (currentItem == null) return;
       bool isRadio = currentItem.extras?['isRadio'] as bool? ?? _isRadioStream;
-      if (!isRadio && newDuration != null) {
+      // Always update if we get a valid duration for a non-radio stream.
+      // This handles cases where the initial duration was null or zero.
+      if (!isRadio && newDuration != null && newDuration > Duration.zero) {
         final newItem = currentItem.copyWith(duration: newDuration);
         if (mediaItem.value != newItem) {
           mediaItem.add(newItem);
@@ -215,6 +223,36 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     });
 
     _audioPlayer.positionStream.listen((position) {
+      final currentItem = mediaItem.value;
+      final isStreaming = currentItem?.extras?['isLocal'] == false;
+      
+      // For streaming URLs, be more careful about position updates
+      if (isStreaming) {
+        final lastSeekPosition = playbackState.value.updatePosition;
+        
+        // Don't update to 0 if we just performed a seek and the position is 0
+        // But allow it if the last position was also 0 (new song)
+        if (position == Duration.zero && lastSeekPosition != Duration.zero && lastSeekPosition > Duration.zero) {
+          // Don't update to 0, maintain the last known position
+          // This prevents the UI from showing 0:00 after seeking
+          return;
+        }
+        
+        // If we get a valid position that's close to our seek position, update it
+        // This ensures the seekbar eventually syncs with the actual audio position
+        if (position != Duration.zero && lastSeekPosition != Duration.zero) {
+          final difference = (position.inMilliseconds - lastSeekPosition.inMilliseconds).abs();
+          // If the difference is small (within 1 second), update to the actual position
+          if (difference < 1000) {
+            playbackState.add(playbackState.value.copyWith(
+              updatePosition: position,
+            ));
+            return;
+          }
+        }
+      }
+      
+      // For local files or normal streaming updates, always update
       playbackState.add(playbackState.value.copyWith(
         updatePosition: position,
       ));
@@ -283,13 +321,23 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> play() async {
     if (_audioPlayer.playing) return;
-    // If we are paused, resume.
-    if (_audioPlayer.processingState != ProcessingState.idle) {
+
+    // If we are idle (e.g., stopped or just started), we need to prepare the source.
+    if (_audioPlayer.processingState == ProcessingState.idle) {
+      if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+        await _prepareToPlay(_currentIndex);
         await _audioPlayer.play();
+      }
     } 
-    // If we are idle (stopped), start from current index.
-    else if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-      await skipToQueueItem(_currentIndex);
+    // If we are paused or have completed a seek, we can just play.
+    else if (_audioPlayer.processingState == ProcessingState.ready) {
+      await _audioPlayer.play();
+    } 
+    // If we are in any other state (loading, buffering, completed), and not playing,
+    // it's safest to just call play and let just_audio handle it.
+    // This covers resuming from a completed state to replay, or from buffering.
+    else {
+      await _audioPlayer.play();
     }
   }
 
@@ -301,6 +349,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> seek(Duration position) async {
+    // Immediately broadcast the new position so the UI feels responsive.
+    playbackState.add(playbackState.value.copyWith(updatePosition: position));
     await _audioPlayer.seek(position);
   }
 
