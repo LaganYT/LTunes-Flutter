@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 import '../models/song.dart'; // Assuming Song model can give necessary info
 import 'package:audio_session/audio_session.dart';
+import '../main.dart'; // Import to access globalNavigatorKey
+import '../screens/download_queue_screen.dart'; // Import DownloadQueueScreen
 
 // Helper function to convert Song to MediaItem
 MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
@@ -594,6 +596,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           _playlist[index] = mediaItemToPrepare;
         }
         await _prepareToPlay(index);
+      }
+    } else if (name == 'openDownloadQueue') {
+      // Navigate to download queue screen using global navigator key
+      final navigator = globalNavigatorKey.currentState;
+      if (navigator != null) {
+        navigator.push(
+          MaterialPageRoute(
+            builder: (context) => const DownloadQueueScreen(),
+          ),
+        );
       }
     }
     return null;

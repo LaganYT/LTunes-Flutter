@@ -7,7 +7,7 @@
 ## Features
 - add ways to display errors (like failed to fetch error with bad connection or something)
 - add where the radio isn’t loading have a popup saying radio failed to load or something
-- Feature add: show download queue in notifications
+- ✅ Feature add: show download queue in notifications
 
 ## Bug Fixes
 - Fix: ios background playback not working (ending after one song)

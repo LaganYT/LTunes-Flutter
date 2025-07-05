@@ -37,6 +37,19 @@ A Flutter-based music app for streaming, downloading, and organizing songs, albu
   • Background download manager with resume, progress, and cancellation  
   • Queue multiple downloads concurrently  
 
+## Download Queue Notifications
+
+LTunes now shows download progress in system notifications! When you have songs in your download queue:
+
+- **Active Downloads**: Shows the currently downloading song with progress percentage
+- **Queued Downloads**: Shows the number of songs waiting to be downloaded
+- **Notification Actions**: 
+  - Tap the notification to view the download queue
+  - Use "Cancel All" to stop all downloads
+  - Use "View Queue" to open the download queue screen
+
+The notification will automatically appear when downloads start and disappear when the queue is empty.
+
 ## Installation
 
 1. Ensure you have Flutter SDK ≥ 3.0 installed  
@@ -56,7 +69,7 @@ A Flutter-based music app for streaming, downloading, and organizing songs, albu
 
 ## Usage
 
-- **Search**: Use the bottom navigation to select “Search,” enter a query, and tap a song or station to play.  
+- **Search**: Use the bottom navigation to select "Search," enter a query, and tap a song or station to play.  
 - **Library**: View, play, import, and delete downloaded songs or manage playlists and albums.  
 - **Settings**: Customize themes, radio region, and clear storage or check for updates.
 

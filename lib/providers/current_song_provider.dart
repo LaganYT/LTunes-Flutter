@@ -14,6 +14,7 @@ import 'dart:async';
 import '../models/lyrics_data.dart';
 import 'package:resumable_downloader/resumable_downloader.dart';
 import 'package:http/http.dart' as http;
+import '../services/download_notification_service.dart';
 
 // Define LoopMode enum
 enum LoopMode { none, queue, song }
@@ -58,6 +59,9 @@ class CurrentSongProvider with ChangeNotifier {
   StreamSubscription? _mediaItemSubscription;
   StreamSubscription? _queueSubscription;
   StreamSubscription? _positionSubscription;
+  
+  // Download notification service
+  final DownloadNotificationService _downloadNotificationService = DownloadNotificationService();
 
   Song? get currentSong => _currentSongFromAppLogic;
   bool get isPlaying => _isPlaying;
@@ -91,6 +95,42 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+  void _updateDownloadNotification() async {
+    // Check if notifications are enabled before showing
+    final notificationsEnabled = await _downloadNotificationService.areNotificationsEnabled();
+    if (!notificationsEnabled) {
+      return;
+    }
+    
+    _downloadNotificationService.updateDownloadProgress(
+      activeDownloads: _activeDownloads,
+      queuedSongs: _downloadQueue,
+      downloadProgress: _downloadProgress,
+    );
+  }
+
+  Future<void> handleDownloadNotificationAction(String action) async {
+    switch (action) {
+      case 'cancel_all':
+        await cancelAllDownloads();
+        break;
+      case 'view_queue':
+        // Send custom action to audio handler for navigation
+        _audioHandler.customAction('openDownloadQueue', {});
+        break;
+      default:
+    }
+  }
+
+  // Method to request notification permissions
+  Future<bool> requestNotificationPermissions() async {
+    final notificationsEnabled = await _downloadNotificationService.areNotificationsEnabled();
+    if (!notificationsEnabled) {
+      return await _downloadNotificationService.areNotificationsEnabled();
+    }
+    return true;
+  }
+
   List<Song> get queue => _queue;
   Map<String, double> get downloadProgress => _downloadProgress;
   // bool get isDownloadingSong => _isDownloadingSong; // Changed
@@ -112,6 +152,9 @@ class CurrentSongProvider with ChangeNotifier {
     _initializeDownloadManager(); // Initialize DownloadManager
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
+    
+    // Set up download notification action callback
+    _downloadNotificationService.setNotificationActionCallback(handleDownloadNotificationAction);
   }
 
   Future<String?> _downloadAlbumArt(String url, Song song) async {
@@ -1061,6 +1104,7 @@ class CurrentSongProvider with ChangeNotifier {
     _downloadQueue.add(songToProcess);
     debugPrint('Song "${songToProcess.title}" added to provider download queue. Queue size: ${_downloadQueue.length}');
     notifyListeners(); // Notify that queue has changed, UI might show "queued"
+    _updateDownloadNotification(); // Update download notification
     _triggerNextDownloadInProviderQueue();
   }
 
@@ -1076,6 +1120,7 @@ class CurrentSongProvider with ChangeNotifier {
     _activeDownloads[songToDownload.id] = songToDownload;
     _downloadProgress[songToDownload.id] = _downloadProgress[songToDownload.id] ?? 0.0;
     notifyListeners();
+    _updateDownloadNotification(); // Update download notification
     _processAndSubmitDownload(songToDownload);
   }
 
@@ -1132,6 +1177,7 @@ class CurrentSongProvider with ChangeNotifier {
         if (_activeDownloads.containsKey(song.id)) {
           _downloadProgress[song.id] = progressDetails.progress;
           notifyListeners();
+          _updateDownloadNotification(); // Update download notification
         }
       },
     );
@@ -1226,6 +1272,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
       _isProcessingProviderDownload = false;
       notifyListeners();
+      _updateDownloadNotification(); // Update download notification
       _triggerNextDownloadInProviderQueue();
     }
   }
@@ -1250,6 +1297,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
       _isProcessingProviderDownload = false;
       notifyListeners();
+      _updateDownloadNotification(); // Update download notification
       _triggerNextDownloadInProviderQueue();
     }
   }
@@ -1266,6 +1314,7 @@ class CurrentSongProvider with ChangeNotifier {
         _downloadProgress.remove(songId);
       }
       notifyListeners();
+      _updateDownloadNotification(); // Update download notification
       return; // Song was only in queue, not yet given to DownloadManager by provider logic.
     }
 
@@ -1276,6 +1325,7 @@ class CurrentSongProvider with ChangeNotifier {
       if (_downloadProgress.containsKey(songId)) {
           _downloadProgress.remove(songId);
           notifyListeners();
+          _updateDownloadNotification(); // Update download notification
       }
       return;
     }
@@ -1351,6 +1401,7 @@ class CurrentSongProvider with ChangeNotifier {
     // when the `await _downloadManager.getFile()` call finally unblocks.
     // Then _triggerNextDownloadInProviderQueue will be called.
     notifyListeners();
+    _updateDownloadNotification(); // Update download notification
   }
 
   Future<void> cancelAllDownloads() async {
@@ -1399,6 +1450,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     debugPrint("All download cancellation requests initiated. Provider queue cleared.");
     notifyListeners(); // Notify for the queue clearing and any immediate state changes.
+    _updateDownloadNotification(); // Update download notification
   }
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {

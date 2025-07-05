@@ -13,12 +13,20 @@ import 'package:audio_service/audio_service.dart'; // Import audio_service
 import 'services/audio_handler.dart'; // Import your AudioPlayerHandler
 import 'services/album_manager_service.dart'; // Import AlbumManagerService
 import 'services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import 'services/download_notification_service.dart'; // Import DownloadNotificationService
 
 // Global instance of the AudioPlayerHandler
 late AudioHandler _audioHandler;
 
+// Global navigator key for navigation from notifications
+final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Required for audio_service
+  
+  // Initialize download notification service
+  await DownloadNotificationService().initialize();
+  
   _audioHandler = await AudioService.init(
     builder: () => AudioPlayerHandler(),
     config: const AudioServiceConfig(
@@ -58,6 +66,7 @@ class LTunesApp extends StatelessWidget {
           theme: themeProvider.lightTheme,
           darkTheme: themeProvider.darkTheme,
           themeMode: themeProvider.themeMode,
+          navigatorKey: globalNavigatorKey,
           home: const TabView(),
         );
       },
