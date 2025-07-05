@@ -152,6 +152,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     final newSong = _currentSongProvider.currentSong;
     final newSongId = newSong?.id;
 
+    // Only update if the song ID actually changed
     if (newSongId != _previousSongId) {
       // Update slide animation based on _slideOffsetX
       // If _slideOffsetX is 0.0, it means the art should just fade (or appear if no fade controller for art)
@@ -1194,8 +1195,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   Widget _buildAlbumArtWidget(Song currentSong, bool isRadio) {
-    // Use a more specific key that includes the album art URL to ensure proper caching
-    final artKey = ValueKey<String>('art_${currentSong.id}_${currentSong.albumArtUrl}');
+    // Use a key that only changes when the song ID changes, not on every rebuild
+    final artKey = ValueKey<String>('art_${currentSong.id}');
     
     if (currentSong.albumArtUrl.isNotEmpty) {
       if (currentSong.albumArtUrl.startsWith('http')) {

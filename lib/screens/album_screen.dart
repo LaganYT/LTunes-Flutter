@@ -729,7 +729,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: colorScheme.onSurface.withOpacity(0.7),
-                          // decoration: TextDecoration.underline, // Removed
                         ),
                       ),
                       trailing: Text(
@@ -740,10 +739,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
                         currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
                         currentSongProvider.playSong(widget.album.tracks[index]);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-                        );
                       },
                       onLongPress: () {
                         Navigator.push(

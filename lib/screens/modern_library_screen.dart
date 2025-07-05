@@ -1430,6 +1430,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // pick a small subset of _songs as "recently added"
     final recentSongs = _songs.length > 10 ? _songs.sublist(_songs.length - 10).reversed.toList() : _songs.reversed.toList();
 

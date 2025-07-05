@@ -31,11 +31,8 @@ class SongDetailScreen extends StatefulWidget {
 class _SongDetailScreenState extends State<SongDetailScreen> {
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-  // ignore: unused_field
   bool _isDownloading = false;
-  // ignore: unused_field
   double _downloadProgress = 0.0;
-  // ignore: unused_field
   bool _isLoadingAlbum = false; // For View Album button
   bool _isLoadingLyrics = false;
   String? _lyrics;
@@ -49,7 +46,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   bool _isPreloadingAlbum = false;
   bool _isPreloadingLyrics = false;
   bool _isPreloadingArtist = false;
-  // ignore: unused_field
   String? _cachedAlbumId;
 
   Set<String> _likedSongIds = {};
@@ -252,19 +248,15 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _preloadArtistData() async {
-    if (widget.song.artist.isEmpty) {
-      return;
-    }
+    if (widget.song.artist.isEmpty) return;
 
-    setState(() {
-      _isPreloadingArtist = true;
-    });
+    if (mounted) setState(() { _isPreloadingArtist = true; });
 
     try {
       final apiService = ApiService();
       final artistData = await apiService.getArtistById(widget.song.artist);
       
-      if (mounted && artistData != null) {
+      if (mounted) {
         final artistInfo = artistData['info'] as Map<String, dynamic>;
         final tracks = (artistData['tracks'] as List).map((raw) {
           return Song.fromAlbumTrackJson(
@@ -296,9 +288,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       debugPrint('Error preloading artist data: $e');
     } finally {
       if (mounted) {
-        setState(() {
-          _isPreloadingArtist = false;
-        });
+        setState(() { _isPreloadingArtist = false; });
       }
     }
   }
