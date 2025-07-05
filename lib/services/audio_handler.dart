@@ -260,7 +260,20 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     _audioPlayer.processingStateStream.listen((state) async {
       if (state == ProcessingState.completed) {
-        await skipToNext();
+        // Handle song completion based on repeat mode
+        final repeatMode = playbackState.value.repeatMode;
+        
+        if (repeatMode == AudioServiceRepeatMode.one) {
+          // For repeat one, the just_audio loop mode should handle this automatically
+          // But we need to ensure the UI state is correct
+          if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+            await _prepareToPlay(_currentIndex);
+            await _audioPlayer.play();
+          }
+        } else {
+          // For other modes, try to play next song
+          await skipToNext();
+        }
       }
     });
   }
@@ -379,7 +392,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
             newIndex = 0; // Wrap around for repeat all
         } else {
-            return; // Stop at the end if not repeating
+            // Stop playback when reaching the end and not repeating
+            await stop();
+            return;
         }
     }
     await skipToQueueItem(newIndex);
@@ -395,7 +410,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
             newIndex = _playlist.length - 1; // Wrap around for repeat all
         } else {
-            return; // Stop at the beginning if not repeating
+            // Stop playback when reaching the beginning and not repeating
+            await stop();
+            return;
         }
     }
     await skipToQueueItem(newIndex);
@@ -403,6 +420,12 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   
   @override
   Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= _playlist.length) {
+      // Invalid index, stop playback
+      await stop();
+      return;
+    }
+    
     await _prepareToPlay(index);
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       try {

@@ -449,7 +449,9 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         appBar: AppBar(
           title: Text(widget.artistName ?? 'Artist'),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const SafeArea(
+          child: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
@@ -458,70 +460,74 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         appBar: AppBar(
           title: Text(widget.artistName ?? 'Artist'),
         ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load artist',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 8),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 16),
                 Text(
-                  _errorMessage!,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
+                  'Failed to load artist',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage!,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _loadArtistData,
+                  child: const Text('Retry'),
                 ),
               ],
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _loadArtistData,
-                child: const Text('Retry'),
-              ),
-            ],
+            ),
           ),
         ),
       );
     }
 
     return Scaffold(
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              expandedHeight: 380.0,
-              pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                background: _buildHeader(),
-              ),
-            ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _SliverTabBarDelegate(
-                TabBar(
-                  controller: _tabController,
-                  tabs: const [
-                    Tab(text: 'Popular'),
-                    Tab(text: 'Albums'),
-                  ],
+      body: SafeArea(
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverAppBar(
+                expandedHeight: 380.0,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: _buildHeader(),
                 ),
               ),
-            ),
-          ];
-        },
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildPopularTracks(),
-            _buildAlbums(),
-          ],
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SliverTabBarDelegate(
+                  TabBar(
+                    controller: _tabController,
+                    tabs: const [
+                      Tab(text: 'Popular'),
+                      Tab(text: 'Albums'),
+                    ],
+                  ),
+                ),
+              ),
+            ];
+          },
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildPopularTracks(),
+              _buildAlbums(),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const Padding(
