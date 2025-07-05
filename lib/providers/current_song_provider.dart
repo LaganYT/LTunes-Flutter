@@ -111,16 +111,41 @@ class CurrentSongProvider with ChangeNotifier {
     );
   }
 
+  void _forceUpdateDownloadNotification() async {
+    // Check if notifications are enabled before showing
+    final notificationsEnabled = await _downloadNotificationService.areNotificationsEnabled();
+    if (!notificationsEnabled) {
+      return;
+    }
+    
+    _downloadNotificationService.forceUpdateNotification(
+      activeDownloads: _activeDownloads,
+      queuedSongs: _downloadQueue,
+      downloadProgress: _downloadProgress,
+    );
+  }
+
   Future<void> handleDownloadNotificationAction(String action) async {
-    switch (action) {
-      case 'cancel_all':
-        await cancelAllDownloads();
-        break;
-      case 'view_queue':
-        // Send custom action to audio handler for navigation
-        _audioHandler.customAction('openDownloadQueue', {});
-        break;
-      default:
+    debugPrint('CurrentSongProvider: Handling notification action: $action');
+    try {
+      switch (action) {
+        case 'cancel_all':
+          debugPrint('CurrentSongProvider: Executing cancel_all action');
+          await cancelAllDownloads();
+          debugPrint('CurrentSongProvider: cancel_all action completed');
+          break;
+        case 'view_queue':
+          debugPrint('CurrentSongProvider: Executing view_queue action');
+          // Send custom action to audio handler for navigation
+          _audioHandler.customAction('openDownloadQueue', {});
+          debugPrint('CurrentSongProvider: view_queue action completed');
+          break;
+        default:
+          debugPrint('CurrentSongProvider: Unknown notification action: $action');
+      }
+    } catch (e) {
+      debugPrint('CurrentSongProvider: Error handling notification action $action: $e');
+      _errorHandler.logError(e, context: 'handleDownloadNotificationAction');
     }
   }
 
@@ -155,8 +180,9 @@ class CurrentSongProvider with ChangeNotifier {
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
     
-    // Set up download notification action callback
+    // Set up download notification action callback and AudioHandler
     _downloadNotificationService.setNotificationActionCallback(handleDownloadNotificationAction);
+    _downloadNotificationService.setAudioHandler(_audioHandler);
   }
 
   Future<String?> _downloadAlbumArt(String url, Song song) async {
@@ -1122,7 +1148,7 @@ class CurrentSongProvider with ChangeNotifier {
     _activeDownloads[songToDownload.id] = songToDownload;
     _downloadProgress[songToDownload.id] = _downloadProgress[songToDownload.id] ?? 0.0;
     notifyListeners();
-    _updateDownloadNotification(); // Update download notification
+    _forceUpdateDownloadNotification(); // Force update when download starts
     _processAndSubmitDownload(songToDownload);
   }
 
@@ -1274,7 +1300,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
       _isProcessingProviderDownload = false;
       notifyListeners();
-      _updateDownloadNotification(); // Update download notification
+      _forceUpdateDownloadNotification(); // Force update when download completes
       _triggerNextDownloadInProviderQueue();
     }
   }
@@ -1299,7 +1325,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
       _isProcessingProviderDownload = false;
       notifyListeners();
-      _updateDownloadNotification(); // Update download notification
+      _forceUpdateDownloadNotification(); // Force update when download completes
       _triggerNextDownloadInProviderQueue();
     }
   }
@@ -1452,7 +1478,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     debugPrint("All download cancellation requests initiated. Provider queue cleared.");
     notifyListeners(); // Notify for the queue clearing and any immediate state changes.
-    _updateDownloadNotification(); // Update download notification
+    _forceUpdateDownloadNotification(); // Force update when all downloads are cancelled
   }
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {

@@ -11,6 +11,9 @@ class DownloadNotificationService {
 
   // Callback for handling notification actions
   Function(String)? _onNotificationAction;
+  
+  // AudioHandler instance for handling custom actions
+  dynamic? _audioHandler;
 
   static const int _downloadNotificationId = 1001;
   static const String _downloadChannelId = 'com.LTunes.channel.downloads';
@@ -19,6 +22,10 @@ class DownloadNotificationService {
 
   FlutterLocalNotificationsPlugin? _notifications;
   bool _isInitialized = false;
+  
+  // Add throttling for notification updates
+  DateTime? _lastNotificationUpdate;
+  static const Duration _updateThrottle = Duration(seconds: 5); // Update every 5 seconds instead of every second
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -65,7 +72,7 @@ class DownloadNotificationService {
       _downloadChannelId,
       _downloadChannelName,
       description: _downloadChannelDescription,
-      importance: Importance.low,
+      importance: Importance.none,
       playSound: false,
       enableVibration: false,
       showBadge: false,
@@ -109,16 +116,41 @@ class DownloadNotificationService {
     
     if (response.actionId != null) {
       // Handle notification action
-      _onNotificationAction?.call(response.actionId!);
+      debugPrint('Handling notification action: ${response.actionId}');
+      if (_onNotificationAction != null) {
+        try {
+          _onNotificationAction!.call(response.actionId!);
+          debugPrint('Notification action callback executed successfully');
+        } catch (e) {
+          debugPrint('Error executing notification action callback: $e');
+        }
+      } else {
+        debugPrint('Warning: No notification action callback set');
+      }
     } else {
       // Handle notification tap - send custom action to audio handler
-      AudioService.customAction('openDownloadQueue', {});
+      debugPrint('Notification tapped (no action), opening download queue');
+      if (_audioHandler != null) {
+        try {
+          _audioHandler.customAction('openDownloadQueue', {});
+          debugPrint('AudioHandler custom action executed successfully');
+        } catch (e) {
+          debugPrint('Error executing AudioHandler custom action: $e');
+        }
+      } else {
+        debugPrint('Warning: No AudioHandler set for notification service');
+      }
     }
   }
 
   void setNotificationActionCallback(Function(String) callback) {
     _onNotificationAction = callback;
     debugPrint('Download notification action callback set');
+  }
+
+  void setAudioHandler(dynamic audioHandler) {
+    _audioHandler = audioHandler;
+    debugPrint('AudioHandler set for download notification service');
   }
 
   Future<void> showDownloadNotification({
@@ -129,6 +161,14 @@ class DownloadNotificationService {
     if (!_isInitialized || _notifications == null) {
       await initialize();
     }
+
+    // Throttle notification updates to reduce frequency
+    final now = DateTime.now();
+    if (_lastNotificationUpdate != null && 
+        now.difference(_lastNotificationUpdate!) < _updateThrottle) {
+      return; // Skip update if not enough time has passed
+    }
+    _lastNotificationUpdate = now;
 
     final int totalDownloads = activeDownloads.length + queuedSongs.length;
     
@@ -142,31 +182,27 @@ class DownloadNotificationService {
 
     String title;
     String body;
-    double? progress;
 
     if (activeCount > 0) {
-      // Show active download progress
+      // Show active download status without progress percentage
       final activeSong = activeDownloads.values.first;
-      final songProgress = downloadProgress[activeSong.id] ?? 0.0;
       
       title = 'Downloading: ${activeSong.title}';
-      body = '${(songProgress * 100).toStringAsFixed(0)}% complete';
+      body = 'Download in progress';
       if (queuedCount > 0) {
         body += ' • $queuedCount queued';
       }
-      progress = songProgress;
     } else {
       // Show queued status
       title = 'Download Queue';
       body = '$queuedCount song(s) queued for download';
-      progress = null;
     }
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       _downloadChannelId,
       _downloadChannelName,
       channelDescription: _downloadChannelDescription,
-      importance: Importance.low,
+      importance: Importance.none,
       priority: Priority.low,
       ongoing: true,
       autoCancel: false,
@@ -176,14 +212,22 @@ class DownloadNotificationService {
       enableVibration: false,
       category: AndroidNotificationCategory.progress,
       actions: [
-        AndroidNotificationAction('cancel_all', 'Cancel All', showsUserInterface: false),
-        AndroidNotificationAction('view_queue', 'View Queue', showsUserInterface: true),
+        AndroidNotificationAction(
+          'cancel_all', 
+          'Cancel All', 
+          showsUserInterface: false,
+          cancelNotification: false,
+        ),
+        AndroidNotificationAction(
+          'view_queue', 
+          'View Queue', 
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
       ],
-      // Add progress support
-      showProgress: progress != null,
-      maxProgress: 100,
-      progress: progress != null ? (progress * 100).round() : 0,
-      indeterminate: progress == null,
+      // Remove progress support since we're not showing progress percentage
+      showProgress: false,
+      indeterminate: false,
     );
 
     const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
@@ -198,22 +242,29 @@ class DownloadNotificationService {
       iOS: iOSDetails,
     );
 
-    await _notifications!.show(
-      _downloadNotificationId,
-      title,
-      body,
-      details,
-      payload: 'download_queue',
-    );
-
-    debugPrint('Download notification shown: $title - $body');
+    try {
+      await _notifications!.show(
+        _downloadNotificationId,
+        title,
+        body,
+        details,
+        payload: 'download_queue',
+      );
+      debugPrint('Download notification shown: $title - $body');
+    } catch (e) {
+      debugPrint('Error showing download notification: $e');
+    }
   }
 
   Future<void> hideDownloadNotification() async {
     if (!_isInitialized || _notifications == null) return;
 
-    await _notifications!.cancel(_downloadNotificationId);
-    debugPrint('Download notification hidden');
+    try {
+      await _notifications!.cancel(_downloadNotificationId);
+      debugPrint('Download notification hidden');
+    } catch (e) {
+      debugPrint('Error hiding download notification: $e');
+    }
   }
 
   Future<void> updateDownloadProgress({
@@ -221,6 +272,7 @@ class DownloadNotificationService {
     required List<Song> queuedSongs,
     required Map<String, double> downloadProgress,
   }) async {
+    // This method now respects the throttling in showDownloadNotification
     await showDownloadNotification(
       activeDownloads: activeDownloads,
       queuedSongs: queuedSongs,
@@ -253,5 +305,40 @@ class DownloadNotificationService {
     // For iOS, we'll assume notifications are enabled after initialization
     // since we request permissions during initialization
     return true;
+  }
+
+  // Test method to verify notification action handling
+  Future<void> testNotificationAction() async {
+    debugPrint('Testing notification action handling...');
+    if (_onNotificationAction != null) {
+      try {
+        _onNotificationAction!.call('cancel_all');
+        debugPrint('Test notification action executed successfully');
+      } catch (e) {
+        debugPrint('Test notification action failed: $e');
+      }
+    } else {
+      debugPrint('No notification action callback set for testing');
+    }
+  }
+
+  // Force update notification (bypasses throttling) for important state changes
+  Future<void> forceUpdateNotification({
+    required Map<String, Song> activeDownloads,
+    required List<Song> queuedSongs,
+    required Map<String, double> downloadProgress,
+  }) async {
+    if (!_isInitialized || _notifications == null) {
+      await initialize();
+    }
+
+    // Temporarily reset the last update time to force an update
+    _lastNotificationUpdate = null;
+    
+    await showDownloadNotification(
+      activeDownloads: activeDownloads,
+      queuedSongs: queuedSongs,
+      downloadProgress: downloadProgress,
+    );
   }
 }
