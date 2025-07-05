@@ -62,7 +62,19 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     // Listen to OS audio interruptions and resume playback when interruption ends
     AudioSession.instance.then((session) async {
-      await session.configure(const AudioSessionConfiguration.music());
+      await session.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowAirPlay |
+            AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: false,
+      ));
       session.interruptionEventStream.listen((event) {
         if (event.begin) {
           switch (event.type) {
@@ -96,20 +108,42 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   }
 
   Future<void> configureAudioSession() async {
-  final session = await AudioSession.instance;
-  await session.configure(AudioSessionConfiguration(
-    avAudioSessionCategory: AVAudioSessionCategory.playback,
-    avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-        AVAudioSessionCategoryOptions.allowAirPlay,
-    avAudioSessionMode: AVAudioSessionMode.defaultMode,
-    androidAudioAttributes: const AndroidAudioAttributes(
-      contentType: AndroidAudioContentType.music,
-      usage: AndroidAudioUsage.media,
-    ),
-    androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-    androidWillPauseWhenDucked: false,
-  ));
-}
+    final session = await AudioSession.instance;
+    await session.configure(AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playback,
+      avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
+          AVAudioSessionCategoryOptions.allowAirPlay |
+          AVAudioSessionCategoryOptions.mixWithOthers,
+      avAudioSessionMode: AVAudioSessionMode.defaultMode,
+      androidAudioAttributes: const AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.music,
+        usage: AndroidAudioUsage.media,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      androidWillPauseWhenDucked: false,
+    ));
+  }
+
+  Future<void> _ensureAudioSessionActive() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowAirPlay |
+            AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: false,
+      ));
+    } catch (e) {
+      debugPrint("Error ensuring audio session is active: $e");
+    }
+  }
 
   Future<void> _prepareToPlay(int index) async {
     if (index < 0 || index >= _playlist.length) return;
@@ -337,6 +371,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> play() async {
     if (_audioPlayer.playing) return;
 
+    // Ensure audio session is active before playing
+    await _ensureAudioSessionActive();
+
     // If we are idle (e.g., stopped or just started), we need to prepare the source.
     if (_audioPlayer.processingState == ProcessingState.idle) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
@@ -431,6 +468,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     await _prepareToPlay(index);
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       try {
+        // Ensure audio session is active before playing
+        await _ensureAudioSessionActive();
+
         await _audioPlayer.play();
       } catch (e) {
         debugPrint("Error playing source ${_playlist[_currentIndex].id}: $e");

@@ -10,9 +10,6 @@
 ## Bug Fixes
 - Fix: ios background playback not working (ending after one song)
 
-## Performance
-- more performance tweaks
-
 ## Potential Future Features
 - try adding podcast support
 - test adding the heart and download buttons next to the title/artist of the song
