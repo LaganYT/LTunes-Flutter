@@ -27,7 +27,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
-  // final ValueNotifier<bool?> useModernLibraryNotifier = ValueNotifier<bool?>(null); // Removed, will be handled by ThemeProvider
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
   // Add a ValueNotifier to trigger refresh for FutureBuilders
@@ -237,7 +236,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    await themeProvider.resetToDefaults(); // This will now also reset useModernLibrary
+    await themeProvider.resetToDefaults(); 
 
     if (mounted) { // Ensure mounted check before showing SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
@@ -462,16 +461,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Column(
               children: [
-                ListTile(
-                  leading: const Icon(Icons.view_quilt_outlined),
-                  title: const Text('New Library Design'),
-                  trailing: Switch(
-                    value: themeProvider.useModernLibrary,
-                    onChanged: (bool value) {
-                      themeProvider.setUseModernLibrary(value);
-                    },
-                  ),
-                ),
                 // Moved US Radio Only toggle into Appearance
                 ValueListenableBuilder<bool?>(
                   valueListenable: usRadioOnlyNotifier,
@@ -833,7 +822,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showRadioTabNotifier.dispose();
     autoDownloadLikedSongsNotifier.dispose();
     _refreshNotifier.dispose(); // Dispose the new notifier
-    // useModernLibraryNotifier.dispose(); // Removed
     super.dispose();
   }
 }
@@ -841,11 +829,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class ThemeProvider extends ChangeNotifier {
   static const ThemeMode _defaultThemeMode = ThemeMode.dark;
   static final MaterialColor _defaultAccentColor = Colors.orange;
-  static const bool _defaultUseModernLibrary = false; // Default for modern library
 
   ThemeMode _themeMode = _defaultThemeMode;
   MaterialColor _accentColor = _defaultAccentColor;
-  bool _useModernLibrary = _defaultUseModernLibrary; // Add state for modern library
 
   static final Map<String, MaterialColor> accentColorOptions = {
     'Orange': Colors.orange,
@@ -861,7 +847,6 @@ class ThemeProvider extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
   MaterialColor get accentColor => _accentColor;
-  bool get useModernLibrary => _useModernLibrary; // Getter for modern library
 
   ThemeData get lightTheme => ThemeData(
         brightness: Brightness.light,
@@ -882,7 +867,6 @@ class ThemeProvider extends ChangeNotifier {
   ThemeProvider() {
     _loadThemeMode();
     _loadAccentColor();
-    _loadUseModernLibrary(); // Load modern library preference
   }
 
   Future<void> toggleTheme() async {
@@ -957,34 +941,13 @@ class ThemeProvider extends ChangeNotifier {
     // The current structure is okay.
   }
 
-  Future<void> setUseModernLibrary(bool value) async {
-    if (_useModernLibrary != value) {
-      _useModernLibrary = value;
-      notifyListeners();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('useModernLibrary', _useModernLibrary);
-    }
-  }
-
-  Future<void> _loadUseModernLibrary() async {
-    final prefs = await SharedPreferences.getInstance();
-    _useModernLibrary = prefs.getBool('useModernLibrary') ?? _defaultUseModernLibrary;
-    // notifyListeners(); // Typically call notifyListeners if state changes and UI needs to react immediately.
-                       // Since this is part of initial load, and other load methods also call it,
-                       // it might be redundant or could be consolidated.
-                       // For now, let's keep it simple. If issues arise, can revisit.
-  }
-
-
   Future<void> resetToDefaults() async {
     _themeMode = _defaultThemeMode;
     _accentColor = _defaultAccentColor;
-    _useModernLibrary = _defaultUseModernLibrary; // Reset modern library preference
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('themeMode', _themeMode.toString());
     await prefs.setInt('accentColor', _accentColor.value);
-    await prefs.setBool('useModernLibrary', _useModernLibrary); // Save reset preference
     
     notifyListeners();
   }
