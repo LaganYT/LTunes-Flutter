@@ -5,6 +5,7 @@
 
 ## Bug Fixes
 - Fix: ios background playback not working (ending after one song when the screen is off -- only happens for downloaded songs)
+- Fix: Android cancel all notification action doesn’t work (remove or fix)
 
 ## Potential Future Features
 - try adding podcast support

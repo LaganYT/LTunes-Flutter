@@ -51,7 +51,7 @@ class DownloadNotificationService {
     // Create notification channel for Android
     await _createNotificationChannel();
 
-    // Request permissions for Android 13+
+    // Request permissions for both platforms
     await _requestPermissions();
 
     _isInitialized = true;
@@ -86,6 +86,21 @@ class DownloadNotificationService {
     if (androidImplementation != null) {
       final bool? granted = await androidImplementation.requestNotificationsPermission();
       debugPrint('Android notification permission granted: $granted');
+    }
+
+    // Request permissions for iOS
+    final IOSFlutterLocalNotificationsPlugin? iOSImplementation =
+        _notifications!.resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>();
+
+    if (iOSImplementation != null) {
+      final bool? granted = await iOSImplementation.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: false,
+        critical: false,
+      );
+      debugPrint('iOS notification permission granted: $granted');
     }
   }
 
@@ -172,9 +187,10 @@ class DownloadNotificationService {
     );
 
     const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
-      presentAlert: false,
-      presentBadge: false,
+      presentAlert: true,
+      presentBadge: true,
       presentSound: false,
+      categoryIdentifier: 'download_progress',
     );
 
     final NotificationDetails details = NotificationDetails(
@@ -222,14 +238,20 @@ class DownloadNotificationService {
       await initialize();
     }
 
+    // Check Android permissions
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
         _notifications!.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (androidImplementation != null) {
-      return await androidImplementation.areNotificationsEnabled() ?? false;
+      final bool? androidEnabled = await androidImplementation.areNotificationsEnabled();
+      if (androidEnabled != null) {
+        return androidEnabled;
+      }
     }
 
-    return false;
+    // For iOS, we'll assume notifications are enabled after initialization
+    // since we request permissions during initialization
+    return true;
   }
 }
