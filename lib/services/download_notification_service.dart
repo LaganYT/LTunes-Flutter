@@ -167,7 +167,7 @@ class DownloadNotificationService {
       // Add progress support
       showProgress: progress != null,
       maxProgress: 100,
-      progress: progress != null ? (progress! * 100).round() : 0,
+      progress: progress != null ? (progress * 100).round() : 0,
       indeterminate: progress == null,
     );
 
