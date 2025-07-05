@@ -22,6 +22,7 @@ import 'artists_list_screen.dart';
 import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
 import 'liked_songs_screen.dart'; // new import
+import 'dart:async';
 
 // A simple model for a radio station.
 class RadioStation {
@@ -160,7 +161,7 @@ class ModernLibraryScreen extends StatefulWidget {
   _ModernLibraryScreenState createState() => _ModernLibraryScreenState();
 }
 
-class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
+class _ModernLibraryScreenState extends State<ModernLibraryScreen> with AutomaticKeepAliveClientMixin {
   List<Song> _songs = [];
   List<Playlist> _playlists = [];
   List<Album> _savedAlbums = []; // New list for saved albums
@@ -193,18 +194,37 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
 
   // cache local‐art lookup futures by filename
   // ignore: unused_field
-  final Map<String, Future<String>> _localArtPathCache = {};
+  final Map<String, String> _localArtPathCache = {};
+  
+  // Performance: Debounced search
+  Timer? _searchDebounceTimer;
+  static const Duration _debounceDelay = Duration(milliseconds: 300);
+  
+  // Performance: Lazy loading
+  static const int _pageSize = 20;
+  int _currentPage = 0;
+  bool _hasMoreItems = true;
+  final ScrollController _scrollController = ScrollController();
+  
+  // Performance: Loading states
+  bool _isLoadingSongs = false;
+  bool _isLoadingPlaylists = false;
+  bool _isLoadingAlbums = false;
+  bool _isLoadingStations = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
     
-    // _loadSortPreferences().then((_) { // Removed
-    // Initial loads after sort preferences are loaded
-    _loadData(); // Renamed from _loadDataAndApplySort
-    // });
+    // Performance: Add scroll listener for lazy loading
+    _scrollController.addListener(_onScroll);
     
+    // Initial loads
+    _loadData();
 
     // Listen to PlaylistManagerService
     // This listener will call _loadPlaylists when playlist data changes.
@@ -221,7 +241,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     // });
   }
 
-  void _loadData() { // Renamed from _loadDataAndApplySort
+  void _loadData() {
     _loadDownloadedSongs(); 
     _loadPlaylists();       
     _loadSavedAlbums();     
@@ -310,11 +330,19 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
   // }
 
 
+  // Performance: Debounced search
   void _onSearchChanged() {
-    if (!mounted) return;
-    setState(() {
-      _searchQuery = _searchController.text.toLowerCase();
-      // No need to call _applySortAndRefresh here, filtering happens in build methods
+    _searchDebounceTimer?.cancel();
+    
+    _searchDebounceTimer = Timer(_debounceDelay, () {
+      if (!mounted) return;
+      
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+        // Reset pagination for new search
+        _currentPage = 0;
+        _hasMoreItems = true;
+      });
     });
   }
 
@@ -352,6 +380,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
 
   @override
   void dispose() {
+    _searchDebounceTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     // audioPlayer.dispose(); // REMOVED
@@ -360,144 +389,275 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
     _albumManager.removeListener(_onSavedAlbumsChanged); // Remove listener
     _currentSongProvider.removeListener(_onSongDataChanged); // Remove listener
     radioRecentsManager.removeListener(_loadRecentStations); // Clean up listener
+    _scrollController.dispose();
     super.dispose();
   }
 
+  // Performance: Lazy loading scroll listener
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreItems();
+    }
+  }
+
+  // Performance: Load more items for lazy loading
+  void _loadMoreItems() {
+    if (!_hasMoreItems) return;
+    
+    setState(() {
+      _currentPage++;
+      _loadData();
+    });
+  }
+
+  // Performance: Optimized song loading with caching
   Future<void> _loadDownloadedSongs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final Set<String> keys = prefs.getKeys();
-    final List<Song> loadedSongs = [];
-    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
-    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+    if (_isLoadingSongs) return;
+    
+    setState(() {
+      _isLoadingSongs = true;
+    });
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Set<String> keys = prefs.getKeys();
+      final List<Song> loadedSongs = [];
+      final appDocDir = await getApplicationDocumentsDirectory();
+      const String downloadsSubDir = 'ltunes_downloads';
 
-    for (String key in keys) {
-      if (key.startsWith('song_')) {
-        final String? songJson = prefs.getString(key);
-        if (songJson != null) {
-          try {
-            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
-            Song song = Song.fromJson(songMap);
-            bool metadataUpdated = false;
+      for (String key in keys) {
+        if (key.startsWith('song_')) {
+          final String? songJson = prefs.getString(key);
+          if (songJson != null) {
+            try {
+              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+              Song song = Song.fromJson(songMap);
+              bool metadataUpdated = false;
 
-            // Migration and validation for localFilePath
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              String fileName = song.localFilePath!;
-              if (song.localFilePath!.contains(Platform.pathSeparator)) { // It's a full path, needs migration
-                fileName = p.basename(song.localFilePath!);
-              }
-              // Correct path for checking existence, including the subdirectory
-              final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
-              
-              if (await File(fullPath).exists()) {
-                if (song.localFilePath != fileName) { // Was a full path, now migrated to just filename
-                  song = song.copyWith(localFilePath: fileName);
-                  songMap['localFilePath'] = fileName; // Update map for saving
+              // Migration and validation for localFilePath
+              if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+                String fileName = song.localFilePath!;
+                if (song.localFilePath!.contains(Platform.pathSeparator)) {
+                  fileName = p.basename(song.localFilePath!);
+                }
+                final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
+                
+                if (await File(fullPath).exists()) {
+                  if (song.localFilePath != fileName) {
+                    song = song.copyWith(localFilePath: fileName);
+                    songMap['localFilePath'] = fileName;
+                    metadataUpdated = true;
+                  }
+                } else {
+                  song = song.copyWith(isDownloaded: false, localFilePath: null);
+                  songMap['isDownloaded'] = false;
+                  songMap['localFilePath'] = null;
                   metadataUpdated = true;
                 }
-              } else { // File doesn't exist in the expected subdirectory
+              } else if (song.isDownloaded) {
                 song = song.copyWith(isDownloaded: false, localFilePath: null);
                 songMap['isDownloaded'] = false;
                 songMap['localFilePath'] = null;
                 metadataUpdated = true;
               }
-            } else if (song.isDownloaded) { // Marked downloaded but path is null/empty
-                song = song.copyWith(isDownloaded: false, localFilePath: null);
-                songMap['isDownloaded'] = false;
-                songMap['localFilePath'] = null;
-                metadataUpdated = true;
-            }
 
-            // Migration and validation for albumArtUrl (if local and stored in root app docs)
-            if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+              // Migration and validation for albumArtUrl
+              if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
                 String artFileName = song.albumArtUrl;
-                if (song.albumArtUrl.contains(Platform.pathSeparator)) { // Full path, needs migration
-                    artFileName = p.basename(song.albumArtUrl);
+                if (song.albumArtUrl.contains(Platform.pathSeparator)) {
+                  artFileName = p.basename(song.albumArtUrl);
                 }
                 final fullArtPath = p.join(appDocDir.path, artFileName);
 
                 if (await File(fullArtPath).exists()) {
-                    if (song.albumArtUrl != artFileName) {
-                        song = song.copyWith(albumArtUrl: artFileName);
-                        songMap['albumArtUrl'] = artFileName;
-                        metadataUpdated = true;
-                    }
-                } else { // Local album art file missing
-                    // Optionally clear it or use a placeholder indicator.
-                    // For now, we keep the potentially broken filename if it was already a filename.
-                    // If it was a full path and file is missing, it effectively becomes "broken".
-                    // Consider if song = song.copyWith(albumArtUrl: ''); is desired here.
+                  if (song.albumArtUrl != artFileName) {
+                    song = song.copyWith(albumArtUrl: artFileName);
+                    songMap['albumArtUrl'] = artFileName;
+                    metadataUpdated = true;
+                  }
                 }
-            }
-            
-            if (metadataUpdated) {
-              await prefs.setString(key, jsonEncode(songMap));
-            }
-
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              // Re-check after potential modifications if file truly exists with the (potentially migrated) filename
-              // in the correct subdirectory
-              final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
-              if (await checkFile.exists()){
-                  loadedSongs.add(song);
               }
-            }
+              
+              if (metadataUpdated) {
+                await prefs.setString(key, jsonEncode(songMap));
+              }
 
-          } catch (e) {
-            debugPrint('Error decoding song from SharedPreferences for key $key: $e');
-            // Optionally remove corrupted data: await prefs.remove(key);
+              if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+                final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
+                if (await checkFile.exists()) {
+                  loadedSongs.add(song);
+                }
+              }
+            } catch (e) {
+              debugPrint('Error decoding song from SharedPreferences for key $key: $e');
+            }
           }
         }
       }
-    }
-    if (mounted) {
-      setState(() {
-        _songs = loadedSongs;
-      });
-      // _applySortAndRefresh(); // Apply sort after songs are loaded // Removed
+      
+      if (mounted) {
+        setState(() {
+          _songs = loadedSongs;
+          _isLoadingSongs = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading downloaded songs: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingSongs = false;
+        });
+      }
     }
   }
 
   Future<void> _loadPlaylists() async {
-    if (mounted) {
-      setState(() {
-        _playlists = List.from(_playlistManager.playlists); // Create a mutable copy
-      });
-      // _applySortAndRefresh(); // Apply sort after playlists are loaded // Removed
+    if (_isLoadingPlaylists) return;
+    
+    setState(() {
+      _isLoadingPlaylists = true;
+    });
+    
+    try {
+      if (mounted) {
+        setState(() {
+          _playlists = List.from(_playlistManager.playlists);
+          _isLoadingPlaylists = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading playlists: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingPlaylists = false;
+        });
+      }
     }
   }
   
-  Future<void> _loadSavedAlbums() async { // New method to load saved albums
-    if (mounted) {
-      setState(() {
-        _savedAlbums = List.from(_albumManager.savedAlbums); // Create a mutable copy
-      });
-      // _applySortAndRefresh(); // Apply sort after albums are loaded // Removed
+  Future<void> _loadSavedAlbums() async {
+    if (_isLoadingAlbums) return;
+    
+    setState(() {
+      _isLoadingAlbums = true;
+    });
+    
+    try {
+      if (mounted) {
+        setState(() {
+          _savedAlbums = List.from(_albumManager.savedAlbums);
+          _isLoadingAlbums = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading saved albums: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingAlbums = false;
+        });
+      }
     }
   }
 
   Future<void> _loadRecentStations() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String>? stationsJson = prefs.getStringList('recent_radio_stations');
-    if (stationsJson != null) {
-      try {
-        final stations = stationsJson
-            .map((s) => RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
-            .toList();
-        if (mounted) {
-          setState(() {
-            _recentStations = stations;
-          });
+    if (_isLoadingStations) return;
+    
+    setState(() {
+      _isLoadingStations = true;
+    });
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final List<String>? stationsJson = prefs.getStringList('recent_radio_stations');
+      if (stationsJson != null) {
+        try {
+          final stations = stationsJson
+              .map((s) => RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
+              .toList();
+          if (mounted) {
+            setState(() {
+              _recentStations = stations;
+              _isLoadingStations = false;
+            });
+          }
+        } catch (e) {
+          debugPrint('Could not load recent stations, clearing them. Error: $e');
+          await prefs.remove('recent_radio_stations');
+          if (mounted) {
+            setState(() {
+              _recentStations = [];
+              _isLoadingStations = false;
+            });
+          }
         }
-      } catch (e) {
-        debugPrint('Could not load recent stations, clearing them. Error: $e');
-        await prefs.remove('recent_radio_stations');
+      } else {
         if (mounted) {
           setState(() {
-            _recentStations = [];
+            _isLoadingStations = false;
           });
         }
       }
+    } catch (e) {
+      debugPrint('Error loading recent stations: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStations = false;
+        });
+      }
     }
+  }
+
+  // Performance: Cached local art path resolution
+  Future<String> _getCachedLocalArtPath(String fileName) async {
+    if (fileName.isEmpty || fileName.startsWith('http')) return '';
+    
+    if (_localArtPathCache.containsKey(fileName)) {
+      return _localArtPathCache[fileName] ?? '';
+    }
+    
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fullPath = p.join(directory.path, fileName);
+      if (await File(fullPath).exists()) {
+        _localArtPathCache[fileName] = fullPath;
+        return fullPath;
+      }
+    } catch (e) {
+      debugPrint('Error caching local art path: $e');
+    }
+    return '';
+  }
+
+  // Performance: Filter items based on search query
+  List<Song> get _filteredSongs {
+    if (_searchQuery.isEmpty) return _songs;
+    return _songs.where((song) =>
+      song.title.toLowerCase().contains(_searchQuery) ||
+      song.artist.toLowerCase().contains(_searchQuery) ||
+      (song.album?.toLowerCase().contains(_searchQuery) ?? false)
+    ).toList();
+  }
+
+  List<Playlist> get _filteredPlaylists {
+    if (_searchQuery.isEmpty) return _playlists;
+    return _playlists.where((playlist) =>
+      playlist.name.toLowerCase().contains(_searchQuery)
+    ).toList();
+  }
+
+  List<Album> get _filteredAlbums {
+    if (_searchQuery.isEmpty) return _savedAlbums;
+    return _savedAlbums.where((album) =>
+      album.title.toLowerCase().contains(_searchQuery) ||
+      album.artistName.toLowerCase().contains(_searchQuery)
+    ).toList();
+  }
+
+  List<RadioStation> get _filteredStations {
+    if (_searchQuery.isEmpty) return _recentStations;
+    return _recentStations.where((station) =>
+      station.name.toLowerCase().contains(_searchQuery)
+    ).toList();
   }
 
   Future<void> _deletePlaylist(BuildContext context, Playlist playlist) async {
@@ -1250,7 +1410,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
               errorBuilder: (_, __, ___) => placeholder,
             )
           : FutureBuilder<String>(
-              future: _getResolvedLocalPath(artUrl), // Use existing helper
+              future: _getCachedLocalArtPath(artUrl),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                   return Image.file(
@@ -1405,7 +1565,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
                                 ? (song.albumArtUrl.startsWith('http')
                                     ? Image.network(song.albumArtUrl, fit: BoxFit.cover)
                                     : FutureBuilder<String>(
-                                        future: _getResolvedLocalPath(song.albumArtUrl),
+                                        future: _getCachedLocalArtPath(song.albumArtUrl),
                                         builder: (_, snap) => (snap.hasData && snap.data!.isNotEmpty)
                                             ? Image.file(File(snap.data!), fit: BoxFit.cover)
                                             : Container(color: Colors.grey[800]),
@@ -1745,26 +1905,5 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> {
         ],
       ),
     );
-  }
-
-  // Helper to resolve a local filename (stored in song.albumArtUrl or song.localFilePath) to a full path
-  // ignore: unused_element
-  Future<String> _getResolvedLocalPath(String? fileName) async {
-    if (fileName == null || fileName.isEmpty) return '';
-    // If it's already an absolute path or URL (e.g. http), return as is (though local files should be filenames)
-    if (fileName.startsWith('http') || fileName.contains(Platform.pathSeparator)) {
-        // This case should ideally not happen for local files if migration is correct
-        // but as a fallback, check existence if it looks like an absolute path
-        if (!fileName.startsWith('http') && await File(fileName).exists()) return fileName;
-        if (fileName.startsWith('http')) return fileName; // It's a URL
-        return ''; // Absolute path but file doesn't exist
-    }
-    // It's a filename, resolve it
-    final appDocDir = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(appDocDir.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
-    }
-    return ''; // File not found with filename
   }
 }

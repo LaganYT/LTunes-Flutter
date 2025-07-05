@@ -43,8 +43,12 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   // Add preloading variables
   Album? _preloadedAlbum;
   LyricsData? _preloadedLyrics;
+  Map<String, dynamic>? _preloadedArtistInfo;
+  List<Song>? _preloadedArtistTracks;
+  List<Album>? _preloadedArtistAlbums;
   bool _isPreloadingAlbum = false;
   bool _isPreloadingLyrics = false;
+  bool _isPreloadingArtist = false;
   // ignore: unused_field
   String? _cachedAlbumId;
 
@@ -68,6 +72,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     // Start preloading data
     _preloadAlbumData();
     _preloadLyricsData();
+    _preloadArtistData();
     _loadLikedSongIds();
   }
 
@@ -241,6 +246,58 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       if (mounted) {
         setState(() {
           _isPreloadingLyrics = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _preloadArtistData() async {
+    if (widget.song.artist.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isPreloadingArtist = true;
+    });
+
+    try {
+      final apiService = ApiService();
+      final artistData = await apiService.getArtistById(widget.song.artist);
+      
+      if (mounted && artistData != null) {
+        final artistInfo = artistData['info'] as Map<String, dynamic>;
+        final tracks = (artistData['tracks'] as List).map((raw) {
+          return Song.fromAlbumTrackJson(
+            raw as Map<String, dynamic>,
+            raw['ALB_TITLE']?.toString() ?? '',
+            raw['ALB_PICTURE']?.toString() ?? '',
+            '',
+            artistInfo['ART_NAME']?.toString() ?? '',
+          );
+        }).toList();
+        
+        // Get artist albums using the actual artist ID
+        final actualArtistId = artistInfo['ART_ID']?.toString() ?? widget.song.artistId;
+        List<Album>? albums;
+        try {
+          albums = await apiService.getArtistAlbums(actualArtistId);
+        } catch (e) {
+          // Albums loading failed, continue without them
+          albums = [];
+        }
+        
+        setState(() {
+          _preloadedArtistInfo = artistInfo;
+          _preloadedArtistTracks = tracks;
+          _preloadedArtistAlbums = albums;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error preloading artist data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreloadingArtist = false;
         });
       }
     }
@@ -451,6 +508,21 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       return;
     }
 
+    // Use preloaded data if available
+    if (_preloadedArtistInfo != null) {
+      final actualArtistId = _preloadedArtistInfo!['ART_ID']?.toString() ?? widget.song.artistId;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ArtistScreen(
+            artistId: actualArtistId,
+            artistName: widget.song.artist,
+          ),
+        ),
+      );
+      return;
+    }
+
     try {
       // Use artistId if available, otherwise use artist name
       final artistQuery = widget.song.artistId.isNotEmpty 
@@ -538,67 +610,66 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 24),
               
-              // Song info section with explicit indicator - CENTERED
-              Container(
-                width: double.infinity,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            widget.song.title,
-                            style: Theme.of(context).textTheme.headlineSmall,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 2,
-                          ),
+              // Song Title and Artist Name
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.song.title,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
                         ),
-                        if (widget.song.isExplicit)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8.0),
-                            padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(4.0),
-                              border: Border.all(color: Colors.red, width: 1.0),
-                            ),
-                            child: Text(
-                              'E',
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _viewArtist(context),
-                      child: Text(
-                        widget.song.artist,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
-                          decoration: TextDecoration.underline,
-                        ),
-                        textAlign: TextAlign.center,
                       ),
+                      if (widget.song.isExplicit)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4.0),
+                            border: Border.all(color: Colors.red, width: 1.0),
+                          ),
+                          child: Text(
+                            'E',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _viewArtist(context),
+                    child: Text(
+                      widget.song.artist,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.secondary,
+                        decoration: TextDecoration.underline,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
               
               const SizedBox(height: 24),
               
+              // Play/Pause and Download/Delete Buttons (moved above info sections)
               Row(
                 children: [
                   Expanded(
                     child: SizedBox(
                       width: double.infinity,
+                      height: 56, // Fixed height for consistency
                       child: ElevatedButton.icon(
                         icon: isLoadingThisSong
                             ? SizedBox(
@@ -643,18 +714,27 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                     child: Column(
                       children: [
                         if (currentSongProvider.isDownloadingSong && currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id)) ...[
-                          LinearProgressIndicator(
-                            value: currentSongProvider.downloadProgress[songForDownloadStatus.id],
-                            color: colorScheme.secondary
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
-                            style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                          SizedBox(
+                            height: 56, // Fixed height for consistency
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                LinearProgressIndicator(
+                                  value: currentSongProvider.downloadProgress[songForDownloadStatus.id],
+                                  color: colorScheme.secondary
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
+                                  style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
                           ),
                         ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
                           SizedBox(
                             width: double.infinity,
+                            height: 56, // Fixed height for consistency
                             child: FilledButton.tonalIcon(
                               icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
                               label: Text('Delete', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer, fontSize: 16)),
@@ -670,6 +750,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                         ] else ...[
                           SizedBox(
                             width: double.infinity,
+                            height: 56, // Fixed height for consistency
                             child: FilledButton.tonalIcon(
                               icon: const Icon(Icons.download_rounded),
                               label: Text('Download', style: textTheme.labelLarge?.copyWith(fontSize: 16)),
@@ -688,75 +769,78 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Row for View Album and View Lyrics buttons
+              // Action Row: Add to Playlist & Add to Queue
               Row(
                 children: [
-                  // View Album button
-                  if (widget.song.album != null && widget.song.album!.isNotEmpty)
-                    Expanded(
-                      child: GestureDetector(
-                        onLongPress: () {
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return Container(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    ListTile(
-                                      leading: const Icon(Icons.album_outlined),
-                                      title: const Text('View Album'),
-                                      onTap: () {
-                                        Navigator.pop(context);
-                                        _viewAlbum(context);
-                                      },
-                                    ),
-                                    ListTile(
-                                      leading: const Icon(Icons.bookmark_add),
-                                      title: const Text('Save Album'),
-                                      onTap: () {
-                                        Navigator.pop(context);
-                                        _saveAlbum();
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                        child: ElevatedButton.icon(
-                          icon: (_isLoadingAlbum || _isPreloadingAlbum)
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.album_outlined),
-                          label: const Text('View Album'),
-                          onPressed: (_isLoadingAlbum || _isPreloadingAlbum) ? null : () => _viewAlbum(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.secondary,
-                            foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  // Add to Playlist Button
+                  Expanded(
+                    child: SizedBox(
+                      height: 56, // Fixed height for consistency
+                      child: ElevatedButton.icon(
+                        icon: Icon(
+                          Icons.playlist_add_rounded,
+                          color: isRadioPlayingGlobal 
+                              ? colorScheme.onSurface.withOpacity(0.38) 
+                              : colorScheme.onSecondary,
+                        ),
+                        label: Text(
+                          'Add to Playlist',
+                          style: TextStyle(
+                            color: isRadioPlayingGlobal 
+                                ? colorScheme.onSurface.withOpacity(0.38) 
+                                : colorScheme.onSecondary,
+                            fontWeight: FontWeight.w500,
                           ),
+                        ),
+                        onPressed: isRadioPlayingGlobal 
+                            ? null 
+                            : () => _showAddToPlaylistDialog(context, widget.song),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.secondary,
+                          foregroundColor: colorScheme.onSecondary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
-                  if (widget.song.album != null && widget.song.album!.isNotEmpty)
-                    const SizedBox(width: 16),
-              
-                  // View Lyrics button
+                  ),
+                  const SizedBox(width: 12),
+                  
+                  // Add to Queue Button
                   Expanded(
-                    child: ElevatedButton.icon(
-                      icon: (_isLoadingLyrics || _isPreloadingLyrics)
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.lyrics_outlined),
-                      label: const Text('View Lyrics'),
-                      onPressed: (_isLoadingLyrics || _isPreloadingLyrics) ? null : () => _fetchAndShowLyrics(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.tertiaryContainer,
-                        foregroundColor: colorScheme.onTertiaryContainer,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: SizedBox(
+                      height: 56, // Fixed height for consistency
+                      child: ElevatedButton.icon(
+                        icon: Icon(
+                          Icons.queue_music,
+                          color: isRadioPlayingGlobal 
+                              ? colorScheme.onSurface.withOpacity(0.38) 
+                              : colorScheme.onTertiary,
+                        ),
+                        label: Text(
+                          'Add to Queue',
+                          style: TextStyle(
+                            color: isRadioPlayingGlobal 
+                                ? colorScheme.onSurface.withOpacity(0.38) 
+                                : colorScheme.onTertiary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        onPressed: isRadioPlayingGlobal
+                            ? null
+                            : () {
+                                final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                                currentSongProvider.addToQueue(widget.song);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('${widget.song.title} added to queue')),
+                                );
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.tertiary,
+                          foregroundColor: colorScheme.onTertiary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
                       ),
                     ),
                   ),
@@ -764,30 +848,338 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Action Row: Add to Playlist & Add to Queue
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton.icon(
-                    icon: Icon(Icons.playlist_add_rounded, color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary),
-                    label: Text('Add to Playlist', style: TextStyle(color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary)),
-                    onPressed: isRadioPlayingGlobal ? null : () => _showAddToPlaylistDialog(context, widget.song),
-                  ),
-                  TextButton.icon(
-                    icon: Icon(Icons.queue_music, color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary),
-                    label: Text('Add to Queue', style: TextStyle(color: isRadioPlayingGlobal ? colorScheme.onSurface.withOpacity(0.38) : colorScheme.secondary)),
-                    onPressed: isRadioPlayingGlobal
-                        ? null
-                        : () {
-                            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                            currentSongProvider.addToQueue(widget.song);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${widget.song.title} added to queue')),
-                            );
-                          },
-                  ),
-                ],
+              // Enhanced Song Information Section
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Song Information',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Album Information
+                    if (widget.song.album != null && widget.song.album!.isNotEmpty) ...[
+                      _buildInfoRow('Album', widget.song.album!),
+                      const SizedBox(height: 8),
+                    ],
+                    
+                    // Release Date
+                    if (widget.song.releaseDate != null && widget.song.releaseDate!.isNotEmpty) ...[
+                      _buildInfoRow('Released', widget.song.releaseDate!),
+                      const SizedBox(height: 8),
+                    ],
+                    
+                    // Duration
+                    if (widget.song.duration != null) ...[
+                      _buildInfoRow('Duration', _formatDuration(widget.song.duration!)),
+                    ],
+                  ],
+                ),
               ),
+              
+              const SizedBox(height: 16),
+
+              // Lyrics Preview Section (if available)
+              if (_preloadedLyrics != null && _preloadedLyrics!.plainLyrics != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.tertiaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.lyrics, color: colorScheme.tertiary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Lyrics Preview',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.tertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      Text(
+                        _preloadedLyrics!.plainLyrics!.length > 200
+                            ? '${_preloadedLyrics!.plainLyrics!.substring(0, 200)}...'
+                            : _preloadedLyrics!.plainLyrics!,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                      
+                      if (_preloadedLyrics!.plainLyrics!.length > 200) ...[
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () => _fetchAndShowLyrics(context),
+                          child: Text(
+                            'View Full Lyrics',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.tertiary,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Album Details Section (if preloaded)
+              if (_preloadedAlbum != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.album, color: colorScheme.secondary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Album Details',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      if (_preloadedAlbum!.tracks.isNotEmpty) ...[
+                        Text(
+                          '${_preloadedAlbum!.tracks.length} tracks',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Show first few tracks
+                        ...(_preloadedAlbum!.tracks.take(3).map((track) => 
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.music_note,
+                                  size: 16,
+                                  color: track.title == widget.song.title 
+                                      ? colorScheme.primary 
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    track.title,
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: track.title == widget.song.title 
+                                          ? colorScheme.primary 
+                                          : colorScheme.onSurfaceVariant,
+                                      fontWeight: track.title == widget.song.title 
+                                          ? FontWeight.bold 
+                                          : FontWeight.normal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )),
+                        
+                        if (_preloadedAlbum!.tracks.length > 3) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '... and ${_preloadedAlbum!.tracks.length - 3} more tracks',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () => _viewAlbum(context),
+                          child: Text(
+                            'View Album',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.secondary,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Artist Information Section (if preloaded)
+              if (_preloadedArtistInfo != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.person, color: colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Artist Information',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // Artist stats
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildArtistStatItem(
+                            context,
+                            'Fans',
+                            _formatNumber(_preloadedArtistInfo!['NB_FAN'] as int? ?? 0),
+                            Icons.favorite,
+                            colorScheme,
+                          ),
+                          _buildArtistStatItem(
+                            context,
+                            'Albums',
+                            (_preloadedArtistAlbums?.length ?? _preloadedArtistInfo!['NB_ALBUM'] as int? ?? 0).toString(),
+                            Icons.album,
+                            colorScheme,
+                          ),
+                          _buildArtistStatItem(
+                            context,
+                            'Tracks',
+                            (_preloadedArtistTracks?.length ?? 0).toString(),
+                            Icons.music_note,
+                            colorScheme,
+                          ),
+                        ],
+                      ),
+                      
+                      if (_preloadedArtistTracks != null && _preloadedArtistTracks!.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Popular Tracks',
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Show first few tracks
+                        ...(_preloadedArtistTracks!.take(3).map((track) => 
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.music_note,
+                                  size: 16,
+                                  color: track.title == widget.song.title 
+                                      ? colorScheme.primary 
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    track.title,
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: track.title == widget.song.title 
+                                          ? colorScheme.primary 
+                                          : colorScheme.onSurfaceVariant,
+                                      fontWeight: track.title == widget.song.title 
+                                          ? FontWeight.bold 
+                                          : FontWeight.normal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )),
+                        
+                        if (_preloadedArtistTracks!.length > 3) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '... and ${_preloadedArtistTracks!.length - 3} more tracks',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () => _viewArtist(context),
+                          child: Text(
+                            'View Artist',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -799,15 +1191,81 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     );
   }
 
-  // ignore: unused_element
-  Future<String> _getLocalImagePath(String imageFileName) async {
-    if (imageFileName.isEmpty || imageFileName.startsWith('http')) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, imageFileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
+  // Helper method to build info rows
+  Widget _buildInfoRow(String label, String value, {IconData? icon, Color? iconColor}) {
+    return Row(
+      children: [
+        if (icon != null) ...[
+          Icon(
+            icon,
+            size: 16,
+            color: iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+        ],
+        Text(
+          '$label: ',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper method to format duration
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  // Helper method to format numbers (e.g., 1000000 -> 1.0M)
+  String _formatNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}K';
     }
-    return '';
+    return number.toString();
+  }
+
+  // Helper method to build artist stat items
+  Widget _buildArtistStatItem(BuildContext context, String label, String value, IconData icon, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          size: 24,
+          color: colorScheme.primary,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 
   void _showAddToPlaylistDialog(BuildContext context, Song song) {

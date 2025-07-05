@@ -41,10 +41,12 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
 
   Future<void> _loadArtistData() async {
     try {
-      setState(() {
-        _loading = true;
-        _error = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = true;
+          _error = false;
+        });
+      }
 
       final api = ApiService();
       
@@ -67,27 +69,31 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         albums = [];
       }
 
-      setState(() {
-        _artistInfo = artistData['info'];
-        _tracks = (artistData['tracks'] as List).map((raw) {
-          final info = artistData['info'] as Map<String, dynamic>;
-          return Song.fromAlbumTrackJson(
-            raw as Map<String, dynamic>,
-            raw['ALB_TITLE']?.toString() ?? '',
-            raw['ALB_PICTURE']?.toString() ?? '',
-            '',
-            info['ART_NAME']?.toString() ?? '',
-          );
-        }).toList();
-        _albums = albums;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _artistInfo = artistData['info'];
+          _tracks = (artistData['tracks'] as List).map((raw) {
+            final info = artistData['info'] as Map<String, dynamic>;
+            return Song.fromAlbumTrackJson(
+              raw as Map<String, dynamic>,
+              raw['ALB_TITLE']?.toString() ?? '',
+              raw['ALB_PICTURE']?.toString() ?? '',
+              '',
+              info['ART_NAME']?.toString() ?? '',
+            );
+          }).toList();
+          _albums = albums;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = true;
-        _errorMessage = e.toString();
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _errorMessage = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -113,20 +119,21 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         : '';
 
     return Container(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Artist Image
           Container(
-            width: 200,
-            height: 200,
+            width: 120,
+            height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -139,7 +146,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                         color: Theme.of(context).colorScheme.surfaceVariant,
                         child: Icon(
                           Icons.person,
-                          size: 80,
+                          size: 48,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -147,7 +154,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                         color: Theme.of(context).colorScheme.surfaceVariant,
                         child: Icon(
                           Icons.person,
-                          size: 80,
+                          size: 48,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -156,24 +163,22 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                       color: Theme.of(context).colorScheme.surfaceVariant,
                       child: Icon(
                         Icons.person,
-                        size: 80,
+                        size: 48,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
             ),
           ),
-          const SizedBox(height: 24),
-          
+          const SizedBox(height: 12),
           // Artist Name
           Text(
             name,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
-          
+          const SizedBox(height: 8),
           // Stats Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -209,19 +214,21 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         Icon(
           icon,
           color: Theme.of(context).colorScheme.primary,
-          size: 24,
+          size: 20,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
         ),
         Text(
           label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
           ),
         ),
       ],
@@ -501,7 +508,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
               SliverAppBar(
-                expandedHeight: 380.0,
+                expandedHeight: 260.0,
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
                   background: _buildHeader(),

@@ -7,7 +7,7 @@ import '../widgets/full_screen_player.dart';
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import 'package:cached_network_image/cached_network_image.dart';
-
+import 'dart:async';
 
 class Playbar extends StatefulWidget {
   static _PlaybarState of(BuildContext context) =>
@@ -20,8 +20,13 @@ class Playbar extends StatefulWidget {
 }
 
 class _PlaybarState extends State<Playbar> {
-  Future<String>? _localArtPathFuture;
+  // Performance: Cache for local art paths
+  final Map<String, String> _localArtPathCache = {};
   String? _previousSongId;
+  
+  // Performance: Debounced state updates
+  Timer? _updateTimer;
+  static const Duration _updateDelay = Duration(milliseconds: 100);
 
   @override
   void initState() {
@@ -31,15 +36,36 @@ class _PlaybarState extends State<Playbar> {
     final currentSong = currentSongProvider.currentSong;
     _previousSongId = currentSong?.id;
     if (currentSong != null) {
-      _localArtPathFuture = _resolveLocalArtPath(currentSong.albumArtUrl);
+      _cacheLocalArtPath(currentSong.albumArtUrl);
     }
-    currentSongProvider.addListener(() {
+    
+    // Performance: Optimized listener with debouncing
+    currentSongProvider.addListener(_onSongChanged);
+  }
+
+  @override
+  void dispose() {
+    _updateTimer?.cancel();
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    currentSongProvider.removeListener(_onSongChanged);
+    super.dispose();
+  }
+
+  // Performance: Debounced song change handler
+  void _onSongChanged() {
+    _updateTimer?.cancel();
+    _updateTimer = Timer(_updateDelay, () {
+      if (!mounted) return;
+      
+      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
       final newSong = currentSongProvider.currentSong;
       if (newSong?.id != _previousSongId) {
         _previousSongId = newSong?.id;
-        _localArtPathFuture = _resolveLocalArtPath(newSong?.albumArtUrl ?? '');
+        if (newSong != null) {
+          _cacheLocalArtPath(newSong.albumArtUrl);
+        }
+        setState(() {});
       }
-      setState(() {});
     });
   }
 
@@ -48,16 +74,26 @@ class _PlaybarState extends State<Playbar> {
     currentSongProvider.playUrl(url);
   }
 
-  // Helper method to resolve local album art path
-  // ignore: unused_element
-  Future<String> _resolveLocalArtPath(String fileName) async {
-    if (fileName.isEmpty) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
+  // Performance: Cached local art path resolution
+  Future<void> _cacheLocalArtPath(String fileName) async {
+    if (fileName.isEmpty || fileName.startsWith('http')) return;
+    
+    if (_localArtPathCache.containsKey(fileName)) return;
+    
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fullPath = p.join(directory.path, fileName);
+      if (await File(fullPath).exists()) {
+        _localArtPathCache[fileName] = fullPath;
+      }
+    } catch (e) {
+      debugPrint('Error caching local art path: $e');
     }
-    return '';
+  }
+
+  // Performance: Get cached local art path
+  String? _getCachedLocalArtPath(String fileName) {
+    return _localArtPathCache[fileName];
   }
 
   @override
@@ -66,7 +102,7 @@ class _PlaybarState extends State<Playbar> {
     final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
-    final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio; // Get radio status
+    final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio;
 
     if (currentSong == null) {
       return const SizedBox.shrink(); // Don't show playbar if no song is loaded
@@ -76,6 +112,7 @@ class _PlaybarState extends State<Playbar> {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
+    // Performance: Optimized album art widget
     Widget albumArtContent;
     if (currentSong.albumArtUrl.isNotEmpty) {
       if (currentSong.albumArtUrl.startsWith('http')) {
@@ -90,22 +127,20 @@ class _PlaybarState extends State<Playbar> {
           errorWidget: (context, url, error) => Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
         );
       } else {
-        albumArtContent = FutureBuilder<String>(
-          future: _localArtPathFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(
-                File(snapshot.data!),
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        );
+        // Performance: Use cached local path
+        final cachedPath = _getCachedLocalArtPath(currentSong.albumArtUrl);
+        if (cachedPath != null) {
+          albumArtContent = Image.file(
+            File(cachedPath),
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant),
+          );
+        } else {
+          albumArtContent = const Icon(Icons.music_note, size: 48);
+        }
       }
     } else {
       albumArtContent = Icon(Icons.music_note, size: 48, color: colorScheme.onSurfaceVariant);
@@ -199,10 +234,11 @@ class _PlaybarState extends State<Playbar> {
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          currentSong.artist.isNotEmpty ? currentSong.artist : (isRadio ? "Radio Stream" : "Unknown Artist"),
+                          currentSong.artist,
                           style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                            color: colorScheme.onSurface.withOpacity(0.7),
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -210,30 +246,39 @@ class _PlaybarState extends State<Playbar> {
                       ],
                     ),
                   ),
-                  if (isLoadingAudio)
-                    const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2.0),
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 32),
-                      color: colorScheme.primary,
-                      onPressed: () {
-                        if (isPlaying) {
-                          currentSongProvider.pauseSong();
-                        } else {
-                          currentSongProvider.resumeSong();
-                        }
-                      },
-                    ),
-                  if (!isRadio) // Show next button only if not radio
-                    IconButton(
-                      icon: Icon(Icons.skip_next_rounded, size: 32),
-                      color: colorScheme.onSurfaceVariant,
-                      onPressed: () => currentSongProvider.playNext(),
-                    ),
+                  const SizedBox(width: 8),
+                  // Performance: Optimized control buttons
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isLoadingAudio)
+                        const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        IconButton(
+                          icon: Icon(
+                            isPlaying ? Icons.pause : Icons.play_arrow,
+                            color: colorScheme.onSurface,
+                          ),
+                                                     onPressed: () {
+                             if (isPlaying) {
+                               currentSongProvider.pauseSong();
+                             } else {
+                               currentSongProvider.resumeSong();
+                             }
+                           },
+                          iconSize: 28,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -242,5 +287,4 @@ class _PlaybarState extends State<Playbar> {
       ),
     );
   }
-
 }
