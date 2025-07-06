@@ -1,93 +1,223 @@
 # LTunes
 
-A Flutter-based music app for streaming, downloading, and organizing songs, albums, playlists, and radio stations—all in one place.
+A modern, feature-rich Flutter music app for streaming, downloading, and organizing your music library. Built with performance and user experience in mind.
 
-## Features
+## ✨ Features
 
-- **Search**  
-  • Music search by title/artist  
-  • US-only or global radio station search  
-  • Instant refresh and caching  
-- **Streaming**  
-  • Play songs and radio streams using a background audio service  
-  • Full-screen player with album art, shuffle, loop modes, and position control  
-- **Library**  
-  • Manage your downloaded songs  
-  • Import local audio files with metadata extraction  
-  • Sort and search downloads  
-  • Delete individual or all downloads  
-- **Playlists**  
-  • Create, rename, reorder, and delete playlists  
-  • Add/remove songs with drag-and-drop support  
-  • Play or shuffle entire playlists  
-- **Albums & Artists**  
-  • Save albums to your library  
-  • View album details and track listings  
-  • Download or play whole albums  
-  • Browse artist pages with popular tracks  
-- **Lyrics & Art**  
-  • Fetch and display synced or plain lyrics  
-  • Toggle between lyrics view and full-screen album art  
-- **Settings**  
-  • Toggle dark/light themes and accent colors  
-  • Enable US-only radio by default  
-  • Check for app updates  
-  • View app version, storage usage, and clear cached data  
-- **Download Queue**  
-  • Background download manager with resume, progress, and cancellation  
-  • Queue multiple downloads concurrently  
+### 🎵 **Music Streaming & Playback**
+- **Background Audio Service**: Seamless playback continues when app is minimized
+- **Full-Screen Player**: Beautiful player with album art, controls, and lyrics view
+- **Smart Queue Management**: Play songs, albums, playlists, or radio stations
+- **Audio Controls**: Shuffle, repeat, seek, and volume control
+- **Crossfade Support**: Smooth transitions between tracks
 
-## Download Queue Notifications
+### 🔍 **Advanced Search**
+- **Global Music Search**: Find songs, albums, and artists instantly
+- **Radio Station Search**: Discover US and global radio stations
+- **Smart Caching**: Fast results with intelligent cache management
+- **Debounced Search**: Optimized performance with search throttling
+- **Real-time Results**: Instant search suggestions and filtering
 
-LTunes now shows download progress in system notifications! When you have songs in your download queue:
+### 📚 **Modern Library Management**
+- **Organized Categories**: Songs, Albums, Artists, Playlists, and Liked Songs
+- **Smart Collections**: Recently added, recently played, and favorites
+- **Import Local Files**: Add your own music with metadata extraction
+- **Bulk Operations**: Select multiple items for batch actions
+- **Search Within Library**: Find your content quickly
 
-- **Active Downloads**: Shows the currently downloading song with progress percentage
-- **Queued Downloads**: Shows the number of songs waiting to be downloaded
-- **Notification Actions**: 
-  - Tap the notification to view the download queue
-  - Use "Cancel All" to stop all downloads
-  - Use "View Queue" to open the download queue screen
+### 📱 **Download Management**
+- **Background Downloads**: Download songs while using other apps
+- **Progress Tracking**: Real-time download progress with notifications
+- **Queue Management**: Organize and prioritize downloads
+- **Resume Support**: Continue interrupted downloads
+- **Storage Management**: Monitor and clear downloaded content
 
-The notification will automatically appear when downloads start and disappear when the queue is empty.
+### 🎼 **Playlist Features**
+- **Create & Customize**: Build playlists with drag-and-drop support
+- **Smart Playlists**: Auto-generated based on your listening habits
+- **Collaborative Features**: Share and import playlists
+- **Playlist Art**: Automatic artwork generation from included songs
+- **Advanced Sorting**: Sort by name, date, or song count
 
-## Installation
+### 🎨 **Album & Artist Pages**
+- **Rich Album Details**: Complete track listings and metadata
+- **Artist Profiles**: Biography, popular tracks, and discography
+- **Album Artwork**: High-quality cover art with fallback handling
+- **Related Content**: Discover similar artists and albums
 
-1. Ensure you have Flutter SDK ≥ 3.0 installed  
-2. Clone this repository:
+### 🎤 **Lyrics & Media**
+- **Synced Lyrics**: Timed lyrics display during playback
+- **Plain Lyrics**: Full lyrics view for reading
+- **Lyrics Search**: Find lyrics for any song
+- **Album Art Display**: Full-screen artwork viewing
+- **Metadata Support**: Complete song information
+
+### ⚙️ **Settings & Customization**
+- **Theme Support**: Light, dark, and system themes
+- **Accent Colors**: Customize the app's color scheme
+- **Radio Preferences**: US-only or global radio stations
+- **Update System**: Automatic update notifications
+- **Storage Analytics**: Monitor app storage usage
+- **Cache Management**: Clear cached data and downloads
+
+### 🔧 **Advanced Features**
+- **Error Handling**: Comprehensive error management with retry mechanisms
+- **Performance Optimization**: Lazy loading, caching, and request limiting
+- **Offline Support**: Full functionality for downloaded content
+- **Notification Integration**: System notifications for downloads and playback
+- **Accessibility**: Screen reader support and keyboard navigation
+
+## 🚀 Recent Updates (v1.9.5)
+
+### ✨ New Features
+- **Enhanced Error Handling**: Centralized error management with user-friendly messages
+- **Modern Library Screen**: Redesigned library with better organization and performance
+- **Download Notifications**: System notifications for download progress and queue management
+- **Performance Improvements**: Optimized search, caching, and loading times
+- **Better Offline Support**: Improved handling of downloaded and imported content
+
+### 🐛 Bug Fixes
+- Fixed iOS background playback issues
+- Improved error recovery and retry mechanisms
+- Enhanced stability for large music libraries
+- Better handling of network connectivity issues
+
+## 📱 Screenshots
+
+### Light Mode
+<img src="assets/screenshots/light-mode/readme.png" alt="Light mode" width="200"/>
+
+### Dark Mode  
+<img src="assets/screenshots/dark-mode/readme.png" alt="Dark mode" width="200"/>
+
+## 🛠️ Installation
+
+### Prerequisites
+- Flutter SDK ≥ 3.0.0
+- Dart SDK ≥ 3.0.0
+- Android Studio / VS Code with Flutter extensions
+
+### Setup
+1. **Clone the repository**:
    ```bash
    git clone https://github.com/LaganYT/LTunes-Flutter.git
    cd "LTunes Flutter"
    ```
-3. Get dependencies:
+
+2. **Install dependencies**:
    ```bash
    flutter pub get
    ```
-4. Run on simulator or device:
+
+3. **Run the app**:
    ```bash
    flutter run
    ```
 
-## Usage
+### Platform Support
+- ✅ **Android**: API 21+ (Android 5.0+)
+- ✅ **iOS**: iOS 12.0+
 
-- **Search**: Use the bottom navigation to select "Search," enter a query, and tap a song or station to play.  
-- **Library**: View, play, import, and delete downloaded songs or manage playlists and albums.  
-- **Settings**: Customize themes, radio region, and clear storage or check for updates.
+## 🎯 Usage Guide
 
-## Screenshots
+### Getting Started
+1. **Search**: Use the search tab to find music and radio stations
+2. **Library**: Access your downloaded content and playlists
+3. **Settings**: Customize themes, preferences, and manage storage
 
-### Search Page
+### Key Features
+- **Download Songs**: Tap the download icon to save songs offline
+- **Create Playlists**: Use the library to organize your music
+- **Background Playback**: Music continues when switching apps
+- **Lyrics View**: Tap the lyrics button in the player for synchronized lyrics
 
-| Light Mode | Dark Mode |
-| ---------- | --------- |
-| <img src="assets/screenshots/light-mode/readme.png" alt="Light mode" width="200"/> | <img src="assets/screenshots/dark-mode/readme.png" alt="Dark mode" width="200"/> |
+## 🏗️ Architecture
 
-## Contributing
+### Core Services
+- **ApiService**: Handles all API communication with caching
+- **AudioHandler**: Manages background audio playback
+- **ErrorHandlerService**: Centralized error management
+- **DownloadNotificationService**: System notification management
+- **PlaylistManagerService**: Playlist CRUD operations
+- **AlbumManagerService**: Album management and metadata
 
-1. Fork the repo  
-2. Create a new branch (`git checkout -b feature/YourFeature`)  
-3. Commit your changes and push (`git push origin feature/YourFeature`)  
-4. Open a Pull Request
+### State Management
+- **Provider Pattern**: Clean state management with Provider
+- **CurrentSongProvider**: Global audio state management
+- **Service Listeners**: Reactive updates across the app
 
-## License
+### Performance Features
+- **Request Debouncing**: Prevents excessive API calls
+- **Lazy Loading**: Loads content as needed
+- **Connection Pooling**: Efficient HTTP client management
+- **Cache TTL**: Time-based cache expiration
+- **Concurrent Request Limiting**: Prevents API overload
+
+## 🔧 Development
+
+### Project Structure
+```
+lib/
+├── main.dart                 # App entry point
+├── models/                   # Data models
+├── providers/                # State management
+├── screens/                  # UI screens
+├── services/                 # Business logic
+└── widgets/                  # Reusable components
+```
+
+### Key Dependencies
+- **audio_service**: Background audio playback
+- **just_audio**: Audio player implementation
+- **provider**: State management
+- **http**: API communication
+- **shared_preferences**: Local storage
+- **path_provider**: File system access
+
+### Error Handling
+The app includes a comprehensive error handling system:
+- **User-friendly messages**: Clear, actionable error descriptions
+- **Retry mechanisms**: Automatic and manual retry options
+- **Error logging**: Centralized error tracking for debugging
+- **Graceful degradation**: App continues working despite errors
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/YourFeature`
+3. **Make your changes**: Follow the existing code style
+4. **Test thoroughly**: Ensure all features work correctly
+5. **Commit and push**: `git push origin feature/YourFeature`
+6. **Open a Pull Request**: Provide a clear description of changes
+
+### Development Guidelines
+- Follow Flutter best practices and conventions
+- Add error handling for new features
+- Include appropriate tests
+- Update documentation for new features
+- Ensure cross-platform compatibility
+
+## 📄 License
 
 The Unlicense © Logan Latham / LaganDevs
+
+This project is open source and available under the Unlicense, which means you can use, modify, and distribute it freely.
+
+## 🙏 Acknowledgments
+
+- **Flutter Team**: For the amazing framework
+- **Audio Service Package**: For background audio support
+- **Just Audio Package**: For reliable audio playback
+- **Contributors**: Everyone who has helped improve LTunes
+
+## 📞 Support
+
+- **Issues**: Report bugs and request features on GitHub
+- **Discussions**: Join community discussions
+- **Documentation**: Check the code comments and error handling guide
+
+---
+
+**LTunes** - Your music, your way. 🎵
