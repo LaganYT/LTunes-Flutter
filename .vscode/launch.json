@@ -4,14 +4,14 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-    
         {
             "name": "Run Beta Script",
             "request": "launch",
             "type": "node",
             "program": "/bin/bash",
             "args": ["/Users/loganlatham/Desktop/beta.sh"],
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "cwd": "/Users/loganlatham/Documents/LTunes"
         },
         {
             "name": "Run Build Release Script",
@@ -19,7 +19,8 @@
             "type": "node",
             "program": "/bin/bash",
             "args": ["/Users/loganlatham/Desktop/build_release.sh"],
-            "console": "integratedTerminal"
-        },
+            "console": "integratedTerminal",
+            "cwd": "/Users/loganlatham/Documents/LTunes"
+        }
     ]
 }

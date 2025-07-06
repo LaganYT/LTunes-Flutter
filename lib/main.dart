@@ -44,6 +44,7 @@ Future<void> main() async {
       // iOS background audio configuration
       artDownscaleWidth: 300,
       artDownscaleHeight: 300,
+
     ),
   );
 
@@ -117,28 +118,16 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    switch (state) {
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-        // App is going to background, ensure audio session is maintained
-        _audioHandler.customAction('ensureBackgroundPlayback');
-        // Specifically activate iOS background audio
-        _audioHandler.customAction('activateIOSBackgroundAudio');
-        break;
-      case AppLifecycleState.resumed:
-        // App is coming back to foreground, reactivate audio session
-        _audioHandler.customAction('handleAppForeground');
-        break;
-      case AppLifecycleState.detached:
-        // App is being terminated
-        break;
-      case AppLifecycleState.hidden:
-        // App is hidden (iOS specific)
-        _audioHandler.customAction('ensureBackgroundPlayback');
-        // Specifically activate iOS background audio
-        _audioHandler.customAction('activateIOSBackgroundAudio');
-        break;
+    // Handle app lifecycle changes for iOS background playback
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // App is going to background, ensure background playback is maintained
+      _audioHandler.customAction('ensureBackgroundPlayback', {});
+    } else if (state == AppLifecycleState.resumed) {
+      // App is coming back to foreground, reactivate audio session
+      _audioHandler.customAction('handleAppForeground', {});
     }
+    
+    debugPrint("App lifecycle state changed to: $state");
   }
 
   Future<void> _initializeVersionAndCheckForUpdates() async {

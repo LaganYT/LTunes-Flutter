@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import UserNotifications
+import AVFoundation
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -14,6 +15,9 @@ import UserNotifications
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
     }
+    
+    // Let Flutter handle audio session configuration to avoid conflicts
+    print("Audio session configuration delegated to Flutter")
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -37,5 +41,21 @@ import UserNotifications
   ) {
     // Handle notification tap
     completionHandler()
+  }
+  
+  // Handle app entering background
+  override func applicationDidEnterBackground(_ application: UIApplication) {
+    super.applicationDidEnterBackground(application)
+    
+    // Let Flutter handle background audio session to avoid conflicts
+    print("App entering background - audio session handled by Flutter")
+  }
+  
+  // Handle app entering foreground
+  override func applicationWillEnterForeground(_ application: UIApplication) {
+    super.applicationWillEnterForeground(application)
+    
+    // Let Flutter handle foreground audio session to avoid conflicts
+    print("App entering foreground - audio session handled by Flutter")
   }
 }

@@ -48,54 +48,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   int _currentIndex = -1;
   bool _isRadioStream = false;
   AudioSession? _audioSession;
+  bool _isIOS = Platform.isIOS;
 
   AudioPlayerHandler() {
-    _audioPlayer.setAndroidAudioAttributes(
-      const AndroidAudioAttributes(
-        contentType: AndroidAudioContentType.music,
-        usage: AndroidAudioUsage.media,
-      ),
-    );
-
-    _initializeAudioSession();
+    // Initialize audio session properly for iOS background playback
+    _initializeAudioSessionForIOS();
 
     _notifyAudioHandlerAboutPlaybackEvents();
-
-    // Listen to OS audio interruptions and resume playback when interruption ends
-    _audioSession?.interruptionEventStream.listen((event) {
-      if (event.begin) {
-        switch (event.type) {
-          case AudioInterruptionType.duck:
-            if (_audioPlayer.volume > 0) _audioPlayer.setVolume(_audioPlayer.volume / 2);
-            break;
-          case AudioInterruptionType.pause:
-          case AudioInterruptionType.unknown:
-            pause();
-            break;
-        }
-      } else {
-        switch (event.type) {
-          case AudioInterruptionType.duck:
-            _audioPlayer.setVolume(
-                (_audioPlayer.volume * 2).clamp(0.0, 1.0));
-            break;
-          case AudioInterruptionType.pause:
-            // Resume playback after interruption ends
-            if (playbackState.value.playing) {
-              play();
-            }
-            break;
-          case AudioInterruptionType.unknown:
-            pause();
-            break;
-        }
-      }
-    });
-
-    // Listen to becoming noisy events (e.g., headphones unplugged)
-    _audioSession?.becomingNoisyEventStream.listen((_) {
-      pause();
-    });
 
     // Set up periodic audio session maintenance
     _setupAudioSessionMaintenance();
@@ -104,76 +63,95 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // For now, queue is managed by CurrentSongProvider sending updates.
   }
 
-  Future<void> _initializeAudioSession() async {
+  Future<void> _initializeAudioSessionForIOS() async {
+    if (!_isIOS) return; // Only configure for iOS
+    
     try {
       _audioSession = await AudioSession.instance;
-      await _audioSession!.configure(AudioSessionConfiguration(
+      
+      // Configure audio session for iOS background playback
+      await _audioSession!.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowAirPlay |
-            AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
         androidAudioAttributes: const AndroidAudioAttributes(
           contentType: AndroidAudioContentType.music,
+          flags: AndroidAudioFlags.none,
           usage: AndroidAudioUsage.media,
         ),
         androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: false,
+        androidWillPauseWhenDucked: true,
       ));
       
-      debugPrint("Audio session initialized successfully");
+      debugPrint("iOS audio session configured for background playback");
+    } catch (e) {
+      debugPrint("Error configuring iOS audio session: $e");
+      // Continue anyway - let just_audio handle the session
+    }
+  }
+
+  Future<void> _initializeAudioSession() async {
+    if (_audioSession != null) return; // Already initialized
+    
+    try {
+      _audioSession = await AudioSession.instance;
+      
+      if (_isIOS) {
+        // For iOS, ensure the session is properly configured for background playback
+        await _audioSession!.configure(const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth,
+          avAudioSessionMode: AVAudioSessionMode.defaultMode,
+          avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+          androidAudioAttributes: const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.music,
+            flags: AndroidAudioFlags.none,
+            usage: AndroidAudioUsage.media,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+          androidWillPauseWhenDucked: true,
+        ));
+        debugPrint("iOS audio session configured for background playback");
+      } else {
+        // For Android, let just_audio handle it automatically
+        debugPrint("Android audio session - letting just_audio handle it automatically");
+      }
     } catch (e) {
       debugPrint("Error initializing audio session: $e");
+      // Continue anyway - let just_audio handle the session
     }
   }
 
   Future<void> configureAudioSession() async {
-    if (_audioSession == null) {
-      await _initializeAudioSession();
-      return;
-    }
+    // Initialize audio session if not already done
+    await _initializeAudioSession();
     
-    try {
-      await _audioSession!.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowAirPlay |
-            AVAudioSessionCategoryOptions.mixWithOthers,
-        avAudioSessionMode: AVAudioSessionMode.defaultMode,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.music,
-          usage: AndroidAudioUsage.media,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: false,
-      ));
-    } catch (e) {
-      debugPrint("Error configuring audio session: $e");
+    if (_isIOS) {
+      // For iOS, ensure the session is active
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint("iOS audio session activated");
+      } catch (e) {
+        debugPrint("Error activating iOS audio session: $e");
+      }
     }
   }
 
   Future<void> _ensureAudioSessionActive() async {
-    try {
-      if (_audioSession == null) {
-        await _initializeAudioSession();
-        return;
+    // Initialize audio session if not already done
+    await _initializeAudioSession();
+    
+    if (_isIOS) {
+      // For iOS, ensure the session is active for background playback
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint("iOS audio session ensured active for background playback");
+      } catch (e) {
+        debugPrint("Error ensuring iOS audio session active: $e");
       }
-      
-      await _audioSession!.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowAirPlay |
-            AVAudioSessionCategoryOptions.mixWithOthers,
-        avAudioSessionMode: AVAudioSessionMode.defaultMode,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.music,
-          usage: AndroidAudioUsage.media,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: false,
-      ));
-    } catch (e) {
-      debugPrint("Error ensuring audio session is active: $e");
     }
   }
 
@@ -194,18 +172,29 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     
     AudioSource source;
     if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
-      // Using Uri.file for local files is generally more robust.
-      source = AudioSource.uri(Uri.file(itemToPlay.id));
-      debugPrint("Preparing local file: ${itemToPlay.title} at path: ${itemToPlay.id}");
+      // Use AudioSource.file for local files - more reliable on iOS
+      final filePath = itemToPlay.id;
+      final file = File(filePath);
+      final exists = await file.exists();
+      debugPrint("Preparing local file: ${itemToPlay.title} at path: $filePath, exists: $exists");
+      
+      if (!exists) {
+        debugPrint("ERROR: Local file does not exist: $filePath");
+        throw Exception("Local file not found: $filePath");
+      }
+      
+      source = AudioSource.file(filePath);
+      
+      // For iOS local files, ensure audio session is properly configured
+      if (_isIOS) {
+        await _ensureAudioSessionActive();
+      }
     } else {
       source = AudioSource.uri(Uri.parse(itemToPlay.id));
       debugPrint("Preparing remote file: ${itemToPlay.title} at URL: ${itemToPlay.id}");
     }
 
     try {
-      // Ensure audio session is active before setting source
-      await ensureBackgroundPlayback();
-      
       // Set source but do not play.
       await _audioPlayer.setAudioSource(source);
       
@@ -214,9 +203,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       playbackState.add(playbackState.value.copyWith(
         updatePosition: Duration.zero,
       ));
-      
-      // Ensure background playback is maintained when preparing new songs
-      await ensureBackgroundPlayback();
       
       debugPrint("Successfully prepared audio source for: ${itemToPlay.title}");
     } catch (e) {
@@ -371,6 +357,11 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       if (state == ProcessingState.completed) {
         debugPrint("Song completed, handling next track...");
         
+        // For iOS, ensure audio session is maintained during track transitions
+        if (_isIOS) {
+          await _ensureAudioSessionActive();
+        }
+        
         // Handle song completion based on repeat mode
         final repeatMode = playbackState.value.repeatMode;
         
@@ -380,7 +371,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
             try {
               await _prepareToPlay(_currentIndex);
-              await ensureBackgroundPlayback(); // Ensure background playback is maintained
               await _audioPlayer.play();
               debugPrint("Repeating song: ${_playlist[_currentIndex].title}");
             } catch (e) {
@@ -393,8 +383,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         } else {
           // For other modes, try to play next song
           try {
-            // Ensure background playback is maintained before transitioning
-            await ensureBackgroundPlayback();
             await skipToNext();
             debugPrint("Skipped to next song");
           } catch (e) {
@@ -404,9 +392,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
             }
           }
         }
-        
-        // Ensure background playback is maintained after song completion
-        await ensureBackgroundPlayback();
       }
     });
   }
@@ -468,8 +453,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> play() async {
     if (_audioPlayer.playing) return;
 
-    // Ensure audio session is active and configured for background playback
-    await ensureBackgroundPlayback();
+    // For iOS, ensure audio session is active before playing
+    if (_isIOS) {
+      await _ensureAudioSessionActive();
+    }
 
     try {
       // If we are idle (e.g., stopped or just started), we need to prepare the source.
@@ -588,8 +575,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     await _prepareToPlay(index);
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       try {
-        // Ensure audio session is active and configured for background playback
-        await ensureBackgroundPlayback();
+        // For iOS, ensure audio session is active before playing
+        if (_isIOS) {
+          await _ensureAudioSessionActive();
+        }
 
         await _audioPlayer.play();
       } catch (e) {
@@ -719,43 +708,17 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   // Method to ensure audio session is maintained during background playback
   Future<void> ensureBackgroundPlayback() async {
-    try {
-      await _ensureAudioSessionActive();
-      
-      // For iOS, use the specific background audio session activation
-      await _activateIOSBackgroundAudioSession();
-      
-      // For iOS, ensure the audio session is active and properly configured
-      // This is especially important for local files in background
-      if (_audioPlayer.playing) {
-        // Force a small audio operation to keep the session active
-        final currentVolume = _audioPlayer.volume;
-        await _audioPlayer.setVolume(currentVolume);
-        
-        // For local files, ensure the audio source is properly loaded
-        final currentItem = mediaItem.value;
-        if (currentItem != null && currentItem.extras?['isLocal'] == true) {
-          // Re-ensure the audio source is properly set for local files
-          try {
-            final source = AudioSource.uri(Uri.file(currentItem.id));
-            await _audioPlayer.setAudioSource(source, preload: false);
-            debugPrint("Re-ensured audio source for local file: ${currentItem.title}");
-          } catch (e) {
-            debugPrint("Error re-ensuring audio source for local file: $e");
-          }
-        }
+    // Initialize audio session if not already done
+    await _initializeAudioSession();
+    
+    if (_isIOS) {
+      // For iOS, ensure the session is active for background playback
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint("iOS audio session ensured active for background playback");
+      } catch (e) {
+        debugPrint("Error ensuring iOS audio session active for background: $e");
       }
-      
-      debugPrint("Background playback session configured successfully");
-      
-      // Log current playback state for debugging
-      debugPrint("Current playback state: playing=${_audioPlayer.playing}, "
-          "processingState=${_audioPlayer.processingState}, "
-          "currentIndex=$_currentIndex, "
-          "playlistLength=${_playlist.length}, "
-          "isLocal=${mediaItem.value?.extras?['isLocal']}");
-    } catch (e) {
-      debugPrint("Error ensuring background playback: $e");
     }
   }
 
@@ -764,33 +727,25 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     try {
       debugPrint("App coming to foreground, reactivating audio session...");
       
-      // Reconfigure the audio session when app comes to foreground
-      await _audioSession?.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowAirPlay |
-            AVAudioSessionCategoryOptions.mixWithOthers,
-        avAudioSessionMode: AVAudioSessionMode.defaultMode,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.music,
-          usage: AndroidAudioUsage.media,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: false,
-      ));
+      // Initialize audio session if not already done
+      await _initializeAudioSession();
+      
+      if (_isIOS) {
+        // For iOS, ensure the session is active
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS audio session reactivated for foreground");
+        } catch (e) {
+          debugPrint("Error reactivating iOS audio session: $e");
+        }
+      }
       
       // If audio was playing, ensure it's still properly configured
       if (_audioPlayer.playing && _currentIndex >= 0 && _currentIndex < _playlist.length) {
         final currentItem = mediaItem.value;
         if (currentItem != null && currentItem.extras?['isLocal'] == true) {
-          // For local files, ensure the audio source is still valid
-          try {
-            final source = AudioSource.uri(Uri.file(currentItem.id));
-            await _audioPlayer.setAudioSource(source, preload: false);
-            debugPrint("Re-ensured audio source for local file on foreground: ${currentItem.title}");
-          } catch (e) {
-            debugPrint("Error re-ensuring audio source for local file on foreground: $e");
-          }
+          // Don't re-set audio source for local files as it interrupts playback
+          debugPrint("Local file playing on foreground: ${currentItem.title} - maintaining session without re-setting source");
         }
         
         debugPrint("Forcing audio session reactivation to ensure audio is audible...");
@@ -805,91 +760,54 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   // Set up periodic audio session maintenance
   void _setupAudioSessionMaintenance() {
-    // Check audio session every 15 seconds when playing (more frequent for iOS)
-    Timer.periodic(Duration(seconds: 15), (timer) async {
-      if (_audioPlayer.playing && _currentIndex >= 0 && _currentIndex < _playlist.length) {
-        try {
-          await ensureBackgroundPlayback();
-          
-          // Additional check for local files to ensure they're still properly loaded
-          final currentItem = mediaItem.value;
-          if (currentItem != null && currentItem.extras?['isLocal'] == true) {
-            // Verify the audio source is still valid for local files
-            try {
-              final source = AudioSource.uri(Uri.file(currentItem.id));
-              await _audioPlayer.setAudioSource(source, preload: false);
-              debugPrint("Periodic maintenance: Re-ensured local file source for ${currentItem.title}");
-            } catch (e) {
-              debugPrint("Periodic maintenance: Error re-ensuring local file source: $e");
-            }
+    if (_isIOS) {
+      // For iOS, set up periodic audio session maintenance
+      Timer.periodic(const Duration(minutes: 5), (timer) async {
+        if (_audioPlayer.playing && _audioSession != null) {
+          try {
+            await _audioSession!.setActive(true);
+            debugPrint("iOS audio session maintained for background playback");
+          } catch (e) {
+            debugPrint("Error maintaining iOS audio session: $e");
           }
-        } catch (e) {
-          debugPrint("Error in periodic audio session maintenance: $e");
         }
-      }
-    });
+      });
+      debugPrint("iOS periodic audio session maintenance enabled");
+    } else {
+      // For Android, let just_audio handle everything automatically
+      debugPrint("Android audio session maintenance - letting just_audio handle it automatically");
+    }
   }
 
   // Method to force audio session reactivation
   Future<void> forceAudioSessionReactivation() async {
-    try {
-      debugPrint("Forcing audio session reactivation...");
-      
-      // Pause and resume to force audio session reactivation
-      if (_audioPlayer.playing) {
-        final wasPlaying = _audioPlayer.playing;
-        final position = _audioPlayer.position;
-        
-        await _audioPlayer.pause();
-        await Future.delayed(Duration(milliseconds: 200));
-        
-        await ensureBackgroundPlayback();
-        
-        if (wasPlaying) {
-          await _audioPlayer.seek(position);
-          await _audioPlayer.play();
-        }
-        
-        debugPrint("Audio session reactivation completed");
+    // Initialize audio session if not already done
+    await _initializeAudioSession();
+    
+    if (_isIOS) {
+      // For iOS, force reactivation of the audio session
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint("iOS audio session force reactivated");
+      } catch (e) {
+        debugPrint("Error force reactivating iOS audio session: $e");
       }
-    } catch (e) {
-      debugPrint("Error forcing audio session reactivation: $e");
     }
   }
 
   // Method to specifically handle iOS background audio session activation
   Future<void> _activateIOSBackgroundAudioSession() async {
-    try {
-      if (_audioSession == null) {
-        await _initializeAudioSession();
-        return;
+    // Initialize audio session if not already done
+    await _initializeAudioSession();
+    
+    if (_isIOS) {
+      // For iOS, ensure the session is active for background playback
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint("iOS background audio session activated");
+      } catch (e) {
+        debugPrint("Error activating iOS background audio session: $e");
       }
-      
-      // Configure audio session for iOS background playback
-      await _audioSession!.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowAirPlay |
-            AVAudioSessionCategoryOptions.mixWithOthers,
-        avAudioSessionMode: AVAudioSessionMode.defaultMode,
-        androidAudioAttributes: const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.music,
-          usage: AndroidAudioUsage.media,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-        androidWillPauseWhenDucked: false,
-      ));
-      
-      // Log current state for debugging
-      final currentItem = mediaItem.value;
-      debugPrint("iOS background audio session activated - "
-          "Playing: ${_audioPlayer.playing}, "
-          "ProcessingState: ${_audioPlayer.processingState}, "
-          "CurrentItem: ${currentItem?.title}, "
-          "IsLocal: ${currentItem?.extras?['isLocal']}");
-      
-    } catch (e) {
-      debugPrint("Error activating iOS background audio session: $e");
     }
   }
 
