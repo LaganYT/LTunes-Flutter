@@ -118,12 +118,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    // Handle app lifecycle changes for iOS background playback
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      // App is going to background, ensure background playback is maintained
-      _audioHandler.customAction('ensureBackgroundPlayback', {});
-    } else if (state == AppLifecycleState.resumed) {
-      // App is coming back to foreground, reactivate audio session
+    // Simplified app lifecycle handling - let audio_service handle background playback
+    if (state == AppLifecycleState.resumed) {
+      // App is coming back to foreground, ensure audio session is active
       _audioHandler.customAction('handleAppForeground', {});
     }
     
