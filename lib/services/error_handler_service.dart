@@ -18,7 +18,6 @@ class ErrorHandlerService {
   // Error messages
   static const Map<String, String> _errorMessages = {
     networkError: 'Connection failed. Please check your internet connection and try again.',
-    apiError: 'Unable to fetch data from the server. Please try again later.',
     fileError: 'Unable to access file. The file may be corrupted or missing.',
     audioError: 'Unable to play audio. Please try again.',
     downloadError: 'Download failed. Please check your connection and try again.',
@@ -305,7 +304,7 @@ class ErrorHandlerService {
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.refresh),
                 label: Text(actionText),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
