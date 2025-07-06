@@ -676,7 +676,14 @@ class CurrentSongProvider with ChangeNotifier {
     if (songDuration == null || songDuration == Duration.zero) {
       final audioPlayer = just_audio.AudioPlayer();
       try {
-        final fetchedDuration = await audioPlayer.setUrl(playableUrl); // Use the confirmed playableUrl
+        Duration? fetchedDuration;
+        if (effectiveSong.isDownloaded && playableUrl.startsWith('/')) {
+          // For local files, use setFilePath instead of setUrl
+          fetchedDuration = await audioPlayer.setFilePath(playableUrl);
+        } else {
+          // For remote URLs, use setUrl
+          fetchedDuration = await audioPlayer.setUrl(playableUrl);
+        }
         songDuration = fetchedDuration;
         if (songDuration != null && songDuration != Duration.zero && effectiveSong.duration != songDuration) {
             effectiveSong = effectiveSong.copyWith(duration: songDuration);
