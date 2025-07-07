@@ -7,7 +7,6 @@
 ## Potential Future Features
 - Try adding podcast support
 - Audiobooks?
-- Add recently played to the settings
 - Smart Playlists
   - Automatically generate playlists based on local metadata (genre, artist, play count, recently added, etc.)
   - Examples: "Most Played," "Recently Added," "Favorites," "Random Mix."
@@ -16,7 +15,6 @@
   - Visualize listening habits over time (e.g., charts for daily/weekly/monthly listening).
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
-
 - Sleep Timer
   - Add a timer to stop playback after a set duration.
 - Audio Effects
