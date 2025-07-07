@@ -16,8 +16,7 @@
   - Visualize listening habits over time (e.g., charts for daily/weekly/monthly listening).
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
-- Gapless Playback & Crossfade
-  - Implement seamless transitions between songs and optional crossfade effects.
+
 - Sleep Timer
   - Add a timer to stop playback after a set duration.
 - Audio Effects

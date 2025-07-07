@@ -17,6 +17,7 @@ import 'modern_library_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -25,44 +26,53 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Initialize with null to represent loading state
+  final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> playerActionsInAppBarNotifier = ValueNotifier<bool?>(null);
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
-  // Add a ValueNotifier to trigger refresh for FutureBuilders
-  final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
 
   @override
   void initState() {
     super.initState();
-    _loadUSRadioOnlySetting();
-    _loadShowRadioTab();
-    _loadAutoDownloadLikedSongsSetting();
-    _loadPlayerActionsInAppBarSetting();
-    _loadCurrentAppVersion();
+    _loadSettings();
+    _loadAppVersion();
   }
 
-  Future<void> _loadCurrentAppVersion() async {
-    PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    if (mounted) {
-      setState(() {
-        _currentAppVersion = packageInfo.version;
-        // Initialize _latestKnownVersion to current until an update check is performed
-        _latestKnownVersion = _currentAppVersion; 
-      });
+  Future<void> _loadAppVersion() async {
+    try {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _currentAppVersion = packageInfo.version;
+          _latestKnownVersion = packageInfo.version; // Initially set to current version
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading app version: $e');
     }
   }
 
-  Future<void> _loadUSRadioOnlySetting() async {
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    // Default to true if not set, as per original logic
-    usRadioOnlyNotifier.value = prefs.getBool('usRadioOnly') ?? true;
-    // Notify ValueListenableBuilder to rebuild, if it was waiting for this.
-    // This is more for consistency if other parts of the UI depend on this finishing.
-    // For the switch itself, its own state management handles the initial value.
+    
+    // Load US Radio Only setting
+    final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
+    usRadioOnlyNotifier.value = usRadioOnly;
+    
+    // Load Show Radio Tab setting
+    final showRadioTab = prefs.getBool('showRadioTab') ?? true;
+    showRadioTabNotifier.value = showRadioTab;
+    
+    // Load Auto Download Liked Songs setting
+    final autoDownloadLikedSongs = prefs.getBool('autoDownloadLikedSongs') ?? false;
+    autoDownloadLikedSongsNotifier.value = autoDownloadLikedSongs;
+    
+    // Load Player Actions in App Bar setting
+    final playerActionsInAppBar = prefs.getBool('playerActionsInAppBar') ?? false;
+    playerActionsInAppBarNotifier.value = playerActionsInAppBar;
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -70,19 +80,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('usRadioOnly', value);
   }
 
-  Future<void> _loadShowRadioTab() async {
-    final prefs = await SharedPreferences.getInstance();
-    showRadioTabNotifier.value = prefs.getBool('showRadioTab') ?? true;
-  }
-
-  Future<void> _saveShowRadioTab(bool value) async {
+  Future<void> _saveShowRadioTabSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('showRadioTab', value);
-  }
-
-  Future<void> _loadAutoDownloadLikedSongsSetting() async {
-    final prefs = await SharedPreferences.getInstance();
-    autoDownloadLikedSongsNotifier.value = prefs.getBool('autoDownloadLikedSongs') ?? false;
   }
 
   Future<void> _saveAutoDownloadLikedSongsSetting(bool value) async {
@@ -90,31 +90,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('autoDownloadLikedSongs', value);
   }
 
-  Future<void> _loadPlayerActionsInAppBarSetting() async {
-    final prefs = await SharedPreferences.getInstance();
-    playerActionsInAppBarNotifier.value = prefs.getBool('playerActionsInAppBar') ?? false;
-  }
-
   Future<void> _savePlayerActionsInAppBarSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('playerActionsInAppBar', value);
   }
 
-  // ignore: unused_element
-  String _formatBytes(int bytes, {int decimals = 2}) {
-    if (bytes <= 0) return "0 B";
-    const suffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-    var i = (log(bytes) / log(1024)).floor();
-    return '${(bytes / pow(1024, i)).toStringAsFixed(decimals)} ${suffixes[i]}';
-  }
-
-  // ignore: unused_element
   Future<int> _getDownloadedSongsCount() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
     int count = 0;
-    final appDocDir = await getApplicationDocumentsDirectory(); // Get once
-    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
@@ -124,14 +108,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final songMap = jsonDecode(songJson) as Map<String, dynamic>;
             final song = Song.fromJson(songMap);
             if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              // Ensure the file actually exists in the subdirectory
+              final appDocDir = await getApplicationDocumentsDirectory();
+              const String downloadsSubDir = 'ltunes_downloads';
               final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
-              if (await File(fullPath).exists()) {
+              final file = File(fullPath);
+              if (await file.exists()) {
                 count++;
               }
             }
           } catch (e) {
-            debugPrint("Error processing song $key for count calculation: $e");
+            debugPrint("Error processing song $key for count: $e");
           }
         }
       }
@@ -139,7 +125,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return count;
   }
 
-  // Add a method to calculate total storage used by downloaded songs
   Future<int> _getDownloadedSongsStorageBytes() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
@@ -239,9 +224,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _resetSettings() async {
+    // Show confirmation dialog first
+    bool? confirmReset = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Reset Settings?'),
+          content: const Text('Are you sure you want to reset all settings to their default values? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: Text('Reset', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // Only proceed if user confirmed
+    if (confirmReset != true) {
+      return;
+    }
+
     // Reset US Radio Only
     usRadioOnlyNotifier.value = true; // Default value
     await _saveUSRadioOnlySetting(true);
+
+    // Reset Show Radio Tab
+    showRadioTabNotifier.value = true; // Default value
+    await _saveShowRadioTabSetting(true);
+
+    // Reset Auto Download Liked Songs
+    autoDownloadLikedSongsNotifier.value = false; // Default value
+    await _saveAutoDownloadLikedSongsSetting(false);
+
+    // Reset Player Actions in App Bar
+    playerActionsInAppBarNotifier.value = false; // Default value
+    await _savePlayerActionsInAppBarSetting(false);
 
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -350,149 +377,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ignore: unused_element
-  Future<void> _deleteAllDownloadedSongs() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Clear All Downloaded Music?'),
-          content: const Text(
-              'This will delete all downloaded music files from your device and reset their download status. This action cannot be undone.'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-            ),
-            TextButton(
-              style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error),
-              child: const Text('Clear All'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    // Show loading indicator
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Clearing downloaded music...')),
-      );
-    }
-
-    try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      const String downloadsSubDir = 'ltunes_downloads';
-      final Directory downloadsDir = Directory(p.join(appDocDir.path, downloadsSubDir));
-
-      if (await downloadsDir.exists()) {
-        await downloadsDir.delete(recursive: true);
-        debugPrint('Deleted directory: ${downloadsDir.path}');
-      }
-      await downloadsDir.create(recursive: true);
-      debugPrint('Re-created directory: ${downloadsDir.path}');
-
-      final prefs = await SharedPreferences.getInstance();
-      final Set<String> keys = prefs.getKeys();
-      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-      final playlistManagerService = Provider.of<PlaylistManagerService>(context, listen: false);
-      int songsUpdated = 0;
-
-      for (String key in keys) {
-        if (key.startsWith('song_')) {
-          final String? songJson = prefs.getString(key);
-          if (songJson != null) {
-            try {
-              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
-              Song song = Song.fromJson(songMap);
-
-              if (song.isDownloaded || (song.localFilePath != null && song.localFilePath!.isNotEmpty)) {
-                Song updatedSong = song.copyWith(
-                  isDownloaded: false,
-                  localFilePath: null, // Explicitly set to null
-                  // Retain other fields like audioUrl for streaming
-                );
-                await prefs.setString(key, jsonEncode(updatedSong.toJson()));
-                
-                // Notify providers
-                currentSongProvider.updateSongDetails(updatedSong);
-                playlistManagerService.updateSongInPlaylists(updatedSong);
-                songsUpdated++;
-              }
-            } catch (e) {
-              debugPrint('Error processing song key $key during delete all: $e');
-            }
-          }
-        }
-      }
-      
-      // Recalculate storage used to update UI
-      if (mounted) {
-        setState(() {}); // To refresh the storage used display
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('All downloaded music has been cleared. $songsUpdated song(s) metadata updated.')),
-        );
-      }
-
-    } catch (e) {
-      debugPrint('Error deleting all downloaded songs: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error clearing music: $e')),
-        );
-      }
-    }
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 8.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8.0), // Add padding around the ListView
         children: [
-          _buildSectionTitle(context, 'Appearance'),
+          _buildSectionTitle(context, 'Content'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
+            ),
+            elevation: 2,
             child: Column(
               children: [
-                // Moved US Radio Only toggle into Appearance
                 ValueListenableBuilder<bool?>(
                   valueListenable: usRadioOnlyNotifier,
                   builder: (context, usRadioOnly, _) {
                     if (usRadioOnly == null) {
                       return const ListTile(
-                        leading: Icon(Icons.public),
-                        title: Text('United States Radio Only'),
+                        leading: Icon(Icons.radio),
+                        title: Text('US Radio Only'),
+                        subtitle: Text('Show only US radio stations'),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
@@ -501,8 +431,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                     return ListTile(
-                      leading: const Icon(Icons.public),
-                      title: const Text('United States Radio Only'),
+                      leading: const Icon(Icons.radio),
+                      title: const Text('US Radio Only'),
+                      subtitle: const Text('Show only US radio stations'),
                       trailing: Switch(
                         value: usRadioOnly,
                         onChanged: (bool value) async {
@@ -518,22 +449,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (context, showRadioTab, _) {
                     if (showRadioTab == null) {
                       return const ListTile(
-                        leading: Icon(Icons.radio),
-                        title: Text('Show Radio Tab in Search'),
+                        leading: Icon(Icons.tab),
+                        title: Text('Show Radio Tab'),
+                        subtitle: Text('Display radio tab in navigation'),
                         trailing: SizedBox(
-                          width: 24, height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
                         ),
                       );
                     }
                     return ListTile(
-                      leading: const Icon(Icons.radio),
-                      title: const Text('Show Radio Tab in Search'),
+                      leading: const Icon(Icons.tab),
+                      title: const Text('Show Radio Tab'),
+                      subtitle: const Text('Display radio tab in navigation'),
                       trailing: Switch(
                         value: showRadioTab,
-                        onChanged: (value) {
+                        onChanged: (bool value) async {
                           showRadioTabNotifier.value = value;
-                          _saveShowRadioTab(value);
+                          await _saveShowRadioTabSetting(value);
                         },
                       ),
                     );
@@ -544,8 +478,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (context, autoDownloadLikedSongs, _) {
                     if (autoDownloadLikedSongs == null) {
                       return const ListTile(
-                        leading: Icon(Icons.download),
-                        title: Text('Auto-Download Liked Songs'),
+                        leading: Icon(Icons.favorite),
+                        title: Text('Auto Download Liked Songs'),
+                        subtitle: Text('Automatically download songs when liked'),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
@@ -554,8 +489,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                     return ListTile(
-                      leading: const Icon(Icons.download),
-                      title: const Text('Auto-Download Liked Songs'),
+                      leading: const Icon(Icons.favorite),
+                      title: const Text('Auto Download Liked Songs'),
+                      subtitle: const Text('Automatically download songs when liked'),
                       trailing: Switch(
                         value: autoDownloadLikedSongs,
                         onChanged: (bool value) async {
@@ -571,8 +507,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (context, playerActionsInAppBar, _) {
                     if (playerActionsInAppBar == null) {
                       return const ListTile(
-                        leading: Icon(Icons.tune),
-                        title: Text('Show Player Actions in AppBar'),
+                        leading: Icon(Icons.play_arrow),
+                        title: Text('Player Actions in App Bar'),
+                        subtitle: Text('Show play controls in app bar'),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
@@ -581,8 +518,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                     return ListTile(
-                      leading: const Icon(Icons.tune),
-                      title: const Text('Show Player Actions in AppBar'),
+                      leading: const Icon(Icons.play_arrow),
+                      title: const Text('Player Actions in App Bar'),
+                      subtitle: const Text('Show play controls in app bar'),
                       trailing: Switch(
                         value: playerActionsInAppBar,
                         onChanged: (bool value) async {
@@ -593,48 +531,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.color_lens_outlined),
-                  title: const Text('Accent Color'),
-                  trailing: DropdownButton<MaterialColor>(
-                    value: themeProvider.accentColor,
-                    items: ThemeProvider.accentColorOptions.entries.map((entry) {
-                      String colorName = entry.key;
-                      MaterialColor colorValue = entry.value;
-                      return DropdownMenuItem<MaterialColor>(
-                        value: colorValue,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 20,
-                              height: 20,
-                              color: colorValue,
-                              margin: const EdgeInsets.only(right: 8.0),
-                            ),
-                            Text(colorName),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (MaterialColor? newValue) {
-                      if (newValue != null) {
-                        themeProvider.setAccentColor(newValue);
-                      }
-                    },
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.brightness_6_outlined),
-                  title: const Text('Dark Mode'),
-                  trailing: Switch(
-                    value: themeProvider.isDarkMode,
-                    onChanged: (bool value) {
-                      themeProvider.toggleTheme();
-                    },
-                  ),
-                ),
               ],
             ),
+          ),
+          _buildSectionTitle(context, 'Theme'),
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, child) {
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                ),
+                elevation: 2,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.brightness_6_outlined),
+                      title: const Text('Dark Mode'),
+                      subtitle: Text(themeProvider.isDarkMode ? 'Dark' : 'Light'),
+                      trailing: Switch(
+                        value: themeProvider.isDarkMode,
+                        onChanged: (bool value) {
+                          themeProvider.toggleTheme();
+                        },
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.color_lens_outlined),
+                      title: const Text('Accent Color'),
+                      trailing: DropdownButton<MaterialColor>(
+                        value: themeProvider.accentColor,
+                        items: ThemeProvider.accentColorOptions.entries.map((entry) {
+                          String colorName = entry.key;
+                          MaterialColor colorValue = entry.value;
+                          return DropdownMenuItem<MaterialColor>(
+                            value: colorValue,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  color: colorValue,
+                                  margin: const EdgeInsets.only(right: 8.0),
+                                ),
+                                Text(colorName),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (MaterialColor? newValue) {
+                          if (newValue != null) {
+                            themeProvider.setAccentColor(newValue);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           _buildSectionTitle(context, 'Storage'),
           Card(
@@ -778,10 +733,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Navigator.of(dialogContext).pop(false),
                         ),
                         TextButton(
-                          style: TextButton.styleFrom(
-                              foregroundColor:
-                                  Theme.of(context).colorScheme.error),
-                          child: const Text('Clear'),
+                          child: Text('Clear', style: TextStyle(color: Theme.of(context).colorScheme.error)),
                           onPressed: () =>
                               Navigator.of(dialogContext).pop(true),
                         ),
@@ -791,136 +743,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
 
                 if (confirmed == true) {
-                  await radioRecentsManager.clearRecentStations();
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.remove('recentStations');
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content:
-                              Text('Recently played stations cleared.')),
+                      const SnackBar(content: Text('Recently played stations cleared.')),
                     );
                   }
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Theme.of(context).colorScheme.onError,
-                minimumSize: const Size(double.infinity, 48), // Make button wider
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                minimumSize: const Size(double.infinity, 48),
               ),
             ),
           ),
-          _buildSectionTitle(context, 'Version Information'),
+          _buildSectionTitle(context, 'App'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: const Text('Version Information'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Current Version: $_currentAppVersion'),
-                      Text('Latest Available Version: $_latestKnownVersion'),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.system_update_alt),
-                    label: const Text('Check for Updates'),
-                    onPressed: () {
-                      _performUpdateCheck();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48), // Make button wider
-                    ),
-                  ),
-                ),
-              ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
             ),
-          ),
-          _buildSectionTitle(context, 'Legal'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            elevation: 2,
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.privacy_tip_outlined),
+                  leading: const Icon(Icons.info),
+                  title: const Text('Version'),
+                  subtitle: Text('Current: $_currentAppVersion'),
+                  trailing: _latestKnownVersion != _currentAppVersion
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Update Available',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      : null,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.system_update),
+                  title: const Text('Check for Updates'),
+                  subtitle: const Text('Check for app updates'),
+                  onTap: _performUpdateCheck,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.restore),
+                  title: const Text('Reset Settings'),
+                  subtitle: const Text('Reset all settings to default'),
+                  onTap: _resetSettings,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip),
                   title: const Text('Privacy Policy'),
-                  subtitle: const Text('How we handle your data'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  subtitle: const Text('View privacy policy'),
                   onTap: () => _showPrivacyPolicy(context),
                 ),
-                const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.description_outlined),
+                  leading: const Icon(Icons.description),
                   title: const Text('Terms of Service'),
-                  subtitle: const Text('App usage terms and conditions'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  subtitle: const Text('View terms of service'),
                   onTap: () => _showTermsOfService(context),
                 ),
               ],
             ),
           ),
-          _buildSectionTitle(context, 'Danger Zone'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.settings_backup_restore),
-                label: const Text('Reset All Settings to Default'),
-                onPressed: () async {
-                  bool? confirmReset = await showDialog<bool>(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Reset Settings?'),
-                        content: const Text('Are you sure you want to reset all settings to their default values? This action cannot be undone.'),
-                        actions: <Widget>[
-                          TextButton(
-                            child: const Text('Cancel'),
-                            onPressed: () {
-                              Navigator.of(context).pop(false);
-                            },
-                          ),
-                          TextButton(
-                            child: Text('Reset', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                            onPressed: () {
-                              Navigator.of(context).pop(true);
-                            },
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                  if (confirmReset == true) {
-                    await _resetSettings();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                  foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                  minimumSize: const Size(double.infinity, 48), // Make button wider
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16), // Add some space at the bottom
+          const SizedBox(height: 32),
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    usRadioOnlyNotifier.dispose();
-    showRadioTabNotifier.dispose();
-    autoDownloadLikedSongsNotifier.dispose();
-    playerActionsInAppBarNotifier.dispose();
-    _refreshNotifier.dispose(); // Dispose the new notifier
-    super.dispose();
   }
 }
 
