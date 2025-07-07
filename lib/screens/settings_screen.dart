@@ -29,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
+  final ValueNotifier<bool?> playerActionsInAppBarNotifier = ValueNotifier<bool?>(null);
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
   // Add a ValueNotifier to trigger refresh for FutureBuilders
@@ -40,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUSRadioOnlySetting();
     _loadShowRadioTab();
     _loadAutoDownloadLikedSongsSetting();
+    _loadPlayerActionsInAppBarSetting();
     _loadCurrentAppVersion();
   }
 
@@ -86,6 +88,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveAutoDownloadLikedSongsSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('autoDownloadLikedSongs', value);
+  }
+
+  Future<void> _loadPlayerActionsInAppBarSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    playerActionsInAppBarNotifier.value = prefs.getBool('playerActionsInAppBar') ?? false;
+  }
+
+  Future<void> _savePlayerActionsInAppBarSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('playerActionsInAppBar', value);
   }
 
   // ignore: unused_element
@@ -554,6 +566,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: playerActionsInAppBarNotifier,
+                  builder: (context, playerActionsInAppBar, _) {
+                    if (playerActionsInAppBar == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.tune),
+                        title: Text('Show Player Actions in AppBar'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.tune),
+                      title: const Text('Show Player Actions in AppBar'),
+                      trailing: Switch(
+                        value: playerActionsInAppBar,
+                        onChanged: (bool value) async {
+                          playerActionsInAppBarNotifier.value = value;
+                          await _savePlayerActionsInAppBarSetting(value);
+                        },
+                      ),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.color_lens_outlined),
                   title: const Text('Accent Color'),
@@ -895,6 +934,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     usRadioOnlyNotifier.dispose();
     showRadioTabNotifier.dispose();
     autoDownloadLikedSongsNotifier.dispose();
+    playerActionsInAppBarNotifier.dispose();
     _refreshNotifier.dispose(); // Dispose the new notifier
     super.dispose();
   }

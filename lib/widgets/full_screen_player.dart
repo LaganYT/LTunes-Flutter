@@ -67,6 +67,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   double? _sliderValue;
   bool _isSeeking = false;
 
+  bool _playerActionsInAppBar = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +130,24 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     _currentSongProvider.addListener(_onSongChanged);
     _loadLikeState(); // load initial like state
+    _loadPlayerActionsInAppBarSetting();
+  }
+
+  Future<void> _loadPlayerActionsInAppBarSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getBool('playerActionsInAppBar') ?? false;
+    if (mounted) {
+      setState(() {
+        _playerActionsInAppBar = value;
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload the setting in case it was changed in settings
+    _loadPlayerActionsInAppBarSetting();
   }
 
   void _resetLyricsState() {
@@ -794,65 +814,67 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               )
             : null,
         centerTitle: true,
-        actions: [
-          if (!isRadio) // Like button not applicable for radio
+        actions: _playerActionsInAppBar && !isRadio ? [
+          // Download button
+          if (currentSong.isDownloaded)
             IconButton(
-              icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
-              onPressed: _toggleLike,
-              tooltip: _isLiked ? 'Unlike' : 'Like',
-              iconSize: 22.0, // Slightly larger for better visibility
-            ),
-          if (!isRadio)
-            // Always visible Toggle Lyrics Button
+              icon: const Icon(Icons.check_circle_outline_rounded),
+              tooltip: 'Downloaded',
+              onPressed: null, // Disabled as it's already downloaded
+              iconSize: 24.0,
+              color: colorScheme.secondary,
+            )
+          else
             IconButton(
-              icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
-              onPressed: () {
-                final song = _currentSongProvider.currentSong;
-                if (song == null) return;
-
-                bool newShowLyricsState = !_showLyrics;
-
-                if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
-                  _loadAndProcessLyrics(song);
-                }
-                
-                setState(() {
-                  _showLyrics = newShowLyricsState;
-                });
-              },
-              iconSize: 22.0,
-              tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+              icon: const Icon(Icons.download_rounded),
+              onPressed: () => _downloadCurrentSong(currentSong),
+              tooltip: 'Download Song',
+              iconSize: 24.0,
+              color: colorScheme.onSurface.withOpacity(0.7),
             ),
-          if (!isRadio)
-            IconButton(
-              icon: const Icon(Icons.playlist_play_rounded),
-              onPressed: () => _showQueueBottomSheet(context),
-              tooltip: 'Show Queue',
-              iconSize: 24.0, // Slightly larger for better visibility
-            ),
-          if (!isRadio)
-            if (currentSong.isDownloaded)
-              const IconButton(
-                icon: Icon(Icons.check_circle_outline_rounded),
-                tooltip: 'Downloaded',
-                onPressed: null, // Disabled as it's already downloaded
-                iconSize: 24.0, // Slightly larger for better visibility
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.download_rounded),
-                onPressed: () => _downloadCurrentSong(currentSong),
-                tooltip: 'Download Song',
-                iconSize: 24.0, // Slightly larger for better visibility
-              ),
-          if (!isRadio) // "Add to Playlist" not applicable for radio
-            IconButton(
-              icon: const Icon(Icons.playlist_add_rounded),
-              onPressed: () => _showAddToPlaylistDialog(context, currentSong),
-              tooltip: 'Add to Playlist',
-              iconSize: 24.0, // Slightly larger for better visibility
-            ),
-        ],
+          // Add to Playlist
+          IconButton(
+            icon: const Icon(Icons.playlist_add_rounded),
+            onPressed: () => _showAddToPlaylistDialog(context, currentSong),
+            tooltip: 'Add to Playlist',
+            iconSize: 24.0,
+            color: colorScheme.onSurface.withOpacity(0.7),
+          ),
+          // Like button
+          IconButton(
+            icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+            onPressed: _toggleLike,
+            tooltip: _isLiked ? 'Unlike' : 'Like',
+            iconSize: 24.0,
+            color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withOpacity(0.7),
+          ),
+          // Lyrics toggle
+          IconButton(
+            icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
+            onPressed: () {
+              final song = _currentSongProvider.currentSong;
+              if (song == null) return;
+              bool newShowLyricsState = !_showLyrics;
+              if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
+                _loadAndProcessLyrics(song);
+              }
+              setState(() {
+                _showLyrics = newShowLyricsState;
+              });
+            },
+            iconSize: 24.0,
+            tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+            color: colorScheme.onSurface.withOpacity(0.7),
+          ),
+          // Queue
+          IconButton(
+            icon: const Icon(Icons.playlist_play_rounded),
+            onPressed: () => _showQueueBottomSheet(context),
+            tooltip: 'Show Queue',
+            iconSize: 24.0,
+            color: colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ] : [],
       ),
       body: GestureDetector( 
         onVerticalDragUpdate: (details) {
@@ -946,6 +968,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                   flex: 3,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       FadeTransition(
                         opacity: _textFadeAnimation,
@@ -973,6 +996,76 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                     ],
                   ),
                 ),
+
+                // Action Icons Row (conditionally shown at bottom)
+                if (!_playerActionsInAppBar && !isRadio)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Download button
+                        if (currentSong.isDownloaded)
+                          IconButton(
+                            icon: const Icon(Icons.check_circle_outline_rounded),
+                            tooltip: 'Downloaded',
+                            onPressed: null, // Disabled as it's already downloaded
+                            iconSize: 26.0,
+                            color: colorScheme.secondary,
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.download_rounded),
+                            onPressed: () => _downloadCurrentSong(currentSong),
+                            tooltip: 'Download Song',
+                            iconSize: 26.0,
+                            color: colorScheme.onSurface.withOpacity(0.7),
+                          ),
+                        // Add to Playlist
+                        IconButton(
+                          icon: const Icon(Icons.playlist_add_rounded),
+                          onPressed: () => _showAddToPlaylistDialog(context, currentSong),
+                          tooltip: 'Add to Playlist',
+                          iconSize: 26.0,
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        // Like button
+                        IconButton(
+                          icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+                          onPressed: _toggleLike,
+                          tooltip: _isLiked ? 'Unlike' : 'Like',
+                          iconSize: 26.0,
+                          color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        // Lyrics toggle
+                        IconButton(
+                          icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
+                          onPressed: () {
+                            final song = _currentSongProvider.currentSong;
+                            if (song == null) return;
+                            bool newShowLyricsState = !_showLyrics;
+                            if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
+                              _loadAndProcessLyrics(song);
+                            }
+                            setState(() {
+                              _showLyrics = newShowLyricsState;
+                            });
+                          },
+                          iconSize: 26.0,
+                          tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        // Queue
+                        IconButton(
+                          icon: const Icon(Icons.playlist_play_rounded),
+                          onPressed: () => _showQueueBottomSheet(context),
+                          tooltip: 'Show Queue',
+                          iconSize: 26.0,
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // Seek Bar Section
                 Column(
