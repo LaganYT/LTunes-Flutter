@@ -1,4 +1,4 @@
-name: LTunes
+name: ltunes
 description: A simple music player for Android and iOS, built with Flutter.
 publish_to: 'none'
 version: 1.9.7

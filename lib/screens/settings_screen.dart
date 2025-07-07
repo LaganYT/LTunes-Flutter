@@ -14,6 +14,8 @@ import 'package:path_provider/path_provider.dart'; // For getApplicationDocument
 import 'package:path/path.dart' as p; // For path joining
 import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
 import 'modern_library_screen.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_of_service_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -243,6 +245,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SnackBar(content: Text('Settings have been reset to default.')),
       );
     }
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PrivacyPolicyScreen(),
+      ),
+    );
+  }
+
+  void _showTermsOfService(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const TermsOfServiceScreen(),
+      ),
+    );
   }
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
@@ -762,6 +780,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       minimumSize: const Size(double.infinity, 48), // Make button wider
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          _buildSectionTitle(context, 'Legal'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('Privacy Policy'),
+                  subtitle: const Text('How we handle your data'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => _showPrivacyPolicy(context),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('Terms of Service'),
+                  subtitle: const Text('App usage terms and conditions'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => _showTermsOfService(context),
                 ),
               ],
             ),
