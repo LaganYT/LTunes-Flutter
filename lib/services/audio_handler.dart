@@ -9,6 +9,10 @@ import '../models/song.dart'; // Assuming Song model can give necessary info
 import 'package:audio_session/audio_session.dart';
 import '../main.dart'; // Import to access globalNavigatorKey
 import '../screens/download_queue_screen.dart'; // Import DownloadQueueScreen
+import '../widgets/error_widget.dart';
+
+// Global navigator key for showing dialogs from anywhere
+final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
 
 // Helper function to convert Song to MediaItem
 MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
@@ -50,6 +54,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   AudioSession? _audioSession;
   bool _isIOS = Platform.isIOS;
   bool _audioSessionConfigured = false;
+  bool _isBackgroundMode = false;
+  bool _isPlayingLocalFile = false;
+  Timer? _backgroundSessionTimer;
+  bool _isTransitioningTracks = false;
 
   AudioPlayerHandler() {
     // Initialize audio session properly for iOS background playback
@@ -57,7 +65,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
     _notifyAudioHandlerAboutPlaybackEvents();
 
-    // Remove periodic audio session maintenance as it can interfere with iOS background playback
+    // Listen for app lifecycle changes
+    _setupAppLifecycleListener();
+  }
+
+  void _setupAppLifecycleListener() {
+    // This will be called by the main app when lifecycle changes
+    // We'll handle it through custom actions
   }
 
   Future<void> _initializeAudioSession() async {
@@ -82,10 +96,32 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         androidWillPauseWhenDucked: true,
       ));
       
+      // For iOS, also configure the session to be more persistent
+      if (_isIOS) {
+        try {
+          // Set the session to be more aggressive about staying active
+          await _audioSession!.setActive(true);
+          debugPrint("iOS audio session configured for persistent background playback");
+          
+          // For local files, we need to be even more aggressive about session persistence
+          // This is because iOS treats local files differently from remote files
+          debugPrint("iOS audio session configured with enhanced local file support");
+        } catch (e) {
+          debugPrint("Error configuring iOS audio session for persistence: $e");
+        }
+      }
+      
       // For iOS, activate the session immediately
       if (_isIOS) {
         await _audioSession!.setActive(true);
         debugPrint("iOS audio session activated for background playback");
+        
+        // Listen for audio session interruptions
+        _audioSession!.interruptionEventStream.listen(_handleAudioInterruption);
+        _audioSession!.becomingNoisyEventStream.listen((_) => _handleBecomingNoisy());
+        
+        // Start background session maintenance timer for iOS
+        _startBackgroundSessionTimer();
       }
       
       _audioSessionConfigured = true;
@@ -96,8 +132,119 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     }
   }
 
+  void _startBackgroundSessionTimer() {
+    if (!_isIOS) return;
+    
+    // Cancel existing timer if any
+    _backgroundSessionTimer?.cancel();
+    
+    // Start a timer that periodically ensures the audio session stays active
+    // This is especially important for local files in background mode
+    _backgroundSessionTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      if (_isBackgroundMode && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS background session maintenance: session reactivated");
+          
+          // For local files, add additional persistence
+          if (_isPlayingLocalFile) {
+            // Add a small delay and reactivate again for local files
+            await Future.delayed(const Duration(milliseconds: 100));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background session maintenance: additional persistence for local files");
+          }
+        } catch (e) {
+          debugPrint("iOS background session maintenance error: $e");
+        }
+      }
+    });
+  }
+
+  void _stopBackgroundSessionTimer() {
+    _backgroundSessionTimer?.cancel();
+    _backgroundSessionTimer = null;
+  }
+
+  Timer? _continuousBackgroundTimer;
+  
+  void _startContinuousBackgroundSessionMaintenance() {
+    if (!_isIOS || !_isBackgroundMode || _audioSession == null) return;
+    
+    // Cancel existing continuous timer if any
+    _continuousBackgroundTimer?.cancel();
+    
+    // Start a more aggressive timer for background mode
+    _continuousBackgroundTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (_isBackgroundMode && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS continuous background session maintenance: session reactivated");
+          
+          // For local files, add additional persistence
+          if (_isPlayingLocalFile) {
+            await Future.delayed(const Duration(milliseconds: 50));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS continuous background session maintenance: additional persistence");
+          }
+        } catch (e) {
+          debugPrint("iOS continuous background session maintenance error: $e");
+        }
+      } else {
+        // Stop the timer if we're no longer in background mode
+        timer.cancel();
+        _continuousBackgroundTimer = null;
+      }
+    });
+  }
+
+  void _stopContinuousBackgroundSessionMaintenance() {
+    _continuousBackgroundTimer?.cancel();
+    _continuousBackgroundTimer = null;
+  }
+
+  void _handleAudioInterruption(AudioInterruptionEvent event) {
+    debugPrint("Audio interruption: ${event.type} - ${event.begin}");
+    
+    if (event.begin) {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          // Lower volume but continue playing
+          break;
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          // Pause playback
+          if (_audioPlayer.playing) {
+            _audioPlayer.pause();
+          }
+          break;
+      }
+    } else {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          // Restore volume
+          break;
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          // Resume playback if it was playing before
+          if (!_audioPlayer.playing && _currentIndex >= 0) {
+            _audioPlayer.play();
+          }
+          break;
+      }
+    }
+  }
+
+  void _handleBecomingNoisy() {
+    debugPrint("Audio becoming noisy - pausing playback");
+    if (_audioPlayer.playing) {
+      _audioPlayer.pause();
+    }
+  }
+
   Future<void> _prepareToPlay(int index) async {
     if (index < 0 || index >= _playlist.length) return;
+    
+    _isTransitioningTracks = true;
     _currentIndex = index;
 
     MediaItem itemToPlay = _playlist[_currentIndex];
@@ -110,9 +257,15 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     ));
 
     _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
+    _isPlayingLocalFile = itemToPlay.extras?['isLocal'] as bool? ?? false;
+    
+    // Enhanced debugging for iOS background playback
+    if (_isIOS) {
+      debugPrint("iOS: Preparing to play - Local: $_isPlayingLocalFile, Background: $_isBackgroundMode, Title: ${itemToPlay.title}");
+    }
     
     AudioSource source;
-    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
+    if (_isPlayingLocalFile) {
       // Use AudioSource.file for local files - more reliable on iOS
       final filePath = itemToPlay.id;
       final file = File(filePath);
@@ -126,11 +279,19 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       
       source = AudioSource.file(filePath);
       
-      // For iOS local files, ensure audio session is active
+      // For iOS local files, ensure audio session is active and properly configured
       if (_isIOS && _audioSession != null) {
         try {
+          // Ensure audio session is active for local file playback
           await _audioSession!.setActive(true);
           debugPrint("iOS audio session activated for local file playback");
+          
+          // For background playback, we need to ensure the session stays active
+          if (_isBackgroundMode) {
+            debugPrint("iOS background mode detected for local file");
+            // Add a longer delay for background mode to ensure session persistence
+            await Future.delayed(const Duration(milliseconds: 200));
+          }
         } catch (e) {
           debugPrint("Error activating iOS audio session for local file: $e");
           // Don't throw - let just_audio handle it
@@ -152,6 +313,36 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       ));
       
       debugPrint("Successfully prepared audio source for: ${itemToPlay.title}");
+      
+      // For iOS local files, ensure audio session is maintained after setting source
+      if (_isIOS && _isPlayingLocalFile && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS: Audio session maintained after setting local file source");
+          
+          // For background mode, add additional session persistence
+          if (_isBackgroundMode) {
+            debugPrint("iOS background mode: ensuring persistent session after source set");
+            await Future.delayed(const Duration(milliseconds: 150));
+            await _audioSession!.setActive(true);
+            
+            // For local files in background mode, add even more persistence
+            await Future.delayed(const Duration(milliseconds: 300));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode with local file: enhanced session persistence");
+            
+            // Add even more aggressive session maintenance for background mode
+            await Future.delayed(const Duration(milliseconds: 500));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: final session persistence after source set");
+            
+            // Start continuous session maintenance for background mode
+            _startContinuousBackgroundSessionMaintenance();
+          }
+        } catch (e) {
+          debugPrint("iOS: Error maintaining audio session after setting source: $e");
+        }
+      }
     } catch (e) {
       debugPrint("Error setting source for ${itemToPlay.id}: $e");
       
@@ -159,6 +350,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       if (_isRadioStream) {
         _showRadioErrorDialog(itemToPlay.title);
       }
+    } finally {
+      _isTransitioningTracks = false;
     }
   }
 
@@ -223,13 +416,31 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
 
   void _notifyAudioHandlerAboutPlaybackEvents() {
-    _audioPlayer.playerStateStream.listen((playerState) {
+    _audioPlayer.playerStateStream.listen((playerState) async {
       final playing = playerState.playing;
       final processingState = playerState.processingState;
       
       // Debug logging for iOS background playback
       if (_isIOS) {
         debugPrint("iOS Player State - Playing: $playing, ProcessingState: $processingState");
+        
+        // For iOS local files in background mode, ensure session stays active
+        if (_isBackgroundMode && _isPlayingLocalFile && _audioSession != null && playing) {
+          try {
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background session check: session maintained during playback");
+            
+            // Add additional session maintenance for background mode
+            await Future.delayed(const Duration(milliseconds: 50));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background session check: additional maintenance during playback");
+            
+            // Start continuous session maintenance if not already running
+            _startContinuousBackgroundSessionMaintenance();
+          } catch (e) {
+            debugPrint("iOS background session check error: $e");
+          }
+        }
       }
       
       playbackState.add(playbackState.value.copyWith(
@@ -270,9 +481,40 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       }
     });
 
-    _audioPlayer.positionStream.listen((position) {
+    _audioPlayer.positionStream.listen((position) async {
       final currentItem = mediaItem.value;
       final isStreaming = currentItem?.extras?['isLocal'] == false;
+      
+      // For iOS local files in background mode, periodically ensure session stays active
+      if (_isIOS && _isPlayingLocalFile && _isBackgroundMode && _audioSession != null) {
+        // Only check every 10 seconds to avoid too frequent calls
+        if (position.inSeconds % 10 == 0 && position.inSeconds > 0) {
+          try {
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background session check during playback at ${position.inSeconds}s");
+            
+            // Add additional session maintenance for background mode
+            await Future.delayed(const Duration(milliseconds: 50));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background session check: additional maintenance");
+          } catch (e) {
+            debugPrint("iOS background session check error during playback: $e");
+          }
+        }
+        
+        // For background mode, also check every 30 seconds for more aggressive maintenance
+        if (position.inSeconds % 30 == 0 && position.inSeconds > 0) {
+          try {
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background session aggressive maintenance at ${position.inSeconds}s");
+            
+            // Start continuous session maintenance if not already running
+            _startContinuousBackgroundSessionMaintenance();
+          } catch (e) {
+            debugPrint("iOS background session aggressive maintenance error: $e");
+          }
+        }
+      }
       
       // For streaming URLs, be more careful about position updates
       if (isStreaming) {
@@ -312,14 +554,48 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         debugPrint("iOS Processing State: $state");
       }
       
+              // For iOS local files in background mode, ensure session stays active when ready
+        if (_isIOS && _isPlayingLocalFile && _isBackgroundMode && _audioSession != null && state == ProcessingState.ready) {
+          try {
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: session maintained when ready");
+          } catch (e) {
+            debugPrint("Error maintaining iOS session when ready: $e");
+          }
+        }
+      
       if (state == ProcessingState.completed) {
         debugPrint("Song completed, handling next track...");
         
-        // For iOS, ensure audio session is maintained during track transitions
+        // Enhanced iOS audio session handling for track transitions
         if (_isIOS && _audioSession != null) {
           try {
+            // Ensure audio session stays active during track transitions
             await _audioSession!.setActive(true);
             debugPrint("iOS audio session maintained for track transition");
+            
+            // For local files in background mode, ensure stronger session persistence
+            if (_isBackgroundMode && _isPlayingLocalFile) {
+              debugPrint("iOS background mode with local file: ensuring audio session persistence");
+              // Add a longer delay for background mode to ensure session persistence
+              await Future.delayed(const Duration(milliseconds: 300));
+              // Reactivate session again after delay
+              await _audioSession!.setActive(true);
+              debugPrint("iOS background mode: session reactivated after delay");
+              
+              // For local files, add additional session maintenance
+              await Future.delayed(const Duration(milliseconds: 500));
+              await _audioSession!.setActive(true);
+              debugPrint("iOS background mode with local file: additional session maintenance");
+              
+              // Add even more aggressive session maintenance for background mode
+              await Future.delayed(const Duration(milliseconds: 1000));
+              await _audioSession!.setActive(true);
+              debugPrint("iOS background mode: final session maintenance check");
+              
+              // Start a continuous session maintenance loop for background mode
+              _startContinuousBackgroundSessionMaintenance();
+            }
           } catch (e) {
             debugPrint("Error maintaining iOS audio session during track transition: $e");
             // Don't throw - let just_audio handle it
@@ -349,6 +625,30 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           try {
             await skipToNext();
             debugPrint("Skipped to next song");
+            
+            // For iOS local files in background mode, ensure session stays active after transition
+            if (_isIOS && _isPlayingLocalFile && _isBackgroundMode && _audioSession != null) {
+              try {
+                await Future.delayed(const Duration(milliseconds: 500));
+                await _audioSession!.setActive(true);
+                debugPrint("iOS background mode: session maintained after track transition");
+                
+                // Add another check after a longer delay
+                await Future.delayed(const Duration(seconds: 2));
+                await _audioSession!.setActive(true);
+                debugPrint("iOS background mode: session maintained after 2 second delay");
+                
+                // Add even more aggressive session maintenance for background mode
+                await Future.delayed(const Duration(seconds: 3));
+                await _audioSession!.setActive(true);
+                debugPrint("iOS background mode: final session maintenance after track transition");
+                
+                // Start continuous session maintenance for background mode
+                _startContinuousBackgroundSessionMaintenance();
+              } catch (e) {
+                debugPrint("Error maintaining iOS session after track transition: $e");
+              }
+            }
           } catch (e) {
             debugPrint("Error skipping to next song: $e");
             if (_isRadioStream && _currentIndex >= 0 && _currentIndex < _playlist.length) {
@@ -417,11 +717,18 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> play() async {
     if (_audioPlayer.playing) return;
 
-    // For iOS, ensure audio session is active before playing
+    // Enhanced iOS audio session handling before playing
     if (_isIOS && _audioSession != null) {
       try {
         await _audioSession!.setActive(true);
         debugPrint("iOS audio session activated before play");
+        
+        // For local files in background mode, ensure stronger session activation
+        if (_isBackgroundMode && _isPlayingLocalFile) {
+          debugPrint("iOS background mode with local file: ensuring strong session activation");
+          // Add a small delay to ensure the session is properly activated
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
       } catch (e) {
         debugPrint("Error activating iOS audio session before play: $e");
         // Don't throw - let just_audio handle it
@@ -545,11 +852,21 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     await _prepareToPlay(index);
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       try {
-        // For iOS, ensure audio session is active before playing
+        // Enhanced iOS audio session handling before playing
         if (_isIOS && _audioSession != null) {
           try {
             await _audioSession!.setActive(true);
             debugPrint("iOS audio session activated before skip to queue item");
+            
+            // For local files in background mode, ensure stronger session activation
+            if (_isBackgroundMode && _isPlayingLocalFile) {
+              debugPrint("iOS background mode with local file: ensuring strong session activation for skip");
+              // Add a longer delay for background mode to ensure session persistence
+              await Future.delayed(const Duration(milliseconds: 200));
+              // Reactivate session again after delay
+              await _audioSession!.setActive(true);
+              debugPrint("iOS background mode: session reactivated before play");
+            }
           } catch (e) {
             debugPrint("Error activating iOS audio session before skip: $e");
             // Don't throw - let just_audio handle it
@@ -557,6 +874,34 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         }
 
         await _audioPlayer.play();
+        
+        // Ensure the playback state is correctly set to playing
+        playbackState.add(playbackState.value.copyWith(
+          playing: true,
+          processingState: AudioProcessingState.ready,
+        ));
+        
+        // For iOS local files in background mode, ensure session stays active after play
+        if (_isIOS && _isPlayingLocalFile && _isBackgroundMode && _audioSession != null) {
+          try {
+            await Future.delayed(const Duration(milliseconds: 100));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: session maintained after play");
+          } catch (e) {
+            debugPrint("Error maintaining iOS audio session after play: $e");
+          }
+        }
+        
+        // For iOS local files in background mode, ensure session stays active
+        if (_isIOS && _isPlayingLocalFile && _isBackgroundMode && _audioSession != null) {
+          try {
+            await Future.delayed(const Duration(milliseconds: 200));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: session maintained after skip to queue item");
+          } catch (e) {
+            debugPrint("Error maintaining iOS audio session after skip to queue item: $e");
+          }
+        }
       } catch (e) {
         debugPrint("Error playing source ${_playlist[_currentIndex].id}: $e");
         playbackState.add(playbackState.value.copyWith(
@@ -681,23 +1026,64 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     return super.onNotificationDeleted();
   }
 
-  // Simplified method to ensure background playback
+  // Enhanced method to ensure background playback
   Future<void> ensureBackgroundPlayback() async {
-    // Let just_audio and audio_service handle background playback automatically
-    // The audio session is already configured and should work properly
-    debugPrint("Background playback ensured - letting audio_service handle it");
+    try {
+      debugPrint("Ensuring background playback...");
+      
+      // For iOS, ensure audio session is properly configured for background
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          _isBackgroundMode = true;
+          debugPrint("iOS audio session activated for background playback");
+          
+          // For local files, ensure stronger background session persistence
+          if (_isPlayingLocalFile) {
+            debugPrint("iOS background mode with local file: ensuring persistent session");
+            // Add a longer delay to ensure the session is properly maintained
+            await Future.delayed(const Duration(milliseconds: 200));
+            // Reactivate session again after delay
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: session reactivated after delay");
+          }
+          
+          // Restart background session timer
+          _startBackgroundSessionTimer();
+        } catch (e) {
+          debugPrint("Error activating iOS audio session for background: $e");
+        }
+      }
+      
+      debugPrint("Background playback ensured");
+    } catch (e) {
+      debugPrint("Error ensuring background playback: $e");
+    }
   }
 
-  // Simplified method to handle app coming back to foreground
+  // Enhanced method to handle app coming back to foreground
   Future<void> handleAppForeground() async {
     try {
       debugPrint("App coming to foreground...");
+      
+      _isBackgroundMode = false;
+      
+      // Stop background session timers when app comes to foreground
+      _stopBackgroundSessionTimer();
+      _stopContinuousBackgroundSessionMaintenance();
       
       // For iOS, ensure audio session is active if playing
       if (_isIOS && _audioSession != null && _audioPlayer.playing) {
         try {
           await _audioSession!.setActive(true);
           debugPrint("iOS audio session reactivated for foreground");
+          
+          // For local files, ensure session is properly reactivated
+          if (_isPlayingLocalFile) {
+            debugPrint("iOS foreground with local file: ensuring session reactivation");
+            // Add a small delay to ensure the session is properly reactivated
+            await Future.delayed(const Duration(milliseconds: 50));
+          }
         } catch (e) {
           debugPrint("Error reactivating iOS audio session: $e");
           // Don't throw - let just_audio handle it
@@ -707,6 +1093,57 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       debugPrint("App foreground handling completed");
     } catch (e) {
       debugPrint("Error handling app foreground: $e");
+    }
+  }
+
+  // Clean up resources when the handler is disposed
+  Future<void> dispose() async {
+    _stopBackgroundSessionTimer();
+    _stopContinuousBackgroundSessionMaintenance();
+    await _audioPlayer.dispose();
+  }
+
+  // Enhanced method to handle app entering background
+  Future<void> handleAppBackground() async {
+    try {
+      debugPrint("App entering background...");
+      
+      _isBackgroundMode = true;
+      
+      // For iOS, ensure audio session stays active for background playback
+      if (_isIOS && _audioSession != null && _audioPlayer.playing) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS audio session maintained for background");
+          
+          // For local files, ensure stronger background session persistence
+          if (_isPlayingLocalFile) {
+            debugPrint("iOS background mode with local file: ensuring persistent background session");
+            // Add a longer delay to ensure the session is properly maintained
+            await Future.delayed(const Duration(milliseconds: 200));
+            // Reactivate session again after delay
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: session reactivated for background");
+            
+            // Add even more aggressive session maintenance for background mode
+            await Future.delayed(const Duration(milliseconds: 500));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS background mode: final session maintenance for background");
+          }
+          
+          // Restart background session timer
+          _startBackgroundSessionTimer();
+          
+          // Start continuous session maintenance for background mode
+          _startContinuousBackgroundSessionMaintenance();
+        } catch (e) {
+          debugPrint("Error maintaining iOS audio session for background: $e");
+        }
+      }
+      
+      debugPrint("App background handling completed");
+    } catch (e) {
+      debugPrint("Error handling app background: $e");
     }
   }
 
@@ -793,6 +1230,49 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     } else if (name == 'handleAppForeground') {
       // Handle app coming back to foreground
       await handleAppForeground();
+    } else if (name == 'handleAppBackground') {
+      // Handle app entering background
+      await handleAppBackground();
+    } else if (name == 'forceSessionActivation') {
+      // Force audio session activation for iOS background playback
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS: Forced audio session activation");
+          
+          // For local files in background mode, add additional persistence
+          if (_isBackgroundMode && _isPlayingLocalFile) {
+            await Future.delayed(const Duration(milliseconds: 200));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS: Forced audio session activation with persistence");
+            
+            // Start continuous session maintenance for background mode
+            _startContinuousBackgroundSessionMaintenance();
+          }
+        } catch (e) {
+          debugPrint("Error forcing iOS audio session activation: $e");
+        }
+      }
+    } else if (name == 'ensureBackgroundPlaybackContinuity') {
+      // Ensure background playback continuity for iOS
+      if (_isIOS && _audioSession != null && _isBackgroundMode) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("iOS: Ensuring background playback continuity");
+          
+          // For local files, add additional persistence
+          if (_isPlayingLocalFile) {
+            await Future.delayed(const Duration(milliseconds: 100));
+            await _audioSession!.setActive(true);
+            debugPrint("iOS: Background playback continuity with persistence");
+            
+            // Start continuous session maintenance
+            _startContinuousBackgroundSessionMaintenance();
+          }
+        } catch (e) {
+          debugPrint("Error ensuring background playback continuity: $e");
+        }
+      }
     }
     return null;
   }

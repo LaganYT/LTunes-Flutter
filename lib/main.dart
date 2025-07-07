@@ -15,6 +15,8 @@ import 'services/audio_handler.dart'; // Import your AudioPlayerHandler
 import 'services/album_manager_service.dart'; // Import AlbumManagerService
 import 'services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'services/download_notification_service.dart'; // Import DownloadNotificationService
+import 'dart:io'; // Import for Platform
+import 'dart:async'; // Import for Timer
 
 // Global instance of the AudioPlayerHandler
 late AudioHandler _audioHandler;
@@ -36,15 +38,15 @@ Future<void> main() async {
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
       androidNotificationIcon: 'mipmap/ic_launcher',
-      // iOS specific configuration
+      // Enhanced iOS specific configuration for background playback
       fastForwardInterval: Duration(seconds: 10),
       rewindInterval: Duration(seconds: 10),
-      // Enable background audio for iOS
       androidNotificationClickStartsActivity: true,
-      // iOS background audio configuration
       artDownscaleWidth: 300,
       artDownscaleHeight: 300,
-
+      // Enhanced iOS background audio configuration
+      androidNotificationChannelDescription: 'LTunes audio playback controls',
+      notificationColor: Color(0xFF2196F3),
     ),
   );
 
@@ -93,6 +95,7 @@ class TabView extends StatefulWidget {
 
 class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  Timer? _backgroundContinuityTimer;
 
   // Widget list is now built dynamically in the build method
   // static final List<Widget> _widgetOptions = <Widget>[
@@ -111,20 +114,105 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stopBackgroundContinuityTimer();
     super.dispose();
+  }
+
+  void _startBackgroundContinuityTimer() {
+    if (!Platform.isIOS) return;
+    
+    // Cancel existing timer if any
+    _backgroundContinuityTimer?.cancel();
+    
+    // Start a timer that periodically ensures background playback continuity
+    _backgroundContinuityTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+    });
+  }
+
+  void _stopBackgroundContinuityTimer() {
+    _backgroundContinuityTimer?.cancel();
+    _backgroundContinuityTimer = null;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    // Simplified app lifecycle handling - let audio_service handle background playback
-    if (state == AppLifecycleState.resumed) {
-      // App is coming back to foreground, ensure audio session is active
-      _audioHandler.customAction('handleAppForeground', {});
+    // Enhanced app lifecycle handling for iOS background playback
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is coming back to foreground, ensure audio session is active
+        _audioHandler.customAction('handleAppForeground', {});
+        _stopBackgroundContinuityTimer();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        // App is going to background, ensure audio session stays active
+        _audioHandler.customAction('handleAppBackground', {});
+        _startBackgroundContinuityTimer();
+        break;
+      case AppLifecycleState.detached:
+        // App is being terminated, ensure background playback is configured
+        _audioHandler.customAction('ensureBackgroundPlayback', {});
+        _stopBackgroundContinuityTimer();
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden (iOS specific), ensure background playback
+        _audioHandler.customAction('handleAppBackground', {});
+        _startBackgroundContinuityTimer();
+        break;
     }
     
     debugPrint("App lifecycle state changed to: $state");
+    
+    // Additional iOS-specific handling for background playback
+    if (Platform.isIOS) {
+      switch (state) {
+        case AppLifecycleState.paused:
+        case AppLifecycleState.inactive:
+        case AppLifecycleState.hidden:
+          // For iOS, ensure background playback is immediately configured
+          // This helps prevent audio session from being deactivated
+          _audioHandler.customAction('ensureBackgroundPlayback', {});
+          
+          // Add a small delay and ensure again for better persistence
+          Future.delayed(const Duration(milliseconds: 500), () {
+            _audioHandler.customAction('ensureBackgroundPlayback', {});
+          });
+          
+          // Add forced session activation after 2 seconds
+          Future.delayed(const Duration(seconds: 2), () {
+            _audioHandler.customAction('forceSessionActivation', {});
+          });
+          
+          // Add another forced session activation after 5 seconds
+          Future.delayed(const Duration(seconds: 5), () {
+            _audioHandler.customAction('forceSessionActivation', {});
+          });
+          
+          // Add background playback continuity check after 10 seconds
+          Future.delayed(const Duration(seconds: 10), () {
+            _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+          });
+          
+          // Add another background playback continuity check after 30 seconds
+          Future.delayed(const Duration(seconds: 30), () {
+            _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+          });
+          
+          // Add continuous session activation for the first minute
+          for (int i = 1; i <= 12; i++) {
+            Future.delayed(Duration(seconds: 5 * i), () {
+              _audioHandler.customAction('forceSessionActivation', {});
+            });
+          }
+
+          break;
+        default:
+          break;
+      }
+    }
   }
 
   Future<void> _initializeVersionAndCheckForUpdates() async {

@@ -16,8 +16,31 @@ import AVFoundation
       UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
     }
     
-    // Let Flutter handle audio session configuration to avoid conflicts
-    print("Audio session configuration delegated to Flutter")
+    // Configure audio session for background playback
+    do {
+      let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth])
+      try audioSession.setActive(true)
+      print("iOS audio session configured for background playback on app launch")
+      
+      // Add notification observer for route changes
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleRouteChange),
+        name: AVAudioSession.routeChangeNotification,
+        object: nil
+      )
+      
+      // Add notification observer for interruptions
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleInterruption),
+        name: AVAudioSession.interruptionNotification,
+        object: nil
+      )
+    } catch {
+      print("Error configuring iOS audio session on app launch: \(error)")
+    }
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -31,6 +54,52 @@ import AVFoundation
   ) {
     // Show notification even when app is in foreground
     completionHandler([.alert, .badge, .sound])
+  }
+  
+  // MARK: - Audio Session Route Change Handling
+  @objc func handleRouteChange(notification: Notification) {
+    guard let userInfo = notification.userInfo,
+          let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+      return
+    }
+    
+    switch reason {
+    case .newDeviceAvailable:
+      print("New audio device available")
+    case .oldDeviceUnavailable:
+      print("Audio device unavailable")
+      // Pause playback when headphones are unplugged
+      // This will be handled by the Flutter audio handler
+    default:
+      break
+    }
+  }
+  
+  // MARK: - Audio Session Interruption Handling
+  @objc func handleInterruption(notification: Notification) {
+    guard let userInfo = notification.userInfo,
+          let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+          let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+      return
+    }
+    
+    switch type {
+    case .began:
+      print("Audio session interruption began")
+    case .ended:
+      print("Audio session interruption ended")
+      // Reactivate the audio session when interruption ends
+      do {
+        let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+        try audioSession.setActive(true)
+        print("iOS audio session reactivated after interruption")
+      } catch {
+        print("Error reactivating iOS audio session after interruption: \(error)")
+      }
+    @unknown default:
+      break
+    }
   }
   
   @available(iOS 10.0, *)
@@ -47,15 +116,57 @@ import AVFoundation
   override func applicationDidEnterBackground(_ application: UIApplication) {
     super.applicationDidEnterBackground(application)
     
-    // Let Flutter handle background audio session to avoid conflicts
-    print("App entering background - audio session handled by Flutter")
+    // Ensure audio session is properly configured for background playback
+    do {
+      let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth])
+      try audioSession.setActive(true)
+      print("iOS audio session configured for background playback")
+      
+      // For better background audio persistence, set the session to not deactivate
+      try audioSession.setActive(true, options: [])
+      print("iOS audio session set to persist in background")
+      
+      // Add a timer to periodically maintain the audio session
+      DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+        do {
+          try audioSession.setActive(true)
+          print("iOS background session maintenance: 5 second check")
+        } catch {
+          print("Error in iOS background session maintenance: \(error)")
+        }
+      }
+      
+      // Add another check after 15 seconds
+      DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
+        do {
+          try audioSession.setActive(true)
+          print("iOS background session maintenance: 15 second check")
+        } catch {
+          print("Error in iOS background session maintenance: \(error)")
+        }
+      }
+    } catch {
+      print("Error configuring iOS audio session for background: \(error)")
+    }
   }
   
   // Handle app entering foreground
   override func applicationWillEnterForeground(_ application: UIApplication) {
     super.applicationWillEnterForeground(application)
     
-    // Let Flutter handle foreground audio session to avoid conflicts
-    print("App entering foreground - audio session handled by Flutter")
+    // Reactivate audio session when app comes to foreground
+    do {
+      let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth])
+      try audioSession.setActive(true)
+      print("iOS audio session reactivated for foreground")
+    } catch {
+      print("Error reactivating iOS audio session: \(error)")
+    }
+  }
+  
+  deinit {
+    NotificationCenter.default.removeObserver(self)
   }
 }
