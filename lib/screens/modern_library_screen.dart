@@ -201,9 +201,9 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
   static const Duration _debounceDelay = Duration(milliseconds: 300);
   
   // Performance: Lazy loading
-  static const int _pageSize = 20;
-  int _currentPage = 0;
-  bool _hasMoreItems = true;
+  // static const int _pageSize = 20;
+  // int _currentPage = 0;
+  // bool _hasMoreItems = true;
   final ScrollController _scrollController = ScrollController();
   
   // Performance: Loading states
@@ -340,8 +340,8 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
       setState(() {
         _searchQuery = _searchController.text.toLowerCase();
         // Reset pagination for new search
-        _currentPage = 0;
-        _hasMoreItems = true;
+        // _currentPage = 0;
+        // _hasMoreItems = true;
       });
     });
   }
@@ -402,10 +402,10 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
   // Performance: Load more items for lazy loading
   void _loadMoreItems() {
-    if (!_hasMoreItems) return;
+    // if (!_hasMoreItems) return;
     
     setState(() {
-      _currentPage++;
+      // _currentPage++;
       _loadData();
     });
   }
@@ -629,36 +629,37 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
   }
 
   // Performance: Filter items based on search query
-  List<Song> get _filteredSongs {
-    if (_searchQuery.isEmpty) return _songs;
-    return _songs.where((song) =>
-      song.title.toLowerCase().contains(_searchQuery) ||
-      song.artist.toLowerCase().contains(_searchQuery) ||
-      (song.album?.toLowerCase().contains(_searchQuery) ?? false)
-    ).toList();
-  }
+  // List<Song> get _filteredSongs {
+  //   if (_searchQuery.isEmpty) return _songs;
+  //   return _songs.where((song) =>
+  //     song.title.toLowerCase().contains(_searchQuery) ||
+  //     song.artist.toLowerCase().contains(_searchQuery) ||
+  //     (song.album?.toLowerCase().contains(_searchQuery) ?? false)
+  //   ).toList();
+  // }
 
-  List<Playlist> get _filteredPlaylists {
-    if (_searchQuery.isEmpty) return _playlists;
-    return _playlists.where((playlist) =>
-      playlist.name.toLowerCase().contains(_searchQuery)
-    ).toList();
-  }
+  // List<Playlist> get _filteredPlaylists {
+  //   if (_searchQuery.isEmpty) return _playlists;
+  //   return _playlists.where((playlist) =>
+  //     playlist.name.toLowerCase().contains(_searchQuery)
+  //   ).toList();
+  // }
 
-  List<Album> get _filteredAlbums {
-    if (_searchQuery.isEmpty) return _savedAlbums;
-    return _savedAlbums.where((album) =>
-      album.title.toLowerCase().contains(_searchQuery) ||
-      album.artistName.toLowerCase().contains(_searchQuery)
-    ).toList();
-  }
+  // List<Album> get _filteredAlbums {
+  //   if (_searchQuery.isEmpty) return _savedAlbums;
+  //   return _savedAlbums.where((album) =>
+  //     album.title.toLowerCase().contains(_searchQuery) ||
+  //     album.artistName.toLowerCase().contains(_searchQuery)
+  //   ).toList();
+  // }
 
-  List<RadioStation> get _filteredStations {
-    if (_searchQuery.isEmpty) return _recentStations;
-    return _recentStations.where((station) =>
-      station.name.toLowerCase().contains(_searchQuery)
-    ).toList();
-  }
+  // List<RadioStation> get _filteredStations {
+  //   if (_searchQuery.isEmpty) return _recentStations;
+  //   return _recentStations.where((station) =>
+  //     station.name.toLowerCase().contains(_searchQuery)
+  //   ).toList();
+  // }
+
 
   Future<void> _deletePlaylist(BuildContext context, Playlist playlist) async {
     return showDialog(

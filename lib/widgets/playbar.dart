@@ -27,13 +27,11 @@ class _PlaybarState extends State<Playbar> {
   static const Duration _updateDelay = Duration(milliseconds: 100);
 
   CurrentSongProvider? _currentSongProvider;
+  // ignore: unused_field
   Future<String>? _localArtPathFuture;
   
   // Cache the current song to prevent unnecessary rebuilds
   Song? _cachedCurrentSong;
-  
-  // Cache the resolved art path to prevent FutureBuilder rebuilds
-  String? _cachedArtPath;
   
   // Cache the Future for the current song's local art path
   Future<String>? _cachedLocalArtFuture;
@@ -86,7 +84,7 @@ class _PlaybarState extends State<Playbar> {
       if (newSongId != _previousSongId) {
         _previousSongId = newSongId;
         _cachedCurrentSong = newSong; // Cache the new song
-        _cachedArtPath = null; // Reset cached art path for new song
+        _cachedLocalArtFuture = null; // Reset cached Future for local art
         if (newSong != null) {
           _localArtPathFuture = _resolveLocalArtPath(newSong.albumArtUrl);
           // Create a stable Future for local art that won't change during the song's lifetime
@@ -137,11 +135,6 @@ class _PlaybarState extends State<Playbar> {
 
     // Use cached song for album art to prevent flashing, but current song for other UI
     final Song? songForArt = _cachedCurrentSong ?? currentSong;
-    
-    // Get isRadio state for swipe gestures (this doesn't change frequently)
-    final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio;
-    
-
     
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -228,9 +221,7 @@ class _PlaybarState extends State<Playbar> {
         );
       },
       child: GestureDetector( // Added GestureDetector for horizontal swipes
-        onHorizontalDragEnd: isRadio
-            ? null
-            : (details) {
+        onHorizontalDragEnd: (details) {
            // Swipe gestures on playbar can also trigger next/previous
            if (details.primaryVelocity! > 0) {
              // Swiped right (previous)
@@ -324,7 +315,6 @@ class _PlaybarControls extends StatelessWidget {
       builder: (context, currentSongProvider, child) {
         final bool isPlaying = currentSongProvider.isPlaying;
         final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
-        final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio;
 
         return Row(
           mainAxisSize: MainAxisSize.min,

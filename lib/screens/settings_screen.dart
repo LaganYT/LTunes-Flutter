@@ -33,8 +33,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _latestKnownVersion = 'N/A';
   // Add a ValueNotifier to trigger refresh for FutureBuilders
   final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
-  // ignore: unused_field
-  late Future<int> _storageUsedFuture;
 
   @override
   void initState() {
@@ -43,7 +41,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadShowRadioTab();
     _loadAutoDownloadLikedSongsSetting();
     _loadCurrentAppVersion();
-    _storageUsedFuture = _calculateStorageUsed();
   }
 
   Future<void> _loadCurrentAppVersion() async {
@@ -89,39 +86,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveAutoDownloadLikedSongsSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('autoDownloadLikedSongs', value);
-  }
-
-  // ignore: unused_element
-  Future<int> _calculateStorageUsed() async {
-    final prefs = await SharedPreferences.getInstance();
-    final Set<String> keys = prefs.getKeys();
-    int totalSize = 0;
-    final appDocDir = await getApplicationDocumentsDirectory();
-    const String downloadsSubDir = 'ltunes_downloads';
-
-    for (String key in keys) {
-      if (key.startsWith('song_')) {
-        final String? songJson = prefs.getString(key);
-        if (songJson != null) {
-          try {
-            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
-            Song song = Song.fromJson(songMap);
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-              // song.localFilePath is now a filename, construct full path with subdirectory
-              final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
-              final file = File(fullPath);
-              if (await file.exists()) {
-                totalSize += await file.length();
-              }
-            }
-          } catch (e) {
-            debugPrint("Error processing song $key for storage calculation: $e");
-            // Optionally, handle or log the error more formally
-          }
-        }
-      }
-    }
-    return totalSize;
   }
 
   // ignore: unused_element
@@ -430,7 +394,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       
       // Recalculate storage used to update UI
-      _storageUsedFuture = _calculateStorageUsed();
       if (mounted) {
         setState(() {}); // To refresh the storage used display
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -615,35 +578,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     valueListenable: _refreshNotifier,
                     builder: (context, _, child) {
                       return FutureBuilder<int>(
-                        future: _calculateStorageUsed(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Text('Calculating...');
-                          } else if (snapshot.hasError) {
-                            return Text('Error calculating storage', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                          } else if (snapshot.hasData) {
-                            return Text(_formatBytes(snapshot.data!));
-                          }
-                          return const Text('N/A');
-                        },
-                      );
-                    },
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: 'Refresh Storage Calculation',
-                    onPressed: () {
-                      _refreshNotifier.value++;
-                    },
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.music_note_outlined),
-                  title: const Text('Number of Downloaded Songs'),
-                  subtitle: ValueListenableBuilder<int>(
-                    valueListenable: _refreshNotifier,
-                    builder: (context, _, child) {
-                      return FutureBuilder<int>(
                         future: _getDownloadedSongsCount(),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -656,6 +590,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           return const Text('N/A');
                         },
                       );
+                    },
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh Storage Calculation',
+                    onPressed: () {
+                      _refreshNotifier.value++;
                     },
                   ),
                 ),

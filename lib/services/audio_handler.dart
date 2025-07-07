@@ -7,9 +7,7 @@ import 'package:path/path.dart' as p;
 import 'dart:io';
 import '../models/song.dart'; // Assuming Song model can give necessary info
 import 'package:audio_session/audio_session.dart';
-import '../main.dart'; // Import to access globalNavigatorKey
 import '../screens/download_queue_screen.dart'; // Import DownloadQueueScreen
-import '../widgets/error_widget.dart';
 
 // Global navigator key for showing dialogs from anywhere
 final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
@@ -57,7 +55,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   bool _isBackgroundMode = false;
   bool _isPlayingLocalFile = false;
   Timer? _backgroundSessionTimer;
-  bool _isTransitioningTracks = false;
 
   AudioPlayerHandler() {
     // Initialize audio session properly for iOS background playback
@@ -244,7 +241,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> _prepareToPlay(int index) async {
     if (index < 0 || index >= _playlist.length) return;
     
-    _isTransitioningTracks = true;
     _currentIndex = index;
 
     MediaItem itemToPlay = _playlist[_currentIndex];
@@ -350,8 +346,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       if (_isRadioStream) {
         _showRadioErrorDialog(itemToPlay.title);
       }
-    } finally {
-      _isTransitioningTracks = false;
     }
   }
 

@@ -135,7 +135,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -147,28 +147,28 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                       imageUrl: artistImageUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
-                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.person,
                           size: 48,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.person,
                           size: 48,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     )
                   : Container(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: Icon(
                         Icons.person,
                         size: 48,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
             ),
@@ -262,7 +262,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
               height: 50,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8.0),
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
               child: track.albumArtUrl.isNotEmpty
                   ? ClipRRect(
@@ -272,13 +272,13 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                         fit: BoxFit.cover,
                         errorWidget: (context, url, error) => Icon(
                           Icons.music_note,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     )
                   : Icon(
                       Icons.music_note,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
             ),
             title: Text(
@@ -348,19 +348,20 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
             );
 
             final api = ApiService();
+            final navigator = Navigator.of(context);
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
             try {
               final fullAlbum = await api.fetchAlbumDetailsById(album.id);
               if (mounted) {
-                Navigator.pop(context); // Remove loading dialog
+                navigator.pop(); // Remove loading dialog
                 if (fullAlbum != null) {
-                  Navigator.push(
-                    context,
+                  navigator.push(
                     MaterialPageRoute(
                       builder: (_) => AlbumScreen(album: fullAlbum),
                     ),
                   );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(
                         content: Text('Could not load album details.')),
                   );
@@ -368,8 +369,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
               }
             } catch (e) {
               if (mounted) {
-                Navigator.pop(context); // Remove loading dialog
-                ScaffoldMessenger.of(context).showSnackBar(
+                navigator.pop(); // Remove loading dialog
+                scaffoldMessenger.showSnackBar(
                   SnackBar(content: Text('Error: $e')),
                 );
               }
@@ -386,7 +387,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                     borderRadius: BorderRadius.circular(12.0),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -399,26 +400,26 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                             imageUrl: album.fullAlbumArtUrl,
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
-                              color: Theme.of(context).colorScheme.surfaceVariant,
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
                               child: const Center(
                                 child: CircularProgressIndicator(),
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
-                              color: Theme.of(context).colorScheme.surfaceVariant,
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
                               child: Icon(
                                 Icons.album,
                                 size: 48,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                           )
                         : Container(
-                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             child: Icon(
                               Icons.album,
                               size: 48,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                   ),
@@ -443,7 +444,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                     ? album.releaseDate.substring(0, 4)
                     : 'Unknown Year',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],

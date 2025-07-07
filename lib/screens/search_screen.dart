@@ -10,7 +10,6 @@ import 'dart:io'; // Required for File
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import 'dart:convert'; // Added import
-import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 
@@ -28,7 +27,6 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   String _searchQuery = '';
   late TabController _tabController;
   final ApiService _apiService = ApiService();
-  final PlaylistManagerService _playlistManagerService = PlaylistManagerService();
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
   bool _showRadioTab = true;
   Set<String> _likedSongIds = {};

@@ -90,7 +90,7 @@ class TabView extends StatefulWidget {
   const TabView({super.key});
 
   @override
-  _TabViewState createState() => _TabViewState();
+  State<TabView> createState() => _TabViewState();
 }
 
 class _TabViewState extends State<TabView> with WidgetsBindingObserver {
@@ -263,7 +263,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 } else {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                    scaffoldMessenger.showSnackBar(
                       SnackBar(content: Text('Could not launch ${updateInfo.url}')),
                     );
                   }
@@ -284,9 +285,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unused_local_variable
-    final themeProvider = Provider.of<ThemeProvider>(context); // Listen to ThemeProvider
-
     final List<Widget> widgetOptions = <Widget>[
       const SearchScreen(),
       const ModernLibraryScreen(),

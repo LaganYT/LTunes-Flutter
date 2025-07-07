@@ -287,12 +287,12 @@ class _AlbumScreenState extends State<AlbumScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         gradient: LinearGradient(
-          colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withOpacity(0.7)],
+          colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: Icon(Icons.album, color: Colors.white.withOpacity(0.7), size: imageSize * 0.5),
+              child: Icon(Icons.album, color: Colors.white.withValues(alpha: 0.7), size: imageSize * 0.5),
     );
 
     if (imageUrl.isEmpty) {
@@ -340,7 +340,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   margin: const EdgeInsets.only(left: 8.0),
                   padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.2),
+                    color: Colors.red.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(3.0),
                     border: Border.all(color: Colors.red, width: 0.5),
                   ),
@@ -413,7 +413,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
       flexibleSpaceBackground = Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [colorScheme.primary, colorScheme.primaryContainer.withOpacity(0.5)],
+            colors: [colorScheme.primary, colorScheme.primaryContainer.withValues(alpha: 0.5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -430,19 +430,19 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
     final shuffleButtonStyle = OutlinedButton.styleFrom(
       foregroundColor: Colors.white,
-      side: BorderSide(color: Colors.white.withOpacity(0.7)),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
       padding: const EdgeInsets.symmetric(vertical: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     );
     
-    final secondaryButtonColor = Colors.white.withOpacity(0.85);
-    final secondaryButtonSideColor = Colors.white.withOpacity(0.4);
+          final secondaryButtonColor = Colors.white.withValues(alpha: 0.85);
+      final secondaryButtonSideColor = Colors.white.withValues(alpha: 0.4);
 
     final removeButtonStyle = TextButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: theme.colorScheme.error.withOpacity(0.5)),
+        side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
       ),
     );
     
@@ -504,7 +504,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
                     child: Container(
-                      color: Colors.black.withOpacity(0.6),
+                      color: Colors.black.withValues(alpha: 0.6),
                     ),
                   ),
                   Padding(
@@ -597,14 +597,14 @@ class _AlbumScreenState extends State<AlbumScreen> {
                               if (_areAllTracksDownloaded)
                                 Expanded(
                                   child: TextButton.icon(
-                                    icon: Icon(Icons.check_circle_outline, color: secondaryButtonColor.withOpacity(0.7)),
-                                    label: Text('All Downloaded', style: TextStyle(color: secondaryButtonColor.withOpacity(0.7))),
+                                                icon: Icon(Icons.check_circle_outline, color: secondaryButtonColor.withValues(alpha: 0.7)),
+            label: Text('All Downloaded', style: TextStyle(color: secondaryButtonColor.withValues(alpha: 0.7))),
                                     onPressed: null, // Disabled
                                     style: TextButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(vertical: 10),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(color: secondaryButtonSideColor.withOpacity(0.5)),
+                                        side: BorderSide(color: secondaryButtonSideColor.withValues(alpha: 0.5)),
                                       ),
                                     ),
                                   ),
@@ -629,11 +629,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
                               child: TextButton.icon(
                                 icon: Icon(
                                   _isSaved ? Icons.delete_outline : Icons.bookmark_add_outlined,
-                                  color: _isSaved ? theme.colorScheme.error.withOpacity(0.9) : secondaryButtonColor,
+                                  color: _isSaved ? theme.colorScheme.error.withValues(alpha: 0.9) : secondaryButtonColor,
                                 ),
                                 label: Text(
                                   _isSaved ? 'Remove' : 'Save',
-                                  style: TextStyle(color: _isSaved ? theme.colorScheme.error.withOpacity(0.9) : secondaryButtonColor),
+                                  style: TextStyle(color: _isSaved ? theme.colorScheme.error.withValues(alpha: 0.9) : secondaryButtonColor),
                                 ),
                                 onPressed: _toggleSaveAlbum,
                                 style: _isSaved ? removeButtonStyle : saveButtonStyle,
@@ -686,7 +686,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       return false;
                     },
                     background: Container(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
                       alignment: Alignment.centerLeft,
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: Row(
@@ -699,7 +699,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       ),
                     ),
                     secondaryBackground: Container(
-                      color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                      color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8),
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: Row(
@@ -728,7 +728,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: colorScheme.onSurface.withOpacity(0.7),
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                       trailing: Text(

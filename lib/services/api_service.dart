@@ -54,10 +54,7 @@ class ApiService {
   // Performance: Request debouncing
   final Map<String, Timer> _debounceTimers = {};
   static const Duration _debounceDelay = Duration(milliseconds: 300);
-  
-  // Performance: Cache TTL
-  static const Duration _cacheTTL = Duration(minutes: 15);
-  static const Duration _albumCacheTTL = Duration(hours: 1);
+
   
   // Performance: Concurrent request limiting
   static const int _maxConcurrentRequests = 5;
@@ -317,8 +314,6 @@ class ApiService {
 
   // Performance: Cleanup expired cache entries
   void _cleanupExpiredCache() {
-    final now = DateTime.now();
-    
     _songCache.removeWhere((key, entry) => entry.isExpired);
     _radioStationCache.removeWhere((key, entry) => entry.isExpired);
     _audioUrlCache.removeWhere((key, entry) => entry.isExpired);

@@ -10,7 +10,7 @@ import '../widgets/playbar.dart';
 class AlbumsListScreen extends StatefulWidget {
   const AlbumsListScreen({super.key});
   @override
-  _AlbumsListScreenState createState() => _AlbumsListScreenState();
+  State<AlbumsListScreen> createState() => _AlbumsListScreenState();
 }
 
 class _AlbumsListScreenState extends State<AlbumsListScreen> {
@@ -53,7 +53,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {
@@ -164,8 +164,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
   Future<void> _addAlbumToPlaylist(BuildContext context, Album album) async {
     final playlistManager = PlaylistManagerService();
     final playlists = playlistManager.playlists;
-    final TextEditingController _searchController = TextEditingController();
-    List<Playlist> _filteredPlaylists = List.from(playlists);
+    final TextEditingController searchController = TextEditingController();
+    List<Playlist> filteredPlaylists = List.from(playlists);
 
     await showDialog(
       context: context,
@@ -205,21 +205,21 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         children: [
                           Expanded(
                             child: TextField(
-                              controller: _searchController,
+                              controller: searchController,
                               decoration: InputDecoration(
                                 hintText: 'Find playlist',
-                                prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withOpacity(0.7)),
+                                prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withValues(alpha: 0.7)),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(24.0),
                                   borderSide: BorderSide.none,
                                 ),
                                 filled: true,
-                                fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                                 contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                               ),
                               onChanged: (value) {
                                 setState(() {
-                                  _filteredPlaylists = playlists
+                                  filteredPlaylists = playlists
                                       .where((playlist) => playlist.name.toLowerCase().contains(value.toLowerCase()))
                                       .toList();
                                 });
@@ -231,18 +231,18 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                     ),
                     const SizedBox(height: 8),
                     Expanded(
-                      child: _filteredPlaylists.isEmpty
+                      child: filteredPlaylists.isEmpty
                           ? Center(
                               child: Text(
-                                _searchController.text.isNotEmpty ? 'No playlists found.' : 'No playlists available.',
-                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                searchController.text.isNotEmpty ? 'No playlists found.' : 'No playlists available.',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                               ),
                             )
                           : ListView.builder(
                               shrinkWrap: true,
-                              itemCount: _filteredPlaylists.length,
+                              itemCount: filteredPlaylists.length,
                               itemBuilder: (BuildContext context, int index) {
-                                final playlist = _filteredPlaylists[index];
+                                final playlist = filteredPlaylists[index];
                                 return ListTile(
                                   leading: SizedBox(
                                     width: 48,
@@ -255,11 +255,13 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                                   title: Text(playlist.name),
                                   subtitle: Text('${playlist.songs.length} songs'),
                                   onTap: () async {
+                                    final navigator = Navigator.of(context);
+                                    final scaffoldMessenger = ScaffoldMessenger.of(context);
                                     for (final track in album.tracks) {
                                       await playlistManager.addSongToPlaylist(playlist, track);
                                     }
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    navigator.pop();
+                                    scaffoldMessenger.showSnackBar(
                                       SnackBar(content: Text('Added album to playlist: ${playlist.name}')),
                                     );
                                   },
@@ -287,9 +289,10 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
 
   Future<void> _unsaveAlbum(Album album) async {
     final albumManager = AlbumManagerService();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     await albumManager.removeSavedAlbum(album.id);
     setState(() => _albums.removeWhere((a) => a.id == album.id));
-    ScaffoldMessenger.of(context).showSnackBar(
+    scaffoldMessenger.showSnackBar(
       SnackBar(content: Text('Album unsaved: ${album.title}')),
     );
   }

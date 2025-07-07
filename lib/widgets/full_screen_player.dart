@@ -12,9 +12,7 @@ import 'dart:async'; // For StreamSubscription
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
-// ignore: unused_import
-import '../services/playlist_manager_service.dart';
-import '../services/api_service.dart'; // Import ApiService
+import '../services/api_service.dart'; 
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
 import 'dart:math'; // Added for min/max in lyrics scroll

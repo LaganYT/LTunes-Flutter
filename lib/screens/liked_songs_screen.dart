@@ -5,8 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart'; // ensure this is present
 import 'package:path/path.dart' as p;
-// ignore: unused_import
-import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
