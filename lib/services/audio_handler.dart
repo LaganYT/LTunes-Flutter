@@ -935,6 +935,33 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // However, typical shuffle behavior is often just picking a random next track.
   }
 
+  // Playback speed control methods
+  Future<void> setPlaybackSpeed(double speed) async {
+    try {
+      // Set speed and let pitch change naturally (like vinyl/tape)
+      await _audioPlayer.setSpeed(speed);
+      // Set pitch to match speed change (pitch up when speeding up, pitch down when slowing down)
+      await _audioPlayer.setPitch(speed);
+      debugPrint("Playback speed set to: $speed with natural pitch change");
+    } catch (e) {
+      debugPrint("Error setting playback speed: $e");
+    }
+  }
+
+  double get currentPlaybackSpeed {
+    return _audioPlayer.speed;
+  }
+
+  Future<void> resetPlaybackSpeed() async {
+    try {
+      await _audioPlayer.setSpeed(1.0);
+      await _audioPlayer.setPitch(1.0);
+      debugPrint("Playback speed and pitch reset to normal");
+    } catch (e) {
+      debugPrint("Error resetting playback speed: $e");
+    }
+  }
+
   // Handle playing a specific media item, potentially adding it to queue
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {

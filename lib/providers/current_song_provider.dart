@@ -56,6 +56,10 @@ class CurrentSongProvider with ChangeNotifier {
   String? _stationFavicon;
   String? get stationFavicon => _stationFavicon;
 
+  // Playback speed control
+  double _playbackSpeed = 1.0;
+  double get playbackSpeed => _playbackSpeed;
+
   StreamSubscription? _playbackStateSubscription;
   StreamSubscription? _mediaItemSubscription;
   StreamSubscription? _queueSubscription;
@@ -70,6 +74,51 @@ class CurrentSongProvider with ChangeNotifier {
 
   // Add public getter for audioHandler
   AudioHandler get audioHandler => _audioHandler;
+
+  // Playback speed control methods
+  Future<void> setPlaybackSpeed(double speed) async {
+    if (speed < 0.25 || speed > 3.0) return; // Limit speed range
+    
+    try {
+      await (_audioHandler as AudioPlayerHandler).setPlaybackSpeed(speed);
+      _playbackSpeed = speed;
+      notifyListeners();
+      
+      // Save speed preference
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('playback_speed', speed);
+    } catch (e) {
+      debugPrint("Error setting playback speed: $e");
+    }
+  }
+
+  Future<void> resetPlaybackSpeed() async {
+    try {
+      await (_audioHandler as AudioPlayerHandler).resetPlaybackSpeed();
+      _playbackSpeed = 1.0;
+      notifyListeners();
+      
+      // Save speed preference
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('playback_speed', 1.0);
+    } catch (e) {
+      debugPrint("Error resetting playback speed: $e");
+    }
+  }
+
+  Future<void> _loadPlaybackSpeedFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedSpeed = prefs.getDouble('playback_speed');
+      if (savedSpeed != null && savedSpeed >= 0.25 && savedSpeed <= 3.0) {
+        _playbackSpeed = savedSpeed;
+        // Apply the saved speed to the audio handler with pitch correction
+        await (_audioHandler as AudioPlayerHandler).setPlaybackSpeed(savedSpeed);
+      }
+    } catch (e) {
+      debugPrint("Error loading playback speed from storage: $e");
+    }
+  }
 
   // Getter for LoopMode based on AudioHandler's state
   LoopMode get loopMode {
@@ -179,6 +228,7 @@ class CurrentSongProvider with ChangeNotifier {
     _initializeDownloadManager(); // Initialize DownloadManager
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
+    _loadPlaybackSpeedFromStorage(); // Load saved playback speed
     
     // Set up download notification action callback and AudioHandler
     _downloadNotificationService.setNotificationActionCallback(handleDownloadNotificationAction);

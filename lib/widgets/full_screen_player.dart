@@ -848,6 +848,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             iconSize: 24.0,
             color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withOpacity(0.7),
           ),
+          // Playback Speed
+          IconButton(
+            icon: Icon(
+              Icons.speed_rounded,
+              color: currentSongProvider.playbackSpeed != 1.0 
+                  ? colorScheme.secondary 
+                  : colorScheme.onSurface.withOpacity(0.7),
+            ),
+            onPressed: () => _showPlaybackSpeedDialog(context),
+            tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
+            iconSize: 24.0,
+          ),
           // Lyrics toggle
           IconButton(
             icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
@@ -1062,6 +1074,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           tooltip: 'Show Queue',
                           iconSize: 26.0,
                           color: colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        // Playback Speed
+                        IconButton(
+                          icon: Icon(
+                            currentSongProvider.playbackSpeed == 1.0 
+                                ? Icons.speed_rounded 
+                                : Icons.speed_rounded,
+                            color: currentSongProvider.playbackSpeed != 1.0 
+                                ? colorScheme.secondary 
+                                : colorScheme.onSurface.withOpacity(0.7),
+                          ),
+                          onPressed: () => _showPlaybackSpeedDialog(context),
+                          tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
+                          iconSize: 26.0,
                         ),
                       ],
                     ),
@@ -1341,6 +1367,90 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
         ),
       ),
+    );
+  }
+
+    void _showPlaybackSpeedDialog(BuildContext context) async {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Load custom speed presets
+    final prefs = await SharedPreferences.getInstance();
+    final customSpeedPresetsJson = prefs.getStringList('customSpeedPresets') ?? [];
+    final customSpeedPresets = customSpeedPresetsJson
+        .map((e) => double.tryParse(e) ?? 1.0)
+        .where((e) => e >= 0.25 && e <= 3.0)
+        .toList();
+    
+    if (!mounted) return;
+    
+    // Combine built-in and custom presets, then sort them
+    final allSpeeds = <double>[
+      0.8, // Daycore
+      1.0, // Normal
+      1.1, // Nightcore
+      ...customSpeedPresets,
+    ];
+    allSpeeds.sort();
+    
+    // Create a map to store labels for built-in speeds
+    final speedLabels = <double, String>{
+      0.8: '0.8x (Daycore)',
+      1.0: '1.0x (Normal)',
+      1.1: '1.1x (Nightcore)',
+    };
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Playback Speed'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  'Speed changes affect pitch naturally',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+              ...allSpeeds.map((speed) {
+                final label = speedLabels[speed] ?? '${speed.toStringAsFixed(2)}x';
+                return _buildSpeedOption(context, speed, label, currentSongProvider, colorScheme);
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSpeedOption(BuildContext context, double speed, String label, CurrentSongProvider provider, ColorScheme colorScheme) {
+    final isSelected = provider.playbackSpeed == speed;
+    
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+        ),
+      ),
+      trailing: isSelected ? Icon(Icons.check, color: colorScheme.primary) : null,
+      onTap: () {
+        provider.setPlaybackSpeed(speed);
+        Navigator.of(context).pop();
+      },
     );
   }
 }

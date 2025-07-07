@@ -31,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> playerActionsInAppBarNotifier = ValueNotifier<bool?>(null);
+  final ValueNotifier<List<double>> customSpeedPresetsNotifier = ValueNotifier<List<double>>([]);
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
 
@@ -73,6 +74,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Load Player Actions in App Bar setting
     final playerActionsInAppBar = prefs.getBool('playerActionsInAppBar') ?? false;
     playerActionsInAppBarNotifier.value = playerActionsInAppBar;
+    
+    // Load Custom Speed Presets
+    final customSpeedPresetsJson = prefs.getStringList('customSpeedPresets') ?? [];
+    final customSpeedPresets = customSpeedPresetsJson
+        .map((e) => double.tryParse(e) ?? 1.0)
+        .where((e) => e >= 0.25 && e <= 3.0)
+        .toList();
+    customSpeedPresetsNotifier.value = customSpeedPresets;
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -93,6 +102,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _savePlayerActionsInAppBarSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('playerActionsInAppBar', value);
+  }
+
+  Future<void> _saveCustomSpeedPresets(List<double> presets) async {
+    final prefs = await SharedPreferences.getInstance();
+    final presetsJson = presets.map((e) => e.toString()).toList();
+    await prefs.setStringList('customSpeedPresets', presetsJson);
   }
 
   Future<int> _getDownloadedSongsCount() async {
@@ -270,6 +285,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     playerActionsInAppBarNotifier.value = false; // Default value
     await _savePlayerActionsInAppBarSetting(false);
 
+    // Reset Custom Speed Presets
+    customSpeedPresetsNotifier.value = [];
+    await _saveCustomSpeedPresets([]);
+
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults(); 
@@ -294,6 +313,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
       MaterialPageRoute(
         builder: (context) => const TermsOfServiceScreen(),
       ),
+    );
+  }
+
+  void _showCustomSpeedPresetsDialog(BuildContext context) {
+    final currentPresets = List<double>.from(customSpeedPresetsNotifier.value);
+    final TextEditingController speedController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Custom Speed Presets'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Add custom playback speed presets (0.25x - 3.0x)',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: speedController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Speed (e.g., 0.9)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          final speed = double.tryParse(speedController.text);
+                          if (speed != null && speed >= 0.25 && speed <= 3.0) {
+                            if (!currentPresets.contains(speed)) {
+                              currentPresets.add(speed);
+                              currentPresets.sort();
+                              setState(() {});
+                              speedController.clear();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Speed preset already exists')),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter a valid speed between 0.25 and 3.0')),
+                            );
+                          }
+                        },
+                        child: const Text('Add'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (currentPresets.isNotEmpty) ...[
+                    const Text('Current Presets:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: currentPresets.map((speed) {
+                        return Chip(
+                          label: Text('${speed.toStringAsFixed(2)}x'),
+                          onDeleted: () {
+                            currentPresets.remove(speed);
+                            setState(() {});
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    customSpeedPresetsNotifier.value = List<double>.from(currentPresets);
+                    await _saveCustomSpeedPresets(currentPresets);
+                    Navigator.of(context).pop();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Custom speed presets saved')),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -528,6 +648,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           await _savePlayerActionsInAppBarSetting(value);
                         },
                       ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          _buildSectionTitle(context, 'Playback'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
+            ),
+            elevation: 2,
+            child: Column(
+              children: [
+                ValueListenableBuilder<List<double>>(
+                  valueListenable: customSpeedPresetsNotifier,
+                  builder: (context, customPresets, _) {
+                    return ListTile(
+                      leading: const Icon(Icons.speed),
+                      title: const Text('Custom Speed Presets'),
+                      subtitle: Text(
+                        customPresets.isEmpty 
+                            ? 'No custom presets added'
+                            : '${customPresets.length} custom preset${customPresets.length == 1 ? '' : 's'}'
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _showCustomSpeedPresetsDialog(context),
                     );
                   },
                 ),

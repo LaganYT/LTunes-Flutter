@@ -31,8 +31,6 @@
   - Search across lyrics if available.
 - Customizable UI
   - Let users choose themes, rearrange tabs, or customize the home screen.
-- Playback Speed Control
-  - Allow users to change playback speed (useful for podcasts or audiobooks).
 - Bookmarking
   - Let users bookmark positions in long tracks (e.g., audiobooks, podcasts).
 - Animated Visualizations
