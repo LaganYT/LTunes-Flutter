@@ -655,77 +655,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.storage_outlined, size: 32),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                ValueListenableBuilder<int>(
-                                  valueListenable: _refreshNotifier,
-                                  builder: (context, _, child) {
-                                    return FutureBuilder<int>(
-                                      future: _getDownloadedSongsCount(),
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState == ConnectionState.waiting) {
-                                          return const SizedBox(
-                                            height: 24, width: 24,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          );
-                                        } else if (snapshot.hasError) {
-                                          return Text('Error', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                                        } else if (snapshot.hasData) {
-                                          return Text(
-                                            '${snapshot.data}',
-                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                                          );
-                                        }
-                                        return const Text('N/A');
-                                      },
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                const Text('Songs', style: TextStyle(fontSize: 14)),
-                                const SizedBox(width: 24),
-                                ValueListenableBuilder<int>(
-                                  valueListenable: _refreshNotifier,
-                                  builder: (context, _, child) {
-                                    return FutureBuilder<int>(
-                                      future: _getDownloadedSongsStorageBytes(),
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState == ConnectionState.waiting) {
-                                          return const SizedBox(
-                                            height: 24, width: 24,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          );
-                                        } else if (snapshot.hasError) {
-                                          return Text('Error', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                                        } else if (snapshot.hasData) {
-                                          return Text(
-                                            _formatBytes(snapshot.data ?? 0),
-                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                                          );
-                                        }
-                                        return const Text('N/A');
-                                      },
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                const Text('Used', style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                          ],
-                        ),
+                      const Icon(Icons.music_note, size: 20),
+                      const SizedBox(width: 8),
+                      ValueListenableBuilder<int>(
+                        valueListenable: _refreshNotifier,
+                        builder: (context, _, child) {
+                          return FutureBuilder<int>(
+                            future: _getDownloadedSongsCount(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const SizedBox(
+                                  height: 18, width: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                );
+                              } else if (snapshot.hasError) {
+                                return Text('Error', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 15));
+                              } else if (snapshot.hasData) {
+                                return Text(
+                                  '${snapshot.data} Songs',
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 15),
+                                );
+                              }
+                              return const Text('N/A', style: TextStyle(fontSize: 15));
+                            },
+                          );
+                        },
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh),
-                        tooltip: 'Refresh Storage Calculation',
-                        onPressed: () {
-                          _refreshNotifier.value++;
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.sd_storage, size: 20),
+                      const SizedBox(width: 8),
+                      ValueListenableBuilder<int>(
+                        valueListenable: _refreshNotifier,
+                        builder: (context, _, child) {
+                          return FutureBuilder<int>(
+                            future: _getDownloadedSongsStorageBytes(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const SizedBox(
+                                  height: 18, width: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                );
+                              } else if (snapshot.hasError) {
+                                return Text('Error', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 15));
+                              } else if (snapshot.hasData) {
+                                return Text(
+                                  '${_formatBytes(snapshot.data ?? 0)} used',
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 15),
+                                );
+                              }
+                              return const Text('N/A', style: TextStyle(fontSize: 15));
+                            },
+                          );
                         },
                       ),
                     ],
