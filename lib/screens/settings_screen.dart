@@ -127,6 +127,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return count;
   }
 
+  // Add a method to calculate total storage used by downloaded songs
+  Future<int> _getDownloadedSongsStorageBytes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    int totalBytes = 0;
+    final appDocDir = await getApplicationDocumentsDirectory();
+    const String downloadsSubDir = 'ltunes_downloads';
+
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            final song = Song.fromJson(songMap);
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+              final file = File(fullPath);
+              if (await file.exists()) {
+                totalBytes += await file.length();
+              }
+            }
+          } catch (e) {
+            debugPrint("Error processing song $key for storage calculation: $e");
+          }
+        }
+      }
+    }
+    return totalBytes;
+  }
+
   Future<void> _deleteAllDownloads() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
@@ -569,128 +600,189 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionTitle(context, 'Storage'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.storage_outlined),
-                  title: const Text('Storage Used by Downloads'),
-                  subtitle: ValueListenableBuilder<int>(
-                    valueListenable: _refreshNotifier,
-                    builder: (context, _, child) {
-                      return FutureBuilder<int>(
-                        future: _getDownloadedSongsCount(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Text('Counting...');
-                          } else if (snapshot.hasError) {
-                            return Text('Error counting songs', style: TextStyle(color: Theme.of(context).colorScheme.error));
-                          } else if (snapshot.hasData) {
-                            return Text('${snapshot.data} songs');
-                          }
-                          return const Text('N/A');
-                        },
-                      );
-                    },
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
+            ),
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Downloaded Songs and Storage Used',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: 'Refresh Storage Calculation',
-                    onPressed: () {
-                      _refreshNotifier.value++;
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                    label: const Text('Delete All Downloaded Songs'),
-                    onPressed: () async {
-                      bool? confirmDelete = await showDialog<bool>(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('Delete All Downloads?'),
-                            content: const Text('Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.'),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('Cancel'),
-                                onPressed: () {
-                                  Navigator.of(context).pop(false);
-                                },
-                              ),
-                              TextButton(
-                                child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                                onPressed: () {
-                                  Navigator.of(context).pop(true);
-                                },
-                              ),
-                            ],
-                          );
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.storage_outlined, size: 32),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _refreshNotifier,
+                                  builder: (context, _, child) {
+                                    return FutureBuilder<int>(
+                                      future: _getDownloadedSongsCount(),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState == ConnectionState.waiting) {
+                                          return const SizedBox(
+                                            height: 24, width: 24,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          );
+                                        } else if (snapshot.hasError) {
+                                          return Text('Error', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                                        } else if (snapshot.hasData) {
+                                          return Text(
+                                            '${snapshot.data}',
+                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                          );
+                                        }
+                                        return const Text('N/A');
+                                      },
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                const Text('Songs', style: TextStyle(fontSize: 14)),
+                                const SizedBox(width: 24),
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _refreshNotifier,
+                                  builder: (context, _, child) {
+                                    return FutureBuilder<int>(
+                                      future: _getDownloadedSongsStorageBytes(),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState == ConnectionState.waiting) {
+                                          return const SizedBox(
+                                            height: 24, width: 24,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          );
+                                        } else if (snapshot.hasError) {
+                                          return Text('Error', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                                        } else if (snapshot.hasData) {
+                                          return Text(
+                                            _formatBytes(snapshot.data ?? 0),
+                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                          );
+                                        }
+                                        return const Text('N/A');
+                                      },
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                const Text('Used', style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Refresh Storage Calculation',
+                        onPressed: () {
+                          _refreshNotifier.value++;
                         },
-                      );
-                      if (confirmDelete == true) {
-                        await _deleteAllDownloads();
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                      foregroundColor: Theme.of(context).colorScheme.onError,
-                      minimumSize: const Size(double.infinity, 48), // Make button wider
-                    ),
+                      ),
+                    ],
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.clear_all_outlined),
-                    label: const Text('Clear Recently Played Stations'),
-                    onPressed: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (BuildContext dialogContext) {
-                          return AlertDialog(
-                            title: const Text('Clear Recent Stations?'),
-                            content: const Text(
-                                'This will clear the list of recently played radio stations. This action cannot be undone.'),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('Cancel'),
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(false),
-                              ),
-                              TextButton(
-                                style: TextButton.styleFrom(
-                                    foregroundColor:
-                                        Theme.of(context).colorScheme.error),
-                                child: const Text('Clear'),
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(true),
-                              ),
-                            ],
-                          );
-                        },
-                      );
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('Delete All Downloaded Songs'),
+              onPressed: () async {
+                bool? confirmDelete = await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Delete All Downloads?'),
+                      content: const Text('Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('Cancel'),
+                          onPressed: () {
+                            Navigator.of(context).pop(false);
+                          },
+                        ),
+                        TextButton(
+                          child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                          onPressed: () {
+                            Navigator.of(context).pop(true);
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (confirmDelete == true) {
+                  await _deleteAllDownloads();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+                minimumSize: const Size(double.infinity, 48), // Make button wider
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.clear_all_outlined),
+              label: const Text('Clear Recently Played Stations'),
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext dialogContext) {
+                    return AlertDialog(
+                      title: const Text('Clear Recent Stations?'),
+                      content: const Text(
+                          'This will clear the list of recently played radio stations. This action cannot be undone.'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('Cancel'),
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.error),
+                          child: const Text('Clear'),
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                        ),
+                      ],
+                    );
+                  },
+                );
 
-                      if (confirmed == true) {
-                        await radioRecentsManager.clearRecentStations();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content:
-                                    Text('Recently played stations cleared.')),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                      foregroundColor: Theme.of(context).colorScheme.onError,
-                      minimumSize: const Size(double.infinity, 48), // Make button wider
-                    ),
-                  ),
-                ),
-              ],
+                if (confirmed == true) {
+                  await radioRecentsManager.clearRecentStations();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content:
+                              Text('Recently played stations cleared.')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+                minimumSize: const Size(double.infinity, 48), // Make button wider
+              ),
             ),
           ),
           _buildSectionTitle(context, 'Version Information'),
