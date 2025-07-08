@@ -38,6 +38,7 @@
 - Export/Import Settings & Playlists
   - Allow users to export/import their playlists, tags, and app settings as files.
 
-Fix: when skipping or going back a song it autoends 
-Fix: songs screen page shows nothing when offline, the whole library is kinda broken (including music playback) when offline
-When i click on a song cancel the request for the song before 
+## Bugs / Issues to Fix
+- When skipping or going back a song, playback auto-ends unexpectedly.
+- Songs screen shows nothing when offline; the entire library and music playback are broken when offline.
+- When clicking on a song, cancel the previous song's request before starting a new one.
