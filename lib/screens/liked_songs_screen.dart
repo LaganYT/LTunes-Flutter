@@ -19,17 +19,19 @@ class LikedSongsScreen extends StatefulWidget {
 
 class _LikedSongsScreenState extends State<LikedSongsScreen> {
   List<Song> _likedSongs = [];
+  late final CurrentSongProvider _currentSongProvider;
 
   @override
   void initState() {
     super.initState();
+    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     _loadLikedSongs();
-    Provider.of<CurrentSongProvider>(context, listen: false).addListener(_onSongDataChanged);
+    _currentSongProvider.addListener(_onSongDataChanged);
   }
 
   @override
   void dispose() {
-    Provider.of<CurrentSongProvider>(context, listen: false).removeListener(_onSongDataChanged);
+    _currentSongProvider.removeListener(_onSongDataChanged);
     super.dispose();
   }
 

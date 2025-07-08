@@ -16,6 +16,7 @@ class Song {
   final Map<String, dynamic>? extras; // Added extras field
   final bool isImported; // New field for imported songs
   final bool isExplicit; // New field for explicit content
+  int playCount; // New field for play count
 
   // Add a getter for isRadio
   bool get isRadio => extras?['isRadio'] as bool? ?? false;
@@ -47,6 +48,7 @@ class Song {
     this.isExplicit = false, // Default to false
     this.plainLyrics,
     this.syncedLyrics,
+    this.playCount = 0, // Default to 0
   });
 
   Song copyWith({
@@ -68,7 +70,7 @@ class Song {
     bool? isExplicit, // Added isExplicit
     String? plainLyrics,
     String? syncedLyrics,
-    
+    int? playCount, // New field
   }) {
     return Song(
       title: title ?? this.title,
@@ -89,6 +91,7 @@ class Song {
       isExplicit: isExplicit ?? this.isExplicit, // Added isExplicit logic
       plainLyrics: plainLyrics ?? this.plainLyrics,
       syncedLyrics: syncedLyrics ?? this.syncedLyrics,
+      playCount: playCount ?? this.playCount, // New field
     );
   }
 
@@ -168,6 +171,7 @@ class Song {
       final bool isExplicit = json['isExplicit'] as bool? ?? false; // Parse isExplicit
       final String? plainLyrics = _asNullableString(json['plainLyrics']);
       final String? syncedLyrics = _asNullableString(json['syncedLyrics']);
+      final int playCount = json['playCount'] as int? ?? 0; // Parse playCount
 
       return Song(
         title: title,
@@ -186,6 +190,7 @@ class Song {
         isExplicit: isExplicit, // Assign parsed isExplicit
         plainLyrics: plainLyrics,
         syncedLyrics: syncedLyrics,
+        playCount: playCount, // Assign playCount
         // isDownloading and downloadProgress will use default constructor values
       );
     } catch (e) {
@@ -264,6 +269,7 @@ class Song {
         'isExplicit': isExplicit, // Serialize isExplicit
         'plainLyrics': plainLyrics,
         'syncedLyrics': syncedLyrics,
+        'playCount': playCount, // Serialize playCount
         // isDownloading and downloadProgress are typically transient state
         // and not included in toJson. If you need to persist them, add them here.
       };

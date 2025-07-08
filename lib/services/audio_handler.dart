@@ -8,6 +8,8 @@ import 'dart:io';
 import '../models/song.dart'; // Assuming Song model can give necessary info
 import 'package:audio_session/audio_session.dart';
 import '../screens/download_queue_screen.dart'; // Import DownloadQueueScreen
+import 'package:shared_preferences/shared_preferences.dart'; // For play count persistence
+import 'dart:convert'; // For jsonEncode/Decode
 
 // Global navigator key for showing dialogs from anywhere
 final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
@@ -347,6 +349,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         _showRadioErrorDialog(itemToPlay.title);
       }
     }
+    // At the end of _prepareToPlay, increment play counts for the new song
+    await _incrementPlayCounts();
   }
 
   // Helper method to show radio error dialog
@@ -711,6 +715,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> play() async {
     if (_audioPlayer.playing) return;
 
+    // Increment play counts for song, album, and artist
+    await _incrementPlayCounts();
+
     // Enhanced iOS audio session handling before playing
     if (_isIOS && _audioSession != null) {
       try {
@@ -755,6 +762,85 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         _showRadioErrorDialog(_playlist[_currentIndex].title);
       }
     }
+  }
+
+  Future<void> _incrementPlayCounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final statsEnabled = prefs.getBool('listeningStatsEnabled') ?? true;
+    if (!statsEnabled) return;
+    if (_currentIndex < 0 || _currentIndex >= _playlist.length) return;
+    final item = _playlist[_currentIndex];
+    final songId = item.extras?['songId'] as String?;
+    final artist = item.artist ?? '';
+    final album = item.album ?? '';
+    if (songId == null || songId.isEmpty) return;
+
+    // Increment song play count
+    final songKey = 'song_' + songId;
+    final songJson = prefs.getString(songKey);
+    if (songJson != null) {
+      try {
+        final songMap = Map<String, dynamic>.from(await Future.value(jsonDecode(songJson)));
+        int playCount = (songMap['playCount'] as int?) ?? 0;
+        playCount++;
+        songMap['playCount'] = playCount;
+        await prefs.setString(songKey, jsonEncode(songMap));
+      } catch (e) {
+        debugPrint('Error incrementing song play count: $e');
+      }
+    }
+
+    // Increment album play count
+    if (album.isNotEmpty) {
+      final albumKeys = prefs.getKeys().where((k) => k.startsWith('album_'));
+      for (final key in albumKeys) {
+        final albumJson = prefs.getString(key);
+        if (albumJson != null) {
+          try {
+            final albumMap = Map<String, dynamic>.from(await Future.value(jsonDecode(albumJson)));
+            if ((albumMap['title'] as String?) == album) {
+              int playCount = (albumMap['playCount'] as int?) ?? 0;
+              playCount++;
+              albumMap['playCount'] = playCount;
+              await prefs.setString(key, jsonEncode(albumMap));
+            }
+          } catch (e) {
+            debugPrint('Error incrementing album play count: $e');
+          }
+        }
+      }
+    }
+
+    // Increment artist play count (stored as a map in SharedPreferences)
+    if (artist.isNotEmpty) {
+      final artistPlayCountsKey = 'artist_play_counts';
+      final artistPlayCountsJson = prefs.getString(artistPlayCountsKey);
+      Map<String, int> artistPlayCounts = {};
+      if (artistPlayCountsJson != null) {
+        try {
+          artistPlayCounts = Map<String, int>.from(jsonDecode(artistPlayCountsJson));
+        } catch (e) {
+          debugPrint('Error decoding artist play counts: $e');
+        }
+      }
+      artistPlayCounts[artist] = (artistPlayCounts[artist] ?? 0) + 1;
+      await prefs.setString(artistPlayCountsKey, jsonEncode(artistPlayCounts));
+    }
+
+    // Increment daily play count for today
+    final now = DateTime.now();
+    final todayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dailyPlayCountsJson = prefs.getString('daily_play_counts');
+    Map<String, int> dailyPlayCounts = {};
+    if (dailyPlayCountsJson != null) {
+      try {
+        dailyPlayCounts = Map<String, int>.from(jsonDecode(dailyPlayCountsJson));
+      } catch (e) {
+        debugPrint('Error decoding daily play counts: $e');
+      }
+    }
+    dailyPlayCounts[todayKey] = (dailyPlayCounts[todayKey] ?? 0) + 1;
+    await prefs.setString('daily_play_counts', jsonEncode(dailyPlayCounts));
   }
 
   @override

@@ -7,6 +7,8 @@ import '../services/album_manager_service.dart';
 import '../widgets/full_screen_player.dart'; // For navigation to player
 import '../screens/song_detail_screen.dart'; // For navigation to song details
 import '../widgets/playbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class AlbumScreen extends StatefulWidget {
   final Album album;
@@ -163,9 +165,28 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
   }
 
-  void _playAlbum() {
+  void _playAlbum() async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     if (widget.album.tracks.isNotEmpty) {
+      // Increment album play count in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final albumKeys = prefs.getKeys().where((k) => k.startsWith('album_'));
+      for (final key in albumKeys) {
+        final albumJson = prefs.getString(key);
+        if (albumJson != null) {
+          try {
+            final albumMap = Map<String, dynamic>.from(jsonDecode(albumJson));
+            if ((albumMap['title'] as String?) == widget.album.title) {
+              int playCount = (albumMap['playCount'] as int?) ?? 0;
+              playCount++;
+              albumMap['playCount'] = playCount;
+              await prefs.setString(key, jsonEncode(albumMap));
+            }
+          } catch (e) {
+            debugPrint('Error incrementing album play count from album screen: $e');
+          }
+        }
+      }
       currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0);
       currentSongProvider.playSong(widget.album.tracks.first);
       Navigator.push(

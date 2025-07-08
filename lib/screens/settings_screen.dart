@@ -17,6 +17,7 @@ import 'modern_library_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'dart:async'; // Required for Timer
+import 'package:fl_chart/fl_chart.dart'; // For charts
 
 
 class SettingsScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> playerActionsInAppBarNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<List<double>> customSpeedPresetsNotifier = ValueNotifier<List<double>>([]);
+  final ValueNotifier<bool> listeningStatsEnabledNotifier = ValueNotifier<bool>(true); // <-- move here
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
   int? _sleepTimerMinutes; // Minutes until sleep timer fires
@@ -44,6 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     _loadAppVersion();
+    _loadListeningStatsEnabled();
   }
 
   @override
@@ -527,6 +530,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _sleepTimerEndTime = null;
     });
   }
+  Future<void> _loadListeningStatsEnabled() async {
+  final prefs = await SharedPreferences.getInstance();
+  final enabled = prefs.getBool('listeningStatsEnabled') ?? true;
+  listeningStatsEnabledNotifier.value = enabled;
+}
+
+Future<void> _setListeningStatsEnabled(bool enabled) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('listeningStatsEnabled', enabled);
+  listeningStatsEnabledNotifier.value = enabled;
+  if (mounted) setState(() {}); // Use setState from State class
+}
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
@@ -1033,6 +1048,139 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: _buildSectionTitle(context, 'Listening Stats'),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: listeningStatsEnabledNotifier,
+            builder: (context, enabled, _) {
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.bar_chart, size: 24),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Your Listening Stats',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          Switch(
+                            value: enabled,
+                            onChanged: (val) async {
+                              await _setListeningStatsEnabled(val);
+                            },
+                          ),
+                        ],
+                      ),
+                      if (!enabled)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16.0),
+                          child: Text('Listening stats are disabled.', style: TextStyle(color: Colors.grey)),
+                        ),
+                      if (enabled)
+                        FutureBuilder<Map<String, dynamic>>(
+                          future: _getListeningStats(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            } else if (snapshot.hasError) {
+                              return Text('Error loading stats', style: TextStyle(color: Theme.of(context).colorScheme.error));
+                            } else if (!snapshot.hasData) {
+                              return const Text('No stats available');
+                            }
+                            final stats = snapshot.data!;
+                            final List<Song> topSongs = stats['topSongs'] as List<Song>;
+                            final List<Map<String, dynamic>> topAlbums = stats['topAlbums'] as List<Map<String, dynamic>>;
+                            final List<MapEntry<String, int>> topArtists = stats['topArtists'] as List<MapEntry<String, int>>;
+                            final Map<String, int> dailyCounts = stats['dailyCounts'] as Map<String, int>? ?? {};
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 16),
+                                if (dailyCounts.isNotEmpty) ...[
+                                  Text('Daily Listening (last 7 days):', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                  SizedBox(
+                                    height: 180,
+                                    child: BarChart(
+                                      BarChartData(
+                                        alignment: BarChartAlignment.spaceAround,
+                                        maxY: (dailyCounts.values.isNotEmpty ? (dailyCounts.values.reduce((a, b) => a > b ? a : b) + 1) : 1).toDouble(),
+                                        barTouchData: BarTouchData(enabled: false),
+                                        titlesData: FlTitlesData(
+                                          leftTitles: AxisTitles(
+                                            sideTitles: SideTitles(showTitles: true, reservedSize: 28),
+                                          ),
+                                          bottomTitles: AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              getTitlesWidget: (double value, TitleMeta meta) {
+                                                final keys = dailyCounts.keys.toList();
+                                                if (value.toInt() < 0 || value.toInt() >= keys.length) return const SizedBox();
+                                                return Text(keys[value.toInt()].substring(5), style: const TextStyle(fontSize: 10));
+                                              },
+                                              reservedSize: 32,
+                                            ),
+                                          ),
+                                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                        ),
+                                        borderData: FlBorderData(show: false),
+                                        barGroups: [
+                                          for (int i = 0; i < dailyCounts.length; i++)
+                                            BarChartGroupData(x: i, barRods: [BarChartRodData(toY: dailyCounts.values.elementAt(i).toDouble(), color: Theme.of(context).colorScheme.primary)])
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                                Text('Most Played Songs:', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                ...topSongs.map((song) => ListTile(
+                                  leading: song.albumArtUrl.isNotEmpty
+                                      ? (song.albumArtUrl.startsWith('http')
+                                          ? CircleAvatar(
+                                              backgroundImage: NetworkImage(song.albumArtUrl),
+                                            )
+                                          : (File(song.albumArtUrl).existsSync()
+                                              ? CircleAvatar(
+                                                  backgroundImage: FileImage(File(song.albumArtUrl)),
+                                                )
+                                              : const CircleAvatar(child: Icon(Icons.music_note))))
+                                      : const CircleAvatar(child: Icon(Icons.music_note)),
+                                  title: Text(song.title),
+                                  subtitle: Text(song.artist),
+                                  trailing: Text('${song.playCount} plays'),
+                                  dense: true,
+                                )),
+                                const SizedBox(height: 12),
+                                Text('Most Played Artists:', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                ...topArtists.map((entry) => ListTile(
+                                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                                  title: Text(entry.key),
+                                  trailing: Text('${entry.value} plays'),
+                                  dense: true,
+                                )),
+                              ],
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           _buildSectionTitle(context, 'App'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
@@ -1222,3 +1370,73 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+
+
+  // Add this method to _SettingsScreenState:
+  Future<Map<String, dynamic>> _getListeningStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    // Songs
+    final List<Song> allSongs = [];
+    final now = DateTime.now();
+    for (final key in keys) {
+      if (key.startsWith('song_')) {
+        final songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            final songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            final song = Song.fromJson(songMap);
+            allSongs.add(song);
+          } catch (_) {}
+        }
+      }
+    }
+    allSongs.sort((a, b) => b.playCount.compareTo(a.playCount));
+    final topSongs = allSongs.take(3).toList();
+    // Albums
+    final List<Map<String, dynamic>> allAlbums = [];
+    for (final key in keys) {
+      if (key.startsWith('album_')) {
+        final albumJson = prefs.getString(key);
+        if (albumJson != null) {
+          try {
+            final albumMap = jsonDecode(albumJson) as Map<String, dynamic>;
+            allAlbums.add(albumMap);
+          } catch (_) {}
+        }
+      }
+    }
+    allAlbums.sort((a, b) => (b['playCount'] as int? ?? 0).compareTo(a['playCount'] as int? ?? 0));
+    final topAlbums = allAlbums.take(3).toList();
+    // Artists
+    final artistPlayCountsJson = prefs.getString('artist_play_counts');
+    Map<String, int> artistPlayCounts = {};
+    if (artistPlayCountsJson != null) {
+      try {
+        artistPlayCounts = Map<String, int>.from(jsonDecode(artistPlayCountsJson));
+      } catch (_) {}
+    }
+    final topArtists = artistPlayCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    // Daily play counts (actual)
+    final dailyPlayCountsJson = prefs.getString('daily_play_counts');
+    Map<String, int> dailyCounts = {};
+    if (dailyPlayCountsJson != null) {
+      try {
+        dailyCounts = Map<String, int>.from(jsonDecode(dailyPlayCountsJson));
+      } catch (_) {}
+    }
+    // Only keep last 7 days, sorted
+    final last7Days = [for (int i = 6; i >= 0; i--) now.subtract(Duration(days: i))];
+    final Map<String, int> last7DailyCounts = {
+      for (final day in last7Days)
+        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}': dailyCounts['${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'] ?? 0
+    };
+    return {
+      'topSongs': topSongs,
+      'topAlbums': topAlbums,
+      'topArtists': topArtists.take(3).toList(),
+      'dailyCounts': last7DailyCounts,
+    };
+  }

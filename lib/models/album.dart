@@ -11,6 +11,7 @@ class Album {
   final int? durationSeconds; // Total album duration in seconds
   final int? trackCount;
   bool isSaved; // New field
+  int playCount; // New field for play count
 
   Album({
     required this.id,
@@ -23,6 +24,7 @@ class Album {
     this.durationSeconds,
     this.trackCount,
     this.isSaved = false, // Default to false
+    this.playCount = 0, // Default to 0
   });
 
   String get fullAlbumArtUrl => albumArtPictureId.isNotEmpty
@@ -111,6 +113,7 @@ class Album {
       durationSeconds: int.tryParse(info['DURATION']?.toString() ?? json['durationSeconds']?.toString() ?? ''),
       trackCount: int.tryParse(info['NUMBER_TRACK']?.toString() ?? json['trackCount']?.toString() ?? ''),
       isSaved: json['isSaved'] as bool? ?? false, // Load isSaved
+      playCount: json['playCount'] as int? ?? 0, // Load playCount
     );
   }
 
@@ -125,6 +128,7 @@ class Album {
         'durationSeconds': durationSeconds,
         'trackCount': trackCount,
         'isSaved': isSaved, // Save isSaved
+        'playCount': playCount, // Save playCount
       };
 
   Album copyWith({
@@ -138,6 +142,7 @@ class Album {
     int? durationSeconds,
     int? trackCount,
     bool? isSaved,
+    int? playCount, // New field
   }) {
     return Album(
       id: id ?? this.id,
@@ -150,6 +155,7 @@ class Album {
       durationSeconds: durationSeconds ?? this.durationSeconds,
       trackCount: trackCount ?? this.trackCount,
       isSaved: isSaved ?? this.isSaved,
+      playCount: playCount ?? this.playCount, // New field
     );
   }
 }
