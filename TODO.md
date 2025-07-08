@@ -15,8 +15,6 @@
   - Visualize listening habits over time (e.g., charts for daily/weekly/monthly listening).
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
-- Sleep Timer
-  - Add a timer to stop playback after a set duration.
 - Audio Effects
   - Add a built-in equalizer or simple audio effects (bass boost, reverb, etc.).
 - Lyrics Support
@@ -29,8 +27,6 @@
 - Offline Search & Filtering
   - Advanced search and filtering by any metadata (genre, year, composer, etc.).
   - Search across lyrics if available.
-- Customizable UI
-  - Let users choose themes, rearrange tabs, or customize the home screen.
 - Bookmarking
   - Let users bookmark positions in long tracks (e.g., audiobooks, podcasts).
 - Animated Visualizations
