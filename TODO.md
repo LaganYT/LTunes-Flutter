@@ -38,5 +38,6 @@
 - Export/Import Settings & Playlists
   - Allow users to export/import their playlists, tags, and app settings as files.
 
-Change: replace Recently Downloaded Songs with “Jump back in!”
 Fix: when skipping or going back a song it autoends 
+Fix: songs screen page shows nothing when offline, the whole library is kinda broken (including music playback) when offline
+When i click on a song cancel the request for the song before 
