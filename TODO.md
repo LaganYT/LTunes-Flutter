@@ -42,3 +42,6 @@
   - Show real-time audio visualizations (waveforms, spectrums) during playback.
 - Export/Import Settings & Playlists
   - Allow users to export/import their playlists, tags, and app settings as files.
+
+Change: replace Recently Downloaded Songs with “Jump back in!”
+Fix: when skipping or going back a song it autoends 
