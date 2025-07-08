@@ -1531,7 +1531,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Recently Downloaded Songs',
+              'Jump back in!',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
