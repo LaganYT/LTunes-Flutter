@@ -435,7 +435,15 @@ Future<void> _importSongs() async {
                       borderRadius: BorderRadius.circular(8.0),
                       child: s.albumArtUrl.isNotEmpty
                           ? (s.albumArtUrl.startsWith('http')
-                              ? Image.network(s.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover)
+                              ? Image.network(
+                                  s.albumArtUrl,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Icon(Icons.album, size: 40);
+                                  },
+                                )
                               : FutureBuilder<String>(
                                   future: () async {
                                     final dir = await getApplicationDocumentsDirectory();
@@ -445,7 +453,15 @@ Future<void> _importSongs() async {
                                   }(),
                                   builder: (_, snap) {
                                     if (snap.connectionState == ConnectionState.done && snap.hasData && snap.data!.isNotEmpty) {
-                                      return Image.file(File(snap.data!), width: 40, height: 40, fit: BoxFit.cover);
+                                      return Image.file(
+                                        File(snap.data!),
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return const Icon(Icons.album, size: 40);
+                                        },
+                                      );
                                     }
                                     return const Icon(Icons.album, size: 40);
                                   },
