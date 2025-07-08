@@ -470,8 +470,21 @@ Future<void> _importSongs() async {
                     ),
                     title: Text(s.title),
                     subtitle: Text(s.artist),
-                    onTap: () {
+                    onTap: () async {
                       final prov = Provider.of<CurrentSongProvider>(context, listen: false);
+                      final song = _songs[i];
+                      // If the song is downloaded, has a network album art URL, and is missing local art, try to download it
+                      bool needsArtDownload = song.isDownloaded && song.albumArtUrl.isNotEmpty && song.albumArtUrl.startsWith('http');
+                      bool isOnline = true;
+                      try {
+                        final result = await InternetAddress.lookup('example.com');
+                        isOnline = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+                      } catch (_) {
+                        isOnline = false;
+                      }
+                      if (needsArtDownload && isOnline) {
+                        await prov.updateMissingMetadata(song);
+                      }
                       prov.setQueue(_songs, initialIndex: i);
                     },
                     trailing: IconButton(
