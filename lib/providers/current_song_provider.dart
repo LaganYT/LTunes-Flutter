@@ -642,12 +642,13 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
-  Future<MediaItem> _prepareMediaItem(Song song) async {
+  Future<MediaItem> _prepareMediaItem(Song song, {int? playRequest}) async {
     Song effectiveSong = song; 
 
     // Only scan SharedPreferences if we DON'T already have a localFilePath
     if (!(song.isDownloaded && (song.localFilePath?.isNotEmpty ?? false))) {
       final existingDownloadedSong = await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);
+      if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
       if (existingDownloadedSong != null) {
         debugPrint("Found existing downloaded version for ${song.title} (ID: ${song.id}) by ${song.artist}. Consolidating with downloaded song ID: ${existingDownloadedSong.id}.");
         
@@ -673,6 +674,7 @@ class CurrentSongProvider with ChangeNotifier {
         // Persist this "merged" song information. This is important.
         // It ensures that SharedPreferences has the correct ID and download status.
         await _persistSongMetadata(effectiveSong);
+        if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
         // Update this song in all playlists to consolidate around the existing ID
         // This assumes PlaylistManagerService can handle ID changes or find by old ID/title/artist.
         PlaylistManagerService().updateSongInPlaylists(effectiveSong);
@@ -682,7 +684,8 @@ class CurrentSongProvider with ChangeNotifier {
     // 'effectiveSong' is now the definitive version to work with.
     // 'fetchSongUrl' will use local path if 'effectiveSong.isDownloaded' is true and file exists.
     // If local file is missing, 'fetchSongUrl' will attempt to get a stream URL.
-    String playableUrl = await fetchSongUrl(effectiveSong);
+    String playableUrl = await fetchSongUrl(effectiveSong, playRequest: playRequest);
+    if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
     
     bool metadataToPersistChanged = false;
 
@@ -691,7 +694,7 @@ class CurrentSongProvider with ChangeNotifier {
       // and original audioUrl was also empty/invalid, try API.
       final apiService = ApiService();
       final fetchedApiUrl = await apiService.fetchAudioUrl(effectiveSong.artist, effectiveSong.title);
-
+      if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
       if (fetchedApiUrl != null && fetchedApiUrl.isNotEmpty) {
         playableUrl = fetchedApiUrl;
         // If we got here, it means the song is NOT playable locally.
@@ -728,12 +731,11 @@ class CurrentSongProvider with ChangeNotifier {
       try {
         Duration? fetchedDuration;
         if (effectiveSong.isDownloaded && playableUrl.startsWith('/')) {
-          // For local files, use setFilePath instead of setUrl
           fetchedDuration = await audioPlayer.setFilePath(playableUrl);
         } else {
-          // For remote URLs, use setUrl
           fetchedDuration = await audioPlayer.setUrl(playableUrl);
         }
+        if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
         songDuration = fetchedDuration;
         if (songDuration != null && songDuration != Duration.zero && effectiveSong.duration != songDuration) {
             effectiveSong = effectiveSong.copyWith(duration: songDuration);
@@ -775,74 +777,10 @@ class CurrentSongProvider with ChangeNotifier {
     return songToMediaItem(effectiveSong, playableUrl, songDuration).copyWith(extras: extras);
   }
 
-  Future<void> playSong(Song songToPlay, {bool isResumingOrLooping = false}) async {
-    _playRequestCounter++;
-    final int currentPlayRequest = _playRequestCounter;
-
-    _isLoadingAudio = true;
-    // Tentatively update _currentSongFromAppLogic. This might be refined if the song
-    // is found in _queue (and that instance is more up-to-date), or if _prepareMediaItem updates it.
-    if (!isResumingOrLooping || _currentSongFromAppLogic?.id != songToPlay.id) {
-      _currentSongFromAppLogic = songToPlay;
-    }
-    _stationName = null;
-    _stationFavicon = null;
-    notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info, show loading)
-
-    try {
-      if (currentPlayRequest != _playRequestCounter) return;
-
-      if (!isResumingOrLooping) {
-        int indexInExistingQueue = _queue.indexWhere((s) => s.id == songToPlay.id);
-
-        if (indexInExistingQueue != -1) {
-          // Song is part of the existing _queue. Play from this queue.
-          _currentIndexInAppQueue = indexInExistingQueue;
-          _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
-
-          // Prepare queue for handler, ensuring MediaItems are up to date
-          List<MediaItem> fullQueueMediaItems = await Future.wait(
-            _queue.map((sInQueue) => _prepareMediaItem(sInQueue)).toList()
-          );
-          if (currentPlayRequest != _playRequestCounter) return;
-          await _audioHandler.updateQueue(fullQueueMediaItems);
-
-        } else {
-          // Song not in current _queue, treat as a new single-item queue.
-          // _currentSongFromAppLogic was set to songToPlay.
-          // Call _prepareMediaItem for this song. It will update _currentSongFromAppLogic
-          // if its URL changes (due to the side effect in _prepareMediaItem).
-          MediaItem mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
-          if (currentPlayRequest != _playRequestCounter) return;
-          _queue = [_currentSongFromAppLogic!];
-          _currentIndexInAppQueue = 0;
-          await _audioHandler.updateQueue([mediaItem]);
-        }
-        if (currentPlayRequest != _playRequestCounter) return;
-        await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
-      }
-
-      if (currentPlayRequest != _playRequestCounter) return;
-      await _audioHandler.play();
-      _prefetchNextSongs();
-      _saveCurrentSongToStorage(); // Save state including potentially updated queue/song
-
-    } catch (e) {
-      if (currentPlayRequest == _playRequestCounter) {
-        // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
-        _errorHandler.logError(e, context: 'playSong');
-        _isLoadingAudio = false;
-        notifyListeners();
-      } else {
-        debugPrint('Error in stale play request for ${songToPlay.title}, ignoring.');
-      }
-    }
-  }
-
-  Future<String> fetchSongUrl(Song song) async {
-    // FAST PATH for offline songs: avoid DownloadManager init & long file checks
+  Future<String> fetchSongUrl(Song song, {int? playRequest}) async {
     if (song.isDownloaded && (song.localFilePath?.isNotEmpty ?? false)) {
       final appDocDir = await getApplicationDocumentsDirectory();
+      if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
       final downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
       final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
       if (await File(filePath).exists()) {
@@ -875,6 +813,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     final apiService = ApiService();
     final fetchedUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+    if (playRequest != null && playRequest != _playRequestCounter) return Future.error('Cancelled');
     return fetchedUrl ?? '';
   }
 
@@ -1844,6 +1783,70 @@ class CurrentSongProvider with ChangeNotifier {
       debugPrint("Lyrics updated for song: ${updatedSong.title} (ID: ${updatedSong.id})");
     } else {
       debugPrint("Song with ID $songId not found for updating lyrics.");
+    }
+  }
+
+  Future<void> playSong(Song songToPlay, {bool isResumingOrLooping = false}) async {
+    _playRequestCounter++;
+    final int currentPlayRequest = _playRequestCounter;
+
+    _isLoadingAudio = true;
+    // Tentatively update _currentSongFromAppLogic. This might be refined if the song
+    // is found in _queue (and that instance is more up-to-date), or if _prepareMediaItem updates it.
+    if (!isResumingOrLooping || _currentSongFromAppLogic?.id != songToPlay.id) {
+      _currentSongFromAppLogic = songToPlay;
+    }
+    _stationName = null;
+    _stationFavicon = null;
+    notifyListeners(); // Notify for initial UI update (e.g. show new song title, clear radio info, show loading)
+
+    try {
+      if (currentPlayRequest != _playRequestCounter) return;
+
+      if (!isResumingOrLooping) {
+        int indexInExistingQueue = _queue.indexWhere((s) => s.id == songToPlay.id);
+
+        if (indexInExistingQueue != -1) {
+          // Song is part of the existing _queue. Play from this queue.
+          _currentIndexInAppQueue = indexInExistingQueue;
+          _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
+
+          // Prepare queue for handler, ensuring MediaItems are up to date
+          List<MediaItem> fullQueueMediaItems = await Future.wait(
+            _queue.map((sInQueue) => _prepareMediaItem(sInQueue, playRequest: currentPlayRequest)).toList()
+          );
+          if (currentPlayRequest != _playRequestCounter) return;
+          await _audioHandler.updateQueue(fullQueueMediaItems);
+
+        } else {
+          // Song not in current _queue, treat as a new single-item queue.
+          // _currentSongFromAppLogic was set to songToPlay.
+          // Call _prepareMediaItem for this song. It will update _currentSongFromAppLogic
+          // if its URL changes (due to the side effect in _prepareMediaItem).
+          MediaItem mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!, playRequest: currentPlayRequest);
+          if (currentPlayRequest != _playRequestCounter) return;
+          _queue = [_currentSongFromAppLogic!];
+          _currentIndexInAppQueue = 0;
+          await _audioHandler.updateQueue([mediaItem]);
+        }
+        if (currentPlayRequest != _playRequestCounter) return;
+        await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+      }
+
+      if (currentPlayRequest != _playRequestCounter) return;
+      await _audioHandler.play();
+      _prefetchNextSongs();
+      _saveCurrentSongToStorage(); // Save state including potentially updated queue/song
+
+    } catch (e) {
+      if (currentPlayRequest == _playRequestCounter) {
+        // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
+        _errorHandler.logError(e, context: 'playSong');
+        _isLoadingAudio = false;
+        notifyListeners();
+      } else {
+        debugPrint('Error in stale play request for [33m${songToPlay.title}, ignoring.');
+      }
     }
   }
 }

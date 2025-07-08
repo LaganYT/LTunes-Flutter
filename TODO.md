@@ -41,4 +41,3 @@
 ## Bugs / Issues to Fix
 - When skipping or going back a song, playback auto-ends unexpectedly.
 - Songs screen shows nothing when offline; the entire library and music playback are broken when offline.
-- When clicking on a song, cancel the previous song's request before starting a new one.
