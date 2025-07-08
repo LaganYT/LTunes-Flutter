@@ -16,6 +16,7 @@ import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
 import 'modern_library_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
+import 'dart:async'; // Required for Timer
 
 
 class SettingsScreen extends StatefulWidget {
@@ -34,12 +35,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<List<double>> customSpeedPresetsNotifier = ValueNotifier<List<double>>([]);
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
+  int? _sleepTimerMinutes; // Minutes until sleep timer fires
+  DateTime? _sleepTimerEndTime; // When the timer will end
+  Timer? _sleepTimer;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
     _loadAppVersion();
+  }
+
+  @override
+  void dispose() {
+    _sleepTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadAppVersion() async {
@@ -417,6 +427,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showSleepTimerDialog(BuildContext context) {
+    final List<int> presetMinutes = [15, 30, 60];
+    int? selectedMinutes = _sleepTimerMinutes;
+    final TextEditingController customController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Set Sleep Timer'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...presetMinutes.map((m) => RadioListTile<int>(
+                        title: Text('$m minutes'),
+                        value: m,
+                        groupValue: selectedMinutes,
+                        onChanged: (val) {
+                          setState(() {
+                            selectedMinutes = val;
+                            customController.clear();
+                          });
+                        },
+                      )),
+                  RadioListTile<int>(
+                    title: Row(
+                      children: [
+                        const Text('Custom: '),
+                        SizedBox(
+                          width: 60,
+                          child: TextField(
+                            controller: customController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(hintText: 'min'),
+                            onChanged: (val) {
+                              final parsed = int.tryParse(val);
+                              setState(() {
+                                selectedMinutes = parsed;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    value: selectedMinutes != null && !presetMinutes.contains(selectedMinutes!) ? selectedMinutes! : -1,
+                    groupValue: selectedMinutes != null && !presetMinutes.contains(selectedMinutes!) ? selectedMinutes! : -1,
+                    onChanged: (_) {},
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: (selectedMinutes != null && selectedMinutes! > 0)
+                      ? () {
+                          _startSleepTimer(selectedMinutes!);
+                          Navigator.of(context).pop();
+                        }
+                      : null,
+                  child: const Text('Start'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _startSleepTimer(int minutes) {
+    _sleepTimer?.cancel();
+    setState(() {
+      _sleepTimerMinutes = minutes;
+      _sleepTimerEndTime = DateTime.now().add(Duration(minutes: minutes));
+    });
+    _sleepTimer = Timer(Duration(minutes: minutes), () {
+      setState(() {
+        _sleepTimerMinutes = null;
+        _sleepTimerEndTime = null;
+      });
+      // Stop playback when timer expires
+      final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+      provider.stopSong();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sleep timer expired. Playback stopped.')),
+      );
+    });
+  }
+
+  void _cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    setState(() {
+      _sleepTimerMinutes = null;
+      _sleepTimerEndTime = null;
+    });
+  }
+
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
     showDialog(
@@ -678,6 +789,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () => _showCustomSpeedPresetsDialog(context),
                     );
                   },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.timer),
+                  title: const Text('Sleep Timer'),
+                  subtitle: _sleepTimerEndTime != null
+                      ? Text('Timer set: ends at ${_sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${_sleepTimerEndTime!.minute.toString().padLeft(2, '0')}')
+                      : const Text('No timer set'),
+                  trailing: _sleepTimerEndTime != null
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel),
+                          tooltip: 'Cancel Timer',
+                          onPressed: _cancelSleepTimer,
+                        )
+                      : const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: _sleepTimerEndTime == null ? () => _showSleepTimerDialog(context) : null,
                 ),
               ],
             ),
@@ -1070,8 +1196,6 @@ class ThemeProvider extends ChangeNotifier {
     // Let's ensure notifyListeners() is called if the color is actually set.
     // The original code had notifyListeners() inside the if block, which is fine.
     // If it's the same as the initial default, it might not notify, but the value is set.
-    // The current logic is: if (_accentColor.value != newAccentColor.value) { _accentColor = newAccentColor; notifyListeners(); }
-    // else { _accentColor = newAccentColor; }
     // This means if it loads the default and it was already the default, it won't notify.
     // This is usually fine. Let's stick to the original conditional notify.
     if (_accentColor.value != newAccentColor.value) {
