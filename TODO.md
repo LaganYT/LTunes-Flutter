@@ -7,12 +7,6 @@
 ## Potential Future Features
 - Try adding podcast support
 - Audiobooks?
-- Smart Playlists
-  - Automatically generate playlists based on local metadata (genre, artist, play count, recently added, etc.)
-  - Examples: "Most Played," "Recently Added," "Favorites," "Random Mix."
-- Listening Stats
-  - Show stats like most played songs, albums, or artists.
-  - Visualize listening habits over time (e.g., charts for daily/weekly/monthly listening).
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
 - Audio Effects
@@ -29,8 +23,6 @@
   - Search across lyrics if available.
 - Bookmarking
   - Let users bookmark positions in long tracks (e.g., audiobooks, podcasts).
-- Animated Visualizations
-  - Show real-time audio visualizations (waveforms, spectrums) during playback.
 - Export/Import Settings & Playlists
   - Allow users to export/import their playlists, tags, and app settings as files.
 
