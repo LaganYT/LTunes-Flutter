@@ -787,23 +787,49 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> skipToNext() async {
-    if (_playlist.isEmpty) return;
-    
+    debugPrint("skipToNext called (background/lock screen event possible)");
+    if (_playlist.isEmpty) {
+      debugPrint("skipToNext: playlist is empty");
+      return;
+    }
     int newIndex = _currentIndex + 1;
-    
     if (newIndex >= _playlist.length) {
-        if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
-            newIndex = 0; // Wrap around for repeat all
-        } else {
-            // Stop playback when reaching the end and not repeating
-            await stop();
-            return;
-        }
+      if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+        newIndex = 0; // Wrap around for repeat all
+      } else {
+        debugPrint("skipToNext: reached end of playlist, stopping");
+        await stop();
+        return;
+      }
     }
     try {
+      // Aggressively activate session before skip
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("skipToNext: iOS audio session activated before skip");
+        } catch (e) {
+          debugPrint("skipToNext: Error activating iOS audio session before skip: $e");
+        }
+      }
       await skipToQueueItem(newIndex);
+      // Aggressively activate session after skip
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("skipToNext: iOS audio session activated after skip");
+        } catch (e) {
+          debugPrint("skipToNext: Error activating iOS audio session after skip: $e");
+        }
+      }
+      // Immediately set playback state to playing/ready
+      playbackState.add(playbackState.value.copyWith(
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        queueIndex: _currentIndex,
+      ));
     } catch (e) {
-      debugPrint("Error skipping to next: $e");
+      debugPrint("skipToNext: Error skipping to next: $e");
       if (_isRadioStream && newIndex >= 0 && newIndex < _playlist.length) {
         _showRadioErrorDialog(_playlist[newIndex].title);
       }
@@ -812,23 +838,49 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> skipToPrevious() async {
-    if (_playlist.isEmpty) return;
-
+    debugPrint("skipToPrevious called (background/lock screen event possible)");
+    if (_playlist.isEmpty) {
+      debugPrint("skipToPrevious: playlist is empty");
+      return;
+    }
     int newIndex = _currentIndex - 1;
-
     if (newIndex < 0) {
-        if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
-            newIndex = _playlist.length - 1; // Wrap around for repeat all
-        } else {
-            // Stop playback when reaching the beginning and not repeating
-            await stop();
-            return;
-        }
+      if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+        newIndex = _playlist.length - 1; // Wrap around for repeat all
+      } else {
+        debugPrint("skipToPrevious: reached start of playlist, stopping");
+        await stop();
+        return;
+      }
     }
     try {
+      // Aggressively activate session before skip
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("skipToPrevious: iOS audio session activated before skip");
+        } catch (e) {
+          debugPrint("skipToPrevious: Error activating iOS audio session before skip: $e");
+        }
+      }
       await skipToQueueItem(newIndex);
+      // Aggressively activate session after skip
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint("skipToPrevious: iOS audio session activated after skip");
+        } catch (e) {
+          debugPrint("skipToPrevious: Error activating iOS audio session after skip: $e");
+        }
+      }
+      // Immediately set playback state to playing/ready
+      playbackState.add(playbackState.value.copyWith(
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        queueIndex: _currentIndex,
+      ));
     } catch (e) {
-      debugPrint("Error skipping to previous: $e");
+      debugPrint("skipToPrevious: Error skipping to previous: $e");
       if (_isRadioStream && newIndex >= 0 && newIndex < _playlist.length) {
         _showRadioErrorDialog(_playlist[newIndex].title);
       }
