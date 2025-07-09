@@ -27,7 +27,6 @@
   - Allow users to export/import their playlists, tags, and app settings as files.
 
 ## Bugs / Issues to Fix
-- Fix: sleep timer not working
 - Fix: Art flashing for playlists on library screen when song is playing
 - Fix: stats chart looking weird
 - Add: end of song sleep timer

@@ -18,6 +18,7 @@ import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'dart:async'; // Required for Timer
 import 'package:fl_chart/fl_chart.dart'; // For charts
+import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 
 
 class SettingsScreen extends StatefulWidget {
@@ -37,9 +38,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool> listeningStatsEnabledNotifier = ValueNotifier<bool>(true); // <-- move here
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
-  int? _sleepTimerMinutes; // Minutes until sleep timer fires
-  DateTime? _sleepTimerEndTime; // When the timer will end
-  Timer? _sleepTimer;
+  final SleepTimerService _sleepTimerService = SleepTimerService();
+  CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
   @override
   void initState() {
@@ -50,8 +50,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Get the provider reference when dependencies change
+    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    
+    // Initialize sleep timer service only if not already initialized
+    if (!_sleepTimerService.isInitialized) {
+      _sleepTimerService.initialize(_currentSongProvider!);
+    }
+    
+    // Check if the timer is still valid (not expired)
+    _sleepTimerService.isTimerValid();
+    
+    // Set callbacks for this instance
+    _sleepTimerService.setCallbacks(
+      onTimerUpdate: () {
+        if (mounted) setState(() {});
+      },
+      onTimerExpired: () {
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sleep timer expired. Playback stopped.')),
+          );
+        }
+      },
+    );
+  }
+
+  @override
   void dispose() {
-    _sleepTimer?.cancel();
+    // Don't dispose the sleep timer service - it should persist across screen navigation
+    // Just remove the callbacks for this instance
+    _sleepTimerService.clearCallbacks();
     super.dispose();
   }
 
@@ -440,7 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showSleepTimerDialog(BuildContext context) {
     final List<int> presetMinutes = [15, 30, 60];
-    int? selectedMinutes = _sleepTimerMinutes;
+    int? selectedMinutes = _sleepTimerService.sleepTimerMinutes;
     final TextEditingController customController = TextEditingController();
     showDialog(
       context: context,
@@ -512,31 +543,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _startSleepTimer(int minutes) {
-    _sleepTimer?.cancel();
-    setState(() {
-      _sleepTimerMinutes = minutes;
-      _sleepTimerEndTime = DateTime.now().add(Duration(minutes: minutes));
-    });
-    _sleepTimer = Timer(Duration(minutes: minutes), () {
-      setState(() {
-        _sleepTimerMinutes = null;
-        _sleepTimerEndTime = null;
-      });
-      // Stop playback when timer expires
-      final provider = Provider.of<CurrentSongProvider>(context, listen: false);
-      provider.stopSong();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sleep timer expired. Playback stopped.')),
-      );
-    });
+    _sleepTimerService.startTimer(minutes);
   }
 
   void _cancelSleepTimer() {
-    _sleepTimer?.cancel();
-    setState(() {
-      _sleepTimerMinutes = null;
-      _sleepTimerEndTime = null;
-    });
+    _sleepTimerService.cancelTimer();
   }
   Future<void> _loadListeningStatsEnabled() async {
   final prefs = await SharedPreferences.getInstance();
@@ -818,17 +829,17 @@ Future<void> _setListeningStatsEnabled(bool enabled) async {
                 ListTile(
                   leading: const Icon(Icons.timer),
                   title: const Text('Sleep Timer'),
-                  subtitle: _sleepTimerEndTime != null
-                      ? Text('Timer set: ends at ${_sleepTimerEndTime!.hour.toString().padLeft(2, '0')}:${_sleepTimerEndTime!.minute.toString().padLeft(2, '0')}')
+                  subtitle: _sleepTimerService.sleepTimerEndTime != null
+                      ? Text('Timer set: ends at ${_sleepTimerService.getEndTimeString()}')
                       : const Text('No timer set'),
-                  trailing: _sleepTimerEndTime != null
+                  trailing: _sleepTimerService.sleepTimerEndTime != null
                       ? IconButton(
                           icon: const Icon(Icons.cancel),
                           tooltip: 'Cancel Timer',
                           onPressed: _cancelSleepTimer,
                         )
                       : const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: _sleepTimerEndTime == null ? () => _showSleepTimerDialog(context) : null,
+                  onTap: _sleepTimerService.sleepTimerEndTime == null ? () => _showSleepTimerDialog(context) : null,
                 ),
               ],
             ),
