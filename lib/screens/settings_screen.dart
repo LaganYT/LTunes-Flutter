@@ -555,12 +555,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   listeningStatsEnabledNotifier.value = enabled;
 }
 
-Future<void> _setListeningStatsEnabled(bool enabled) async {
+  Future<void> _setListeningStatsEnabled(bool enabled) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool('listeningStatsEnabled', enabled);
   listeningStatsEnabledNotifier.value = enabled;
   if (mounted) setState(() {}); // Use setState from State class
 }
+
+  double _calculateMaxY(Iterable<int> values) {
+    if (values.isEmpty) return 1.0;
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    if (maxValue == 0) return 1.0;
+    if (maxValue <= 3) return 3.0;
+    if (maxValue <= 6) return 6.0;
+    if (maxValue <= 10) return 10.0;
+    if (maxValue <= 20) return 20.0;
+    if (maxValue <= 50) return 50.0;
+    // For larger values, round up to the nearest multiple of 10
+    return ((maxValue / 10).ceil() * 10).toDouble();
+  }
+
+  double _calculateGridInterval(Iterable<int> values) {
+    if (values.isEmpty) return 1.0;
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    if (maxValue <= 3) return 1.0;
+    if (maxValue <= 6) return 1.0;
+    if (maxValue <= 10) return 2.0;
+    if (maxValue <= 20) return 5.0;
+    if (maxValue <= 50) return 10.0;
+    return (maxValue / 10).ceil().toDouble();
+  }
+
+  double _calculateYAxisInterval(Iterable<int> values) {
+    if (values.isEmpty) return 1.0;
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    if (maxValue == 0) return 1.0;
+    if (maxValue <= 3) return 1.0;
+    if (maxValue <= 6) return 1.0;
+    if (maxValue <= 10) return 2.0;
+    if (maxValue <= 20) return 5.0;
+    if (maxValue <= 50) return 10.0;
+    return (maxValue / 10).ceil().toDouble();
+  }
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
@@ -1129,18 +1165,51 @@ Future<void> _setListeningStatsEnabled(bool enabled) async {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 16),
-                                if (dailyCounts.isNotEmpty) ...[
+                                if (dailyCounts.isNotEmpty && dailyCounts.values.any((count) => count > 0)) ...[
                                   Text('Daily Listening (last 7 days):', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 8),
                                   SizedBox(
-                                    height: 180,
+                                    height: 200,
                                     child: BarChart(
                                       BarChartData(
                                         alignment: BarChartAlignment.spaceAround,
-                                        maxY: (dailyCounts.values.isNotEmpty ? (dailyCounts.values.reduce((a, b) => a > b ? a : b) + 1) : 1).toDouble(),
-                                        barTouchData: BarTouchData(enabled: false),
+                                        maxY: _calculateMaxY(dailyCounts.values),
+                                        minY: 0,
+                                        barTouchData: BarTouchData(
+                                          enabled: true,
+                                          touchTooltipData: BarTouchTooltipData(
+                                            tooltipBgColor: Theme.of(context).colorScheme.surface,
+                                            tooltipBorder: BorderSide(color: Theme.of(context).colorScheme.outline),
+                                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                              final keys = dailyCounts.keys.toList();
+                                              final date = keys[group.x];
+                                              final count = rod.toY.toInt();
+                                              return BarTooltipItem(
+                                                '$date\n$count plays',
+                                                TextStyle(
+                                                  color: Theme.of(context).colorScheme.onSurface,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
                                         titlesData: FlTitlesData(
                                           leftTitles: AxisTitles(
-                                            sideTitles: SideTitles(showTitles: true, reservedSize: 28),
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              reservedSize: 40,
+                                              interval: _calculateYAxisInterval(dailyCounts.values),
+                                              getTitlesWidget: (double value, TitleMeta meta) {
+                                                return Text(
+                                                  value.toInt().toString(),
+                                                  style: TextStyle(
+                                                    color: Theme.of(context).colorScheme.onSurface,
+                                                    fontSize: 12,
+                                                  ),
+                                                );
+                                              },
+                                            ),
                                           ),
                                           bottomTitles: AxisTitles(
                                             sideTitles: SideTitles(
@@ -1148,24 +1217,77 @@ Future<void> _setListeningStatsEnabled(bool enabled) async {
                                               getTitlesWidget: (double value, TitleMeta meta) {
                                                 final keys = dailyCounts.keys.toList();
                                                 if (value.toInt() < 0 || value.toInt() >= keys.length) return const SizedBox();
-                                                return Text(keys[value.toInt()].substring(5), style: const TextStyle(fontSize: 10));
+                                                final dateStr = keys[value.toInt()];
+                                                // Format date as MM/DD
+                                                final parts = dateStr.split('-');
+                                                if (parts.length >= 3) {
+                                                  return Padding(
+                                                    padding: const EdgeInsets.only(top: 8.0),
+                                                    child: Text(
+                                                      '${parts[1]}/${parts[2]}',
+                                                      style: TextStyle(
+                                                        color: Theme.of(context).colorScheme.onSurface,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                                return const SizedBox();
                                               },
-                                              reservedSize: 32,
+                                              reservedSize: 40,
                                             ),
                                           ),
                                           rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                           topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                         ),
-                                        borderData: FlBorderData(show: false),
+                                        borderData: FlBorderData(
+                                          show: true,
+                                          border: Border(
+                                            bottom: BorderSide(color: Theme.of(context).colorScheme.outline),
+                                            left: BorderSide(color: Theme.of(context).colorScheme.outline),
+                                          ),
+                                        ),
+                                        gridData: FlGridData(
+                                          show: true,
+                                          horizontalInterval: _calculateGridInterval(dailyCounts.values),
+                                          getDrawingHorizontalLine: (value) {
+                                            return FlLine(
+                                              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                                              strokeWidth: 1,
+                                            );
+                                          },
+                                          drawVerticalLine: false,
+                                        ),
                                         barGroups: [
                                           for (int i = 0; i < dailyCounts.length; i++)
-                                            BarChartGroupData(x: i, barRods: [BarChartRodData(toY: dailyCounts.values.elementAt(i).toDouble(), color: Theme.of(context).colorScheme.primary)])
+                                            BarChartGroupData(
+                                              x: i,
+                                              barRods: [
+                                                BarChartRodData(
+                                                  toY: dailyCounts.values.elementAt(i).toDouble(),
+                                                  color: Theme.of(context).colorScheme.primary,
+                                                  width: 20,
+                                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                                )
+                                              ],
+                                            )
                                         ],
                                       ),
                                     ),
                                   ),
                                   const SizedBox(height: 16),
                                 ],
+                                if (dailyCounts.isEmpty || !dailyCounts.values.any((count) => count > 0))
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                    child: Text(
+                                      'No listening data available for the last 7 days.',
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
                                 Text('Most Played Songs:', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                                 ...topSongs.map((song) => ListTile(
                                   leading: song.albumArtUrl.isNotEmpty
@@ -1450,10 +1572,12 @@ class ThemeProvider extends ChangeNotifier {
     }
     // Only keep last 7 days, sorted
     final last7Days = [for (int i = 6; i >= 0; i--) now.subtract(Duration(days: i))];
-    final Map<String, int> last7DailyCounts = {
-      for (final day in last7Days)
-        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}': dailyCounts['${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'] ?? 0
-    };
+    final Map<String, int> last7DailyCounts = {};
+    
+    for (final day in last7Days) {
+      final dateKey = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+      last7DailyCounts[dateKey] = dailyCounts[dateKey] ?? 0;
+    }
     return {
       'topSongs': topSongs,
       'topAlbums': topAlbums,
