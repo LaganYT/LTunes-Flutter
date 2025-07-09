@@ -25,6 +25,3 @@
   - Let users bookmark positions in long tracks (e.g., audiobooks, podcasts).
 - Export/Import Settings & Playlists
   - Allow users to export/import their playlists, tags, and app settings as files.
-
-## Bugs / Issues to Fix
-- Add: Fetch song metadata for local songs feature, where you can go in settings and see the songs with local metadata and have it be fetched from the api to make it a native instead of local file song.
