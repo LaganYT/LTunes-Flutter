@@ -620,7 +620,10 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
       final fullPath = p.join(directory.path, fileName);
       if (await File(fullPath).exists()) {
         _localArtPathCache[fileName] = fullPath;
+        debugPrint('Found local album art (cached): $fullPath');
         return fullPath;
+      } else {
+        debugPrint('Local album art not found (cached): $fullPath');
       }
     } catch (e) {
       debugPrint('Error caching local art path: $e');
@@ -968,6 +971,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
           if (already) continue;
 
           final origName = p.basename(originalPath).toLowerCase();
+          debugPrint('Processing file: $origName');
           final ext = p.extension(origName);
           final base = p.basenameWithoutExtension(origName);
           final newName = '${_uuid.v4()}_$base$ext';
@@ -978,34 +982,35 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
             // Extract metadata
             AudioMetadata? metadata;
-            // Check if the file is an M4A, MP4 file by its original extension
-            List<String> skipMetadataExtensions = ['.m4a', '.mp4'];
-            bool skipMetadata = skipMetadataExtensions.any((ext) => origName.endsWith(ext));
-
-            if (!skipMetadata) {
-              try {
-                // getImage: true to attempt to load album art
-                metadata = await readMetadata(copied, getImage: true); 
-              } catch (e) {
-                debugPrint('Error reading metadata for $origName: $e');
-                // Proceed with default values if metadata reading fails
-              }
-            } else {
-              debugPrint('Skipping metadata reading for $origName');
+            // Try to extract metadata for all formats, including M4A and MP4
+            try {
+              // getImage: true to attempt to load album art
+              metadata = await readMetadata(copied, getImage: true); 
+            } catch (e) {
+              debugPrint('Error reading metadata for $origName: $e');
+              // Proceed with default values if metadata reading fails
             }
 
             String songId = _uuid.v4(); // Generate a unique ID for the song
             String albumArtFileName = ''; // Will store just the filename
 
             if (metadata?.pictures.isNotEmpty ?? false) {
+              debugPrint('Found ${metadata!.pictures.length} picture(s) in metadata for $origName');
               final picture = (metadata?.pictures.isNotEmpty ?? false) ? metadata!.pictures.first : null;
-              if (picture != null && picture.bytes.isNotEmpty) { // Replace 'imageData' with 'bytes'
+              if (picture != null && picture.bytes.isNotEmpty && picture.bytes.length > 100) { // Ensure minimum size for valid image
+                debugPrint('Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
                 // Determine file extension from mime type or default to .jpg
                 String extension = '.jpg'; // Default extension
-                if (picture.mimetype.endsWith('png')) {
-                  extension = '.png';
-                } else if (picture.mimetype.endsWith('jpeg') || picture.mimetype.endsWith('jpg')) {
-                  extension = '.jpg';
+                if (picture.mimetype.isNotEmpty) {
+                  if (picture.mimetype.endsWith('png')) {
+                    extension = '.png';
+                  } else if (picture.mimetype.endsWith('jpeg') || picture.mimetype.endsWith('jpg')) {
+                    extension = '.jpg';
+                  } else if (picture.mimetype.endsWith('webp')) {
+                    extension = '.webp';
+                  } else if (picture.mimetype.endsWith('gif')) {
+                    extension = '.gif';
+                  }
                 }
                 // Add more formats as needed
                 
@@ -1014,13 +1019,25 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                 String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
                 
                 try {
-                  await File(fullAlbumArtPath).writeAsBytes(picture.bytes);
+                  final albumArtFile = File(fullAlbumArtPath);
+                  await albumArtFile.writeAsBytes(picture.bytes);
+                  debugPrint('Successfully saved album art: $fullAlbumArtPath (${picture.bytes.length} bytes)');
+                  
+                  // Verify the file was created and has content
+                  if (await albumArtFile.exists() && await albumArtFile.length() > 0) {
+                    debugPrint('Album art file verified: ${await albumArtFile.length()} bytes');
+                  } else {
+                    debugPrint('Warning: Album art file may not have been created properly');
+                    albumArtFileName = ''; // Clear if file creation failed
+                  }
                   // albumArtPath = fullAlbumArtFullPath; // No, store filename
                 } catch (e) {
                   debugPrint('Error saving album art for $origName: $e');
                   albumArtFileName = ''; // Clear if saving failed
                 }
               }
+            } else {
+              debugPrint('No pictures found in metadata for $origName');
             }
             
             Song newSong = Song(

@@ -115,7 +115,10 @@ class _PlaybarState extends State<Playbar> {
       final directory = await getApplicationDocumentsDirectory();
       final fullPath = p.join(directory.path, fileName);
       if (await File(fullPath).exists()) {
+        debugPrint('Found local album art: $fullPath');
         return fullPath;
+      } else {
+        debugPrint('Local album art not found: $fullPath');
       }
     } catch (e) {
       debugPrint("Error resolving local art path for playbar: $e");
