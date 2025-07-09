@@ -833,6 +833,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.cloud_download_outlined),
+                  title: const Text('Fetch Metadata for Local Songs'),
+                  subtitle: const Text('Convert imported songs to native songs with full metadata.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const LocalMetadataScreen(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1109,25 +1123,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.cloud_download_outlined),
-              label: const Text('Fetch Metadata for Local Songs'),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const LocalMetadataScreen(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
             child: _buildSectionTitle(context, 'Listening Stats'),
