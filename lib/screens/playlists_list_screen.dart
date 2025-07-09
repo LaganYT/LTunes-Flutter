@@ -18,6 +18,9 @@ class PlaylistsScreen extends StatefulWidget {
 class _PlaylistsScreenState extends State<PlaylistsScreen> {
   final _manager = PlaylistManagerService();
   List<Playlist> _playlists = [];
+  
+  // Cache Future objects to prevent art flashing
+  final Map<String, Future<String>> _localArtFutureCache = {};
 
   @override
   void initState() {
@@ -77,12 +80,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     }
     // local file case
     return FutureBuilder<String>(
-      future: () async {
-        final dir = await getApplicationDocumentsDirectory();
-        final name = p.basename(url);
-        final fp = p.join(dir.path, name);
-        return File(fp).existsSync() ? fp : '';
-      }(),
+      future: _getCachedLocalArtFuture(url),
+      key: ValueKey<String>('playlist_art_$url'),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.done && snap.data!.isNotEmpty) {
           return Image.file(File(snap.data!), width: sz, height: sz, fit: BoxFit.cover,
@@ -91,6 +90,24 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         return const Center(child: Icon(Icons.music_note, size: 24));
       },
     );
+  }
+
+  // Get cached Future for local art to prevent flashing
+  Future<String> _getCachedLocalArtFuture(String url) {
+    if (url.isEmpty || url.startsWith('http')) {
+      return Future.value('');
+    }
+    
+    if (!_localArtFutureCache.containsKey(url)) {
+      _localArtFutureCache[url] = () async {
+        final dir = await getApplicationDocumentsDirectory();
+        final name = p.basename(url);
+        final fp = p.join(dir.path, name);
+        return File(fp).existsSync() ? fp : '';
+      }();
+    }
+    
+    return _localArtFutureCache[url]!;
   }
 
   @override

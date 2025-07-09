@@ -196,6 +196,9 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
   // ignore: unused_field
   final Map<String, String> _localArtPathCache = {};
   
+  // Cache Future objects to prevent art flashing
+  final Map<String, Future<String>> _localArtFutureCache = {};
+  
   // Performance: Debounced search
   Timer? _searchDebounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 300);
@@ -631,6 +634,19 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
     return '';
   }
 
+  // Get cached Future for local art to prevent flashing
+  Future<String> _getCachedLocalArtFuture(String fileName) {
+    if (fileName.isEmpty || fileName.startsWith('http')) {
+      return Future.value('');
+    }
+    
+    if (!_localArtFutureCache.containsKey(fileName)) {
+      _localArtFutureCache[fileName] = _getCachedLocalArtPath(fileName);
+    }
+    
+    return _localArtFutureCache[fileName]!;
+  }
+
   // Performance: Filter items based on search query
   // List<Song> get _filteredSongs {
   //   if (_searchQuery.isEmpty) return _songs;
@@ -996,7 +1012,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
             if (metadata?.pictures.isNotEmpty ?? false) {
               debugPrint('Found ${metadata!.pictures.length} picture(s) in metadata for $origName');
-              final picture = (metadata?.pictures.isNotEmpty ?? false) ? metadata!.pictures.first : null;
+              final picture = (metadata.pictures.isNotEmpty) ? metadata.pictures.first : null;
               if (picture != null && picture.bytes.isNotEmpty && picture.bytes.length > 100) { // Ensure minimum size for valid image
                 debugPrint('Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
                 // Determine file extension from mime type or default to .jpg
@@ -1428,7 +1444,8 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
               errorBuilder: (_, __, ___) => placeholder,
             )
           : FutureBuilder<String>(
-              future: _getCachedLocalArtPath(artUrl),
+              future: _getCachedLocalArtFuture(artUrl),
+              key: ValueKey<String>('playlist_art_$artUrl'),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                   return Image.file(
@@ -1584,7 +1601,8 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                                 ? (song.albumArtUrl.startsWith('http')
                                     ? Image.network(song.albumArtUrl, fit: BoxFit.cover)
                                     : FutureBuilder<String>(
-                                        future: _getCachedLocalArtPath(song.albumArtUrl),
+                                        future: _getCachedLocalArtFuture(song.albumArtUrl),
+                                        key: ValueKey<String>('recent_song_art_${song.id}'),
                                         builder: (_, snap) => (snap.hasData && snap.data!.isNotEmpty)
                                             ? Image.file(File(snap.data!), fit: BoxFit.cover)
                                             : Container(color: Colors.grey[800]),

@@ -256,7 +256,7 @@ Future<void> _importSongs() async {
 
             if (metadata?.pictures.isNotEmpty ?? false) {
               debugPrint('Found ${metadata!.pictures.length} picture(s) in metadata for $originalFileName');
-              final picture = (metadata?.pictures.isNotEmpty ?? false) ? metadata!.pictures.first : null;
+              final picture = (metadata.pictures.isNotEmpty) ? metadata.pictures.first : null;
               if (picture != null && picture.bytes.isNotEmpty && picture.bytes.length > 100) { // Ensure minimum size for valid image
                 debugPrint('Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
                 // Determine file extension from mime type or default to .jpg

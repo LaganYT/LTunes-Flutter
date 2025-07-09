@@ -21,7 +21,10 @@ class PlaylistDetailScreen extends StatefulWidget {
 }
 
 class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
-  final PlaylistManagerService _playlistManager = PlaylistManagerService(); // For deleting playlist
+  final PlaylistManagerService _playlistManager = PlaylistManagerService();
+  
+  // Cache Future objects to prevent art flashing
+  final Map<String, Future<String>> _localArtFutureCache = {}; // For deleting playlist
 
   // Helper method to resolve local album art path
   Future<String> _resolveLocalArtPath(String fileName) async {
@@ -32,6 +35,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       return fullPath;
     }
     return '';
+  }
+
+  // Get cached Future for local art to prevent flashing
+  Future<String> _getCachedLocalArtFuture(String fileName) {
+    if (fileName.isEmpty || fileName.startsWith('http')) {
+      return Future.value('');
+    }
+    
+    if (!_localArtFutureCache.containsKey(fileName)) {
+      _localArtFutureCache[fileName] = _resolveLocalArtPath(fileName);
+    }
+    
+    return _localArtFutureCache[fileName]!;
   }
 
   Future<void> _downloadAllSongs(Playlist currentPlaylist) async {
@@ -212,7 +228,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       );
     } else {
       return FutureBuilder<String>(
-        future: _resolveLocalArtPath(artUrl),
+        future: _getCachedLocalArtFuture(artUrl),
+        key: ValueKey<String>('playlist_detail_art_$artUrl'),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
             return Image.file(
@@ -345,7 +362,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             );
           } else {
             flexibleSpaceBackground = FutureBuilder<String>(
-              future: _resolveLocalArtPath(uniqueAlbumArtUrls.first),
+              future: _getCachedLocalArtFuture(uniqueAlbumArtUrls.first),
+              key: ValueKey<String>('playlist_detail_bg_${uniqueAlbumArtUrls.first}'),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                   return Image.file(File(snapshot.data!), fit: BoxFit.cover);
@@ -630,7 +648,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         );
                       } else {
                         listItemLeading = FutureBuilder<String>(
-                          future: _resolveLocalArtPath(song.albumArtUrl), // Use helper
+                          future: _getCachedLocalArtFuture(song.albumArtUrl),
+                          key: ValueKey<String>('playlist_song_art_${song.id}'),
                           builder: (context, snapshot) {
                             if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
                               return Image.file(
