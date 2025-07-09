@@ -88,13 +88,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final playerActionsInAppBar = prefs.getBool('playerActionsInAppBar') ?? false;
     playerActionsInAppBarNotifier.value = playerActionsInAppBar;
     
-    // Load Custom Speed Presets
-    final customSpeedPresetsJson = prefs.getStringList('customSpeedPresets') ?? [];
-    final customSpeedPresets = customSpeedPresetsJson
-        .map((e) => double.tryParse(e) ?? 1.0)
-        .where((e) => e >= 0.25 && e <= 3.0)
-        .toList();
-    customSpeedPresetsNotifier.value = customSpeedPresets;
+    // Load Custom Speed Presets (disabled on iOS)
+    if (!Platform.isIOS) {
+      final customSpeedPresetsJson = prefs.getStringList('customSpeedPresets') ?? [];
+      final customSpeedPresets = customSpeedPresetsJson
+          .map((e) => double.tryParse(e) ?? 1.0)
+          .where((e) => e >= 0.25 && e <= 3.0)
+          .toList();
+      customSpeedPresetsNotifier.value = customSpeedPresets;
+    }
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -118,6 +120,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveCustomSpeedPresets(List<double> presets) async {
+    // Disable on iOS
+    if (Platform.isIOS) return;
+    
     final prefs = await SharedPreferences.getInstance();
     final presetsJson = presets.map((e) => e.toString()).toList();
     await prefs.setStringList('customSpeedPresets', presetsJson);
@@ -330,6 +335,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showCustomSpeedPresetsDialog(BuildContext context) {
+    // Disable on iOS
+    if (Platform.isIOS) return;
+    
     final currentPresets = List<double>.from(customSpeedPresetsNotifier.value);
     final TextEditingController speedController = TextEditingController();
     
@@ -789,22 +797,24 @@ Future<void> _setListeningStatsEnabled(bool enabled) async {
             elevation: 2,
             child: Column(
               children: [
-                ValueListenableBuilder<List<double>>(
-                  valueListenable: customSpeedPresetsNotifier,
-                  builder: (context, customPresets, _) {
-                    return ListTile(
-                      leading: const Icon(Icons.speed),
-                      title: const Text('Custom Speed Presets'),
-                      subtitle: Text(
-                        customPresets.isEmpty 
-                            ? 'No custom presets added'
-                            : '${customPresets.length} custom preset${customPresets.length == 1 ? '' : 's'}'
-                      ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () => _showCustomSpeedPresetsDialog(context),
-                    );
-                  },
-                ),
+                // Custom Speed Presets (disabled on iOS)
+                if (!Platform.isIOS)
+                  ValueListenableBuilder<List<double>>(
+                    valueListenable: customSpeedPresetsNotifier,
+                    builder: (context, customPresets, _) {
+                      return ListTile(
+                        leading: const Icon(Icons.speed),
+                        title: const Text('Custom Speed Presets'),
+                        subtitle: Text(
+                          customPresets.isEmpty 
+                              ? 'No custom presets added'
+                              : '${customPresets.length} custom preset${customPresets.length == 1 ? '' : 's'}'
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => _showCustomSpeedPresetsDialog(context),
+                      );
+                    },
+                  ),
                 ListTile(
                   leading: const Icon(Icons.timer),
                   title: const Text('Sleep Timer'),

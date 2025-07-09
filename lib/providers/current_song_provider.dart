@@ -77,6 +77,9 @@ class CurrentSongProvider with ChangeNotifier {
 
   // Playback speed control methods
   Future<void> setPlaybackSpeed(double speed) async {
+    // Disable playback speed on iOS
+    if (Platform.isIOS) return;
+    
     if (speed < 0.25 || speed > 3.0) return; // Limit speed range
     
     try {
@@ -93,6 +96,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> resetPlaybackSpeed() async {
+    // Disable playback speed on iOS
+    if (Platform.isIOS) return;
+    
     try {
       await (_audioHandler as AudioPlayerHandler).resetPlaybackSpeed();
       _playbackSpeed = 1.0;
@@ -107,6 +113,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> _loadPlaybackSpeedFromStorage() async {
+    // Disable playback speed on iOS
+    if (Platform.isIOS) return;
+    
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedSpeed = prefs.getDouble('playback_speed');

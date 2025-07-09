@@ -854,18 +854,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             iconSize: 24.0,
             color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withOpacity(0.7),
           ),
-          // Playback Speed
-          IconButton(
-            icon: Icon(
-              Icons.speed_rounded,
-              color: currentSongProvider.playbackSpeed != 1.0 
-                  ? colorScheme.secondary 
-                  : colorScheme.onSurface.withOpacity(0.7),
+          // Playback Speed (disabled on iOS)
+          if (!Platform.isIOS)
+            IconButton(
+              icon: Icon(
+                Icons.speed_rounded,
+                color: currentSongProvider.playbackSpeed != 1.0 
+                    ? colorScheme.secondary 
+                    : colorScheme.onSurface.withOpacity(0.7),
+              ),
+              onPressed: () => _showPlaybackSpeedDialog(context),
+              tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
+              iconSize: 24.0,
             ),
-            onPressed: () => _showPlaybackSpeedDialog(context),
-            tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
-            iconSize: 24.0,
-          ),
           // Lyrics toggle
           IconButton(
             icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
@@ -1081,20 +1082,21 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           iconSize: 26.0,
                           color: colorScheme.onSurface.withOpacity(0.7),
                         ),
-                        // Playback Speed
-                        IconButton(
-                          icon: Icon(
-                            currentSongProvider.playbackSpeed == 1.0 
-                                ? Icons.speed_rounded 
-                                : Icons.speed_rounded,
-                            color: currentSongProvider.playbackSpeed != 1.0 
-                                ? colorScheme.secondary 
-                                : colorScheme.onSurface.withOpacity(0.7),
+                        // Playback Speed (disabled on iOS)
+                        if (!Platform.isIOS)
+                          IconButton(
+                            icon: Icon(
+                              currentSongProvider.playbackSpeed == 1.0 
+                                  ? Icons.speed_rounded 
+                                  : Icons.speed_rounded,
+                              color: currentSongProvider.playbackSpeed != 1.0 
+                                  ? colorScheme.secondary 
+                                  : colorScheme.onSurface.withOpacity(0.7),
+                            ),
+                            onPressed: () => _showPlaybackSpeedDialog(context),
+                            tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
+                            iconSize: 26.0,
                           ),
-                          onPressed: () => _showPlaybackSpeedDialog(context),
-                          tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
-                          iconSize: 26.0,
-                        ),
                       ],
                     ),
                   ),
@@ -1379,6 +1381,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
     void _showPlaybackSpeedDialog(BuildContext context) async {
+    // Disable on iOS
+    if (Platform.isIOS) return;
+    
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     final colorScheme = Theme.of(context).colorScheme;
     
