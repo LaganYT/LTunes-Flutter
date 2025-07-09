@@ -31,5 +31,4 @@
 - Fix: Art flashing for playlists on library screen when song is playing
 - Fix: stats chart looking weird
 - Fix: speed presets not working on online songs
-
 - Add: end of song sleep timer
