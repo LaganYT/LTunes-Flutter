@@ -27,4 +27,4 @@
   - Allow users to export/import their playlists, tags, and app settings as files.
 
 ## Bugs / Issues to Fix
-- When skipping or going back a song, playback auto-ends unexpectedly.
+- For online songs the seek isn't working
