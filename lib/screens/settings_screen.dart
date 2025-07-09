@@ -16,6 +16,7 @@ import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
 import 'modern_library_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
+import 'local_metadata_screen.dart';
 import 'dart:async'; // Required for Timer
 import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
@@ -1101,6 +1102,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.secondary,
                 foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.cloud_download_outlined),
+              label: const Text('Fetch Metadata for Local Songs'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const LocalMetadataScreen(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 minimumSize: const Size(double.infinity, 48),
               ),
             ),

@@ -1,0 +1,599 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import '../models/song.dart';
+import '../services/api_service.dart';
+import '../services/playlist_manager_service.dart';
+import '../providers/current_song_provider.dart';
+import 'package:provider/provider.dart';
+
+class LocalMetadataScreen extends StatefulWidget {
+  const LocalMetadataScreen({super.key});
+
+  @override
+  State<LocalMetadataScreen> createState() => _LocalMetadataScreenState();
+}
+
+class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
+  List<Song> _localSongs = [];
+  bool _isLoading = true;
+  final ApiService _apiService = ApiService();
+  final Map<String, bool> _fetchingSongs = {};
+  final Map<String, String?> _fetchErrors = {};
+  bool _isBatchFetching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalSongs();
+  }
+
+  Future<void> _loadLocalSongs() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Set<String> keys = prefs.getKeys();
+      final List<Song> localSongs = [];
+      final appDocDir = await getApplicationDocumentsDirectory();
+      const String downloadsSubDir = 'ltunes_downloads';
+
+      for (String key in keys) {
+        if (key.startsWith('song_')) {
+          final String? songJson = prefs.getString(key);
+          if (songJson != null) {
+            try {
+              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+              Song song = Song.fromJson(songMap);
+              
+              // Only include songs that are imported (local files)
+              if (song.isImported && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+                final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+                if (await File(fullPath).exists()) {
+                  localSongs.add(song);
+                }
+              }
+            } catch (e) {
+              debugPrint('Error decoding song from SharedPreferences for key $key: $e');
+            }
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _localSongs = localSongs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading local songs: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchMetadataForSong(Song song) async {
+    if (_fetchingSongs[song.id] == true) return;
+
+    setState(() {
+      _fetchingSongs[song.id] = true;
+      _fetchErrors[song.id] = null;
+    });
+
+    try {
+      // Search for the song using the API
+      final searchResults = await _apiService.fetchSongs('${song.title} ${song.artist}');
+      
+      if (searchResults.isNotEmpty) {
+        // Find the best match
+        Song? bestMatch;
+        double bestScore = 0.0;
+        
+        for (final result in searchResults) {
+          final titleScore = _calculateSimilarity(song.title.toLowerCase(), result.title.toLowerCase());
+          final artistScore = _calculateSimilarity(song.artist.toLowerCase(), result.artist.toLowerCase());
+          final totalScore = (titleScore + artistScore) / 2.0;
+          
+          if (totalScore > bestScore && totalScore > 0.7) { // Require at least 70% similarity
+            bestScore = totalScore;
+            bestMatch = result;
+          }
+        }
+        
+        if (bestMatch != null) {
+          // Convert the local song to a native song with fetched metadata
+          await _convertToNativeSong(song, bestMatch);
+          
+          if (mounted && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Successfully fetched metadata for "${song.title}"'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          // Show search popup for manual selection
+          if (mounted && context.mounted) {
+            await _showSearchPopup(song, searchResults);
+          }
+        }
+      } else {
+        // Show search popup with empty results
+        if (mounted && context.mounted) {
+          await _showSearchPopup(song, []);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching metadata for ${song.title}: $e');
+      setState(() {
+        _fetchErrors[song.id] = 'Error: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        _fetchingSongs[song.id] = false;
+      });
+    }
+  }
+
+  Future<void> _showSearchPopup(Song localSong, List<Song> initialResults) async {
+    final TextEditingController searchController = TextEditingController(
+      text: '${localSong.title} ${localSong.artist}',
+    );
+    List<Song> searchResults = List.from(initialResults);
+    bool isSearching = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Select Song'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    Text(
+                      'Local: "${localSong.title}" by ${localSong.artist}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        labelText: 'Search for song',
+                        hintText: 'Enter song title and artist',
+                        suffixIcon: isSearching
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.search),
+                                onPressed: () async {
+                                  if (searchController.text.trim().isNotEmpty) {
+                                    setState(() {
+                                      isSearching = true;
+                                    });
+                                    
+                                    try {
+                                      final results = await _apiService.fetchSongs(searchController.text.trim());
+                                      setState(() {
+                                        searchResults = results;
+                                        isSearching = false;
+                                      });
+                                    } catch (e) {
+                                      setState(() {
+                                        isSearching = false;
+                                      });
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Search error: $e'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
+                                },
+                              ),
+                        border: const OutlineInputBorder(),
+                      ),
+                      onSubmitted: (value) async {
+                        if (value.trim().isNotEmpty) {
+                          setState(() {
+                            isSearching = true;
+                          });
+                          
+                          try {
+                            final results = await _apiService.fetchSongs(value.trim());
+                            setState(() {
+                              searchResults = results;
+                              isSearching = false;
+                            });
+                          } catch (e) {
+                            setState(() {
+                              isSearching = false;
+                            });
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Search error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: searchResults.isEmpty
+                          ? Center(
+                              child: Text(
+                                isSearching ? 'Searching...' : 'No results found',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: searchResults.length,
+                              itemBuilder: (context, index) {
+                                final result = searchResults[index];
+                                return ListTile(
+                                  leading: result.albumArtUrl.isNotEmpty && result.albumArtUrl.startsWith('http')
+                                      ? CircleAvatar(
+                                          backgroundImage: NetworkImage(result.albumArtUrl),
+                                        )
+                                      : CircleAvatar(
+                                          backgroundColor: Colors.grey[300],
+                                          child: const Icon(Icons.music_note, color: Colors.grey),
+                                        ),
+                                  title: Text(result.title),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(result.artist),
+                                      if (result.album != null) Text(result.album!),
+                                    ],
+                                  ),
+                                  onTap: () async {
+                                    Navigator.of(context).pop();
+                                    await _convertToNativeSong(localSong, result);
+                                    if (mounted && context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Successfully converted "${localSong.title}" to "${result.title}"'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _fetchErrors[localSong.id] = 'No song selected';
+                    });
+                  },
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  double _calculateSimilarity(String str1, String str2) {
+    if (str1 == str2) return 1.0;
+    if (str1.isEmpty || str2.isEmpty) return 0.0;
+    
+    // Simple similarity calculation using longest common subsequence
+    final lcs = _longestCommonSubsequence(str1, str2);
+    return (2.0 * lcs.length) / (str1.length + str2.length);
+  }
+
+  String _longestCommonSubsequence(String str1, String str2) {
+    final m = str1.length;
+    final n = str2.length;
+    final dp = List.generate(m + 1, (i) => List.filled(n + 1, 0));
+    
+    for (int i = 1; i <= m; i++) {
+      for (int j = 1; j <= n; j++) {
+        if (str1[i - 1] == str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1] + 1;
+        } else {
+          dp[i][j] = dp[i - 1][j] > dp[i][j - 1] ? dp[i - 1][j] : dp[i][j - 1];
+        }
+      }
+    }
+    
+    // Reconstruct the LCS
+    final lcs = <String>[];
+    int i = m, j = n;
+    while (i > 0 && j > 0) {
+      if (str1[i - 1] == str2[j - 1]) {
+        lcs.insert(0, str1[i - 1]);
+        i--;
+        j--;
+      } else if (dp[i - 1][j] > dp[i][j - 1]) {
+        i--;
+      } else {
+        j--;
+      }
+    }
+    
+    return lcs.join();
+  }
+
+  Future<void> _convertToNativeSong(Song localSong, Song apiSong) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final appDocDir = await getApplicationDocumentsDirectory();
+      const String downloadsSubDir = 'ltunes_downloads';
+      
+      // Create a new native song with the fetched metadata
+      final nativeSong = Song(
+        id: apiSong.id, // Use the API song's ID
+        title: apiSong.title,
+        artist: apiSong.artist,
+        artistId: apiSong.artistId,
+        album: apiSong.album,
+        albumArtUrl: apiSong.albumArtUrl,
+        releaseDate: apiSong.releaseDate,
+        audioUrl: apiSong.audioUrl,
+        duration: apiSong.duration,
+        isDownloaded: true, // Keep it as downloaded since we have the local file
+        localFilePath: localSong.localFilePath, // Keep the local file path
+        extras: apiSong.extras,
+        isImported: false, // Mark as native now
+        isExplicit: apiSong.isExplicit,
+        plainLyrics: apiSong.plainLyrics,
+        syncedLyrics: apiSong.syncedLyrics,
+        playCount: localSong.playCount, // Preserve play count
+      );
+      
+      // Save the new native song metadata
+      await prefs.setString('song_${nativeSong.id}', jsonEncode(nativeSong.toJson()));
+      
+      // Remove the old local song metadata
+      await prefs.remove('song_${localSong.id}');
+      
+      // Update the current song provider if this song is currently playing
+      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+      if (currentSongProvider.currentSong?.id == localSong.id) {
+        currentSongProvider.updateSongDetails(nativeSong);
+      }
+      
+      // Update playlists that contain this song
+      final playlistManager = PlaylistManagerService();
+      playlistManager.updateSongInPlaylists(nativeSong);
+      
+      // Refresh the list
+      await _loadLocalSongs();
+      
+    } catch (e) {
+      debugPrint('Error converting song to native: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _fetchAllMetadata() async {
+    if (_isBatchFetching || _isLoading) return;
+    setState(() { _isBatchFetching = true; });
+    for (final song in _localSongs) {
+      // Skip if already fetching this song
+      if (_fetchingSongs[song.id] == true) continue;
+      setState(() { _fetchingSongs[song.id] = true; });
+      try {
+        final searchResults = await _apiService.fetchSongs('${song.title} ${song.artist}');
+        Song? bestMatch;
+        double bestScore = 0.0;
+        for (final result in searchResults) {
+          final titleScore = _calculateSimilarity(song.title.toLowerCase(), result.title.toLowerCase());
+          final artistScore = _calculateSimilarity(song.artist.toLowerCase(), result.artist.toLowerCase());
+          final totalScore = (titleScore + artistScore) / 2.0;
+          if (totalScore > bestScore && totalScore > 0.7) {
+            bestScore = totalScore;
+            bestMatch = result;
+          }
+        }
+        if (bestMatch != null) {
+          await _convertToNativeSong(song, bestMatch);
+        } else {
+          // Show popup for manual selection
+          if (mounted && context.mounted) {
+            await _showSearchPopup(song, searchResults);
+          }
+        }
+      } catch (e) {
+        setState(() { _fetchErrors[song.id] = 'Error: ${e.toString()}'; });
+      } finally {
+        setState(() { _fetchingSongs[song.id] = false; });
+      }
+    }
+    setState(() { _isBatchFetching = false; });
+    await _loadLocalSongs();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Local Song Metadata'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadLocalSongs,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _localSongs.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.music_note, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'No local songs found',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Import songs first to see them here',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.playlist_add_check),
+                              label: Text(_isBatchFetching ? 'Fetching All...' : 'Fetch All'),
+                              onPressed: _isBatchFetching ? null : _fetchAllMetadata,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Local Songs',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '• Auto: Automatically find the best match from the API\n• Manual: Search and select the correct song manually',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _localSongs.length,
+                        itemBuilder: (context, index) {
+                          final song = _localSongs[index];
+                          final isFetching = _fetchingSongs[song.id] ?? false;
+                          final error = _fetchErrors[song.id];
+                          
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                            child: ListTile(
+                              title: Text(
+                                song.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  if (song.album != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(song.album!),
+                                  ],
+                                  if (error != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      error,
+                                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 4), // Reduced gap before buttons
+                                  if (!isFetching)
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        ElevatedButton(
+                                          onPressed: () => _fetchMetadataForSong(song),
+                                          child: const Text('Auto'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton(
+                                          onPressed: () => _showSearchPopup(song, []),
+                                          child: const Text('Manual'),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                              trailing: isFetching
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
+} 
