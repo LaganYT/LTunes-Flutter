@@ -32,3 +32,5 @@
 - Fix: stats chart looking weird
 - Fix: speed presets not working on online songs
 - Add: end of song sleep timer
+- Fix: Local file album art not importing properly
+- Add: Fetch song metadata for local songs feature, where you can go in settings and see the songs with local metadata and have it be fetched from the api to make it a native instead of local file song.
