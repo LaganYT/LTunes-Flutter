@@ -8,7 +8,7 @@ import '../models/lyrics_data.dart'; // Import LyricsData
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
 import 'dart:io'; // For File operations
-import 'dart:async'; // For StreamSubscription
+import 'dart:async'; // For StreamSubscription and Timer
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
@@ -68,6 +68,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   bool _isSeeking = false;
 
   bool _playerActionsInAppBar = false;
+
 
   @override
   void initState() {
@@ -131,6 +132,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _currentSongProvider.addListener(_onSongChanged);
     _loadLikeState(); // load initial like state
     _loadPlayerActionsInAppBarSetting();
+    
+
   }
 
   Future<void> _loadPlayerActionsInAppBarSetting() async {
@@ -142,6 +145,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       });
     }
   }
+
+
 
   @override
   void didChangeDependencies() {
@@ -445,6 +450,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   void dispose() {
     WakelockPlus.disable(); // Allow sleep when player is closed
     _currentSongProvider.removeListener(_onSongChanged);
+
     _textFadeController.dispose();
     _albumArtSlideController.dispose();
     super.dispose();
@@ -1149,12 +1155,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                   _sliderValue = value;
                                 });
                               },
-                              onChangeEnd: (value) {
+                              onChangeEnd: (value) async {
                                 setState(() {
                                   _isSeeking = false;
                                   _sliderValue = null; // Reset to use actual position from stream
                                 });
-                                currentSongProvider.seek(Duration(milliseconds: value.round()));
+                                await currentSongProvider.seek(Duration(milliseconds: value.round()));
+                                
+
                               },
                             ),
                             Padding(

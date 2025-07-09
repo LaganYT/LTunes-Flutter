@@ -45,9 +45,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   final bool _isIOS = Platform.isIOS;
   bool _audioSessionConfigured = false;
   bool _isBackgroundMode = false;
-  bool _isPlayingLocalFile = false;
   String? _lastCompletedSongId;
   bool _isHandlingCompletion = false;
+  Duration? _lastKnownPosition; // Store last known position for online songs
 
   AudioPlayerHandler() {
     _initializeAudioSession();
@@ -108,21 +108,22 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
     
     _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
-    _isPlayingLocalFile = itemToPlay.extras?['isLocal'] as bool? ?? false;
     final newSongId = itemToPlay.extras?['songId'] as String?;
     if (newSongId != null && newSongId != _lastCompletedSongId) {
       _lastCompletedSongId = null;
       _isHandlingCompletion = false;
+      _lastKnownPosition = null; // Reset last known position for new song
     }
     
     AudioSource source;
-    if (_isPlayingLocalFile) {
+    // Use the same simple approach for all songs
+    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
       final filePath = itemToPlay.id;
       final file = File(filePath);
       if (!await file.exists()) throw Exception("Local file not found: $filePath");
       source = AudioSource.file(filePath);
     } else {
-      // For online/URL songs, create source with better buffering configuration
+      // For online songs, we need the tag for proper metadata display
       source = AudioSource.uri(
         Uri.parse(itemToPlay.id),
         tag: MediaItem(
@@ -143,19 +144,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       // Reset position to zero for new tracks
       playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
       
-      // For online songs, wait for the source to be ready before proceeding
-      if (!_isPlayingLocalFile) {
-        // Wait for the audio source to be ready or timeout after 10 seconds
-        int attempts = 0;
-        while (_audioPlayer.processingState == ProcessingState.loading && attempts < 100) {
-          await Future.delayed(const Duration(milliseconds: 100));
-          attempts++;
-        }
-        
-        if (_audioPlayer.processingState == ProcessingState.loading) {
-          debugPrint("Warning: Online song still loading after 10 seconds");
-        }
-      }
+      // Ensure metadata is properly synchronized after setting audio source
+      mediaItem.add(itemToPlay);
       
       // Ensure audio session is active for both local and online songs
       if (_isIOS && _audioSession != null) {
@@ -242,60 +232,46 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       ));
     });
     _audioPlayer.durationStream.listen((newDuration) {
-      final currentItem = mediaItem.value;
-      if (currentItem == null) return;
-      
-      bool isRadio = currentItem.extras?['isRadio'] as bool? ?? _isRadioStream;
-      if (!isRadio && newDuration != null && newDuration > Duration.zero) {
-        final newItem = currentItem.copyWith(duration: newDuration);
-        if (mediaItem.value != newItem) {
-          mediaItem.add(newItem);
-          // Update the item in playlist to maintain consistency
-          if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-            _playlist[_currentIndex] = newItem;
-          }
-          
-          // For online songs, ensure metadata is properly synced after duration is available
-          if (!(_isPlayingLocalFile)) {
-            // Force a metadata update to ensure iOS Control Center gets the duration
-            Future.delayed(const Duration(milliseconds: 50), () {
-              if (mediaItem.value == newItem) {
-                mediaItem.add(newItem);
-              }
-            });
-          }
+      if (newDuration != null && newDuration > Duration.zero) {
+        final currentItem = mediaItem.value;
+        if (currentItem != null && currentItem.duration != newDuration) {
+          final updatedItem = currentItem.copyWith(duration: newDuration);
+          mediaItem.add(updatedItem);
+          debugPrint("Duration updated: ${newDuration.inSeconds}s");
         }
       }
     });
     _audioPlayer.positionStream.listen((position) async {
       final currentItem = mediaItem.value;
       
-      // For online songs, we need to be more careful about position updates
-      if (!_isPlayingLocalFile) {
-        // Only update position if the audio is in a stable state
-        if (_audioPlayer.processingState == ProcessingState.ready || 
-            _audioPlayer.processingState == ProcessingState.buffering) {
-          playbackState.add(playbackState.value.copyWith(updatePosition: position));
-          debugPrint("Online song position update: ${position.inSeconds}s (state: ${_audioPlayer.processingState})");
-        }
-        // For buffering state, we might want to pause position updates temporarily
-        else if (_audioPlayer.processingState == ProcessingState.loading) {
-          // Keep the last known position during loading
-          // Don't update position to avoid jumping
-          debugPrint("Online song loading, keeping position at: ${playbackState.value.updatePosition.inSeconds}s");
-        }
-      } else {
-        // For local files, always update position
-        playbackState.add(playbackState.value.copyWith(updatePosition: position));
+      // Always use the actual position from the stream as the source of truth
+      // Only use last known position as a fallback when position is zero and we're playing
+      Duration positionToEmit = position;
+      
+      if (position == Duration.zero && _audioPlayer.playing && _lastKnownPosition != null && _lastKnownPosition! > Duration.zero) {
+        // Only use last known position if we're actually playing and current position is zero
+        // This prevents the seekbar from jumping to zero during normal playback
+        positionToEmit = _lastKnownPosition!;
+        debugPrint("AudioHandler: Using last known position: ${_lastKnownPosition!.inSeconds}s (stream position was zero)");
+      } else if (position > Duration.zero) {
+        // Update last known position when we have a valid position
+        _lastKnownPosition = position;
       }
+      
+      // Log position updates for debugging
+      if (!(currentItem?.extras?['isLocal'] as bool? ?? false)) {
+        debugPrint("AudioHandler: Online song position update - stream: ${position.inSeconds}s, emitting: ${positionToEmit.inSeconds}s, playing: ${_audioPlayer.playing}");
+      }
+      
+      // Emit the position update
+      playbackState.add(playbackState.value.copyWith(updatePosition: positionToEmit));
       
       // Handle song completion logic
       if (position > Duration.zero && currentItem != null && currentItem.duration != null) {
         final duration = currentItem.duration!;
         final timeRemaining = duration - position;
         
-        // For online songs, be more lenient with completion detection
-        final completionThreshold = _isPlayingLocalFile ? 100 : 500; // 500ms for online songs
+        final completionThreshold = 100; // 100ms for all songs
         
         if (timeRemaining.inMilliseconds <= completionThreshold && 
             _audioPlayer.playing && 
@@ -318,6 +294,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           _isHandlingCompletion = false;
         }
       }
+      
+
     });
   }
 
@@ -369,7 +347,12 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
-    if (_audioPlayer.playing) return;
+    if (_audioPlayer.playing) {
+      debugPrint("AudioHandler: Play requested but already playing, ignoring");
+      return;
+    }
+    
+    debugPrint("AudioHandler: Play requested (processingState: ${_audioPlayer.processingState})");
     
     // Increment play counts only when actually starting playback
     await _incrementPlayCounts();
@@ -377,29 +360,35 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     if (_isIOS && _audioSession != null) await _safeActivateSession();
     try {
       if (_audioPlayer.processingState == ProcessingState.idle) {
+        debugPrint("AudioHandler: Starting playback from idle state");
         if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
           await _prepareToPlay(_currentIndex);
           await _audioPlayer.play();
           
-          // Ensure metadata is properly synced for online songs
+          // Ensure metadata is properly synchronized after starting playback
           final currentItem = mediaItem.value;
-          if (currentItem != null && !(_isPlayingLocalFile)) {
-            // Force metadata update for online songs
+          if (currentItem != null) {
             mediaItem.add(currentItem);
           }
+          debugPrint("AudioHandler: Playback started from idle state");
         }
       } else if (_audioPlayer.processingState == ProcessingState.ready) {
+        debugPrint("AudioHandler: Resuming playback from ready state");
         await _audioPlayer.play();
         
-        // Ensure metadata is properly synced when resuming
+        // Ensure metadata is properly synchronized when resuming
         final currentItem = mediaItem.value;
-        if (currentItem != null && !(_isPlayingLocalFile)) {
+        if (currentItem != null) {
           mediaItem.add(currentItem);
         }
+        debugPrint("AudioHandler: Playback resumed from ready state");
       } else {
+        debugPrint("AudioHandler: Starting playback from other state: ${_audioPlayer.processingState}");
         await _audioPlayer.play();
+        debugPrint("AudioHandler: Playback started from other state");
       }
     } catch (e) {
+      debugPrint("AudioHandler: Error during play operation: $e");
       if (_isRadioStream && _currentIndex >= 0 && _currentIndex < _playlist.length) {
         _showRadioErrorDialog(_playlist[_currentIndex].title);
       }
@@ -471,52 +460,32 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> pause() async {
+    debugPrint("AudioHandler: Pause requested");
     await _audioPlayer.pause();
     playbackState.add(playbackState.value.copyWith(playing: false));
+    debugPrint("AudioHandler: Pause completed");
   }
 
   @override
   Future<void> seek(Duration position) async {
     try {
-      debugPrint("Seek request to: ${position.inSeconds}s (isLocal: $_isPlayingLocalFile)");
-      
-      // For online songs, we need to be more careful with seeking
-      if (!_isPlayingLocalFile) {
-        // Check if the audio source is ready for seeking
-        if (_audioPlayer.processingState != ProcessingState.ready) {
-          debugPrint("Cannot seek: audio not ready for online song (state: ${_audioPlayer.processingState})");
-          return;
-        }
-        
-        // For online songs, ensure we're not seeking beyond available duration
-        final currentDuration = _audioPlayer.duration;
-        if (currentDuration != null && position > currentDuration) {
-          position = currentDuration;
-          debugPrint("Adjusted seek position to duration limit: ${position.inSeconds}s");
-        }
-      }
-      
-      // Update the playback state immediately to show the seek operation
-      playbackState.add(playbackState.value.copyWith(updatePosition: position));
-      
+      debugPrint("Seek request to: ${position.inSeconds}s");
+
       // Perform the actual seek
       await _audioPlayer.seek(position);
       debugPrint("Seek completed to: ${position.inSeconds}s");
+
+      // Update last known position and let the position stream handle the update
+      _lastKnownPosition = position;
       
-      // For online songs, add a small delay to ensure the seek operation completes
-      if (!_isPlayingLocalFile) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        // Update position again to ensure it's accurate after seeking
-        final actualPosition = _audioPlayer.position;
-        if (actualPosition != position) {
-          debugPrint("Position after seek: ${actualPosition.inSeconds}s (requested: ${position.inSeconds}s)");
-          playbackState.add(playbackState.value.copyWith(updatePosition: actualPosition));
-        }
-      }
+      // Emit the position immediately for responsive UI
+      playbackState.add(playbackState.value.copyWith(updatePosition: position));
+      
     } catch (e) {
       debugPrint("Error during seek operation: $e");
       // Revert to current position if seek fails
       final currentPosition = _audioPlayer.position;
+      _lastKnownPosition = currentPosition;
       playbackState.add(playbackState.value.copyWith(updatePosition: currentPosition));
     }
   }
@@ -568,26 +537,23 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       await stop();
       return;
     }
-    await _prepareToPlay(index);
-    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-      try {
-        if (_isIOS && _audioSession != null) await _safeActivateSession();
-        await _audioPlayer.play();
-        
-        // Ensure metadata is properly broadcast to audio session after skip
-        // This is especially important for online songs to prevent metadata loss
-        final currentItem = mediaItem.value;
-        if (currentItem != null) {
-          // Force a metadata update to ensure iOS Control Center gets the new track info
-          mediaItem.add(currentItem);
-          
-          // For online songs, add a small delay to ensure metadata propagation
-          if (!(currentItem.extras?['isLocal'] as bool? ?? false)) {
-            await Future.delayed(const Duration(milliseconds: 100));
-            mediaItem.add(currentItem);
-          }
-        }
-      } catch (e) {
+            await _prepareToPlay(index);
+        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+          try {
+            if (_isIOS && _audioSession != null) await _safeActivateSession();
+            await _audioPlayer.play();
+            
+            // Ensure metadata is properly broadcast to audio session after skip
+            final currentItem = mediaItem.value;
+            if (currentItem != null) {
+              // Force a metadata update to ensure iOS Control Center gets the new track info
+              mediaItem.add(currentItem);
+              
+              // Add a small delay to ensure metadata propagation
+              await Future.delayed(const Duration(milliseconds: 50));
+              mediaItem.add(currentItem);
+            }
+          } catch (e) {
         playbackState.add(playbackState.value.copyWith(
           playing: false,
           processingState: AudioProcessingState.error,
@@ -709,6 +675,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         final currentItem = mediaItem.value;
         if (currentItem != null) {
           mediaItem.add(currentItem);
+          
+          // Add a small delay to ensure metadata propagation
+          await Future.delayed(const Duration(milliseconds: 50));
+          mediaItem.add(currentItem);
         }
       }
     } else {
@@ -800,7 +770,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       return _audioPlayer.position.inMilliseconds;
     } else if (name == 'getAudioDuration') {
       return _audioPlayer.duration?.inMilliseconds;
-    } else if (name == 'isAudioReady') {
+        } else if (name == 'isAudioReady') {
       return _audioPlayer.processingState == ProcessingState.ready;
     }
     return null;

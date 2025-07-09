@@ -310,8 +310,17 @@ class CurrentSongProvider with ChangeNotifier {
       _isLoadingAudio = playbackState.processingState == AudioProcessingState.loading ||
           playbackState.processingState == AudioProcessingState.buffering;
 
+      // Log state changes
+      if (oldIsPlaying != _isPlaying) {
+        debugPrint("CurrentSongProvider: Playing state changed from $oldIsPlaying to $_isPlaying (processingState: ${playbackState.processingState})");
+      }
+      if (oldIsLoading != _isLoadingAudio) {
+        debugPrint("CurrentSongProvider: Loading state changed from $oldIsLoading to $_isLoadingAudio");
+      }
+
       // Save state on pause
       if (oldIsPlaying && !_isPlaying) {
+        debugPrint("CurrentSongProvider: Saving state due to pause");
         _saveCurrentSongToStorage();
       }
 
@@ -428,6 +437,8 @@ class CurrentSongProvider with ChangeNotifier {
       _currentPosition = position;
       notifyListeners(); // UI seekbar and lyrics sync
     });
+
+
   }
 
   Future<String> _resolveArtUriPath(MediaItem item) async {
@@ -825,16 +836,22 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void pauseSong() async {
+    debugPrint("CurrentSongProvider: Pause requested for song: ${_currentSongFromAppLogic?.title ?? 'Unknown'}");
     await _audioHandler.pause();
+    debugPrint("CurrentSongProvider: Pause completed");
   }
 
   void resumeSong() async {
+    debugPrint("CurrentSongProvider: Resume requested for song: ${_currentSongFromAppLogic?.title ?? 'Unknown'} at position: ${_currentPosition.inSeconds}s");
     if (_currentSongFromAppLogic != null) {
       _isLoadingAudio = true;
       notifyListeners();
       await _audioHandler.seek(_currentPosition);
       await _audioHandler.play();
+      debugPrint("CurrentSongProvider: Resume completed");
       // _isLoadingAudio will be set to false by _listenToAudioHandler
+    } else {
+      debugPrint("CurrentSongProvider: Resume failed - no current song");
     }
   }
 
@@ -1700,6 +1717,12 @@ class CurrentSongProvider with ChangeNotifier {
   Future<void> seek(Duration position) async {
     await _audioHandler.seek(position);
   }
+
+
+
+
+
+
 
   Future<void> updateMissingMetadata(Song song) async {
     if (!song.isDownloaded) return;

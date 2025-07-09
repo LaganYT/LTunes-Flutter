@@ -27,7 +27,6 @@
   - Allow users to export/import their playlists, tags, and app settings as files.
 
 ## Bugs / Issues to Fix
-- Fix: For online songs the seek isn't working, can you fix it? seeking is available it just isn't set up properly.
 - Fix: sleep timer not working
 - Fix: Art flashing for playlists on library screen when song is playing
 - Fix: stats chart looking weird
