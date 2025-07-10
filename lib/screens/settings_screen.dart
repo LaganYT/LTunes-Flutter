@@ -129,6 +129,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           .toList();
       customSpeedPresetsNotifier.value = customSpeedPresets;
     }
+    
+
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -150,6 +152,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('playerActionsInAppBar', value);
   }
+
+
 
   Future<void> _saveCustomSpeedPresets(List<double> presets) async {
     // Disable on iOS
@@ -834,7 +838,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-                const SizedBox(height: 8),
+
                 ListTile(
                   leading: const Icon(Icons.cloud_download_outlined),
                   title: const Text('Fetch Metadata for Local Songs'),

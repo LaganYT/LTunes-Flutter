@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
+import '../services/auto_fetch_service.dart';
 import '../widgets/playbar.dart';
 import 'song_detail_screen.dart';
 
@@ -315,6 +316,11 @@ Future<void> _importSongs() async {
 
             // Persist song metadata
             await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
+            
+            // Auto-fetch metadata if enabled
+            final autoFetchService = AutoFetchService();
+            await autoFetchService.autoFetchMetadataForNewImport(newSong);
+            
             importCount++;
           } catch (e) {
             debugPrint('Error processing file $originalFileName: $e');

@@ -9,6 +9,7 @@ import '../models/album.dart'; // Import Album model
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
+import '../services/auto_fetch_service.dart';
 import 'playlist_detail_screen.dart'; // Import for navigation
 import 'album_screen.dart'; // Import AlbumScreen for navigation
 import 'package:file_picker/file_picker.dart';
@@ -1071,6 +1072,11 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
             // Persist song metadata
             await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
+            
+            // Auto-fetch metadata if enabled
+            final autoFetchService = AutoFetchService();
+            await autoFetchService.autoFetchMetadataForNewImport(newSong);
+            
             importCount++;
           } catch (e) {
             debugPrint('Error processing file $origName: $e');

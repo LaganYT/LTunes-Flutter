@@ -15,6 +15,7 @@ import 'services/audio_handler.dart'; // Import your AudioPlayerHandler
 import 'services/album_manager_service.dart'; // Import AlbumManagerService
 import 'services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'services/download_notification_service.dart'; // Import DownloadNotificationService
+import 'services/metadata_history_service.dart'; // Import MetadataHistoryService
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 
@@ -156,6 +157,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         // App is being terminated, ensure background playback is configured
         _audioHandler.customAction('ensureBackgroundPlayback', {});
         _stopBackgroundContinuityTimer();
+        // Clear metadata fetch history when app closes
+        MetadataHistoryService().clearHistory();
         break;
       case AppLifecycleState.hidden:
         // App is hidden (iOS specific), ensure background playback
