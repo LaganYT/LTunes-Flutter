@@ -26,5 +26,5 @@
 - Export/Import Settings & Playlists
   - Allow users to export/import their playlists, tags, and app settings as files.
 
-  Add: a way to ignore local songs from the metadata look up feature
-Fix: after about 3 songs (so far only ios) audio session seems to end (not for sure)
+## Bug Fixes
+- Fix: after about 3 songs (so far only ios) audio session seems to end (not for sure)
