@@ -18,6 +18,7 @@ import 'services/download_notification_service.dart'; // Import DownloadNotifica
 import 'services/metadata_history_service.dart'; // Import MetadataHistoryService
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
+import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
 
 // Global instance of the AudioPlayerHandler
 late AudioHandler _audioHandler;
@@ -228,6 +229,15 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   }
 
   Future<void> _checkForUpdates(String currentAppVersion) async {
+    // Check if auto update checking is enabled
+    final prefs = await SharedPreferences.getInstance();
+    final autoCheckForUpdates = prefs.getBool('autoCheckForUpdates') ?? true;
+    
+    // If auto check is disabled, don't proceed
+    if (!autoCheckForUpdates) {
+      return;
+    }
+    
     final apiService = ApiService();
     final errorHandler = ErrorHandlerService();
     try {

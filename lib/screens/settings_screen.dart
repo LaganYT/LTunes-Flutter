@@ -34,9 +34,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier = ValueNotifier<bool?>(null);
-  final ValueNotifier<bool?> playerActionsInAppBarNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<List<double>> customSpeedPresetsNotifier = ValueNotifier<List<double>>([]);
   final ValueNotifier<bool> listeningStatsEnabledNotifier = ValueNotifier<bool>(true); // <-- move here
+  final ValueNotifier<bool?> autoCheckForUpdatesNotifier = ValueNotifier<bool?>(null);
   String _currentAppVersion = 'Loading...';
   String _latestKnownVersion = 'N/A';
   final SleepTimerService _sleepTimerService = SleepTimerService();
@@ -116,9 +116,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final autoDownloadLikedSongs = prefs.getBool('autoDownloadLikedSongs') ?? false;
     autoDownloadLikedSongsNotifier.value = autoDownloadLikedSongs;
     
-    // Load Player Actions in App Bar setting
-    final playerActionsInAppBar = prefs.getBool('playerActionsInAppBar') ?? false;
-    playerActionsInAppBarNotifier.value = playerActionsInAppBar;
+    // Load Auto Check for Updates setting
+    final autoCheckForUpdates = prefs.getBool('autoCheckForUpdates') ?? true;
+    autoCheckForUpdatesNotifier.value = autoCheckForUpdates;
     
     // Load Custom Speed Presets (disabled on iOS)
     if (!Platform.isIOS) {
@@ -148,9 +148,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('autoDownloadLikedSongs', value);
   }
 
-  Future<void> _savePlayerActionsInAppBarSetting(bool value) async {
+  Future<void> _saveAutoCheckForUpdatesSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('playerActionsInAppBar', value);
+    await prefs.setBool('autoCheckForUpdates', value);
   }
 
 
@@ -335,9 +335,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     autoDownloadLikedSongsNotifier.value = false; // Default value
     await _saveAutoDownloadLikedSongsSetting(false);
 
-    // Reset Player Actions in App Bar
-    playerActionsInAppBarNotifier.value = false; // Default value
-    await _savePlayerActionsInAppBarSetting(false);
+    // Reset Auto Check for Updates
+    autoCheckForUpdatesNotifier.value = true; // Default value
+    await _saveAutoCheckForUpdatesSetting(true);
 
     // Reset Custom Speed Presets
     customSpeedPresetsNotifier.value = [];
@@ -810,13 +810,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ValueListenableBuilder<bool?>(
-                  valueListenable: playerActionsInAppBarNotifier,
-                  builder: (context, playerActionsInAppBar, _) {
-                    if (playerActionsInAppBar == null) {
+                  valueListenable: autoCheckForUpdatesNotifier,
+                  builder: (context, autoCheckForUpdates, _) {
+                    if (autoCheckForUpdates == null) {
                       return const ListTile(
-                        leading: Icon(Icons.play_arrow),
-                        title: Text('Player Actions in App Bar'),
-                        subtitle: Text('Show play controls in app bar'),
+                        leading: Icon(Icons.system_update),
+                        title: Text('Auto Check for Updates'),
+                        subtitle: Text('Automatically check for updates on app open'),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
@@ -825,14 +825,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                     return ListTile(
-                      leading: const Icon(Icons.play_arrow),
-                      title: const Text('Player Actions in App Bar'),
-                      subtitle: const Text('Show play controls in app bar'),
+                      leading: const Icon(Icons.system_update),
+                      title: const Text('Auto Check for Updates'),
+                      subtitle: const Text('Automatically check for updates on app open'),
                       trailing: Switch(
-                        value: playerActionsInAppBar,
+                        value: autoCheckForUpdates,
                         onChanged: (bool value) async {
-                          playerActionsInAppBarNotifier.value = value;
-                          await _savePlayerActionsInAppBarSetting(value);
+                          autoCheckForUpdatesNotifier.value = value;
+                          await _saveAutoCheckForUpdatesSetting(value);
                         },
                       ),
                     );
