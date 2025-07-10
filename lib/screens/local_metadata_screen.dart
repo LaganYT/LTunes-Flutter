@@ -24,11 +24,185 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
   final Map<String, bool> _fetchingSongs = {};
   final Map<String, String?> _fetchErrors = {};
   bool _isBatchFetching = false;
+  Set<String> _ignoredSongIds = {};
 
   @override
   void initState() {
     super.initState();
+    _loadIgnoredSongs();
     _loadLocalSongs();
+  }
+
+  Future<void> _loadIgnoredSongs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ignoredSongsJson = prefs.getString('ignored_metadata_songs') ?? '[]';
+      final List<dynamic> ignoredList = jsonDecode(ignoredSongsJson);
+      setState(() {
+        _ignoredSongIds = Set<String>.from(ignoredList);
+      });
+    } catch (e) {
+      debugPrint('Error loading ignored songs: $e');
+      setState(() {
+        _ignoredSongIds = {};
+      });
+    }
+  }
+
+  Future<void> _saveIgnoredSongs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('ignored_metadata_songs', jsonEncode(_ignoredSongIds.toList()));
+    } catch (e) {
+      debugPrint('Error saving ignored songs: $e');
+    }
+  }
+
+  Future<void> _ignoreSong(Song song) async {
+    setState(() {
+      _ignoredSongIds.add(song.id);
+    });
+    await _saveIgnoredSongs();
+    await _loadLocalSongs(); // Refresh the list immediately
+    
+    if (mounted && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${song.title}" will be ignored from metadata lookup'),
+          backgroundColor: Colors.orange,
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => _unignoreSong(song),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _unignoreSong(Song song) async {
+    setState(() {
+      _ignoredSongIds.remove(song.id);
+    });
+    await _saveIgnoredSongs();
+    
+    // Refresh the local songs list to include the unignored song
+    await _loadLocalSongs();
+    
+    if (mounted && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${song.title}" will be included in metadata lookup'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showIgnoredSongs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Set<String> keys = prefs.getKeys();
+      final List<Song> ignoredSongs = [];
+      final appDocDir = await getApplicationDocumentsDirectory();
+      const String downloadsSubDir = 'ltunes_downloads';
+
+      for (String key in keys) {
+        if (key.startsWith('song_')) {
+          final String? songJson = prefs.getString(key);
+          if (songJson != null) {
+            try {
+              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+              Song song = Song.fromJson(songMap);
+              
+              // Only include ignored songs that are imported and downloaded
+              if (song.isImported && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty && _ignoredSongIds.contains(song.id)) {
+                final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+                if (await File(fullPath).exists()) {
+                  ignoredSongs.add(song);
+                }
+              }
+            } catch (e) {
+              debugPrint('Error decoding song from SharedPreferences for key $key: $e');
+            }
+          }
+        }
+      }
+
+      if (mounted && context.mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Ignored Songs'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: ignoredSongs.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No ignored songs',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: ignoredSongs.length,
+                        itemBuilder: (context, index) {
+                          final song = ignoredSongs[index];
+                          return ListTile(
+                            title: Text(song.title),
+                            subtitle: Text(song.artist),
+                                                         trailing: IconButton(
+                               icon: const Icon(Icons.restore),
+                               onPressed: () {
+                                 final navigator = Navigator.of(context);
+                                 navigator.pop();
+                                 _unignoreSong(song);
+                               },
+                               tooltip: 'Restore to metadata lookup',
+                             ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                if (ignoredSongs.isNotEmpty)
+                  TextButton(
+                    onPressed: () async {
+                      final navigator = Navigator.of(context);
+                      navigator.pop();
+                      await _clearAllIgnoredSongs();
+                    },
+                    child: const Text('Clear All'),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('Error loading ignored songs: $e');
+    }
+  }
+
+  Future<void> _clearAllIgnoredSongs() async {
+    setState(() {
+      _ignoredSongIds.clear();
+    });
+    await _saveIgnoredSongs();
+    await _loadLocalSongs();
+    
+    if (mounted && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All ignored songs have been restored to metadata lookup'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   Future<void> _loadLocalSongs() async {
@@ -51,8 +225,8 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
               Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
               Song song = Song.fromJson(songMap);
               
-              // Only include songs that are imported (local files)
-              if (song.isImported && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              // Only include songs that are imported (local files) and not ignored
+              if (song.isImported && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty && !_ignoredSongIds.contains(song.id)) {
                 final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
                 if (await File(fullPath).exists()) {
                   localSongs.add(song);
@@ -280,7 +454,8 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                     ],
                                   ),
                                   onTap: () async {
-                                    Navigator.of(context).pop();
+                                    final navigator = Navigator.of(context);
+                                    navigator.pop();
                                     await _convertToNativeSong(localSong, result);
                                     if (mounted && context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -414,8 +589,8 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     if (_isBatchFetching || _isLoading) return;
     setState(() { _isBatchFetching = true; });
     for (final song in _localSongs) {
-      // Skip if already fetching this song
-      if (_fetchingSongs[song.id] == true) continue;
+      // Skip if already fetching this song or if song is ignored
+      if (_fetchingSongs[song.id] == true || _ignoredSongIds.contains(song.id)) continue;
       setState(() { _fetchingSongs[song.id] = true; });
       try {
         final searchResults = await _apiService.fetchSongs('${song.title} ${song.artist}');
@@ -455,6 +630,39 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
         title: const Text('Local Song Metadata'),
         centerTitle: true,
         actions: [
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.block),
+                onPressed: _showIgnoredSongs,
+                tooltip: 'View Ignored Songs',
+              ),
+              if (_ignoredSongIds.isNotEmpty)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '${_ignoredSongIds.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadLocalSongs,
@@ -515,7 +723,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '• Auto: Automatically find the best match from the API\n• Manual: Search and select the correct song manually',
+                                '• Auto: Automatically find the best match from the API\n• Manual: Search and select the correct song manually\n• Ignore: Exclude this song from metadata lookup',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                                 ),
@@ -546,7 +754,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                   Text(
                                     song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
                                     style: TextStyle(
-                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                                       fontSize: 15,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -575,6 +783,15 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                         OutlinedButton(
                                           onPressed: () => _showSearchPopup(song, []),
                                           child: const Text('Manual'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton.icon(
+                                          onPressed: () => _ignoreSong(song),
+                                          icon: const Icon(Icons.block, size: 16),
+                                          label: const Text('Ignore'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.orange,
+                                          ),
                                         ),
                                       ],
                                     ),
