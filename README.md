@@ -67,21 +67,12 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - **Notification Integration**: System notifications for downloads and playback
 - **Accessibility**: Screen reader support and keyboard navigation
 
-## 🚀 Recent Updates (v1.9.5)
+## 🚀 Recent Updates (v2.0.1)
 
-### ✨ New Features
-- **Enhanced Error Handling**: Centralized error management with user-friendly messages
-- **Modern Library Screen**: Redesigned library with better organization and performance
-- **Download Notifications**: System notifications for download progress and queue management
-- **Performance Improvements**: Optimized search, caching, and loading times
-- **Better Offline Support**: Improved handling of downloaded and imported content
-
-### 🐛 Bug Fixes
-- Fixed iOS background playback issues
-- Improved error recovery and retry mechanisms
-- Enhanced stability for large music libraries
-- Better handling of network connectivity issues
-
+- Added auto check for updates preference in settings.
+- Added history to local song metadata fetcher.
+- Removed player actions in app bar setting, now off permanently.
+- Bug fixes.
 ## 📱 Screenshots
 
 ### Light Mode
