@@ -81,6 +81,10 @@ class PlaylistManagerService with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> savePlaylists() async {
+    await _savePlaylists();
+  }
+
   Future<void> addPlaylist(Playlist playlist) async {
     // Ensure playlist with same ID doesn't already exist
     if (!_playlists.any((p) => p.id == playlist.id)) {
