@@ -212,7 +212,7 @@ packages:
   excel:
     dependency: "direct main"
     description:
-      path: "../excel"
+      path: excel
       relative: true
     source: path
     version: "5.0.0"
