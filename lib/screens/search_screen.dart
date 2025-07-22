@@ -657,19 +657,15 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                           return const Center(child: CircularProgressIndicator());
                         }
                         if (snapshot.hasError) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline, size: 64, color: Colors.grey),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Error loading songs: ${snapshot.error}',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
+                          return _errorHandler.buildLoadingErrorWidget(
+                            context,
+                            snapshot.error!,
+                            title: 'Failed to Load Songs',
+                            onRetry: () {
+                              setState(() {
+                                _songsFuture = _getSongsFuture();
+                              });
+                            },
                           );
                         }
                         final songs = snapshot.data ?? [];
@@ -679,7 +675,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(Icons.music_note, size: 64, color: Colors.grey),
-                                const SizedBox(height: 16),
+                                SizedBox(height: 16),
                                 Text(
                                   'No songs found',
                                   style: TextStyle(color: Colors.grey),
