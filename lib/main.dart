@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import './screens/search_screen.dart'; // Import the new SearchScreen
-import './screens/modern_library_screen.dart'; // Import the ModernLibraryScreen
+import 'screens/library_screen.dart'; // Import the ModernLibraryScreen
 import './screens/settings_screen.dart'; // Import for ThemeProvider
 import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';

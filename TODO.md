@@ -35,7 +35,6 @@
 ## Artist & Album Features
 - Add: allow following an artist to save them to your library, this should replace the old artists page in the library, when clicking an artist from your library’s saved artists have it load the artist page with an option to show “saved songs by -artist name-“
 - Fix album arts not showing up on library page when offline (local files issue most likely)
-- Have the artist page (opened from the song page) pre-loaded and pre-caches
 
 ## Download & Notification Handling
 - Fix: when calculating if a song can be downloaded have it check if it’s a local song, if it is then exclude it from the is downloaded part of the is playlist downloaded function 

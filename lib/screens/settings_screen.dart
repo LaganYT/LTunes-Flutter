@@ -13,7 +13,7 @@ import '../models/update_info.dart';   // Import UpdateInfo
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
 import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
-import 'modern_library_screen.dart';
+import 'library_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'local_metadata_screen.dart';
