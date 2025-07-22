@@ -37,8 +37,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<List<double>> customSpeedPresetsNotifier = ValueNotifier<List<double>>([]);
   final ValueNotifier<bool> listeningStatsEnabledNotifier = ValueNotifier<bool>(true); // <-- move here
   final ValueNotifier<bool?> autoCheckForUpdatesNotifier = ValueNotifier<bool?>(null);
-  String _currentAppVersion = 'Loading...';
-  String _latestKnownVersion = 'N/A';
+  final ValueNotifier<String> currentAppVersionNotifier = ValueNotifier<String>('Loading...');
+  final ValueNotifier<String> latestKnownVersionNotifier = ValueNotifier<String>('N/A');
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -91,10 +91,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
       if (mounted) {
-        setState(() {
-          _currentAppVersion = packageInfo.version;
-          _latestKnownVersion = packageInfo.version; // Initially set to current version
-        });
+        currentAppVersionNotifier.value = packageInfo.version;
+        latestKnownVersionNotifier.value = packageInfo.version; // Initially set to current version
       }
     } catch (e) {
       debugPrint('Error loading app version: $e');
@@ -657,17 +655,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (updateInfo != null) {
         _showUpdateDialog(updateInfo);
-        setState(() {
-          // Assuming UpdateInfo has a 'version' field for the new version string
-          _latestKnownVersion = updateInfo.version; 
-        });
+        latestKnownVersionNotifier.value = updateInfo.version; // Only update the notifier
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('App is up to date.')),
         );
-        setState(() {
-          _latestKnownVersion = _currentAppVersion; // App is up to date
-        });
+        latestKnownVersionNotifier.value = currentAppVersion; // Only update the notifier
       }
     } catch (e) {
       if (mounted) {
@@ -677,9 +670,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       debugPrint("Error performing update check: $e");
       // Optionally, reset _latestKnownVersion or indicate error
-      setState(() {
-        _latestKnownVersion = 'Error';
-      });
+      latestKnownVersionNotifier.value = 'Error';
     }
   }
 
@@ -712,6 +703,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         centerTitle: true,
       ),
       body: ListView(
+        key: const PageStorageKey('settings_list'),
         children: [
           _buildSectionTitle(context, 'Content'),
           Card(
@@ -1348,9 +1340,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.info),
                   title: const Text('Version'),
-                  subtitle: Text('Current: $_currentAppVersion'),
-                  trailing: _latestKnownVersion != _currentAppVersion
-                      ? Container(
+                  subtitle: ValueListenableBuilder<String>(
+                    valueListenable: currentAppVersionNotifier,
+                    builder: (context, currentVersion, _) {
+                      return ValueListenableBuilder<String>(
+                        valueListenable: latestKnownVersionNotifier,
+                        builder: (context, latestVersion, __) {
+                          return Text('Current: $currentVersion\nLatest: $latestVersion');
+                        },
+                      );
+                    },
+                  ),
+                  trailing: ValueListenableBuilder<String>(
+                    valueListenable: latestKnownVersionNotifier,
+                    builder: (context, latestVersion, _) {
+                      if (latestVersion != currentAppVersionNotifier.value) {
+                        return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.primary,
@@ -1364,12 +1369,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        )
-                      : null,
+                        );
+                      } else {
+                        return const SizedBox.shrink();
+                      }
+                    },
+                  ),
                   onTap: () async {
                     try {
                       final apiService = ApiService();
-                      final updateInfo = await apiService.checkForUpdate(_currentAppVersion);
+                      final updateInfo = await apiService.checkForUpdate(currentAppVersionNotifier.value);
 
                       if (!mounted) return;
 
@@ -1382,8 +1391,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Current Version: $_currentAppVersion'),
-                                Text('Latest Version: $_latestKnownVersion'),
+                                Text('Current Version: ${currentAppVersionNotifier.value}'),
+                                ValueListenableBuilder<String>(
+                                  valueListenable: latestKnownVersionNotifier,
+                                  builder: (context, latestVersion, _) {
+                                    return Text('Latest Version: $latestVersion');
+                                  },
+                                ),
                                 if (updateInfo != null) ...[
                                   const SizedBox(height: 8),
                                   Text('What\'s New: ${updateInfo.message}'),

@@ -58,5 +58,3 @@
 
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration?
-- Fix: weird scroll up when checking for updates
-- Fix: when radio tab is disabled and its just music and you are offline you get this error instead of the normal offline one: Error loading songs: Null check operator used on a nuill value
