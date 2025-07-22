@@ -291,6 +291,17 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
            localSong.artist.toLowerCase() == apiSong.artist.toLowerCase();
   }
 
+  // Helper to strip (feat., ft., with ...) from title
+  String _stripFeaturing(String title) {
+    return title.replaceAll(RegExp(r'\s*\((feat\.|ft\.|with)[^)]*\)', caseSensitive: false), '').trim();
+  }
+  // Helper to truncate artist at comma
+  String _truncateArtistAtComma(String artist) {
+    final idx = artist.indexOf(',');
+    if (idx == -1) return artist.trim();
+    return artist.substring(0, idx).trim();
+  }
+
   Future<void> _fetchMetadataForSong(Song song) async {
     if (_fetchingSongs[song.id] == true) return;
 
@@ -302,49 +313,52 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     try {
       // Search for the song using the API
       final searchResults = await _apiService.fetchSongs('${song.title} ${song.artist}');
-      
-      if (searchResults.isNotEmpty) {
-        // Find the best match
-        Song? bestMatch;
-        double bestScore = 0.0;
-        
-        for (final result in searchResults) {
-          final titleScore = _calculateSimilarity(song.title.toLowerCase(), result.title.toLowerCase());
-          final artistScore = _calculateSimilarity(song.artist.toLowerCase(), result.artist.toLowerCase());
-          final totalScore = (titleScore + artistScore) / 2.0;
-          
-          if (totalScore > bestScore && totalScore > 0.7) { // Require at least 70% similarity
-            bestScore = totalScore;
-            bestMatch = result;
+      Song? bestMatch;
+      double bestScore = 0.0;
+      for (final result in searchResults) {
+        final titleScore = _calculateSimilarity(song.title.toLowerCase(), result.title.toLowerCase());
+        final artistScore = _calculateSimilarity(song.artist.toLowerCase(), result.artist.toLowerCase());
+        final totalScore = (titleScore + artistScore) / 2.0;
+        if (totalScore > bestScore && totalScore > 0.7) {
+          bestScore = totalScore;
+          bestMatch = result;
+        }
+      }
+      // If not found, retry with stripped title/artist
+      if (bestMatch == null) {
+        final strippedTitle = _stripFeaturing(song.title);
+        final strippedArtist = _truncateArtistAtComma(song.artist.replaceAll(',', ''));
+        if (strippedTitle != song.title || strippedArtist != song.artist) {
+          final retryResults = await _apiService.fetchSongs('$strippedTitle $strippedArtist');
+          for (final result in retryResults) {
+            final titleScore = _calculateSimilarity(strippedTitle.toLowerCase(), result.title.toLowerCase());
+            final artistScore = _calculateSimilarity(strippedArtist.toLowerCase(), result.artist.toLowerCase());
+            final totalScore = (titleScore + artistScore) / 2.0;
+            if (totalScore > bestScore && totalScore > 0.7) {
+              bestScore = totalScore;
+              bestMatch = result;
+            }
           }
         }
-        
-        if (bestMatch != null) {
-          // Convert the local song to a native song with fetched metadata
-          await _convertToNativeSong(song, bestMatch);
-          
-          if (mounted && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Successfully fetched metadata for "${song.title}"'),
-                backgroundColor: Colors.green,
-                action: SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () => _undoMetadataFetch(song.id),
-                ),
+      }
+      if (bestMatch != null) {
+        await _convertToNativeSong(song, bestMatch);
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully fetched metadata for "${song.title}"'),
+              backgroundColor: Colors.green,
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () => _undoMetadataFetch(song.id),
               ),
-            );
-          }
-        } else {
-          // Show search popup for manual selection
-          if (mounted && context.mounted) {
-            await _showSearchPopup(song, searchResults);
-          }
+            ),
+          );
         }
       } else {
-        // Show search popup with empty results
+        // Show search popup for manual selection
         if (mounted && context.mounted) {
-          await _showSearchPopup(song, []);
+          await _showSearchPopup(song, searchResults);
         }
       }
     } catch (e) {
@@ -886,6 +900,23 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
           if (totalScore > bestScore && totalScore > 0.7) {
             bestScore = totalScore;
             bestMatch = result;
+          }
+        }
+        // If not found, retry with stripped title/artist
+        if (bestMatch == null) {
+          final strippedTitle = _stripFeaturing(song.title);
+          final strippedArtist = _truncateArtistAtComma(song.artist.replaceAll(',', ''));
+          if (strippedTitle != song.title || strippedArtist != song.artist) {
+            final retryResults = await _apiService.fetchSongs('$strippedTitle $strippedArtist');
+            for (final result in retryResults) {
+              final titleScore = _calculateSimilarity(strippedTitle.toLowerCase(), result.title.toLowerCase());
+              final artistScore = _calculateSimilarity(strippedArtist.toLowerCase(), result.artist.toLowerCase());
+              final totalScore = (titleScore + artistScore) / 2.0;
+              if (totalScore > bestScore && totalScore > 0.7) {
+                bestScore = totalScore;
+                bestMatch = result;
+              }
+            }
           }
         }
         if (bestMatch != null) {
