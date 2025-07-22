@@ -49,8 +49,6 @@
 - Add: explicit thing in more places, as well as an explicit filter 
 - Fix?: have all info on the song info page load asynchronously 
 - Fix weird bobbing from animation on the lyrics (it happens because it tries to center the lyrics but it cant because there isn’t enough space at the top)
-- Fix: when a song goes to the next have it scroll the lyrics to the top 
-- Fix playbar sometimes not in sync with full screen player (may be a problem with local files or it not catching up due to waiting on something to finish or lag or something)
 
 ## Connectivity & Caching
 - Fix: When you leave a car and the bluetooth disconnects then get back in the car and reconnect bluetooth it will end the audio session: requiring you to reopen the app from the background to re-start the audio session - MAYBE FIXED

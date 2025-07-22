@@ -209,6 +209,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       // If lyrics view was active, load for new song
       if (_showLyrics && newSong != null) { 
         _loadAndProcessLyrics(newSong);
+        // Scroll lyrics to the top when song changes
+        if (_lyricsScrollController.isAttached) {
+          _lyricsScrollController.jumpTo(index: 0);
+        }
       }
 
       _previousSongId = newSongId;

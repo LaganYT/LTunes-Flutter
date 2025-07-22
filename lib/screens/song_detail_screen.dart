@@ -701,7 +701,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   Expanded(
                     child: Column(
                       children: [
-                        if (currentSongProvider.isDownloadingSong && currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id)) ...[
+                        if (currentSongProvider.isDownloadingSong &&
+                            currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id) &&
+                            (currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) < 1.0) ...[
                           SizedBox(
                             height: 56, // Fixed height for consistency
                             child: Column(
@@ -719,7 +721,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                               ],
                             ),
                           ),
-                        ] else if (songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ...[
+                        ] else if ((songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ||
+                                   (currentSongProvider.downloadProgress[songForDownloadStatus.id] == 1.0)) ...[
                           SizedBox(
                             width: double.infinity,
                             height: 56, // Fixed height for consistency
