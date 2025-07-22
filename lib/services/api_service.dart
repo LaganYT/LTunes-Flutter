@@ -72,14 +72,24 @@ class ApiService {
     
     _activeRequests++;
     
+    int retries = 0;
+    const int maxRetries = 3;
+    const Duration retryDelay = Duration(milliseconds: 500);
+    
     try {
-      final response = await _httpClient.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        return response;
-      } else if (response.statusCode == 404) {
-        throw Exception('Resource not found (404) for URL: $url');
-      } else {
-        throw Exception('Failed to load data from $url, Status Code: ${response.statusCode}');
+      while (true) {
+        final response = await _httpClient.get(Uri.parse(url));
+        if (response.statusCode == 200) {
+          return response;
+        } else if (response.statusCode == 404) {
+          throw Exception('Resource not found (404) for URL: $url');
+        } else if (response.statusCode == 500 && retries < maxRetries) {
+          retries++;
+          await Future.delayed(retryDelay * retries); // Exponential backoff
+          continue;
+        } else {
+          throw Exception('Failed to load data from $url, Status Code: ${response.statusCode}');
+        }
       }
     } catch (e) {
       throw Exception('Error connecting to $url: $e');
