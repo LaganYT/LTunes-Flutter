@@ -497,7 +497,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     }
 
     // Use preloaded data if available
-    if (_preloadedArtistInfo != null) {
+    if (_preloadedArtistInfo != null && _preloadedArtistTracks != null && _preloadedArtistAlbums != null) {
       final actualArtistId = _preloadedArtistInfo!['ART_ID']?.toString() ?? widget.song.artistId;
       Navigator.push(
         context,
@@ -505,6 +505,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           builder: (context) => ArtistScreen(
             artistId: actualArtistId,
             artistName: widget.song.artist,
+            preloadedArtistInfo: _preloadedArtistInfo,
+            preloadedArtistTracks: _preloadedArtistTracks,
+            preloadedArtistAlbums: _preloadedArtistAlbums,
           ),
         ),
       );

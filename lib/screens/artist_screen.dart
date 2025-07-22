@@ -11,8 +11,18 @@ import '../widgets/playbar.dart';
 class ArtistScreen extends StatefulWidget {
   final String artistId;
   final String? artistName; // Optional artist name for display while loading
+  final Map<String, dynamic>? preloadedArtistInfo;
+  final List<Song>? preloadedArtistTracks;
+  final List<Album>? preloadedArtistAlbums;
   
-  const ArtistScreen({super.key, required this.artistId, this.artistName});
+  const ArtistScreen({
+    super.key,
+    required this.artistId,
+    this.artistName,
+    this.preloadedArtistInfo,
+    this.preloadedArtistTracks,
+    this.preloadedArtistAlbums,
+  });
 
   @override
   State<ArtistScreen> createState() => _ArtistScreenState();
@@ -32,7 +42,18 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadArtistData();
+    if (widget.preloadedArtistInfo != null && widget.preloadedArtistTracks != null && widget.preloadedArtistAlbums != null) {
+      setState(() {
+        _artistInfo = widget.preloadedArtistInfo;
+        _tracks = widget.preloadedArtistTracks;
+        _albums = widget.preloadedArtistAlbums;
+        _loading = false;
+      });
+      // Optionally, trigger a background refresh:
+      Future.microtask(_loadArtistData);
+    } else {
+      _loadArtistData();
+    }
   }
 
   @override
