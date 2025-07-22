@@ -1,5 +1,7 @@
 # Excel
 
+# **This is a modified version of the package to make the importing of playlists work**
+
 <a href='https://flutter.io'>  
   <img src='https://img.shields.io/badge/Platform-Flutter-yellow.svg'  
     alt='Platform' />  
