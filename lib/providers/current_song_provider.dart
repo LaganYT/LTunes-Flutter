@@ -234,7 +234,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   CurrentSongProvider(this._audioHandler) {
-    _initializeDownloadManager(); // Initialize DownloadManager
+    _initializeDownloadManager().then((_) async {
+      await _primeDownloadProgressFromStorage();
+    }); // Initialize DownloadManager and prime download progress
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
     _loadPlaybackSpeedFromStorage(); // Load saved playback speed
@@ -242,6 +244,38 @@ class CurrentSongProvider with ChangeNotifier {
     // Set up download notification action callback and AudioHandler
     _downloadNotificationService.setNotificationActionCallback(handleDownloadNotificationAction);
     _downloadNotificationService.setAudioHandler(_audioHandler);
+  }
+
+  /// Primes the downloadProgress map from persisted storage so UI reflects true download state after app restart.
+  Future<void> _primeDownloadProgressFromStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final Set<String> keys = prefs.getKeys();
+    final appDocDir = await getApplicationDocumentsDirectory();
+    final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
+    for (String key in keys) {
+      if (key.startsWith('song_')) {
+        final String? songJson = prefs.getString(key);
+        if (songJson != null) {
+          try {
+            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            Song song = Song.fromJson(songMap);
+            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+              if (await File(fullPath).exists()) {
+                _downloadProgress[song.id] = 1.0;
+              } else {
+                _downloadProgress.remove(song.id);
+              }
+            } else {
+              _downloadProgress.remove(song.id);
+            }
+          } catch (e) {
+            debugPrint('Error decoding song from SharedPreferences for key $key during _primeDownloadProgressFromStorage: $e');
+          }
+        }
+      }
+    }
+    notifyListeners();
   }
 
   Future<String?> _downloadAlbumArt(String url, Song song) async {

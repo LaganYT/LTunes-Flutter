@@ -45,6 +45,18 @@ class _AlbumScreenState extends State<AlbumScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Re-prime provider every time dependencies change (e.g., after hot reload or provider reset)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _primeProviderWithDownloadedTracksStatus();
+        _updateAllTracksDownloadedStatus();
+      }
+    });
+  }
+
   void _onCurrentSongProviderChanged() {
     _updateAllTracksDownloadedStatus();
   }
