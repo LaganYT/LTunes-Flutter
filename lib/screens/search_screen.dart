@@ -124,9 +124,6 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
         Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Queued "${song.title}" for download.')),
-        );
       }
     }
 

@@ -457,10 +457,8 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       _likedSongIds.add(song.id);
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Queued "${song.title}" for download.')),
-        );
+        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+        provider.queueSongForDownload(song);
       }
     }
 

@@ -155,13 +155,14 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+  static bool isAppInBackground = false; // Set from main.dart lifecycle observer
+
   void _updateDownloadNotification() async {
-    // Check if notifications are enabled before showing
+    if (!isAppInBackground) return; // Only show notification if app is in background
     final notificationsEnabled = await _downloadNotificationService.areNotificationsEnabled();
     if (!notificationsEnabled) {
       return;
     }
-    
     _downloadNotificationService.updateDownloadProgress(
       activeDownloads: _activeDownloads,
       queuedSongs: _downloadQueue,
@@ -170,12 +171,11 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void _forceUpdateDownloadNotification() async {
-    // Check if notifications are enabled before showing
+    if (!isAppInBackground) return; // Only show notification if app is in background
     final notificationsEnabled = await _downloadNotificationService.areNotificationsEnabled();
     if (!notificationsEnabled) {
       return;
     }
-    
     _downloadNotificationService.forceUpdateNotification(
       activeDownloads: _activeDownloads,
       queuedSongs: _downloadQueue,
@@ -1063,10 +1063,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     // Skip if song is imported
     if (songToProcess.isImported) {
-      debugPrint('Song "${songToProcess.title}" is imported. Skipping download queue.');
-      // Optionally, ensure its download progress is marked as 1.0 if it's considered "complete" by being imported.
-      // This depends on how `isImported` interacts with `isDownloaded`.
-      // If imported implies downloaded and available, then:
+      debugPrint('Song "[0;31m${songToProcess.title}[0m" is imported. Skipping download queue.');
       if (_downloadProgress[songToProcess.id] != 1.0) {
         _downloadProgress[songToProcess.id] = 1.0; // Mark as complete
         if (_activeDownloads.containsKey(songToProcess.id)) {
@@ -1116,8 +1113,7 @@ class CurrentSongProvider with ChangeNotifier {
     // Check 1 (modified): Already downloaded (based on current songToProcess state) and file exists?
     if (songToProcess.isDownloaded && songToProcess.localFilePath != null && songToProcess.localFilePath!.isNotEmpty) {
       final appDocDir = await getApplicationDocumentsDirectory();
-      // Ensure _downloadManager is initialized to get subDir, or hardcode if always the same
-      await _initializeDownloadManager(); // Ensures _downloadManager and its subDir are available
+      await _initializeDownloadManager();
       final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
       final filePath = p.join(appDocDir.path, downloadsSubDir, songToProcess.localFilePath!);
       if (await File(filePath).exists()) {
@@ -1154,7 +1150,7 @@ class CurrentSongProvider with ChangeNotifier {
     _downloadQueue.add(songToProcess);
     debugPrint('Song "${songToProcess.title}" added to provider download queue. Queue size: ${_downloadQueue.length}');
     notifyListeners(); // Notify that queue has changed, UI might show "queued"
-    _updateDownloadNotification(); // Update download notification
+    _updateDownloadNotification(); // Only called if song is actually queued for download
     _triggerNextDownloadInProviderQueue();
   }
 
@@ -1227,7 +1223,7 @@ class CurrentSongProvider with ChangeNotifier {
         if (_activeDownloads.containsKey(song.id)) {
           _downloadProgress[song.id] = progressDetails.progress;
           notifyListeners();
-          _updateDownloadNotification(); // Update download notification
+          // _updateDownloadNotification(); // Removed: no notification update on progress
         }
       },
     );

@@ -217,6 +217,19 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
           break;
       }
     }
+
+    // Set global background/foreground state for download notifications
+    switch (state) {
+      case AppLifecycleState.resumed:
+        CurrentSongProvider.isAppInBackground = false;
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        CurrentSongProvider.isAppInBackground = true;
+        break;
+    }
   }
 
   Future<void> _initializeVersionAndCheckForUpdates() async {

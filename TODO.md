@@ -39,12 +39,9 @@
 - Have the artist page (opened from the song page) pre-loaded and pre-caches
 
 ## Download & Notification Handling
-- Fix the download album/liked songs buttons (show the download button when all songs there are already downloaded)
+- Fix the download album/liked songs buttons (show the all songs are downloaded button when all songs they are already downloaded)
 - Fix: when calculating if a song can be downloaded have it check if it’s a local song, if it is then exclude it from the is downloaded part of the is playlist downloaded function 
-- Fix: allow downloads to work in background, also only show download notifications when app is in background 
 - Replace: the all downloaded button with remove downloads (which makes the songs from offline to online - deleting the song files) from playlist button
-- Fix: when liking a song dont show the download notification unless it is actually downloading the songs (always exclude local songs)
-- Fix: download notification updating on progress change instead of song change
 
 ## UI/UX Improvements
 - Add: when clicking manual for the fetch metadata thing allow pressing custom to type in + import an image for your metadata

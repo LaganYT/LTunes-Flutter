@@ -746,9 +746,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
         Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Queued "${song.title}" for download.')),
-        );
       }
     }
     await prefs.setStringList('liked_songs', list);
