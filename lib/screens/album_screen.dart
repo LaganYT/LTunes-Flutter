@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/album.dart';
+import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import '../services/album_manager_service.dart';
 import '../widgets/full_screen_player.dart'; // For navigation to player
@@ -9,6 +10,7 @@ import '../screens/song_detail_screen.dart'; // For navigation to song details
 import '../widgets/playbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../services/playlist_manager_service.dart';
 
 class AlbumScreen extends StatefulWidget {
   final Album album;
@@ -25,12 +27,22 @@ class _AlbumScreenState extends State<AlbumScreen> {
   late bool _areAllTracksDownloaded;
   CurrentSongProvider? _currentSongProvider;
 
+  // --- For filtering saved songs ---
+  bool _showOnlySavedSongs = false;
+  bool _overrideShowAll = false; // If user taps 'Show All Songs'
+  Set<String> _likedSongIds = {};
+  Set<String> _playlistSongIds = {};
+  bool _loadingSavedSongs = false;
+
   @override
   void initState() {
     super.initState();
     _isSaved = _albumManager.isAlbumSaved(widget.album.id);
     _albumManager.addListener(_onAlbumManagerStateChanged);
     _areAllTracksDownloaded = false; // Initial value
+
+    _loadShowOnlySavedSongsSetting(); // Load the filter setting
+    _loadSavedSongIds(); // Load liked and playlist song IDs
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -420,6 +432,60 @@ class _AlbumScreenState extends State<AlbumScreen> {
     );
   }
 
+  Future<void> _loadShowOnlySavedSongsSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final showOnlySaved = prefs.getBool('showOnlySavedSongsInAlbums') ?? false;
+    setState(() {
+      _showOnlySavedSongs = showOnlySaved;
+    });
+  }
+
+  Future<void> _loadSavedSongIds() async {
+    setState(() { _loadingSavedSongs = true; });
+    // Load liked song IDs
+    final prefs = await SharedPreferences.getInstance();
+    final rawLiked = prefs.getStringList('liked_songs') ?? [];
+    final likedIds = rawLiked.map((s) {
+      try {
+        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+      } catch (_) {
+        return null;
+      }
+    }).whereType<String>().toSet();
+    // Load playlist song IDs
+    final playlistManager = PlaylistManagerService();
+    await playlistManager.ensurePlaylistsLoaded();
+    final playlistSongIds = <String>{};
+    for (final playlist in playlistManager.playlists) {
+      for (final song in playlist.songs) {
+        playlistSongIds.add(song.id);
+      }
+    }
+    setState(() {
+      _likedSongIds = likedIds;
+      _playlistSongIds = playlistSongIds;
+      _loadingSavedSongs = false;
+    });
+  }
+
+  bool _isSongSaved(Song song) {
+    return _likedSongIds.contains(song.id) || _playlistSongIds.contains(song.id);
+  }
+
+  List<Song> get _filteredTracks {
+    if ((_showOnlySavedSongs && !_overrideShowAll) && widget.album.isSaved) {
+      // Only show songs that are liked or in a playlist
+      return widget.album.tracks.where((t) => _isSongSaved(t)).toList();
+    }
+    return widget.album.tracks;
+  }
+
+  void _toggleShowAllSongs() {
+    setState(() {
+      _overrideShowAll = !_overrideShowAll;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -685,13 +751,30 @@ class _AlbumScreenState extends State<AlbumScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 24.0, bottom: 8.0),
-                child: Text('Tracks', style: textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Tracks', style: textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+                    if (_showOnlySavedSongs && widget.album.isSaved)
+                      TextButton(
+                        onPressed: _toggleShowAllSongs,
+                        child: Text(_overrideShowAll ? 'Show Only Saved Songs' : 'Show All Songs'),
+                      ),
+                  ],
+                ),
               ),
             ),
+            if (_loadingSavedSongs)
+              const SliverToBoxAdapter(
+                child: Center(child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: CircularProgressIndicator(),
+                )),
+              ),
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final track = widget.album.tracks[index];
+                  final track = _filteredTracks[index];
                   return Dismissible(
                     key: Key(track.id),
                     direction: DismissDirection.horizontal,
@@ -784,7 +867,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                     ),
                   );
                 },
-                childCount: widget.album.tracks.length,
+                childCount: _filteredTracks.length,
               ),
             ),
           ] else ...[

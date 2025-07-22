@@ -39,6 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> autoCheckForUpdatesNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<String> currentAppVersionNotifier = ValueNotifier<String>('Loading...');
   final ValueNotifier<String> latestKnownVersionNotifier = ValueNotifier<String>('N/A');
+  final ValueNotifier<bool?> showOnlySavedSongsInAlbumsNotifier = ValueNotifier<bool?>(null); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -128,6 +129,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       customSpeedPresetsNotifier.value = customSpeedPresets;
     }
     
+    // Load Only Show Saved Songs in Albums setting
+    final showOnlySavedSongs = prefs.getBool('showOnlySavedSongsInAlbums') ?? false;
+    showOnlySavedSongsInAlbumsNotifier.value = showOnlySavedSongs;
 
   }
 
@@ -151,6 +155,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('autoCheckForUpdates', value);
   }
 
+  Future<void> _saveShowOnlySavedSongsInAlbumsSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('showOnlySavedSongsInAlbums', value);
+  }
 
 
   Future<void> _saveCustomSpeedPresets(List<double> presets) async {
@@ -340,6 +348,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Reset Custom Speed Presets
     customSpeedPresetsNotifier.value = [];
     await _saveCustomSpeedPresets([]);
+
+    // Reset Show Only Saved Songs in Albums
+    showOnlySavedSongsInAlbumsNotifier.value = false;
+    await _saveShowOnlySavedSongsInAlbumsSetting(false);
 
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -825,6 +837,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (bool value) async {
                           autoCheckForUpdatesNotifier.value = value;
                           await _saveAutoCheckForUpdatesSetting(value);
+                        },
+                      ),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: showOnlySavedSongsInAlbumsNotifier,
+                  builder: (context, showOnlySaved, _) {
+                    if (showOnlySaved == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.filter_alt),
+                        title: Text('Show Only Saved Songs in Albums'),
+                        subtitle: Text('Only show your downloaded/saved songs in saved albums'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.filter_alt),
+                      title: const Text('Show Only Saved Songs in Albums'),
+                      subtitle: const Text('Only show your downloaded/saved songs in saved albums'),
+                      trailing: Switch(
+                        value: showOnlySaved,
+                        onChanged: (bool value) async {
+                          showOnlySavedSongsInAlbumsNotifier.value = value;
+                          await _saveShowOnlySavedSongsInAlbumsSetting(value);
                         },
                       ),
                     );

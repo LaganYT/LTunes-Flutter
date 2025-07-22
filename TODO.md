@@ -12,15 +12,7 @@
 - Add new sorting methods to the songs list page
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
-- Add: a setting to only show your saved songs on your saved albums with an option to show full album
 - Add: a downloaded indicator for specific songs (playlists, albums, artists, etc)
-- Album Art Management
-  - Let users change or add album art for their local music files.
-- File Management Tools
-  - Enable renaming, moving, or deleting music files from within the app.
-  - Batch edit metadata (title, artist, album, etc.).
-- Export/Import Settings & Playlists
-  - Allow users to export/import their playlists, tags, and app settings as files.
 
 ## Audio & Playback Features
 - Try adding podcast support
@@ -29,8 +21,6 @@
   - Add a built-in equalizer or simple audio effects (bass boost, reverb, etc.).
 - Lyrics Support
   - Allow users to add/edit lyrics for their local songs and display them during playback.
-- Bookmarking
-  - Let users bookmark positions in long tracks (e.g., audiobooks, podcasts).
 
 ## Artist & Album Features
 - Add: allow following an artist to save them to your library, this should replace the old artists page in the library, when clicking an artist from your library’s saved artists have it load the artist page with an option to show “saved songs by -artist name-“
