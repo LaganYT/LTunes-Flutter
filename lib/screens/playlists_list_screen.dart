@@ -13,6 +13,7 @@ import '../widgets/playbar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import '../services/api_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
 
 class PlaylistsScreen extends StatefulWidget {
   const PlaylistsScreen({super.key});
@@ -409,6 +410,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   }
 
   Future<void> _importPlaylistFromXLSX(_ImportJob job) async {
+    await WakelockPlus.enable(); // Keep device awake during import
     job.cancel = false;
     job.isImporting = true;
     job.totalRows = 0;
@@ -430,6 +432,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         );
       }
       ImportJobManager().update();
+      await WakelockPlus.disable(); // Release wakelock
       return;
     }
     Uint8List? fileBytes = result.files.first.bytes;
@@ -447,6 +450,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         );
       }
       ImportJobManager().update();
+      await WakelockPlus.disable(); // Release wakelock
       return;
     }
 
@@ -471,8 +475,18 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
 
       final apiService = ApiService();
       final List<Song> matchedSongs = [];
-      int totalRows = 0;
+      int processedRows = 0;
       int matchedCount = 0;
+      // Calculate the total number of non-empty data rows (excluding header)
+      int totalEntries = 0;
+      for (var i = 1; i < sheet.maxRows; i++) {
+        final row = sheet.row(i);
+        final title = row[nameIdx]?.value.toString() ?? '';
+        final artist = row[artistIdx]?.value.toString() ?? '';
+        if (title.isNotEmpty && artist.isNotEmpty) totalEntries++;
+      }
+      job.totalRows = totalEntries;
+      ImportJobManager().update();
 
       // Show progress dialog unless importing in background
       await showDialog(
@@ -486,7 +500,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(height: 16),
-                Text('Matched ${job.matchedCount} of ${job.totalRows} songs'),
+                Text('Processed ${job.matchedCount + (processedRows - job.matchedCount)} / $totalEntries entries'),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -526,21 +540,73 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           job.isImporting = false;
           ImportJobManager().removeJob(job);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Playlist import cancelled.')),
+            // Prompt user to keep or discard matched songs
+            final action = await showDialog<String>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                title: const Text('Import Cancelled'),
+                content: const Text('Do you want to keep the songs that were already matched as a playlist, or discard them?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, 'discard'),
+                    child: const Text('Delete Playlist'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, 'keep'),
+                    child: const Text('Keep Playlist'),
+                  ),
+                ],
+              ),
             );
+            if (action == 'keep' && matchedSongs.isNotEmpty) {
+              final nameCtrl = TextEditingController();
+              final playlistName = await showDialog<String>(
+                context: context,
+                useRootNavigator: true,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Name Your Playlist'),
+                  content: TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(hintText: 'Playlist Name'),
+                    autofocus: true,
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                    TextButton(onPressed: () => Navigator.pop(dialogContext, nameCtrl.text.trim()), child: const Text('OK')),
+                  ],
+                ),
+              );
+              if (playlistName != null && playlistName.isNotEmpty) {
+                final playlist = Playlist(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  name: playlistName,
+                  songs: List<Song>.from(matchedSongs),
+                );
+                await _manager.addPlaylist(playlist);
+                await _manager.savePlaylists();
+                _reload();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Playlist "$playlistName" created with ${matchedSongs.length} songs.')),
+                );
+              }
+            } else if (action == 'discard') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Playlist import cancelled and discarded.')),
+              );
+            }
           }
           ImportJobManager().update();
+          await WakelockPlus.disable(); // Release wakelock
           return;
         }
-        job.totalRows = sheet.maxRows - 1;
-        job.matchedCount = matchedSongs.length;
-        ImportJobManager().update();
-        totalRows++;
         final row = sheet.row(i);
         final title = row[nameIdx]?.value.toString() ?? '';
         final artist = row[artistIdx]?.value.toString() ?? '';
         if (title.isEmpty || artist.isEmpty) continue;
+        processedRows++;
+        job.matchedCount = matchedSongs.length;
+        ImportJobManager().update();
         print('Searching for "$title" by "$artist"...');
         List<Song> searchResults = [];
         try {
@@ -550,6 +616,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           final errorStr = e.toString();
           if (errorStr.contains('Status Code: 500')) {
             print('Skipping "$title" by "$artist" due to 500 error.');
+            // Decrement totalRows since this song is skipped
+            totalEntries--; // Decrement totalEntries when skipping
+            job.totalRows = totalEntries;
+            ImportJobManager().update();
             continue;
           } else {
             // For other errors, rethrow
@@ -564,24 +634,59 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             break;
           }
         }
+        // If not found, retry with stripped title/artist
+        if (bestMatch == null) {
+          final strippedTitle = _stripFeaturing(title);
+          final strippedArtist = _truncateArtistAtComma(artist);
+          if (strippedTitle != title || strippedArtist != artist) {
+            print('Retrying with stripped title/artist: "$strippedTitle" by "$strippedArtist"');
+            try {
+              searchResults = await apiService.fetchSongs('$strippedTitle $strippedArtist');
+            } catch (e) {
+              final errorStr = e.toString();
+              if (errorStr.contains('Status Code: 500')) {
+                print('Skipping "$strippedTitle" by "$strippedArtist" due to 500 error.');
+                // Decrement totalRows since this song is skipped
+                totalEntries--; // Decrement totalEntries when skipping
+                job.totalRows = totalEntries;
+                ImportJobManager().update();
+                continue;
+              } else {
+                rethrow;
+              }
+            }
+            for (final result in searchResults) {
+              if (result.title.toLowerCase() == strippedTitle.toLowerCase() &&
+                  result.artist.toLowerCase() == strippedArtist.toLowerCase()) {
+                bestMatch = result;
+                break;
+              }
+            }
+          }
+        }
         if (bestMatch != null) {
           matchedSongs.add(bestMatch);
           matchedCount++;
         } else {
-          print('No match found for "$title" by "$artist"');
+          print('No match found for "$title" by "$artist" (even after retry)');
           if (job.autoSkipUnmatched) {
             print('Auto-skip enabled, skipping unmatched song.');
+            // Decrement totalRows since this song is skipped and not attempted for user selection
+            totalEntries--; // Decrement totalEntries when skipping
+            job.totalRows = totalEntries;
+            ImportJobManager().update();
             continue;
           }
           // Show popup for user to select a song or skip
-          final userSelected = await _showSongSearchPopup(title, artist);
-          if (userSelected != null) {
-            matchedSongs.add(userSelected);
-            matchedCount++;
+          if (mounted) {
+            final userSelected = await _showSongSearchPopup(title, artist);
+            if (userSelected != null) {
+              matchedSongs.add(userSelected);
+              matchedCount++;
+            }
           }
         }
       }
-      Navigator.of(context).pop(); // Close progress dialog
       job.isImporting = false;
       ImportJobManager().removeJob(job);
       if (matchedSongs.isEmpty) {
@@ -591,26 +696,27 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             SnackBar(content: Text('No songs matched in the imported file.')),
           );
         }
+        await WakelockPlus.disable(); // Release wakelock
         return;
       }
 
       final nameCtrl = TextEditingController();
       final playlistName = await showDialog<String>(
         context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Imported Playlist Name'),
+        useRootNavigator: true,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Name Your Playlist'),
           content: TextField(
             controller: nameCtrl,
             decoration: const InputDecoration(hintText: 'Playlist Name'),
             autofocus: true,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, nameCtrl.text.trim()), child: const Text('OK')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, nameCtrl.text.trim()), child: const Text('OK')),
           ],
         ),
       );
-      print('Playlist name dialog result: $playlistName');
       if (playlistName == null || playlistName.isEmpty) {
         print('No playlist name entered.');
         return;
@@ -628,15 +734,17 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       _reload();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Playlist import completed: $matchedCount of $totalRows songs matched.')),
+          SnackBar(content: Text('Playlist import completed: $matchedCount of $totalEntries songs matched.')),
         );
       }
       ImportJobManager().update();
+      await WakelockPlus.disable(); // Release wakelock
     } catch (e, stack) {
       print('Failed to import playlist: $e\n$stack');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to import playlist: $e')),
       );
+      await WakelockPlus.disable(); // Release wakelock on error
     }
   }
 
@@ -764,7 +872,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
-              Text('Matched ${job.matchedCount} of ${job.totalRows} songs'),
+              Text('Processed ${job.matchedCount} / ${job.totalRows} entries'),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -799,5 +907,16 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         ),
       ),
     );
+  }
+
+  String _stripFeaturing(String title) {
+    // Remove (feat. ...), (ft. ...), (with ...), case-insensitive
+    return title.replaceAll(RegExp(r'\s*\((feat\.|ft\.|with)[^)]*\)', caseSensitive: false), '').trim();
+  }
+
+  String _truncateArtistAtComma(String artist) {
+    final idx = artist.indexOf(',');
+    if (idx == -1) return artist.trim();
+    return artist.substring(0, idx).trim();
   }
 }
