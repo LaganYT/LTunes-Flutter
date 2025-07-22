@@ -34,7 +34,6 @@
 
 ## Artist & Album Features
 - Add: allow following an artist to save them to your library, this should replace the old artists page in the library, when clicking an artist from your library’s saved artists have it load the artist page with an option to show “saved songs by -artist name-“
-- Fix album arts not showing up on library page when offline (local files issue most likely)
 
 ## Download & Notification Handling
 - Fix: when calculating if a song can be downloaded have it check if it’s a local song, if it is then exclude it from the is downloaded part of the is playlist downloaded function 
@@ -44,8 +43,10 @@
 - Add: explicit thing in more places, as well as an explicit filter 
 
 ## Connectivity & Caching
+
+
 - Fix: When you leave a car and the bluetooth disconnects then get back in the car and reconnect bluetooth it will end the audio session: requiring you to reopen the app from the background to re-start the audio session - MAYBE FIXED
-- Have it cache the current recently played stations icons so they show up when offline, it should delete the icon if the station is no longer on the recently played list
+
 
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration?
