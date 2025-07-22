@@ -209,10 +209,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       // If lyrics view was active, load for new song
       if (_showLyrics && newSong != null) { 
         _loadAndProcessLyrics(newSong);
-        // Scroll lyrics to the top when song changes
-        if (_lyricsScrollController.isAttached) {
-          _lyricsScrollController.jumpTo(index: 0);
-        }
+      }
+
+      // Always scroll lyrics to the top on song change
+      if (_lyricsScrollController.isAttached) {
+        _lyricsScrollController.jumpTo(index: 0);
       }
 
       _previousSongId = newSongId;
@@ -688,28 +689,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _currentLyricIndex = newIndex;
       });
       if (newIndex != -1 && _lyricsScrollController.isAttached) {
-        // Only scroll if the new index is outside the current visible range to prevent bouncing
-        final positions = _lyricsPositionsListener.itemPositions.value;
-        const int bufferLines = 2;
-        if (positions.isEmpty) {
+        // Do not auto-scroll for the first 3 lines
+        if (newIndex >= 3) {
           _lyricsScrollController.scrollTo(
             index: newIndex,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            alignment: 0.3,
+            alignment: 0.5,
           );
-        } else {
-          final indices = positions.map((p) => p.index);
-          final minVisible = indices.reduce(min);
-          final maxVisible = indices.reduce(max);
-          if (newIndex < minVisible + bufferLines || newIndex > maxVisible - bufferLines) {
-            _lyricsScrollController.scrollTo(
-              index: newIndex,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              alignment: 0.3,
-            );
-          }
         }
       }
     }
@@ -1208,11 +1195,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       );
     }
 
+    const int bottomPaddingLines = 3;
     return ScrollablePositionedList.builder(
-      itemCount: _parsedLyrics.length,
+      itemCount: _parsedLyrics.length + bottomPaddingLines,
       itemScrollController: _lyricsScrollController,
       itemPositionsListener: _lyricsPositionsListener,
       itemBuilder: (context, index) {
+        if (index >= _parsedLyrics.length) {
+          // Add empty lines at the bottom for centering the last lyric
+          return const SizedBox(height: 44.0); // Match lyric line height
+        }
         final line = _parsedLyrics[index];
         final bool isCurrent = _areLyricsSynced && index == _currentLyricIndex; // Highlight only if synced
         return GestureDetector(
