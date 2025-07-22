@@ -24,6 +24,32 @@ import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
 import 'liked_songs_screen.dart'; // new import
 import 'dart:async';
+import 'package:flutter/foundation.dart'; // For consolidateHttpClientResponseBytes
+
+// Place this at the top level, outside any class
+Future<String> cacheStationIcon(String imageUrl, String stationId) async {
+  if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+    final fileName = 'stationicon_$stationId.jpg';
+    final filePath = p.join(directory.path, fileName);
+    final file = File(filePath);
+    if (await file.exists()) {
+      return filePath;
+    }
+    // Download the image
+    final response = await HttpClient().getUrl(Uri.parse(imageUrl));
+    final imageResponse = await response.close();
+    if (imageResponse.statusCode == 200) {
+      final bytes = await consolidateHttpClientResponseBytes(imageResponse);
+      await file.writeAsBytes(bytes);
+      return filePath;
+    }
+  } catch (e) {
+    debugPrint('Error caching station icon: $e');
+  }
+  return '';
+}
 
 // A simple model for a radio station.
 class RadioStation {
@@ -115,6 +141,9 @@ class RadioRecentsManager extends ChangeNotifier {
     // Add to the front
     currentStations.insert(0, station);
 
+    // Cache the station icon if needed
+    await cacheStationIcon(station.imageUrl, station.id);
+
     // Limit to a reasonable number, e.g., 20
     if (currentStations.length > 20) {
       currentStations = currentStations.sublist(0, 20);
@@ -123,7 +152,7 @@ class RadioRecentsManager extends ChangeNotifier {
     // Save back to SharedPreferences
     final List<String> updatedStationsJson = currentStations.map((s) => jsonEncode(s.toJson())).toList();
     await prefs.setStringList('recent_radio_stations', updatedStationsJson);
-    
+    await cleanupCachedStationIcons(currentStations);
     // Notify listeners that the list of recent stations has changed.
     notifyListeners();
   }
@@ -147,6 +176,29 @@ class RadioRecentsManager extends ChangeNotifier {
         _addStationToRecents(station);
       }
     }
+  }
+}
+
+// Helper to clean up unused cached station icons
+Future<void> cleanupCachedStationIcons(List<RadioStation> currentStations) async {
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+    final files = directory.listSync();
+    final validFilenames = currentStations.map((s) => 'stationicon_${s.id}.jpg').toSet();
+    for (final file in files) {
+      if (file is File && file.path.contains('stationicon_') && file.path.endsWith('.jpg')) {
+        final filename = p.basename(file.path);
+        if (!validFilenames.contains(filename)) {
+          try {
+            await file.delete();
+          } catch (e) {
+            debugPrint('Error deleting old station icon: $e');
+          }
+        }
+      }
+    }
+  } catch (e) {
+    debugPrint('Error cleaning up station icons: $e');
   }
 }
 
@@ -1870,20 +1922,43 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
                   Widget stationArtWidget;
                   if (station.imageUrl.isNotEmpty) {
-                    stationArtWidget = Image.network(
-                      station.imageUrl,
-                      width: itemArtSize,
-                      height: itemArtSize,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: itemArtSize,
-                        height: itemArtSize,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[800],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                      ),
+                    stationArtWidget = FutureBuilder<String>(
+                      future: cacheStationIcon(station.imageUrl, station.id),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                          return Image.file(
+                            File(snapshot.data!),
+                            width: itemArtSize,
+                            height: itemArtSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: itemArtSize,
+                              height: itemArtSize,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                            ),
+                          );
+                        } else {
+                          return Image.network(
+                            station.imageUrl,
+                            width: itemArtSize,
+                            height: itemArtSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: itemArtSize,
+                              height: itemArtSize,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                            ),
+                          );
+                        }
+                      },
                     );
                   } else {
                     stationArtWidget = Container(
