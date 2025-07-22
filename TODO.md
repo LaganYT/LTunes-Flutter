@@ -53,7 +53,7 @@
 - Fix playbar sometimes not in sync with full screen player (may be a problem with local files or it not catching up due to waiting on something to finish or lag or something)
 
 ## Connectivity & Caching
-- Fix: When you leave a car and the bluetooth disconnects then get back in the car and reconnect bluetooth it will end the audio session: requiring you to reopen the app from the background to re-start the audio session
+- Fix: When you leave a car and the bluetooth disconnects then get back in the car and reconnect bluetooth it will end the audio session: requiring you to reopen the app from the background to re-start the audio session - MAYBE FIXED
 - Have it cache the current recently played stations icons so they show up when offline, it should delete the icon if the station is no longer on the recently played list
 
 ## Bug Fixes & Miscellaneous

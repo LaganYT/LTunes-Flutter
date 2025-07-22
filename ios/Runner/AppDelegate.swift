@@ -5,6 +5,9 @@ import AVFoundation
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+  private let bluetoothChannelName = "bluetooth_events"
+  private var bluetoothChannel: FlutterMethodChannel?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -42,7 +45,12 @@ import AVFoundation
       print("Error configuring iOS audio session on app launch: \(error)")
     }
     
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    guard let controller = window?.rootViewController as? FlutterViewController else {
+      return result
+    }
+    bluetoothChannel = FlutterMethodChannel(name: bluetoothChannelName, binaryMessenger: controller.binaryMessenger)
+    return result
   }
   
   // MARK: - UNUserNotificationCenterDelegate
@@ -67,8 +75,12 @@ import AVFoundation
     switch reason {
     case .newDeviceAvailable:
       print("New audio device available")
+      bluetoothChannel?.invokeMethod("bluetooth_connected", arguments: nil)
+      // Pause playback when headphones are unplugged
+      // This will be handled by the Flutter audio handler
     case .oldDeviceUnavailable:
       print("Audio device unavailable")
+      bluetoothChannel?.invokeMethod("bluetooth_disconnected", arguments: nil)
       // Pause playback when headphones are unplugged
       // This will be handled by the Flutter audio handler
     default:

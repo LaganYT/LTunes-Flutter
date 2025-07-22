@@ -19,6 +19,7 @@ import 'services/metadata_history_service.dart'; // Import MetadataHistoryServic
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
+import 'package:flutter/services.dart'; // For MethodChannel
 
 // Global instance of the AudioPlayerHandler
 late AudioHandler _audioHandler;
@@ -51,6 +52,18 @@ Future<void> main() async {
       notificationColor: Color(0xFF2196F3),
     ),
   );
+
+  // Add Bluetooth event MethodChannel listener
+  const bluetoothChannel = MethodChannel('bluetooth_events');
+  bluetoothChannel.setMethodCallHandler((call) async {
+    if (call.method == 'bluetooth_connected') {
+      // Re-activate audio session on Bluetooth reconnect
+      await _audioHandler.customAction('forceSessionActivation', {});
+    } else if (call.method == 'bluetooth_disconnected') {
+      // Optionally handle disconnect
+      debugPrint('Bluetooth disconnected');
+    }
+  });
 
   runApp(
     MultiProvider(
