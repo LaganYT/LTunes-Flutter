@@ -10,6 +10,8 @@ import '../services/playlist_manager_service.dart';
 import '../services/metadata_history_service.dart';
 import '../providers/current_song_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:uuid/uuid.dart';
 
 class LocalMetadataScreen extends StatefulWidget {
   const LocalMetadataScreen({super.key});
@@ -553,6 +555,135 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                   },
                   child: const Text('Cancel'),
                 ),
+                TextButton(
+                  onPressed: () async {
+                    // Show custom metadata entry dialog
+                    final customSong = await showDialog<Song>(
+                      context: context,
+                      builder: (context) {
+                        final titleController = TextEditingController(text: localSong.title);
+                        final artistController = TextEditingController(text: localSong.artist);
+                        final albumController = TextEditingController();
+                        final releaseDateController = TextEditingController();
+                        File? pickedImage;
+                        String? pickedImageFileName;
+                        return StatefulBuilder(
+                          builder: (context, setStateCustom) {
+                            return AlertDialog(
+                              title: const Text('Custom Metadata'),
+                              content: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextField(
+                                      controller: titleController,
+                                      decoration: const InputDecoration(labelText: 'Title'),
+                                    ),
+                                    TextField(
+                                      controller: artistController,
+                                      decoration: const InputDecoration(labelText: 'Artist'),
+                                    ),
+                                    TextField(
+                                      controller: albumController,
+                                      decoration: const InputDecoration(labelText: 'Album (optional)'),
+                                    ),
+                                    TextField(
+                                      controller: releaseDateController,
+                                      decoration: const InputDecoration(labelText: 'Release Date (optional)'),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        ElevatedButton.icon(
+                                          icon: const Icon(Icons.image),
+                                          label: const Text('Import Image'),
+                                          onPressed: () async {
+                                            final result = await FilePicker.platform.pickFiles(type: FileType.image);
+                                            if (result != null && result.files.single.path != null) {
+                                              setStateCustom(() {
+                                                pickedImage = File(result.files.single.path!);
+                                                pickedImageFileName = result.files.single.name;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        if (pickedImage != null)
+                                          Flexible(child: Text(pickedImageFileName ?? '', overflow: TextOverflow.ellipsis)),
+                                      ],
+                                    ),
+                                    if (pickedImage != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8.0),
+                                        child: Image.file(pickedImage!, height: 80),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    // Save the image to app documents directory if picked
+                                    String albumArtUrl = '';
+                                    if (pickedImage != null) {
+                                      final appDocDir = await getApplicationDocumentsDirectory();
+                                      final fileName = 'custom_art_${const Uuid().v4()}.${pickedImageFileName?.split('.').last ?? 'jpg'}';
+                                      final destPath = p.join(appDocDir.path, fileName);
+                                      await pickedImage!.copy(destPath);
+                                      albumArtUrl = fileName;
+                                    }
+                                    final song = Song(
+                                      title: titleController.text.trim().isEmpty ? 'Unknown Title' : titleController.text.trim(),
+                                      id: const Uuid().v4(),
+                                      artist: artistController.text.trim().isEmpty ? 'Unknown Artist' : artistController.text.trim(),
+                                      artistId: '',
+                                      albumArtUrl: albumArtUrl,
+                                      album: albumController.text.trim().isEmpty ? null : albumController.text.trim(),
+                                      releaseDate: releaseDateController.text.trim().isEmpty ? null : releaseDateController.text.trim(),
+                                      audioUrl: '',
+                                      isDownloaded: true,
+                                      localFilePath: localSong.localFilePath,
+                                      extras: {},
+                                      duration: null, // No duration
+                                      isImported: false,
+                                      isExplicit: false,
+                                      plainLyrics: null, // No lyrics
+                                      syncedLyrics: null,
+                                      playCount: localSong.playCount,
+                                    );
+                                    Navigator.of(context).pop(song);
+                                  },
+                                  child: const Text('Save'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    );
+                    if (customSong != null) {
+                      Navigator.of(context).pop();
+                      await _convertToNativeSong(localSong, customSong);
+                      if (mounted && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Successfully converted "${localSong.title}" to custom metadata'),
+                            backgroundColor: Colors.green,
+                            action: SnackBarAction(
+                              label: 'Undo',
+                              onPressed: () => _undoMetadataFetch(localSong.id),
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Custom'),
+                ),
               ],
             );
           },
@@ -826,225 +957,228 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _localSongs.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.music_note, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No local songs found',
-                          style: TextStyle(fontSize: 18, color: Colors.grey),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Import songs first to see them here',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+            : ListView(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                ),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.auto_awesome),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Auto-fetch Metadata for New Imports',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Automatically fetch metadata for imported songs with exact title/artist matches',
-                                            style: TextStyle(
-                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ],
+                                const Icon(Icons.auto_awesome),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Auto-fetch Metadata for New Imports',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
-                                    ),
-                                    Switch(
-                                      value: _autoFetchEnabled,
-                                      onChanged: (bool value) async {
-                                        setState(() {
-                                          _autoFetchEnabled = value;
-                                        });
-                                        await _saveAutoFetchSetting();
-                                      },
-                                    ),
-                                  ],
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Automatically fetch metadata for imported songs with exact title/artist matches',
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: _autoFetchEnabled,
+                                  onChanged: (bool value) async {
+                                    setState(() {
+                                      _autoFetchEnabled = value;
+                                    });
+                                    await _saveAutoFetchSetting();
+                                  },
                                 ),
                               ],
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: Row(
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.playlist_add_check),
+                            label: Text(_isBatchFetching ? 'Fetching All...' : 'Fetch All'),
+                            onPressed: _isBatchFetching ? null : _fetchAllMetadata,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.playlist_add_check),
-                                label: Text(_isBatchFetching ? 'Fetching All...' : 'Fetch All'),
-                                onPressed: _isBatchFetching ? null : _fetchAllMetadata,
+                            Text(
+                              'Local Songs',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '• Auto: Automatically find the best match from the API\n• Manual: Search and select the correct song manually\n• Ignore: Exclude this song from metadata lookup',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Local Songs',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '• Auto: Automatically find the best match from the API\n• Manual: Search and select the correct song manually\n• Ignore: Exclude this song from metadata lookup',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_metadataHistory.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: Card(
-                            child: ExpansionTile(
-                              title: const Text('Metadata Fetch History', style: TextStyle(fontWeight: FontWeight.bold)),
-                              initiallyExpanded: false,
-                              children: _metadataHistory.map((entry) {
-                                final original = Song.fromJson(jsonDecode(entry.originalSongData));
-                                return ListTile(
-                                  title: Text('"${original.title}" by ${original.artist}'),
-                                  subtitle: Text('Converted at: ${entry.timestamp.toLocal()}'),
-                                  trailing: TextButton(
-                                    onPressed: () => _undoMetadataFetch(entry.newSongId),
-                                    child: const Text('Undo'),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
-                      // Song list
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _localSongs.length,
-                          itemBuilder: (context, index) {
-                            final song = _localSongs[index];
-                            final isFetching = _fetchingSongs[song.id] ?? false;
-                            final error = _fetchErrors[song.id];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                              child: ListTile(
-                                title: Text(
-                                  song.title,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (song.album != null) ...[
-                                      const SizedBox(height: 2),
-                                      Text(song.album!),
-                                    ],
-                                    if (error != null) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        error,
-                                        style: const TextStyle(color: Colors.red, fontSize: 12),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 4),
-                                    if (!isFetching)
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          ElevatedButton(
-                                            onPressed: () => _fetchMetadataForSong(song),
-                                            child: const Text('Auto'),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          OutlinedButton(
-                                            onPressed: () => _showSearchPopup(song, []),
-                                            child: const Text('Manual'),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          OutlinedButton.icon(
-                                            onPressed: () => _ignoreSong(song),
-                                            icon: const Icon(Icons.block, size: 16),
-                                            label: const Text('Ignore'),
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: Colors.orange,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                                trailing: isFetching
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : null,
+                    ),
+                  ),
+                  if (_metadataHistory.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Card(
+                        child: ExpansionTile(
+                          title: const Text('Metadata Fetch History', style: TextStyle(fontWeight: FontWeight.bold)),
+                          initiallyExpanded: false,
+                          children: _metadataHistory.map((entry) {
+                            final original = Song.fromJson(jsonDecode(entry.originalSongData));
+                            return ListTile(
+                              title: Text('"${original.title}" by ${original.artist}'),
+                              subtitle: Text('Converted at: ${entry.timestamp.toLocal()}'),
+                              trailing: TextButton(
+                                onPressed: () => _undoMetadataFetch(entry.newSongId),
+                                child: const Text('Undo'),
                               ),
                             );
-                          },
+                          }).toList(),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  if (_localSongs.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 32.0),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.music_note, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text(
+                              'No local songs found',
+                              style: TextStyle(fontSize: 18, color: Colors.grey),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Import songs first to see them here',
+                              style: TextStyle(fontSize: 14, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _localSongs.length,
+                        itemBuilder: (context, index) {
+                          final song = _localSongs[index];
+                          final isFetching = _fetchingSongs[song.id] ?? false;
+                          final error = _fetchErrors[song.id];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                            child: ListTile(
+                              title: Text(
+                                song.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  if (song.album != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(song.album!),
+                                  ],
+                                  if (error != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      error,
+                                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  if (!isFetching)
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        ElevatedButton(
+                                          onPressed: () => _fetchMetadataForSong(song),
+                                          child: const Text('Auto'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton(
+                                          onPressed: () => _showSearchPopup(song, []),
+                                          child: const Text('Manual'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton.icon(
+                                          onPressed: () => _ignoreSong(song),
+                                          icon: const Icon(Icons.block, size: 16),
+                                          label: const Text('Ignore'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.orange,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                              trailing: isFetching
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
   }

@@ -44,11 +44,7 @@
 - Replace: the all downloaded button with remove downloads (which makes the songs from offline to online - deleting the song files) from playlist button
 
 ## UI/UX Improvements
-- Add: when clicking manual for the fetch metadata thing allow pressing custom to type in + import an image for your metadata
-- Change: the undo metadata thing to never clear itself
 - Add: explicit thing in more places, as well as an explicit filter 
-- Fix?: have all info on the song info page load asynchronously 
-- Fix weird bobbing from animation on the lyrics (it happens because it tries to center the lyrics but it cant because there isn’t enough space at the top)
 
 ## Connectivity & Caching
 - Fix: When you leave a car and the bluetooth disconnects then get back in the car and reconnect bluetooth it will end the audio session: requiring you to reopen the app from the background to re-start the audio session - MAYBE FIXED

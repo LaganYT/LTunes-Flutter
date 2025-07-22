@@ -171,8 +171,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         // App is being terminated, ensure background playback is configured
         _audioHandler.customAction('ensureBackgroundPlayback', {});
         _stopBackgroundContinuityTimer();
-        // Clear metadata fetch history when app closes
-        MetadataHistoryService().clearHistory();
+        // MetadataHistoryService().clearHistory(); // Removed: never clear metadata history
         break;
       case AppLifecycleState.hidden:
         // App is hidden (iOS specific), ensure background playback

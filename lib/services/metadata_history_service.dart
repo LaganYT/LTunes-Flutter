@@ -66,17 +66,6 @@ class MetadataHistoryService {
       debugPrint('Error removing history entry: $e');
     }
   }
-
-  // Clear all history (called when app closes)
-  Future<void> clearHistory() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_historyKey);
-      debugPrint('Metadata fetch history cleared');
-    } catch (e) {
-      debugPrint('Error clearing history: $e');
-    }
-  }
 }
 
 // Class to represent metadata fetch history
