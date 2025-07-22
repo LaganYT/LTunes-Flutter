@@ -151,6 +151,13 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<CurrentSongProvider>(context, listen: false);
     final hasSongs = _likedSongs.isNotEmpty;
+    // Add logic to check if all liked songs are downloaded
+    final bool areAllLikedSongsDownloaded = hasSongs && _likedSongs.every((song) {
+      final isPersistedAsDownloaded = song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty;
+      if (!isPersistedAsDownloaded) return false;
+      // Optionally, check file existence (could be async, but for UI, trust metadata)
+      return true;
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -249,17 +256,30 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
                   // Download & Remove
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: hasSongs ? _downloadAllLikedSongs : null,
-                          icon: const Icon(Icons.download_rounded),
-                          label: const Text('Download'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      if (hasSongs && areAllLikedSongsDownloaded)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: null,
+                            icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                            label: const Text('All Downloaded', style: TextStyle(color: Colors.green)),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
+                          ),
+                        )
+                      else if (hasSongs)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _downloadAllLikedSongs,
+                            icon: const Icon(Icons.download_rounded),
+                            label: const Text('Download'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ],

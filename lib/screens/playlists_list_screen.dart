@@ -20,6 +20,39 @@ class PlaylistsScreen extends StatefulWidget {
   _PlaylistsScreenState createState() => _PlaylistsScreenState();
 }
 
+class _ImportJob {
+  bool cancel = false;
+  bool isImporting = true;
+  int totalRows = 0;
+  int matchedCount = 0;
+  String? playlistName;
+  bool autoSkipUnmatched = false;
+  // For dialog state
+  VoidCallback? notifyParent;
+}
+
+class ImportJobManager extends ChangeNotifier {
+  static final ImportJobManager _instance = ImportJobManager._internal();
+  factory ImportJobManager() => _instance;
+  ImportJobManager._internal();
+
+  final List<_ImportJob> jobs = [];
+
+  void addJob(_ImportJob job) {
+    jobs.add(job);
+    notifyListeners();
+  }
+
+  void removeJob(_ImportJob job) {
+    jobs.remove(job);
+    notifyListeners();
+  }
+
+  void update() {
+    notifyListeners();
+  }
+}
+
 class _PlaylistsScreenState extends State<PlaylistsScreen> {
   final _manager = PlaylistManagerService();
   List<Playlist> _playlists = [];
@@ -117,102 +150,145 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Playlists'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Import Playlist (XLSX)',
-            onPressed: _showImportExplanationAndStart,
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48.0),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search playlists...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24.0),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-              ),
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-              onChanged: (query) {
-                setState(() {
-                  _playlists = _manager.playlists.where((playlist) => playlist.name.toLowerCase().contains(query.toLowerCase())).toList();
-                });
-              },
-            ),
-          ),
-        ),
-      ),
-      body: _playlists.isEmpty
-          ? const Center(child: Text('No playlists yet.'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(24.0),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 24.0,
-                mainAxisSpacing: 24.0,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: _playlists.length,
-              itemBuilder: (context, index) {
-                final p = _playlists[index];
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
-                  ),
-                  onLongPress: () => _showPlaylistOptions(p),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      AspectRatio(
-                        aspectRatio: 1.0,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            color: Colors.grey[800],
-                            child: _playlistThumbnail(p),
+    return ChangeNotifierProvider<ImportJobManager>.value(
+      value: ImportJobManager(),
+      child: Consumer<ImportJobManager>(
+        builder: (context, importJobManager, _) {
+          List<Widget> playlistCards = [];
+          for (int i = 0; i < importJobManager.jobs.length; i++) {
+            final job = importJobManager.jobs[i];
+            playlistCards.add(
+              GestureDetector(
+                onTap: () => _showImportProgressDialog(job),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 1.0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          color: Colors.orange[700],
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.hourglass_top, size: 48, color: Colors.white),
+                                const SizedBox(height: 8),
+                                const Text('Importing...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                if (job.totalRows > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: Text('${job.matchedCount} / ${job.totalRows}', style: const TextStyle(color: Colors.white)),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        p.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        '${p.songs.length} songs',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                    const SizedBox(height: 6),
+                    Text(job.playlistName ?? 'Importing...', textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Importing...', textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.orange[700], fontSize: 12)),
+                  ],
+                ),
+              ),
+            );
+          }
+          playlistCards.addAll(_playlists.map((p) => GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _createPlaylist,
-        child: const Icon(Icons.add),
-        tooltip: 'Create Playlist',
-      ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: Playbar(),
+            onLongPress: () => _showPlaylistOptions(p),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.0,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      color: Colors.grey[800],
+                      child: _playlistThumbnail(p),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  p.name,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '${p.songs.length} songs',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ],
+            ),
+          )));
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Playlists'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.upload_file),
+                  tooltip: 'Import Playlist (XLSX)',
+                  onPressed: _showImportExplanationAndStart,
+                ),
+              ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48.0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search playlists...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24.0),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surface,
+                      hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                    ),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    onChanged: (query) {
+                      setState(() {
+                        _playlists = _manager.playlists.where((playlist) => playlist.name.toLowerCase().contains(query.toLowerCase())).toList();
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+            body: playlistCards.isEmpty
+                ? const Center(child: Text('No playlists yet.'))
+                : GridView.count(
+                    padding: const EdgeInsets.all(24.0),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 24.0,
+                    mainAxisSpacing: 24.0,
+                    childAspectRatio: 0.75,
+                    children: playlistCards,
+                  ),
+            floatingActionButton: FloatingActionButton(
+              onPressed: _createPlaylist,
+              child: const Icon(Icons.add),
+              tooltip: 'Create Playlist',
+            ),
+            bottomNavigationBar: const Padding(
+              padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
+              child: Playbar(),
+            ),
+          );
+        },
       ),
     );
   }
@@ -332,12 +408,28 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     );
   }
 
-  Future<void> _importPlaylistFromXLSX() async {
+  Future<void> _importPlaylistFromXLSX(_ImportJob job) async {
+    job.cancel = false;
+    job.isImporting = true;
+    job.totalRows = 0;
+    job.matchedCount = 0;
+    job.playlistName = null;
+    void notifyParent() => ImportJobManager().update();
+    job.notifyParent = notifyParent;
+    ImportJobManager().update();
     print('Starting XLSX import...');
     final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx']);
     print('File picker result: $result');
     if (result == null || result.files.isEmpty) {
       print('No file selected or file picker returned empty.');
+      job.isImporting = false;
+      ImportJobManager().removeJob(job);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No file selected or file picker returned empty.')),
+        );
+      }
+      ImportJobManager().update();
       return;
     }
     Uint8List? fileBytes = result.files.first.bytes;
@@ -347,6 +439,14 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     print('File bytes: ${fileBytes?.length ?? 0}');
     if (fileBytes == null) {
       print('File bytes are null.');
+      job.isImporting = false;
+      ImportJobManager().removeJob(job);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File bytes are null.')),
+        );
+      }
+      ImportJobManager().update();
       return;
     }
 
@@ -374,31 +474,88 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       int totalRows = 0;
       int matchedCount = 0;
 
-      // Show progress dialog
-      showDialog(
+      // Show progress dialog unless importing in background
+      await showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('Importing Playlist'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Matching songs, please wait...'),
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Importing Playlist'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text('Matched ${job.matchedCount} of ${job.totalRows} songs'),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: job.autoSkipUnmatched,
+                      onChanged: (val) {
+                        setState(() { job.autoSkipUnmatched = val ?? false; });
+                      },
+                    ),
+                    const Text('Auto Skip Unmatched'),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setState(() { job.cancel = true; });
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cancel Import'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Close'),
+              ),
             ],
           ),
         ),
       );
 
       for (var i = 1; i < sheet.maxRows; i++) {
+        if (job.cancel) {
+          print('Import cancelled by user.');
+          job.isImporting = false;
+          ImportJobManager().removeJob(job);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Playlist import cancelled.')),
+            );
+          }
+          ImportJobManager().update();
+          return;
+        }
+        job.totalRows = sheet.maxRows - 1;
+        job.matchedCount = matchedSongs.length;
+        ImportJobManager().update();
         totalRows++;
         final row = sheet.row(i);
         final title = row[nameIdx]?.value.toString() ?? '';
         final artist = row[artistIdx]?.value.toString() ?? '';
         if (title.isEmpty || artist.isEmpty) continue;
         print('Searching for "$title" by "$artist"...');
-        final searchResults = await apiService.fetchSongs('$title $artist');
+        List<Song> searchResults = [];
+        try {
+          searchResults = await apiService.fetchSongs('$title $artist');
+        } catch (e) {
+          // If the error is a 500 error, skip this song
+          final errorStr = e.toString();
+          if (errorStr.contains('Status Code: 500')) {
+            print('Skipping "$title" by "$artist" due to 500 error.');
+            continue;
+          } else {
+            // For other errors, rethrow
+            rethrow;
+          }
+        }
         Song? bestMatch;
         for (final result in searchResults) {
           if (result.title.toLowerCase() == title.toLowerCase() &&
@@ -412,6 +569,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           matchedCount++;
         } else {
           print('No match found for "$title" by "$artist"');
+          if (job.autoSkipUnmatched) {
+            print('Auto-skip enabled, skipping unmatched song.');
+            continue;
+          }
           // Show popup for user to select a song or skip
           final userSelected = await _showSongSearchPopup(title, artist);
           if (userSelected != null) {
@@ -421,12 +582,15 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         }
       }
       Navigator.of(context).pop(); // Close progress dialog
-      print('Matched $matchedCount out of $totalRows songs');
+      job.isImporting = false;
+      ImportJobManager().removeJob(job);
       if (matchedSongs.isEmpty) {
         print('No songs matched in the imported file.');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No songs matched in the imported file.')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No songs matched in the imported file.')),
+          );
+        }
         return;
       }
 
@@ -462,9 +626,12 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       await _manager.savePlaylists();
       print('Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
       _reload();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Playlist "$playlistName" imported: $matchedCount of $totalRows songs matched.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Playlist import completed: $matchedCount of $totalRows songs matched.')),
+        );
+      }
+      ImportJobManager().update();
     } catch (e, stack) {
       print('Failed to import playlist: $e\n$stack');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -569,7 +736,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         content: const Text(
           'This feature allows you to import a playlist from an XLSX file (such as one exported from FreeYourMusic).\n\n'
           'For each row, the app will use the song name and artist to search for the best match in the online database, and build a playlist from the matched songs.\n\n'
-          'Songs that cannot be matched will promt the user to find a match. You will be able to name the imported playlist after the import completes.'
+          'Songs that cannot be matched will prompt the user to find a match. You will be able to name the imported playlist after the import completes.'
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -578,7 +745,59 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       ),
     );
     if (confirmed == true) {
-      await _importPlaylistFromXLSX();
+      final job = _ImportJob();
+      job.autoSkipUnmatched = false;
+      ImportJobManager().addJob(job);
+      await _importPlaylistFromXLSX(job);
     }
+  }
+
+  void _showImportProgressDialog(_ImportJob job) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Importing Playlist'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('Matched ${job.matchedCount} of ${job.totalRows} songs'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Checkbox(
+                    value: job.autoSkipUnmatched,
+                    onChanged: (val) {
+                      setState(() { job.autoSkipUnmatched = val ?? false; });
+                      job.notifyParent?.call();
+                    },
+                  ),
+                  const Text('Auto Skip Unmatched'),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() { job.cancel = true; });
+                job.notifyParent?.call();
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel Import'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
