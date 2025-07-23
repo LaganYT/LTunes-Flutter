@@ -99,14 +99,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   Future<void> _prepareToPlay(int index) async {
     if (index < 0 || index >= _playlist.length) return;
+    // Stop previous audio before loading new one
+    await _audioPlayer.stop();
     _currentIndex = index;
     MediaItem itemToPlay = await _resolveArtForItem(_playlist[_currentIndex]);
     _playlist[_currentIndex] = itemToPlay;
-    
     // Ensure track metadata is passed to audio session for both local and online songs
     mediaItem.add(itemToPlay);
     playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
-    
     _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
     final newSongId = itemToPlay.extras?['songId'] as String?;
     if (newSongId != null && newSongId != _lastCompletedSongId) {
@@ -114,16 +114,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       _isHandlingCompletion = false;
       _lastKnownPosition = null; // Reset last known position for new song
     }
-    
     AudioSource source;
-    // Use the same simple approach for all songs
     if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
       final filePath = itemToPlay.id;
       final file = File(filePath);
       if (!await file.exists()) throw Exception("Local file not found: $filePath");
       source = AudioSource.file(filePath);
     } else {
-      // For online songs, we need the tag for proper metadata display
       source = AudioSource.uri(
         Uri.parse(itemToPlay.id),
         tag: MediaItem(
@@ -137,17 +134,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         ),
       );
     }
-    
     try {
       await _audioPlayer.setAudioSource(source);
-      
-      // Reset position to zero for new tracks
       playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
-      
       // Ensure metadata is properly synchronized after setting audio source
       mediaItem.add(itemToPlay);
-      
-      // Ensure audio session is active for both local and online songs
+      // Add a small delay and re-broadcast metadata to ensure lock screen/notification update
+      await Future.delayed(const Duration(milliseconds: 50));
+      mediaItem.add(itemToPlay);
       if (_isIOS && _audioSession != null) {
         await _safeActivateSession();
       }
