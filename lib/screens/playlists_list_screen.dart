@@ -875,7 +875,12 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                               title: Text(song.title),
                               subtitle: Text(song.artist),
                               onTap: () {
-                                selectedSong = song;
+                                // Ensure the selected song is not marked as local or imported
+                                selectedSong = song.copyWith(
+                                  isDownloaded: false,
+                                  localFilePath: null,
+                                  isImported: false,
+                                );
                                 Navigator.of(context).pop();
                               },
                             );
