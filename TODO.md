@@ -39,3 +39,9 @@
 
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration?
+
+
+
+
+- for the queue allow moving songs to a different order (like playlists do)
+- when adding a song to queue add it to the next song (in settings allow changing from add to end or play next when adding to queue)

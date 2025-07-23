@@ -21,6 +21,7 @@ import 'dart:async'; // Required for Timer
 import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
+import 'delete_downloads_screen.dart'; // Import DeleteDownloadsScreen
 
 
 class SettingsScreen extends StatefulWidget {
@@ -1370,6 +1371,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               );
             },
+          ),
+          _buildSectionTitle(context, 'Advanced Settings'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
+            ),
+            elevation: 2,
+            child: ExpansionTile(
+              key: const PageStorageKey<String>('advanced_settings_expansion_tile'),
+              leading: Icon(Icons.settings_applications_outlined, color: Theme.of(context).colorScheme.secondary),
+              title: const Text('Advanced Settings'),
+              subtitle: const Text('Danger zone: advanced file management'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Warning: Deleting files here may break song playback or remove songs from your library. Only delete files if you know what you are doing.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.folder_delete_outlined, color: Theme.of(context).colorScheme.error),
+                  title: const Text('Manage Downloaded Files'),
+                  subtitle: const Text('Delete individual files from the downloads folder'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const DeleteDownloadsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
           _buildSectionTitle(context, 'App'),
           Card(
