@@ -177,14 +177,20 @@ class _SongsScreenState extends State<SongsScreen> {
 
     // 2. Delete the local album art file
     if (s.albumArtUrl.isNotEmpty && !s.albumArtUrl.startsWith('http')) {
-      final albumArtFile = File(p.join(dir.path, s.albumArtUrl));
-      try {
-        if (await albumArtFile.exists()) {
-          await albumArtFile.delete();
-          debugPrint('Deleted album art file: ${albumArtFile.path}');
+      // Check if any other song uses this cover
+      bool coverIsUsedElsewhere = _songs.any((other) => other.id != s.id && other.albumArtUrl == s.albumArtUrl);
+      if (!coverIsUsedElsewhere) {
+        final albumArtFile = File(p.join(dir.path, s.albumArtUrl));
+        try {
+          if (await albumArtFile.exists()) {
+            await albumArtFile.delete();
+            debugPrint('Deleted album art file:  [33m${albumArtFile.path} [0m');
+          }
+        } catch (e) {
+          debugPrint('Error deleting album art file ${albumArtFile.path}: $e');
         }
-      } catch (e) {
-        debugPrint('Error deleting album art file ${albumArtFile.path}: $e');
+      } else {
+        debugPrint('Album art file not deleted: still used by other songs.');
       }
     }
 
