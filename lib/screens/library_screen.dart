@@ -972,6 +972,9 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
         await _playlistManager.removeSongFromPlaylist(playlist, updatedSong);
       }
 
+      // Update album download status
+      await AlbumManagerService().updateSongInAlbums(updatedSong);
+
       // notify provider and refresh
       currentSongProvider.updateSongDetails(updatedSong);
       PlaylistManagerService().updateSongInPlaylists(updatedSong);

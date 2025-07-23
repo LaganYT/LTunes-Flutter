@@ -20,6 +20,7 @@ import 'local_metadata_screen.dart';
 import 'dart:async'; // Required for Timer
 import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
+import '../services/album_manager_service.dart'; // Import AlbumManagerService
 
 
 class SettingsScreen extends StatefulWidget {
@@ -286,6 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       for (final song in songsToUpdateInProvider) {
         currentSongProvider.updateSongDetails(song); // Notifies and saves state
         playlistManager.updateSongInPlaylists(song);
+        await AlbumManagerService().updateSongInAlbums(song); // Update album download status
       }
     }
 

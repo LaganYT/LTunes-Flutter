@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/album.dart';
+import '../models/song.dart';
 
 class AlbumManagerService with ChangeNotifier {
   static final AlbumManagerService _instance = AlbumManagerService._internal();
@@ -61,5 +62,32 @@ class AlbumManagerService with ChangeNotifier {
 
   bool isAlbumSaved(String albumId) {
     return _savedAlbums.any((album) => album.id == albumId && album.isSaved);
+  }
+
+  // Updates a song's download status in all saved albums that contain it
+  Future<void> updateSongInAlbums(Song updatedSong) async {
+    bool changed = false;
+    for (int i = 0; i < _savedAlbums.length; i++) {
+      Album album = _savedAlbums[i];
+      List<Song> newTracks = List.from(album.tracks);
+      bool albumChanged = false;
+      for (int j = 0; j < newTracks.length; j++) {
+        if (newTracks[j].id == updatedSong.id) {
+          if (newTracks[j].isDownloaded != updatedSong.isDownloaded ||
+              newTracks[j].localFilePath != updatedSong.localFilePath) {
+            newTracks[j] = updatedSong;
+            albumChanged = true;
+          }
+        }
+      }
+      if (albumChanged) {
+        _savedAlbums[i] = album.copyWith(tracks: newTracks);
+        changed = true;
+      }
+    }
+    if (changed) {
+      await _saveAlbumsToPrefs();
+      notifyListeners();
+    }
   }
 }

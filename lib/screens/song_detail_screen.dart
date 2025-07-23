@@ -156,6 +156,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         // Notify PlaylistManagerService
         PlaylistManagerService().updateSongInPlaylists(updatedSong);
 
+        // Notify AlbumManagerService to update album download status
+        await AlbumManagerService().updateSongInAlbums(updatedSong);
+
         // Notify CurrentSongProvider
         Provider.of<CurrentSongProvider>(currentContext, listen: false).updateSongDetails(updatedSong);
 

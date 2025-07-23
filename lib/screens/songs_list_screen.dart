@@ -14,6 +14,7 @@ import '../services/playlist_manager_service.dart';
 import '../services/auto_fetch_service.dart';
 import '../widgets/playbar.dart';
 import 'song_detail_screen.dart';
+import '../services/album_manager_service.dart'; // Import for AlbumManagerService
 
 class SongsScreen extends StatefulWidget {
   final String? artistFilter;
@@ -198,6 +199,10 @@ class _SongsScreenState extends State<SongsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('song_${s.id}');
     debugPrint('Removed song_${s.id} from SharedPreferences (final step)');
+
+    // Update album download status
+    final updatedSong = s.copyWith(isDownloaded: false, localFilePath: null);
+    await AlbumManagerService().updateSongInAlbums(updatedSong);
 
     // Update UI
     setState(() => _songs.removeWhere((song) => song.id == s.id));
