@@ -603,7 +603,17 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         final row = sheet.row(i);
         final title = row[nameIdx]?.value.toString() ?? '';
         final artist = row[artistIdx]?.value.toString() ?? '';
-        if (title.isEmpty || artist.isEmpty) continue;
+        if (title.isEmpty || artist.isEmpty) {
+          // Prompt user that the song or artist is missing and allow them to search manually
+          if (mounted) {
+            final userSelected = await _showSongSearchPopup(title, artist, missingFields: true);
+            if (userSelected != null) {
+              matchedSongs.add(userSelected);
+              matchedCount++;
+            }
+          }
+          continue;
+        }
         processedRows++;
         job.matchedCount = matchedSongs.length;
         ImportJobManager().update();
@@ -748,7 +758,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     }
   }
 
-  Future<Song?> _showSongSearchPopup(String localTitle, String localArtist) async {
+  Future<Song?> _showSongSearchPopup(String localTitle, String localArtist, {bool missingFields = false}) async {
     final TextEditingController searchController = TextEditingController(text: '$localTitle $localArtist');
     List<Song> searchResults = [];
     bool isSearching = false;
@@ -768,6 +778,15 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                 height: 400,
                 child: Column(
                   children: [
+                    if (missingFields)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          'Song title or artist is missing. Please search for the correct song.',
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     Text(
                       'Local: "$localTitle" by $localArtist',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
