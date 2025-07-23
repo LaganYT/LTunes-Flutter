@@ -7,12 +7,15 @@ class Playlist {
 
   Playlist({required this.id, required this.name, required this.songs});
 
-  // New getter to check if all songs are downloaded
+  // New getter to check if all non-local (non-imported) songs are downloaded
   bool get isFullyDownloaded {
     if (songs.isEmpty) {
       return false; // Or true, depending on desired behavior for empty playlists
     }
-    return songs.every((song) => song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty);
+    // Only require non-imported songs to be downloaded
+    return songs.where((song) => !song.isImported).every(
+      (song) => song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty,
+    );
   }
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
