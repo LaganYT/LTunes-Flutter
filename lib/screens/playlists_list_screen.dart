@@ -603,8 +603,9 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         final row = sheet.row(i);
         final title = row[nameIdx]?.value.toString() ?? '';
         final artist = row[artistIdx]?.value.toString() ?? '';
-        if (title.isEmpty || artist.isEmpty) {
-          // Prompt user that the song or artist is missing and allow them to search manually
+        final album = row[albumIdx]?.value.toString() ?? '';
+        if (title.isEmpty || (artist.isEmpty && album.isEmpty)) {
+          // Prompt user that the song or artist/album is missing and allow them to search manually
           if (mounted) {
             final userSelected = await _showSongSearchPopup(title, artist, missingFields: true);
             if (userSelected != null) {
@@ -613,6 +614,49 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             }
           }
           continue;
+        }
+        // If artist is missing but album and title are present, try matching by album and title
+        if (artist.isEmpty && album.isNotEmpty && title.isNotEmpty) {
+          print('Artist missing, searching for "$title" in album "$album"...');
+          List<Song> searchResults = [];
+          try {
+            searchResults = await apiService.fetchSongs('$title $album');
+          } catch (e) {
+            final errorStr = e.toString();
+            if (errorStr.contains('Status Code: 500')) {
+              print('Skipping "$title" in album "$album" due to 500 error.');
+              totalEntries--;
+              job.totalRows = totalEntries;
+              ImportJobManager().update();
+              continue;
+            } else {
+              rethrow;
+            }
+          }
+          Song? bestMatch;
+          for (final result in searchResults) {
+            if (result.title.toLowerCase() == title.toLowerCase() &&
+                (result.album != null && result.album?.toLowerCase() == album.toLowerCase())) {
+              bestMatch = result;
+              break;
+            }
+          }
+          if (bestMatch != null) {
+            matchedSongs.add(bestMatch);
+            matchedCount++;
+            continue;
+          } else {
+            print('No match found for "$title" in album "$album" (artist missing, even after search)');
+            // Fall through to prompt user below
+            if (mounted) {
+              final userSelected = await _showSongSearchPopup(title, '', missingFields: true);
+              if (userSelected != null) {
+                matchedSongs.add(userSelected);
+                matchedCount++;
+              }
+            }
+            continue;
+          }
         }
         processedRows++;
         job.matchedCount = matchedSongs.length;
