@@ -352,11 +352,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           albums = [];
         }
         
-        setState(() {
-          _preloadedArtistInfo = artistInfo;
-          _preloadedArtistTracks = tracks;
-          _preloadedArtistAlbums = albums;
-        });
+        if (mounted) {
+          setState(() {
+            _preloadedArtistInfo = artistInfo;
+            _preloadedArtistTracks = tracks;
+            _preloadedArtistAlbums = albums;
+          });
+        }
       }
     } catch (e) {
       _errorHandler.logError(e, context: 'preloadArtistData');
