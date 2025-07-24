@@ -41,4 +41,3 @@
 - Add: Discord intergration?
 - for the queue allow moving songs to a different order (like playlists do)
 - when adding a song to queue add it to the next song (in settings allow changing from add to end or play next when adding to queue)
-- Fix: when using custom metadata don’t mark it as the same thing as fetching the metadata, mark it as imported still and put it in a section in the fetch metadata screen that shows edited metadata.
