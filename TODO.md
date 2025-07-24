@@ -33,4 +33,5 @@
 
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration?
-- for the queue allow moving songs to a different order (like playlists do)
+
+- Check: whenever you click to play a song or use any buttons to play a playlist/album make it add the context to queue.

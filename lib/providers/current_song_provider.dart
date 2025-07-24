@@ -95,6 +95,28 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+    /// Reorders the queue and updates the audio handler and current index accordingly.
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _queue.length || newIndex < 0 || newIndex >= _queue.length) return;
+    final song = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, song);
+
+    // Update the current index if needed
+    if (_currentSongFromAppLogic != null) {
+      _currentIndexInAppQueue = _queue.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+    }
+
+    // Update the audio handler's queue
+    final mediaItems = await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+    await _audioHandler.updateQueue(mediaItems);
+    if (_currentIndexInAppQueue != -1) {
+      await _audioHandler.customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+    }
+    notifyListeners();
+    _saveCurrentSongToStorage();
+  }
+
+
   Future<void> resetPlaybackSpeed() async {
     // Disable playback speed on iOS
     if (Platform.isIOS) return;
