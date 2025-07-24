@@ -762,14 +762,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                         ),
                         onPressed: isLoadingThisSong
                             ? null
-                            : () async {
+                            : () {
                                 if (isPlayingThisSong) {
                                   currentSongProvider.pauseSong();
                                 } else {
                                   if (isCurrentSongInProvider) {
                                     currentSongProvider.resumeSong();
                                   } else {
-                                    await currentSongProvider.playWithContext([widget.song], widget.song);
+                                    currentSongProvider.playSong(widget.song);
                                   }
                                 }
                               },

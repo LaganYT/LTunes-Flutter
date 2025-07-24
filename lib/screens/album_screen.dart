@@ -211,7 +211,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
           }
         }
       }
-      await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
+      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0);
+      currentSongProvider.playSong(widget.album.tracks.first);
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
@@ -223,14 +224,14 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
   }
 
-  void _playAlbumShuffle() async {
+  void _playAlbumShuffle() {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     if (widget.album.tracks.isNotEmpty) {
       // Ensure shuffle is on
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
-      await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
+      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0); // This will shuffle if needed and start playing
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
@@ -850,13 +851,10 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',
                         style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                       ),
-                      onTap: () async {
+                      onTap: () {
                         final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                        await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks[index]);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-                        );
+                        currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
+                        currentSongProvider.playSong(widget.album.tracks[index]);
                       },
                       onLongPress: () {
                         Navigator.push(

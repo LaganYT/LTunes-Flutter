@@ -592,8 +592,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    onPressed: hasSongs ? () async {
-                                      await currentSongProvider.playWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
+                                    onPressed: hasSongs ? () {
+                                      currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: 0); // Use currentPlaylist
+                                      currentSongProvider.playSong(currentPlaylist.songs.first); // Use currentPlaylist
                                     } : null,
                                     icon: const Icon(Icons.play_arrow),
                                     label: const Text('Play All'),
@@ -610,9 +611,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: OutlinedButton.icon(
-                                    onPressed: hasSongs ? () async {
+                                    onPressed: hasSongs ? () {
                                       if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
-                                      await currentSongProvider.playWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
+                                      currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: 0); // Use currentPlaylist
                                     } : null,
                                     icon: const Icon(Icons.shuffle),
                                     label: const Text('Shuffle'),
@@ -746,8 +747,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                             ],
                           ),
-                          onTap: () async {
-                            await currentSongProvider.playWithContext(currentPlaylist.songs, song);
+                          onTap: () {
+                            currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: index); // Use currentPlaylist
+                            currentSongProvider.playSong(song);
                           },
                         ),
                       ),

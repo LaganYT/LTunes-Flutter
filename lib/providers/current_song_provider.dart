@@ -1998,6 +1998,10 @@ class CurrentSongProvider with ChangeNotifier {
             debugPrint('[playSong] Error checking local album art file: $e');
           }
         }
+        // Check for missing lyrics
+        if (currentSong.plainLyrics == null && currentSong.syncedLyrics == null) {
+          needsMetadataUpdate = true;
+        }
         // Check for missing audio file if marked as downloaded
         if (currentSong.isDownloaded && (currentSong.localFilePath == null || currentSong.localFilePath!.isEmpty)) {
           // This should already be handled by fetchSongUrl/_prepareMediaItem, but double-check
@@ -2019,6 +2023,7 @@ class CurrentSongProvider with ChangeNotifier {
               debugPrint('[playSong] Error checking local album art file for logging: $e');
             }
           }
+          if (currentSong.plainLyrics == null && currentSong.syncedLyrics == null) { debugPrint('[playSong] Lyrics are missing'); }
           if (currentSong.isDownloaded && (currentSong.localFilePath == null || currentSong.localFilePath!.isEmpty)) { debugPrint('[playSong] Audio file is missing for downloaded song'); }
           await updateMissingMetadata(currentSong);
           debugPrint('[playSong] updateMissingMetadata complete for song: "${currentSong.title}" (ID: ${currentSong.id})');
@@ -2049,13 +2054,5 @@ class CurrentSongProvider with ChangeNotifier {
         debugPrint('Error in stale play request for \u001b[33m"+songToPlay.title+", ignoring.');
       }
     }
-  }
-
-  /// Always sets the queue context before playing the song.
-  Future<void> playWithContext(List<Song> context, Song song) async {
-    int index = context.indexWhere((s) => s.id == song.id);
-    if (index == -1) index = 0;
-    await setQueue(context, initialIndex: index);
-    await playSong(song);
   }
 }

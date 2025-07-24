@@ -515,7 +515,7 @@ Future<void> _importSongs() async {
                       if (needsArtDownload && isOnline) {
                         await prov.updateMissingMetadata(song);
                       }
-                      await prov.playWithContext(_songs, song);
+                      prov.setQueue(_songs, initialIndex: i);
                     },
                     trailing: IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
