@@ -182,7 +182,10 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
             left: 16,
             right: 16,
             bottom: 16,
-            child: const Playbar(),
+            child: const Hero(
+              tag: 'global-playbar-hero',
+              child: Playbar(),
+            ),
           ),
         ],
       ),

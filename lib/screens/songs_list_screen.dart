@@ -527,7 +527,10 @@ Future<void> _importSongs() async {
             ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: const Playbar(),
+        child: const Hero(
+          tag: 'global-playbar-hero',
+          child: Playbar(),
+        ),
       ),
       floatingActionButton: widget.artistFilter == null
           ? FloatingActionButton(

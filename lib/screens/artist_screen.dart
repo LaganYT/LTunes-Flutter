@@ -541,7 +541,10 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
       ),
       bottomNavigationBar: const Padding(
         padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: Playbar(),
+        child: Hero(
+          tag: 'global-playbar-hero',
+          child: Playbar(),
+        ),
       ),
     );
   }

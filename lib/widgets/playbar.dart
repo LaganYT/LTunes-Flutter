@@ -197,15 +197,12 @@ class _PlaybarState extends State<Playbar> {
           ),
     );
 
-    Widget leadingWidget = Hero(
-      tag: 'current-song-art', // ensure tag matches full screen player
-      child: SizedBox( // Ensure consistent size for the Hero child content
-        width: 48,
-        height: 48,
-        child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
-          borderRadius: BorderRadius.circular(6.0),
-          child: albumArtContent,
-        ),
+    Widget leadingWidget = SizedBox( // Remove Hero wrapper, just use SizedBox
+      width: 48,
+      height: 48,
+      child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
+        borderRadius: BorderRadius.circular(6.0),
+        child: albumArtContent,
       ),
     );
 
