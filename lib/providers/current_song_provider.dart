@@ -279,43 +279,95 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<String?> _downloadAlbumArt(String url, Song song) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      
-      String albumIdentifier;
-      if (song.album != null && song.album!.isNotEmpty) {
-        albumIdentifier = '${song.album}_${song.artist}'.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-      } else {
-        // Fallback to song ID if no album info, to avoid overwriting art for songs with no album
-        albumIdentifier = song.id;
-      }
+  try {
+    final directory = await getApplicationDocumentsDirectory();
 
-      final uri = Uri.parse(url);
-      String extension = p.extension(uri.path);
-      if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
-        extension = '.jpg';
-      }
-      final fileName = 'art_$albumIdentifier$extension';
-      final filePath = p.join(directory.path, fileName);
-      final file = File(filePath);
+    String albumIdentifier;
+    if (song.album != null && song.album!.isNotEmpty) {
+      albumIdentifier = '${song.album}_${song.artist}'.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    } else {
+      albumIdentifier = song.id;
+    }
 
+    String extension = '';
+    Uri? uri;
+    if (url.startsWith('http')) {
+      uri = Uri.parse(url);
+      extension = p.extension(uri.path);
+    } else {
+      extension = p.extension(url);
+    }
+    if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
+      extension = '.jpg';
+    }
+    final fileName = 'art_${albumIdentifier}$extension';
+    final filePath = p.join(directory.path, fileName);
+    final file = File(filePath);
+
+    // If url is a network URL, download as before
+    if (url.startsWith('http')) {
       if (await file.exists()) {
         return fileName;
       }
-
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         await file.writeAsBytes(response.bodyBytes);
         debugPrint('Album art downloaded to: $filePath');
-        return fileName; // Return just the filename
+        return fileName;
       } else {
         debugPrint('Failed to download album art. Status code: ${response.statusCode}');
       }
-    } catch (e) {
-      _errorHandler.logError(e, context: 'downloadAlbumArt');
+    } else {
+      // url is a local filename, check if file exists
+      if (await file.exists()) {
+        return fileName;
+      } else {
+        // Try to fetch artwork from the network using song info
+        debugPrint('[downloadAlbumArt] Local art file missing, attempting to fetch from network for ${song.title} by ${song.artist}');
+        final apiService = ApiService();
+        // 1. Try to find the song
+        final searchResults = await apiService.fetchSongs('${song.title} ${song.artist}');
+        Song? exactMatch;
+        for (final result in searchResults) {
+          if (result.title.toLowerCase() == song.title.toLowerCase() &&
+              result.artist.toLowerCase() == song.artist.toLowerCase()) {
+            exactMatch = result;
+            break;
+          }
+        }
+        String? networkArtUrl;
+        if (exactMatch != null && exactMatch.albumArtUrl.isNotEmpty && exactMatch.albumArtUrl.startsWith('http')) {
+          networkArtUrl = exactMatch.albumArtUrl;
+        } else if (song.album != null && song.album!.isNotEmpty) {
+          // 2. Try to get the album art
+          final album = await apiService.getAlbum(song.album!, song.artist);
+          if (album != null && album.fullAlbumArtUrl.isNotEmpty) {
+            networkArtUrl = album.fullAlbumArtUrl;
+          }
+        }
+        if (networkArtUrl != null && networkArtUrl.isNotEmpty) {
+          try {
+            final response = await http.get(Uri.parse(networkArtUrl));
+            if (response.statusCode == 200) {
+              await file.writeAsBytes(response.bodyBytes);
+              debugPrint('Fetched fallback album art to: $filePath');
+              return fileName;
+            } else {
+              debugPrint('Failed to fetch fallback album art. Status code: ${response.statusCode}');
+            }
+          } catch (e) {
+            debugPrint('Error downloading fallback album art: $e');
+          }
+        } else {
+          debugPrint('No network artwork found for ${song.title} by ${song.artist}');
+        }
+      }
     }
-    return null;
+  } catch (e) {
+    _errorHandler.logError(e, context: 'downloadAlbumArt');
   }
+  return null;
+}
 
   Future<void> _initializeDownloadManager() async {
     if (_isDownloadManagerInitialized && _downloadManager != null) {
@@ -1900,6 +1952,76 @@ class CurrentSongProvider with ChangeNotifier {
       _prefetchNextSongs();
       _saveCurrentSongToStorage(); // Save state including potentially updated queue/song
 
+      // --- Enhancement: Refetch missing info if needed ---
+      final Song? currentSong = _currentSongFromAppLogic;
+      if (currentSong != null) {
+        bool needsMetadataUpdate = false;
+        // Check for missing or network artwork
+        if (currentSong.albumArtUrl.isEmpty) {
+          needsMetadataUpdate = true;
+        } else if (currentSong.albumArtUrl.startsWith('http')) {
+          needsMetadataUpdate = true;
+        }
+        // Always check for missing local album art file if not empty and not a network URL
+        if (currentSong.albumArtUrl.isNotEmpty && !currentSong.albumArtUrl.startsWith('http')) {
+          try {
+            final appDocDir = await getApplicationDocumentsDirectory();
+            final artPath = p.join(appDocDir.path, currentSong.albumArtUrl);
+            debugPrint('[playSong] Checking for album art at: $artPath');
+            if (!await File(artPath).exists()) {
+              debugPrint('[playSong] Local album art file missing at preference path: $artPath');
+              needsMetadataUpdate = true;
+            }
+          } catch (e) {
+            debugPrint('[playSong] Error checking local album art file: $e');
+          }
+        }
+        // Check for missing lyrics
+        if (currentSong.plainLyrics == null && currentSong.syncedLyrics == null) {
+          needsMetadataUpdate = true;
+        }
+        // Check for missing audio file if marked as downloaded
+        if (currentSong.isDownloaded && (currentSong.localFilePath == null || currentSong.localFilePath!.isEmpty)) {
+          // This should already be handled by fetchSongUrl/_prepareMediaItem, but double-check
+          needsMetadataUpdate = true;
+        }
+        if (needsMetadataUpdate) {
+          debugPrint('[playSong] Refetching missing info for song: "${currentSong.title}" (ID: ${currentSong.id})');
+          if (currentSong.albumArtUrl.isEmpty) { debugPrint('[playSong] Missing artwork: albumArtUrl is empty'); }
+          else if (currentSong.albumArtUrl.startsWith('http')) { debugPrint('[playSong] Artwork is a network URL, will attempt to download'); }
+          if (currentSong.albumArtUrl.isNotEmpty && !currentSong.albumArtUrl.startsWith('http')) {
+            try {
+              final appDocDir = await getApplicationDocumentsDirectory();
+              final artPath = p.join(appDocDir.path, currentSong.albumArtUrl);
+              debugPrint('[playSong] Checking for album art at: $artPath');
+              if (!await File(artPath).exists()) {
+                debugPrint('[playSong] Missing artwork: local file $artPath does not exist');
+              }
+            } catch (e) {
+              debugPrint('[playSong] Error checking local album art file for logging: $e');
+            }
+          }
+          if (currentSong.plainLyrics == null && currentSong.syncedLyrics == null) { debugPrint('[playSong] Lyrics are missing'); }
+          if (currentSong.isDownloaded && (currentSong.localFilePath == null || currentSong.localFilePath!.isEmpty)) { debugPrint('[playSong] Audio file is missing for downloaded song'); }
+          await updateMissingMetadata(currentSong);
+          debugPrint('[playSong] updateMissingMetadata complete for song: "${currentSong.title}" (ID: ${currentSong.id})');
+          // After updating, refresh the current song from storage or memory and notify listeners
+          Song? refreshedSong;
+          int idx = _queue.indexWhere((s) => s.id == currentSong.id);
+          if (idx != -1) {
+            refreshedSong = _queue[idx];
+          } else if (_currentSongFromAppLogic?.id == currentSong.id) {
+            refreshedSong = _currentSongFromAppLogic;
+          }
+          if (refreshedSong != null) {
+            debugPrint('[playSong] Refreshed current song after metadata update. Notifying listeners.');
+            _currentSongFromAppLogic = refreshedSong;
+            notifyListeners();
+          }
+        }
+      }
+      // --- End enhancement ---
+
     } catch (e) {
       if (currentPlayRequest == _playRequestCounter) {
         // Use _currentSongFromAppLogic for the title in error, as it's the most up-to-date version.
@@ -1907,7 +2029,7 @@ class CurrentSongProvider with ChangeNotifier {
         _isLoadingAudio = false;
         notifyListeners();
       } else {
-        debugPrint('Error in stale play request for [33m${songToPlay.title}, ignoring.');
+        debugPrint('Error in stale play request for \u001b[33m"+songToPlay.title+", ignoring.');
       }
     }
   }
