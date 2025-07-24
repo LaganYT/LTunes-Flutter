@@ -418,10 +418,9 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                 ),
               ],
             ),
-            onTap: () {
+            onTap: () async {
               // Play the song immediately
-              currentSongProvider.setQueue([songWithStatus], initialIndex: 0);
-              currentSongProvider.playSong(songWithStatus);
+              await currentSongProvider.playWithContext([songWithStatus], songWithStatus);
             },
             onLongPress: () {
               // Show more info

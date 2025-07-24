@@ -32,5 +32,4 @@
 - Add: explicit thing in more places, as well as an explicit filter 
 
 ## Bug Fixes & Miscellaneous
-- Add: Discord intergration?
-- for the queue allow moving songs to a different order (like playlists do)
+- Add: Discord intergration
