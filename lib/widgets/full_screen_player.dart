@@ -190,8 +190,8 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               ),
                             ],
                           ),
-                          onTap: () {
-                            currentSongProvider.playSong(song);
+                          onTap: () async {
+                            await currentSongProvider.playWithContext(queue, song);
                             Navigator.pop(context);
                           },
                         ),

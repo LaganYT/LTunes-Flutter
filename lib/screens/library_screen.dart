@@ -1463,23 +1463,12 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                         tooltip: 'Delete Download',
                         onPressed: () => _deleteDownloadedSong(songObj), // This line remains the same, but the method now has a dialog
                       ),
-                      onTap: () {
+                      onTap: () async {
                         // When tapping a completed song, play it.
                         // The queue will be set to ALL completed downloaded songs,
                         // respecting the current order of the Downloads tab (load order).
-                        Provider.of<CurrentSongProvider>(context, listen: false).playSong(songObj);
-
-                        // Find the index of the tapped song within the full list of completed songs.
-                        int queueIndex = completedSongs.indexWhere((s) => s.id == songObj.id);
-                        
-                        if (queueIndex != -1) {
-                           Provider.of<CurrentSongProvider>(context, listen: false).setQueue(completedSongs, initialIndex: queueIndex);
-                        } else {
-                          // This case should ideally not happen if songObj comes from completedSongs (via songsToDisplay filter).
-                          // As a fallback, play the single song.
-                          Provider.of<CurrentSongProvider>(context, listen: false).setQueue([songObj], initialIndex: 0);
-                          debugPrint("Warning: Tapped song not found in the primary list for queue. Setting queue with single song.");
-                        }
+                        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+                        await provider.playWithContext(completedSongs, songObj);
                       },
                     );
                   },
