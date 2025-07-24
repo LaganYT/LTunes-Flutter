@@ -190,8 +190,8 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               ),
                             ],
                           ),
-                          onTap: () {
-                            currentSongProvider.playSong(song);
+                          onTap: () async {
+                            await currentSongProvider.playWithContext(queue, song);
                             Navigator.pop(context);
                           },
                         ),
@@ -691,6 +691,22 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     await prefs.setString('song_${song.id}', jsonEncode(song.toJson()));
   }
 
+  Future<String> _resolveLocalArtPath(String? fileName) async {
+    if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
+      return '';
+    }
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final fullPath = p.join(directory.path, fileName);
+      if (await File(fullPath).exists()) {
+        return fullPath;
+      }
+    } catch (e) {
+      debugPrint("Error resolving local art path for full screen player: $e");
+    }
+    return '';
+  }
+
   String _formatDuration(Duration? duration) {
     if (duration == null) return '0:00';
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -703,12 +719,149 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   void _showQueueBottomSheet(BuildContext context) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final queue = currentSongProvider.queue;
+    final currentSong = currentSongProvider.currentSong;
+    final int currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
+    const double itemHeight = 72.0; // Estimated height for a two-line ListTile
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.transparent, // Make sheet background transparent
       builder: (BuildContext bc) {
-        return _QueueBottomSheetContent();
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            // Scroll to the current song when the sheet is first built.
+            if (currentIndex != -1) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (controller.hasClients && controller.offset == 0.0) {
+                  // Center the item in the initial view if possible.
+                  // This is an approximation.
+                  double offset = currentIndex * itemHeight;
+                  // Attempt to center it in the initial 60% view.
+                  // A more robust way would need the viewport size.
+                  final double initialSheetHeight = MediaQuery.of(context).size.height * 0.6;
+                  offset = offset - (initialSheetHeight / 2) + (itemHeight / 2);
+
+                  controller.jumpTo(offset.clamp(0.0, controller.position.maxScrollExtent));
+                }
+              });
+            }
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0), // Adjusted padding
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Up Next',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        if (queue.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              currentSongProvider.clearQueue();
+                              Navigator.pop(context); // Close the bottom sheet
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Queue cleared')),
+                              );
+                            },
+                            child: Text(
+                              'Clear Queue',
+                              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (queue.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Queue is empty.',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        controller: controller,
+                        itemCount: queue.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final song = queue[index];
+                          final bool isCurrentlyPlaying = song.id == currentSong?.id;
+                          return SizedBox( // Give each item a fixed height for predictable scrolling
+                            height: itemHeight,
+                            child: ListTile(
+                              leading: FutureBuilder<String>(
+                                future: _resolveLocalArtPath(song.albumArtUrl),
+                                builder: (context, snapshot) {
+                                  Widget imageWidget;
+                                  if (song.albumArtUrl.startsWith('http')) {
+                                    imageWidget = Image.network(
+                                      song.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                                    );
+                                  } else if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                    imageWidget = Image.file(
+                                      File(snapshot.data!), width: 40, height: 40, fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                                    );
+                                  } else {
+                                    imageWidget = const Icon(Icons.music_note, size: 40);
+                                  }
+                                  return ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: imageWidget,
+                                  );
+                                },
+                              ),
+                              title: Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
+                                  color: isCurrentlyPlaying ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              subtitle: Text(
+                                song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                               trailing: isCurrentlyPlaying
+                                  ? Icon(Icons.bar_chart_rounded, color: Theme.of(context).colorScheme.primary)
+                                  : null,
+                              onTap: () {
+                                currentSongProvider.playSong(song); // Ensure the clicked song plays
+                                Navigator.pop(context); // Close the bottom sheet
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
       },
     );
   }
