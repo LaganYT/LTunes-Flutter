@@ -16,6 +16,7 @@ import '../services/api_service.dart';
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
 import 'dart:math'; // Added for min/max in lyrics scroll
+import 'package:cached_network_image/cached_network_image.dart'; // Added for CachedNetworkImageProvider
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -67,7 +68,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   double? _sliderValue;
   bool _isSeeking = false;
 
-
+  ImageProvider? _currentArtProvider;
+  String? _currentArtId;
+  bool _artLoading = false;
 
 
   @override
@@ -132,16 +135,39 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _currentSongProvider.addListener(_onSongChanged);
     _loadLikeState(); // load initial like state
     
+    final song = _currentSongProvider.currentSong;
+    if (song != null) {
+      _updateArtProvider(song);
+    }
 
   }
 
-
-
+  Future<void> _updateArtProvider(Song song) async {
+    setState(() { _artLoading = true; });
+    if (song.albumArtUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
+    } else {
+      final path = await _resolveLocalArtPath(song.albumArtUrl);
+      if (path.isNotEmpty) {
+        _currentArtProvider = FileImage(File(path));
+      } else {
+        _currentArtProvider = null;
+      }
+    }
+    _currentArtId = song.id;
+    if (mounted) setState(() { _artLoading = false; });
+  }
 
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _currentSongProvider.addListener(_onSongChanged);
+    final song = _currentSongProvider.currentSong;
+    if (song != null) {
+      _updateArtProvider(song);
+    }
   }
 
   void _resetLyricsState() {
@@ -158,7 +184,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
   }
 
-  void _onSongChanged() {
+  void _onSongChanged() async {
     if (!mounted) return;
 
     final newSong = _currentSongProvider.currentSong;
@@ -166,23 +192,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     // Only update if the song ID actually changed
     if (newSongId != _previousSongId) {
-      // Update slide animation based on _slideOffsetX
-      // If _slideOffsetX is 0.0, it means the art should just fade (or appear if no fade controller for art)
-      // For this implementation, if _slideOffsetX is 0, it means slide from a subtle default (e.g. slight scale/fade or no slide)
-      // Let's make it so that if _slideOffsetX is 0, it slides in from a default direction (e.g. right, subtly) or just fades.
-      // The user request is "icon to slide in", so it should always slide.
-      
       double effectiveSlideOffsetX = _slideOffsetX;
-      if (_previousSongId == null && newSongId != null) { // First song loaded after screen init
-          effectiveSlideOffsetX = 0.3; // Default slide from right for first song
-      } else if (_slideOffsetX == 0.0 && newSongId != null) { // Song changed by non-skip action (e.g. queue end, direct selection)
-          effectiveSlideOffsetX = 0.3; // Default slide from right
+      if (_previousSongId == null && newSongId != null) {
+        effectiveSlideOffsetX = 0.3;
+      } else if (_slideOffsetX == 0.0 && newSongId != null) {
+        effectiveSlideOffsetX = 0.3;
       }
 
       if (newSong != null) {
         _localArtPathFuture = _resolveLocalArtPath(newSong.albumArtUrl);
+        // Preload the new art provider and only then animate
+        await _updateArtProvider(newSong);
       }
-
 
       _albumArtSlideAnimation = Tween<Offset>(
         begin: Offset(effectiveSlideOffsetX, 0.0),
@@ -196,29 +217,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _textFadeController.forward(from: 0.0);
 
       _updatePalette(newSong);
-      _resetLyricsState(); // Reset lyrics state for the new song
+      _resetLyricsState();
 
-      // If the song is downloaded but lyrics are missing, try to fetch and save them.
-      // This also handles album art for songs downloaded before this feature was added.
       final provider = Provider.of<CurrentSongProvider>(context, listen: false);
       final currentSong = provider.currentSong;
       if (currentSong != null && currentSong.isDownloaded) {
         provider.updateMissingMetadata(currentSong);
       }
 
-      // If lyrics view was active, load for new song
-      if (_showLyrics && newSong != null) { 
+      if (_showLyrics && newSong != null) {
         _loadAndProcessLyrics(newSong);
       }
 
-      // Always scroll lyrics to the top on song change
       if (_lyricsScrollController.isAttached) {
         _lyricsScrollController.jumpTo(index: 0);
       }
 
       _previousSongId = newSongId;
-      _slideOffsetX = 0.0; // Reset for next non-skip change
-       _loadLikeState();
+      _slideOffsetX = 0.0;
+      _loadLikeState();
     }
   }
 
@@ -1231,40 +1248,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   Widget _buildAlbumArtWidget(Song currentSong, bool isRadio) {
-    // Use a key that only changes when the song ID changes, not on every rebuild
-    final artKey = ValueKey<String>('art_${currentSong.id}');
-    
-    if (currentSong.albumArtUrl.isNotEmpty) {
-      if (currentSong.albumArtUrl.startsWith('http')) {
-        return Image.network(
-          currentSong.albumArtUrl,
-          fit: BoxFit.cover,
-          key: artKey,
-          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-          // Add caching headers to prevent unnecessary reloads
-          headers: const {
-            'Cache-Control': 'max-age=31536000', // 1 year cache
-          },
-        );
-      } else {
-        return FutureBuilder<String>(
-          future: _localArtPathFuture,
-          key: artKey,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(
-                File(snapshot.data!),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-              );
-            }
-            return _placeholderArt(context, isRadio);
-          },
-        );
-      }
-    } else {
-      return _placeholderArt(context, isRadio);
-    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: _currentArtProvider != null
+        ? Image(
+            key: ValueKey(_currentArtId),
+            image: _currentArtProvider!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+          )
+        : _placeholderArt(context, isRadio),
+    );
   }
 
   Widget _placeholderArt(BuildContext context, bool isRadio) {
@@ -1374,5 +1368,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         Navigator.of(context).pop();
       },
     );
+  }
+
+  ImageProvider getArtworkProvider(String artUrl) {
+    if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+    if (artUrl.startsWith('http')) {
+      return CachedNetworkImageProvider(artUrl);
+    } else {
+      return FileImage(File(artUrl));
+    }
   }
 }

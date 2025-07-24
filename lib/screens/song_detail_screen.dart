@@ -20,6 +20,50 @@ import 'lyrics_screen.dart';
 import 'artist_screen.dart'; // Import artist screen
 import '../widgets/playbar.dart'; // Add import for Playbar
 
+Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
+  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+  if (artUrl.startsWith('http')) {
+    return CachedNetworkImageProvider(artUrl);
+  } else {
+    final dir = await getApplicationDocumentsDirectory();
+    final name = p.basename(artUrl);
+    final fullPath = p.join(dir.path, name);
+    if (await File(fullPath).exists()) {
+      return FileImage(File(fullPath));
+    } else {
+      return const AssetImage('assets/placeholder.png');
+    }
+  }
+}
+
+Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+  return FutureBuilder<ImageProvider>(
+    future: getRobustArtworkProvider(artUrl),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+        return Image(
+          image: snapshot.data!,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: width,
+            height: height,
+            color: Colors.grey[700],
+            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+          ),
+        );
+      }
+      return Container(
+        width: width,
+        height: height,
+        color: Colors.grey[700],
+        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+      );
+    },
+  );
+}
+
 class SongDetailScreen extends StatefulWidget {
   final Song song;
 
@@ -52,6 +96,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   Set<String> _likedSongIds = {};
 
+  ImageProvider? _currentArtProvider;
+  String? _currentArtKey;
+  bool _artLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -67,11 +115,34 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       }
     });
 
+    _updateArtProvider(widget.song.albumArtUrl);
+
     // Start preloading data
     _preloadAlbumData();
     _preloadLyricsData();
     _preloadArtistData();
     _loadLikedSongIds();
+  }
+
+  Future<void> _updateArtProvider(String artUrl) async {
+    setState(() { _artLoading = true; });
+    if (artUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(artUrl);
+    } else if (artUrl.isNotEmpty) {
+      _currentArtProvider = FileImage(File(artUrl));
+    } else {
+      _currentArtProvider = null;
+    }
+    _currentArtKey = artUrl;
+    if (mounted) setState(() { _artLoading = false; });
+  }
+
+  @override
+  void didUpdateWidget(covariant SongDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.song.albumArtUrl != widget.song.albumArtUrl) {
+      _updateArtProvider(widget.song.albumArtUrl);
+    }
   }
 
   @override
@@ -592,15 +663,17 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: widget.song.albumArtUrl.isNotEmpty
-                    ? (widget.song.albumArtUrl.startsWith('http')
-                        ? CachedNetworkImage(
-                            imageUrl: widget.song.albumArtUrl,
-                            placeholder: (context, url) => const CircularProgressIndicator(),
-                            errorWidget: (context, url, error) => const Icon(Icons.error),
-                          )
-                        : Image.file(File(widget.song.albumArtUrl)))
-                    : const Icon(Icons.album, size: 150),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: _currentArtProvider != null
+                    ? Image(
+                        key: ValueKey(_currentArtKey),
+                        image: _currentArtProvider!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.album, size: 150),
+                      )
+                    : const Icon(Icons.album, size: 150, key: ValueKey('song_detail_art_none')),
+                ),
               ),
               const SizedBox(height: 24),
               

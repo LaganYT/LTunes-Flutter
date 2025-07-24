@@ -36,6 +36,11 @@ class _PlaybarState extends State<Playbar> {
   // Cache the Future for the current song's local art path
   Future<String>? _cachedLocalArtFuture;
 
+  // Artwork caching for smooth transitions
+  ImageProvider? _currentArtProvider;
+  String? _currentArtId;
+  bool _artLoading = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -51,6 +56,7 @@ class _PlaybarState extends State<Playbar> {
       if (!currentSong.albumArtUrl.startsWith('http')) {
         _cachedLocalArtFuture = _resolveLocalArtPath(currentSong.albumArtUrl);
       }
+      _updateArtProvider(currentSong);
     }
     
     // Add listener for song changes
@@ -93,6 +99,7 @@ class _PlaybarState extends State<Playbar> {
           } else {
             _cachedLocalArtFuture = null;
           }
+          _updateArtProvider(newSong);
         }
         // Only call setState if the widget is still mounted and we have a song change
         if (mounted) {
@@ -100,6 +107,22 @@ class _PlaybarState extends State<Playbar> {
         }
       }
     });
+  }
+
+  Future<void> _updateArtProvider(Song song) async {
+    setState(() { _artLoading = true; });
+    if (song.albumArtUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
+    } else {
+      final path = await _resolveLocalArtPath(song.albumArtUrl);
+      if (path.isNotEmpty) {
+        _currentArtProvider = FileImage(File(path));
+      } else {
+        _currentArtProvider = null;
+      }
+    }
+    _currentArtId = song.id;
+    if (mounted) setState(() { _artLoading = false; });
   }
 
   void playUrl(String url) {
@@ -126,6 +149,15 @@ class _PlaybarState extends State<Playbar> {
     return '';
   }
 
+  ImageProvider getArtworkProvider(String artUrl) {
+    if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+    if (artUrl.startsWith('http')) {
+      return CachedNetworkImageProvider(artUrl);
+    } else {
+      return FileImage(File(artUrl));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Use listen: false to prevent rebuilds on every state change
@@ -144,49 +176,26 @@ class _PlaybarState extends State<Playbar> {
     final textTheme = theme.textTheme;
 
     // Performance: Optimized album art widget using FutureBuilder
-    Widget albumArtContent;
-    if (songForArt!.albumArtUrl.isNotEmpty) {
-      if (songForArt.albumArtUrl.startsWith('http')) {
-        albumArtContent = CachedNetworkImage(
-          imageUrl: songForArt.albumArtUrl,
-          fit: BoxFit.cover,
-          width: 50,
-          height: 50,
-          memCacheWidth: 100,
-          memCacheHeight: 100,
-          key: ValueKey<String>('playbar_art_${songForArt.id}'), // Key that only changes on song change
-          placeholder: (context, url) => const Icon(Icons.album, size: 40),
-          errorWidget: (context, url, error) => Icon(Icons.album, size: 48, color: colorScheme.onSurfaceVariant),
-        );
-      } else {
-        // Use FutureBuilder for local artwork loading with stable Future
-        albumArtContent = FutureBuilder<String>(
-          future: _cachedLocalArtFuture ?? Future.value(''),
-          key: ValueKey<String>('playbar_art_${songForArt.id}'), // Key that only changes on song change
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Image.file(
-                File(snapshot.data!),
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(Icons.album, size: 48, color: colorScheme.onSurfaceVariant);
-                },
-              );
-            }
-            return Icon(Icons.album, size: 48, color: colorScheme.onSurfaceVariant);
-          },
-        );
-      }
-    } else {
-      albumArtContent = Icon(
-        Icons.album, 
-        size: 48, 
-        color: colorScheme.onSurfaceVariant,
-        key: ValueKey<String>('playbar_art_${songForArt.id}'), // Key that only changes on song change
-      );
-    }
+    Widget albumArtContent = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: _currentArtProvider != null
+        ? Image(
+            key: ValueKey(_currentArtId),
+            image: _currentArtProvider!,
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Icon(Icons.album, size: 48, color: colorScheme.onSurfaceVariant);
+            },
+          )
+        : Icon(
+            Icons.album,
+            size: 48,
+            color: colorScheme.onSurfaceVariant,
+            key: ValueKey<String>('playbar_art_${songForArt?.id ?? "none"}'),
+          ),
+    );
 
     Widget leadingWidget = Hero(
       tag: 'current-song-art', // ensure tag matches full screen player
@@ -253,7 +262,7 @@ class _PlaybarState extends State<Playbar> {
               );
             },
             child: Container(
-              key: ValueKey<String>('playbar_container_${songForArt.id}'), // Key to trigger animation only on song change
+              key: ValueKey<String>('playbar_container_${songForArt?.id}'), // Key to trigger animation only on song change
               padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
               height: 64, // Standard height for a playbar
               child: Row(

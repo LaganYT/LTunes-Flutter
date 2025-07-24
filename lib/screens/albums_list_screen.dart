@@ -6,6 +6,53 @@ import '../models/playlist.dart';
 import '../services/playlist_manager_service.dart';
 import 'album_screen.dart';
 import '../widgets/playbar.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+
+Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
+  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+  if (artUrl.startsWith('http')) {
+    return CachedNetworkImageProvider(artUrl);
+  } else {
+    final dir = await getApplicationDocumentsDirectory();
+    final name = p.basename(artUrl);
+    final fullPath = p.join(dir.path, name);
+    if (await File(fullPath).exists()) {
+      return FileImage(File(fullPath));
+    } else {
+      return const AssetImage('assets/placeholder.png');
+    }
+  }
+}
+
+Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+  return FutureBuilder<ImageProvider>(
+    future: getRobustArtworkProvider(artUrl),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+        return Image(
+          image: snapshot.data!,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: width,
+            height: height,
+            color: Colors.grey[700],
+            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+          ),
+        );
+      }
+      return Container(
+        width: width,
+        height: height,
+        color: Colors.grey[700],
+        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+      );
+    },
+  );
+}
 
 class AlbumsListScreen extends StatefulWidget {
   const AlbumsListScreen({super.key});
@@ -16,6 +63,9 @@ class AlbumsListScreen extends StatefulWidget {
 class _AlbumsListScreenState extends State<AlbumsListScreen> {
   final _manager = AlbumManagerService();
   List<Album> _albums = [];
+  ImageProvider? _currentArtProvider;
+  String? _currentArtKey;
+  bool _artLoading = false;
 
   @override
   void initState() {
@@ -26,6 +76,26 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
 
   void _reload() {
     setState(() => _albums = List.from(_manager.savedAlbums));
+  }
+
+  Future<void> _updateArtProvider(String artUrl) async {
+    setState(() { _artLoading = true; });
+    if (artUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(artUrl);
+    } else {
+      _currentArtProvider = null;
+    }
+    _currentArtKey = artUrl;
+    if (mounted) setState(() { _artLoading = false; });
+  }
+
+  ImageProvider getArtworkProvider(String artUrl) {
+    if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+    if (artUrl.startsWith('http')) {
+      return CachedNetworkImageProvider(artUrl);
+    } else {
+      return FileImage(File(artUrl));
+    }
   }
 
   @override
@@ -91,18 +161,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4.0),
                           child: Container(
-                            child: a.fullAlbumArtUrl.startsWith('http')
-                                ? CachedNetworkImage(
-                                    imageUrl: a.fullAlbumArtUrl,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 300,
-                                    memCacheHeight: 300,
-                                    placeholder: (context, url) =>
-                                        const Center(child: Icon(Icons.album, size: 40)),
-                                    errorWidget: (context, url, error) =>
-                                        const Center(child: Icon(Icons.error, size: 40)),
-                                  )
-                                : const Center(child: Icon(Icons.album, size: 40)),
+                            child: robustArtwork(a.fullAlbumArtUrl, width: double.infinity, height: double.infinity),
                           ),
                         ),
                       ),

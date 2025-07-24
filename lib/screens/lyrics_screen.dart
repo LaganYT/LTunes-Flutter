@@ -67,10 +67,44 @@ class LyricsView extends StatelessWidget {
   }
 }
 
-class AlbumArtView extends StatelessWidget {
+class AlbumArtView extends StatefulWidget {
   final String albumArtUrl;
-
   const AlbumArtView({super.key, required this.albumArtUrl});
+  @override
+  State<AlbumArtView> createState() => _AlbumArtViewState();
+}
+
+class _AlbumArtViewState extends State<AlbumArtView> {
+  ImageProvider? _currentArtProvider;
+  String? _currentArtKey;
+  bool _artLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateArtProvider(widget.albumArtUrl);
+  }
+
+  Future<void> _updateArtProvider(String artUrl) async {
+    setState(() { _artLoading = true; });
+    if (artUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(artUrl);
+    } else if (artUrl.isNotEmpty) {
+      _currentArtProvider = FileImage(File(artUrl));
+    } else {
+      _currentArtProvider = null;
+    }
+    _currentArtKey = artUrl;
+    if (mounted) setState(() { _artLoading = false; });
+  }
+
+  @override
+  void didUpdateWidget(covariant AlbumArtView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.albumArtUrl != widget.albumArtUrl) {
+      _updateArtProvider(widget.albumArtUrl);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +112,7 @@ class AlbumArtView extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: AspectRatio(
-          aspectRatio: 1.0, // Assuming square album art
+          aspectRatio: 1.0,
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8.0),
@@ -93,23 +127,30 @@ class AlbumArtView extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8.0),
-              child: albumArtUrl.startsWith('http')
-                  ? CachedNetworkImage(
-                      imageUrl: albumArtUrl,
-                      placeholder: (context, url) => const CircularProgressIndicator(),
-                      errorWidget: (context, url, error) => const Icon(Icons.error),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _currentArtProvider != null
+                  ? Image(
+                      key: ValueKey(_currentArtKey),
+                      image: _currentArtProvider!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.error),
                     )
-                  : (albumArtUrl.isNotEmpty
-                      ? Image.file(
-                          File(albumArtUrl),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.error),
-                        )
-                      : const Icon(Icons.error)),
+                  : const Icon(Icons.error),
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+ImageProvider getArtworkProvider(String artUrl) {
+  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+  if (artUrl.startsWith('http')) {
+    return CachedNetworkImageProvider(artUrl);
+  } else {
+    return FileImage(File(artUrl));
   }
 }

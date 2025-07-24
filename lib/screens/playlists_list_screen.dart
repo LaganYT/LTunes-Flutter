@@ -14,6 +14,51 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import '../services/api_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
+import 'package:cached_network_image/cached_network_image.dart';
+
+Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
+  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+  if (artUrl.startsWith('http')) {
+    return CachedNetworkImageProvider(artUrl);
+  } else {
+    final dir = await getApplicationDocumentsDirectory();
+    final name = p.basename(artUrl);
+    final fullPath = p.join(dir.path, name);
+    if (await File(fullPath).exists()) {
+      return FileImage(File(fullPath));
+    } else {
+      return const AssetImage('assets/placeholder.png');
+    }
+  }
+}
+
+Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+  return FutureBuilder<ImageProvider>(
+    future: getRobustArtworkProvider(artUrl),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+        return Image(
+          image: snapshot.data!,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: width,
+            height: height,
+            color: Colors.grey[700],
+            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+          ),
+        );
+      }
+      return Container(
+        width: width,
+        height: height,
+        color: Colors.grey[700],
+        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+      );
+    },
+  );
+}
 
 class PlaylistsScreen extends StatefulWidget {
   const PlaylistsScreen({super.key});
@@ -61,6 +106,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   // Cache Future objects to prevent art flashing
   final Map<String, Future<String>> _localArtFutureCache = {};
 
+  ImageProvider? _currentArtProvider;
+  String? _currentArtKey;
+  bool _artLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -97,9 +146,9 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         );
       }
       if (arts.length == 1) {
-        return _buildArtWidget(arts.first, size);
+        return robustArtwork(arts.first, width: size);
       }
-      final grid = arts.take(4).map((url) => _buildArtWidget(url, size / 2)).toList();
+      final grid = arts.take(4).map((url) => robustArtwork(url, width: size / 2)).toList();
       return GridView.count(
         crossAxisCount: 2,
         mainAxisSpacing: 1,
@@ -110,43 +159,6 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         children: grid,
       );
     });
-  }
-
-  Widget _buildArtWidget(String url, double sz) {
-    if (url.startsWith('http')) {
-      return Image.network(url, width: sz, height: sz, fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.music_note, size: 24)));
-    }
-    // local file case
-    return FutureBuilder<String>(
-      future: _getCachedLocalArtFuture(url),
-      key: ValueKey<String>('playlist_art_$url'),
-      builder: (_, snap) {
-        if (snap.connectionState == ConnectionState.done && snap.data!.isNotEmpty) {
-          return Image.file(File(snap.data!), width: sz, height: sz, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.music_note, size: 24)));
-        }
-        return const Center(child: Icon(Icons.music_note, size: 24));
-      },
-    );
-  }
-
-  // Get cached Future for local art to prevent flashing
-  Future<String> _getCachedLocalArtFuture(String url) {
-    if (url.isEmpty || url.startsWith('http')) {
-      return Future.value('');
-    }
-    
-    if (!_localArtFutureCache.containsKey(url)) {
-      _localArtFutureCache[url] = () async {
-        final dir = await getApplicationDocumentsDirectory();
-        final name = p.basename(url);
-        final fp = p.join(dir.path, name);
-        return File(fp).existsSync() ? fp : '';
-      }();
-    }
-    
-    return _localArtFutureCache[url]!;
   }
 
   @override

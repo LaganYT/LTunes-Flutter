@@ -10,6 +10,51 @@ import 'package:path/path.dart' as p; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import 'song_detail_screen.dart';
 import '../widgets/playbar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
+  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+  if (artUrl.startsWith('http')) {
+    return CachedNetworkImageProvider(artUrl);
+  } else {
+    final dir = await getApplicationDocumentsDirectory();
+    final name = p.basename(artUrl);
+    final fullPath = p.join(dir.path, name);
+    if (await File(fullPath).exists()) {
+      return FileImage(File(fullPath));
+    } else {
+      return const AssetImage('assets/placeholder.png');
+    }
+  }
+}
+
+Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+  return FutureBuilder<ImageProvider>(
+    future: getRobustArtworkProvider(artUrl),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+        return Image(
+          image: snapshot.data!,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: width,
+            height: height,
+            color: Colors.grey[700],
+            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+          ),
+        );
+      }
+      return Container(
+        width: width,
+        height: height,
+        color: Colors.grey[700],
+        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+      );
+    },
+  );
+}
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -267,7 +312,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       // Display first art as a single image
       return ClipRRect(
         borderRadius: BorderRadius.circular(8.0),
-        child: _buildArtImage(artUrls.first, containerSize),
+        child: robustArtwork(artUrls.first, width: containerSize, height: containerSize),
       );
     } else {
       // Display a 2x2 grid of the first 4 album arts
@@ -282,7 +327,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             padding: EdgeInsets.zero,
-            children: artUrls.take(4).map((url) => _buildArtImage(url, imageSize)).toList(),
+            children: artUrls.take(4).map((url) => robustArtwork(url, width: imageSize, height: imageSize)).toList(),
           ),
         ),
       );
@@ -328,6 +373,35 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         return "N/A"; 
     }
     return _formatDuration(totalDuration);
+  }
+
+  ImageProvider? _currentArtProvider;
+  String? _currentArtId;
+  bool _artLoading = false;
+
+  Future<void> _updateArtProvider(String artUrl, String id) async {
+    setState(() { _artLoading = true; });
+    if (artUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(artUrl);
+    } else {
+      final path = await _getCachedLocalArtFuture(artUrl);
+      if (path.isNotEmpty) {
+        _currentArtProvider = FileImage(File(path));
+      } else {
+        _currentArtProvider = null;
+      }
+    }
+    _currentArtId = id;
+    if (mounted) setState(() { _artLoading = false; });
+  }
+
+  ImageProvider getArtworkProvider(String artUrl) {
+    //if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
+    if (artUrl.startsWith('http')) {
+      return CachedNetworkImageProvider(artUrl);
+    } else {
+      return FileImage(File(artUrl));
+    }
   }
 
   @override
@@ -633,136 +707,50 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 SliverReorderableList(
                   itemBuilder: (context, index) {
                     final song = currentPlaylist.songs[index]; // Use currentPlaylist
-                    Widget listItemLeading;
                     final Key itemKey = ValueKey(song.id);
 
-                    if (song.albumArtUrl.isNotEmpty) {
-                      if (song.albumArtUrl.startsWith('http')) {
-                        listItemLeading = Image.network(
-                          song.albumArtUrl,
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        );
-                      } else {
-                        listItemLeading = FutureBuilder<String>(
-                          future: _getCachedLocalArtFuture(song.albumArtUrl),
-                          key: ValueKey<String>('playlist_song_art_${song.id}'),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                              return Image.file(
-                                File(snapshot.data!),
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                              );
-                            }
-                            return Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                          },
-                        );
-                      }
-                    } else {
-                      listItemLeading = Icon(Icons.music_note, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                    }
+                    // Use robustArtwork for all song icons
+                    Widget listItemLeading = robustArtwork(song.albumArtUrl, width: 50, height: 50);
 
-                    // Each item in ReorderableList needs a Material ancestor for proper visuals during drag.
-                    // ReorderableDelayedDragStartListener makes the whole tile draggable after a delay.
-                    return Dismissible(
-                      key: Key('dismissible_${song.id}'),
-                      direction: DismissDirection.horizontal,
-                      dismissThresholds: const {
-                        DismissDirection.startToEnd: 0.25,
-                        DismissDirection.endToStart: 0.25,
-                      },
-                      confirmDismiss: (direction) async {
-                        if (direction == DismissDirection.startToEnd) {
-                          final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                          currentSongProvider.addToQueue(song);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${song.title} added to queue')),
-                          );
-                          return false; // Do not dismiss the item
-                        } else if (direction == DismissDirection.endToStart) {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext dialogContext) {
-                              return AddToPlaylistDialog(song: song);
-                            },
-                          );
-                          return false; // Do not dismiss the item
-                        }
-                        return false;
-                      },
-                      background: Container(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
-                            const SizedBox(width: 8),
-                            Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-                          ],
-                        ),
-                      ),
-                      secondaryBackground: Container(
-                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-                            const SizedBox(width: 8),
-                            Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
-                          ],
-                        ),
-                      ),
-                      child: ReorderableDelayedDragStartListener(
-                        key: itemKey,
-                        index: index,
-                        child: Material( // Added Material widget
-                          color: Colors.transparent, // To maintain list background, or set specific item background
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                            leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: listItemLeading,
-                            ),
-                            title: Text(
-                              song.title,
-                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
-                               maxLines: 1, overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                               maxLines: 1, overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
-                                  tooltip: 'Remove from playlist',
-                                  onPressed: () {
-                                    _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
-                                  },
-                                ),
-                                const SizedBox(width: 8), // Spacing before drag handle
-                                Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
-                              ],
-                            ),
-                            onTap: () {
-                              currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: index); // Use currentPlaylist
-                              currentSongProvider.playSong(song);
-                            },
+                    return ReorderableDelayedDragStartListener(
+                      key: itemKey,
+                      index: index,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: listItemLeading,
                           ),
+                          title: Text(
+                            song.title,
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
+                             maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                             maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                                tooltip: 'Remove from playlist',
+                                onPressed: () {
+                                  _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
+                                },
+                              ),
+                              const SizedBox(width: 8), // Spacing before drag handle
+                              Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                            ],
+                          ),
+                          onTap: () {
+                            currentSongProvider.setQueue(currentPlaylist.songs, initialIndex: index); // Use currentPlaylist
+                            currentSongProvider.playSong(song);
+                          },
                         ),
                       ),
                     );
