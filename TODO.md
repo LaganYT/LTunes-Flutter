@@ -32,6 +32,4 @@
 - Add: explicit thing in more places, as well as an explicit filter 
 
 ## Bug Fixes & Miscellaneous
-- Add: Discord intergration?
-
-- Check: whenever you click to play a song or use any buttons to play a playlist/album make it add the context to queue.
+- Add: Discord intergration
