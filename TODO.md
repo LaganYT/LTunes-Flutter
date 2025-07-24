@@ -31,12 +31,6 @@
 ## UI/UX Improvements
 - Add: explicit thing in more places, as well as an explicit filter 
 
-## Connectivity & Caching
-
-
-- Fix: When you leave a car and the bluetooth disconnects then get back in the car and reconnect bluetooth it will end the audio session: requiring you to reopen the app from the background to re-start the audio session - MAYBE FIXED
-
-
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration?
 - for the queue allow moving songs to a different order (like playlists do)
