@@ -211,8 +211,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
           }
         }
       }
-      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0);
-      currentSongProvider.playSong(widget.album.tracks.first);
+      await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
@@ -224,14 +223,14 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
   }
 
-  void _playAlbumShuffle() {
+  void _playAlbumShuffle() async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     if (widget.album.tracks.isNotEmpty) {
       // Ensure shuffle is on
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
-      currentSongProvider.setQueue(widget.album.tracks, initialIndex: 0); // This will shuffle if needed and start playing
+      await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
@@ -851,10 +850,13 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',
                         style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                       ),
-                      onTap: () {
+                      onTap: () async {
                         final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                        currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
-                        currentSongProvider.playSong(widget.album.tracks[index]);
+                        await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks[index]);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+                        );
                       },
                       onLongPress: () {
                         Navigator.push(
