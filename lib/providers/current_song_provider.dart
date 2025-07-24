@@ -95,6 +95,28 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+    /// Reorders the queue and updates the audio handler and current index accordingly.
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _queue.length || newIndex < 0 || newIndex >= _queue.length) return;
+    final song = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, song);
+
+    // Update the current index if needed
+    if (_currentSongFromAppLogic != null) {
+      _currentIndexInAppQueue = _queue.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+    }
+
+    // Update the audio handler's queue
+    final mediaItems = await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+    await _audioHandler.updateQueue(mediaItems);
+    if (_currentIndexInAppQueue != -1) {
+      await _audioHandler.customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+    }
+    notifyListeners();
+    _saveCurrentSongToStorage();
+  }
+
+
   Future<void> resetPlaybackSpeed() async {
     // Disable playback speed on iOS
     if (Platform.isIOS) return;
@@ -1976,10 +1998,6 @@ class CurrentSongProvider with ChangeNotifier {
             debugPrint('[playSong] Error checking local album art file: $e');
           }
         }
-        // Check for missing lyrics
-        if (currentSong.plainLyrics == null && currentSong.syncedLyrics == null) {
-          needsMetadataUpdate = true;
-        }
         // Check for missing audio file if marked as downloaded
         if (currentSong.isDownloaded && (currentSong.localFilePath == null || currentSong.localFilePath!.isEmpty)) {
           // This should already be handled by fetchSongUrl/_prepareMediaItem, but double-check
@@ -2001,7 +2019,6 @@ class CurrentSongProvider with ChangeNotifier {
               debugPrint('[playSong] Error checking local album art file for logging: $e');
             }
           }
-          if (currentSong.plainLyrics == null && currentSong.syncedLyrics == null) { debugPrint('[playSong] Lyrics are missing'); }
           if (currentSong.isDownloaded && (currentSong.localFilePath == null || currentSong.localFilePath!.isEmpty)) { debugPrint('[playSong] Audio file is missing for downloaded song'); }
           await updateMissingMetadata(currentSong);
           debugPrint('[playSong] updateMissingMetadata complete for song: "${currentSong.title}" (ID: ${currentSong.id})');
@@ -2032,5 +2049,13 @@ class CurrentSongProvider with ChangeNotifier {
         debugPrint('Error in stale play request for \u001b[33m"+songToPlay.title+", ignoring.');
       }
     }
+  }
+
+  /// Always sets the queue context before playing the song.
+  Future<void> playWithContext(List<Song> context, Song song) async {
+    int index = context.indexWhere((s) => s.id == song.id);
+    if (index == -1) index = 0;
+    await setQueue(context, initialIndex: index);
+    await playSong(song);
   }
 }
