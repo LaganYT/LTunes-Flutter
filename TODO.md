@@ -33,3 +33,6 @@
 
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration
+
+
+- Optimize the performance full screen player please
