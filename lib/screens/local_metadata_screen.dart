@@ -22,6 +22,7 @@ class LocalMetadataScreen extends StatefulWidget {
 
 class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
   List<Song> _localSongs = [];
+  List<Song> _customMetadataSongs = []; // New state for custom metadata songs
   bool _isLoading = true;
   final ApiService _apiService = ApiService();
   final Map<String, bool> _fetchingSongs = {};
@@ -244,6 +245,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       final prefs = await SharedPreferences.getInstance();
       final Set<String> keys = prefs.getKeys();
       final List<Song> localSongs = [];
+      final List<Song> customMetadataSongs = [];
       final appDocDir = await getApplicationDocumentsDirectory();
       const String downloadsSubDir = 'ltunes_downloads';
 
@@ -254,9 +256,13 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
             try {
               Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
               Song song = Song.fromJson(songMap);
-              
               // Only include songs that are imported (local files) and not ignored
-              if (song.isImported && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty && !_ignoredSongIds.contains(song.id)) {
+              if (song.isCustomMetadata == true && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty && !_ignoredSongIds.contains(song.id)) {
+                final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+                if (await File(fullPath).exists()) {
+                  customMetadataSongs.add(song);
+                }
+              } else if (song.isImported && song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty && !_ignoredSongIds.contains(song.id)) {
                 final fullPath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
                 if (await File(fullPath).exists()) {
                   localSongs.add(song);
@@ -272,6 +278,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       if (mounted) {
         setState(() {
           _localSongs = localSongs;
+          _customMetadataSongs = customMetadataSongs;
           _isLoading = false;
         });
       }
@@ -663,11 +670,12 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                       localFilePath: localSong.localFilePath,
                                       extras: {},
                                       duration: null, // No duration
-                                      isImported: false,
+                                      isImported: true, // Mark as imported
                                       isExplicit: false,
                                       plainLyrics: null, // No lyrics
                                       syncedLyrics: null,
                                       playCount: localSong.playCount,
+                                      isCustomMetadata: true, // Mark as custom metadata
                                     );
                                     Navigator.of(context).pop(song);
                                   },
@@ -771,11 +779,12 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
         isDownloaded: true, // Keep it as downloaded since we have the local file
         localFilePath: localSong.localFilePath, // Keep the local file path
         extras: apiSong.extras,
-        isImported: false, // Mark as native now
+        isImported: apiSong.isCustomMetadata == true ? true : false, // Mark as imported if custom
         isExplicit: apiSong.isExplicit,
         plainLyrics: apiSong.plainLyrics,
         syncedLyrics: apiSong.syncedLyrics,
         playCount: localSong.playCount, // Preserve play count
+        isCustomMetadata: apiSong.isCustomMetadata == true, // Preserve custom metadata flag
       );
       
       // Add to history for potential undo
@@ -935,6 +944,141 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     }
     setState(() { _isBatchFetching = false; });
     await _loadLocalSongs();
+  }
+
+  // Reusable dialog for editing/creating custom metadata
+  Future<Song?> _showCustomMetadataDialog({required Song baseSong}) async {
+    final titleController = TextEditingController(text: baseSong.title);
+    final artistController = TextEditingController(text: baseSong.artist);
+    final albumController = TextEditingController(text: baseSong.album ?? '');
+    final releaseDateController = TextEditingController(text: baseSong.releaseDate ?? '');
+    File? pickedImage;
+    String? pickedImageFileName;
+    String? initialAlbumArt = baseSong.albumArtUrl;
+    return showDialog<Song>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateCustom) {
+            Widget albumArtWidget = const SizedBox.shrink();
+            if (pickedImage != null) {
+              albumArtWidget = Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Image.file(pickedImage!, height: 80),
+              );
+            } else if (initialAlbumArt.isNotEmpty) {
+              if (initialAlbumArt.startsWith('http')) {
+                albumArtWidget = Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Image.network(initialAlbumArt, height: 80),
+                );
+              } else {
+                albumArtWidget = FutureBuilder<Directory>(
+                  future: getApplicationDocumentsDirectory(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+                    final file = File(p.join(snapshot.data!.path, initialAlbumArt));
+                    if (!file.existsSync()) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Image.file(file, height: 80),
+                    );
+                  },
+                );
+              }
+            }
+            return AlertDialog(
+              title: const Text('Edit Custom Metadata'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                    ),
+                    TextField(
+                      controller: artistController,
+                      decoration: const InputDecoration(labelText: 'Artist'),
+                    ),
+                    TextField(
+                      controller: albumController,
+                      decoration: const InputDecoration(labelText: 'Album (optional)'),
+                    ),
+                    TextField(
+                      controller: releaseDateController,
+                      decoration: const InputDecoration(labelText: 'Release Date (optional)'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.image),
+                          label: const Text('Import Image'),
+                          onPressed: () async {
+                            final result = await FilePicker.platform.pickFiles(type: FileType.image);
+                            if (result != null && result.files.single.path != null) {
+                              setStateCustom(() {
+                                pickedImage = File(result.files.single.path!);
+                                pickedImageFileName = result.files.single.name;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        if (pickedImage != null)
+                          Flexible(child: Text(pickedImageFileName ?? '', overflow: TextOverflow.ellipsis)),
+                      ],
+                    ),
+                    albumArtWidget,
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    String albumArtUrl = baseSong.albumArtUrl;
+                    if (pickedImage != null) {
+                      final appDocDir = await getApplicationDocumentsDirectory();
+                      final fileName = 'custom_art_${const Uuid().v4()}.${pickedImageFileName?.split('.').last ?? 'jpg'}';
+                      final destPath = p.join(appDocDir.path, fileName);
+                      await pickedImage!.copy(destPath);
+                      albumArtUrl = fileName;
+                    }
+                    final song = Song(
+                      title: titleController.text.trim().isEmpty ? 'Unknown Title' : titleController.text.trim(),
+                      id: baseSong.id, // Keep the same ID for editing
+                      artist: artistController.text.trim().isEmpty ? 'Unknown Artist' : artistController.text.trim(),
+                      artistId: '',
+                      albumArtUrl: albumArtUrl,
+                      album: albumController.text.trim().isEmpty ? null : albumController.text.trim(),
+                      releaseDate: releaseDateController.text.trim().isEmpty ? null : releaseDateController.text.trim(),
+                      audioUrl: '',
+                      isDownloaded: true,
+                      localFilePath: baseSong.localFilePath,
+                      extras: {},
+                      duration: null, // No duration
+                      isImported: true, // Mark as imported
+                      isExplicit: false,
+                      plainLyrics: null, // No lyrics
+                      syncedLyrics: null,
+                      playCount: baseSong.playCount,
+                      isCustomMetadata: true, // Mark as custom metadata
+                    );
+                    Navigator.of(context).pop(song);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -1206,6 +1350,43 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                             ),
                           );
                         },
+                      ),
+                    ),
+                  if (_customMetadataSongs.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Card(
+                        color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.2),
+                        child: ExpansionTile(
+                          title: const Text('Edited Metadata Songs', style: TextStyle(fontWeight: FontWeight.bold)),
+                          initiallyExpanded: false,
+                          children: _customMetadataSongs.map((song) {
+                            return ListTile(
+                              title: Text(song.title),
+                              subtitle: Text(song.artist),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.edit),
+                                color: Theme.of(context).colorScheme.primary,
+                                onPressed: () async {
+                                  final editedSong = await _showCustomMetadataDialog(baseSong: song);
+                                  if (editedSong != null) {
+                                    final prefs = await SharedPreferences.getInstance();
+                                    await prefs.setString('song_${editedSong.id}', jsonEncode(editedSong.toJson()));
+                                    await _loadLocalSongs();
+                                    if (mounted && context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Custom metadata updated'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                 ],

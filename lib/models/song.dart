@@ -17,6 +17,7 @@ class Song {
   final bool isImported; // New field for imported songs
   final bool isExplicit; // New field for explicit content
   int playCount; // New field for play count
+  final bool isCustomMetadata; // New field for custom metadata
 
   // Add a getter for isRadio
   bool get isRadio => extras?['isRadio'] as bool? ?? false;
@@ -49,6 +50,7 @@ class Song {
     this.plainLyrics,
     this.syncedLyrics,
     this.playCount = 0, // Default to 0
+    this.isCustomMetadata = false, // Default to false
   });
 
   Song copyWith({
@@ -71,6 +73,7 @@ class Song {
     String? plainLyrics,
     String? syncedLyrics,
     int? playCount, // New field
+    bool? isCustomMetadata, // Add to copyWith
   }) {
     return Song(
       title: title ?? this.title,
@@ -92,6 +95,7 @@ class Song {
       plainLyrics: plainLyrics ?? this.plainLyrics,
       syncedLyrics: syncedLyrics ?? this.syncedLyrics,
       playCount: playCount ?? this.playCount, // New field
+      isCustomMetadata: isCustomMetadata ?? this.isCustomMetadata, // Add to copyWith logic
     );
   }
 
@@ -172,6 +176,7 @@ class Song {
       final String? plainLyrics = _asNullableString(json['plainLyrics']);
       final String? syncedLyrics = _asNullableString(json['syncedLyrics']);
       final int playCount = json['playCount'] as int? ?? 0; // Parse playCount
+      final bool isCustomMetadata = json['isCustomMetadata'] as bool? ?? false; // Parse isCustomMetadata
 
       return Song(
         title: title,
@@ -191,6 +196,7 @@ class Song {
         plainLyrics: plainLyrics,
         syncedLyrics: syncedLyrics,
         playCount: playCount, // Assign playCount
+        isCustomMetadata: isCustomMetadata, // Assign parsed isCustomMetadata
         // isDownloading and downloadProgress will use default constructor values
       );
     } catch (e) {
@@ -247,6 +253,7 @@ class Song {
       extras: extras,
       isImported: false, // API songs are not imported by default
       isExplicit: isExplicit, // Assign parsed isExplicit
+      isCustomMetadata: false, // API songs are not custom metadata by default
       // plainLyrics and syncedLyrics will be null by default
       // isDownloading and downloadProgress will use default constructor values
     );
@@ -270,6 +277,7 @@ class Song {
         'plainLyrics': plainLyrics,
         'syncedLyrics': syncedLyrics,
         'playCount': playCount, // Serialize playCount
+        'isCustomMetadata': isCustomMetadata, // Serialize isCustomMetadata
         // isDownloading and downloadProgress are typically transient state
         // and not included in toJson. If you need to persist them, add them here.
       };

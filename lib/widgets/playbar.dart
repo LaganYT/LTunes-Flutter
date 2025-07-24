@@ -82,7 +82,9 @@ class _PlaybarState extends State<Playbar> {
     _updateTimer = Timer(_updateDelay, () async {
       if (!mounted) return;
 
-      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+      // Use the cached _currentSongProvider instead of Provider.of(context)
+      final currentSongProvider = _currentSongProvider;
+      if (currentSongProvider == null) return;
       final newSong = currentSongProvider.currentSong;
       final newSongId = newSong?.id;
       
