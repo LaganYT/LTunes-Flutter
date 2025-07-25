@@ -18,6 +18,7 @@ class ErrorHandlerService {
   // Error messages
   static const Map<String, String> _errorMessages = {
     networkError: 'Connection failed. Please check your internet connection and try again.',
+    apiError: 'A server error occurred. Please try again later.',
     fileError: 'Unable to access file. The file may be corrupted or missing.',
     audioError: 'Unable to play audio. Please try again.',
     downloadError: 'Download failed. Please check your connection and try again.',
