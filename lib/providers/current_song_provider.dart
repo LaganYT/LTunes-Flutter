@@ -2071,6 +2071,7 @@ class CurrentSongProvider with ChangeNotifier {
     int index = context.indexWhere((s) => s.id == song.id);
     if (index == -1) return;
     _queue = List<Song>.from(context);
+    _unshuffledQueue = List<Song>.from(context); // Save the new context as the pre-shuffled queue
     _currentIndexInAppQueue = index;
     _currentSongFromAppLogic = _queue[index];
     // Set the handler's _shouldBePaused flag based on playImmediately
@@ -2081,5 +2082,18 @@ class CurrentSongProvider with ChangeNotifier {
     await _audioHandler.skipToQueueItem(index);
     notifyListeners();
     _saveCurrentSongToStorage();
+    // Persist the pre-shuffled queue to storage, ensuring shuffle is off for the save
+    final wasShuffling = _isShuffling;
+    if (wasShuffling) {
+      _isShuffling = false;
+      notifyListeners();
+    }
+    final prefs = await SharedPreferences.getInstance();
+    List<String> unshuffledQueueJson = _unshuffledQueue.map((song) => jsonEncode(song.toJson())).toList();
+    await prefs.setStringList('current_unshuffled_queue_v2', unshuffledQueueJson);
+    if (wasShuffling) {
+      _isShuffling = true;
+      notifyListeners();
+    }
   }
 }

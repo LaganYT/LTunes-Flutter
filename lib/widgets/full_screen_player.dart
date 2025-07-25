@@ -1264,15 +1264,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       : MainAxisAlignment.spaceBetween,
                   children: [
                     if (!isRadio)
-                      IconButton(
-                       icon: Icon(
-                         currentSongProvider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
-                         color: currentSongProvider.isShuffling ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
-                       ),
-                       iconSize: 26,
-                       onPressed: () => currentSongProvider.toggleShuffle(),
-                       tooltip: 'Shuffle',
-                     ),
+                      Consumer<CurrentSongProvider>(
+                        builder: (context, provider, _) => IconButton(
+                          icon: Icon(
+                            provider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
+                            color: provider.isShuffling ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
+                          ),
+                          iconSize: 26,
+                          onPressed: () => provider.toggleShuffle(),
+                          tooltip: provider.isShuffling ? 'Shuffle On' : 'Shuffle Off',
+                        ),
+                      ),
                     if (!isRadio)
                       IconButton(
                        icon: const Icon(Icons.skip_previous_rounded),
@@ -1330,17 +1332,27 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                        tooltip: 'Next Song',
                      ),
                     if (!isRadio)
-                      IconButton(
-                       icon: Icon(
-                         loopMode == LoopMode.none ? Icons.repeat_rounded : 
-                         loopMode == LoopMode.queue ? Icons.repeat_on_rounded : Icons.repeat_one_on_rounded,
-                         color: loopMode != LoopMode.none ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
-                       ),
-                       iconSize: 26,
-                       onPressed: () => currentSongProvider.toggleLoop(),
-                       tooltip: loopMode == LoopMode.none ? 'Repeat Off' : 
-                                loopMode == LoopMode.queue ? 'Repeat Queue' : 'Repeat Song',
-                     ),
+                      Consumer<CurrentSongProvider>(
+                        builder: (context, provider, _) => IconButton(
+                          icon: Icon(
+                            provider.loopMode == LoopMode.none
+                                ? Icons.repeat_rounded
+                                : provider.loopMode == LoopMode.queue
+                                    ? Icons.repeat_on_rounded
+                                    : Icons.repeat_one_on_rounded,
+                            color: provider.loopMode != LoopMode.none
+                                ? colorScheme.secondary
+                                : colorScheme.onBackground.withOpacity(0.7),
+                          ),
+                          iconSize: 26,
+                          onPressed: () => provider.toggleLoop(),
+                          tooltip: provider.loopMode == LoopMode.none
+                              ? 'Repeat Off'
+                              : provider.loopMode == LoopMode.queue
+                                  ? 'Repeat Queue'
+                                  : 'Repeat Song',
+                        ),
+                      ),
                   ],
                 ),
                 SizedBox(height: MediaQuery.of(context).padding.bottom + 16), // For bottom padding
