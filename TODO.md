@@ -32,5 +32,4 @@
 - Add: explicit thing in more places, as well as an explicit filter 
 
 ## Bug Fixes & Miscellaneous
-- Add: Discord intergration
 - Migrate the full playlist import logic to a service that can run without the screen being open. I want the ui to not change at all, just move the logic to a service.
