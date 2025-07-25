@@ -43,6 +43,12 @@ class CurrentSongProvider with ChangeNotifier {
   // ignore: unused_field
   bool _isProcessingProviderDownload = false;
 
+  // Add retry tracking for downloads
+  final Map<String, int> _downloadRetryCount = {};
+  final Map<String, DateTime> _downloadLastRetry = {};
+  static const int _maxDownloadRetries = 3;
+  static const Duration _baseRetryDelay = Duration(seconds: 2);
+
   int _playRequestCounter = 0;
 
   bool _isLoadingAudio = false; // For UI feedback when initiating play
@@ -924,14 +930,31 @@ class CurrentSongProvider with ChangeNotifier {
       final downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
       final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
       if (await File(filePath).exists()) {
+        // Validate the file and redownload if corrupted
+        final needsRedownload = await validateAndRedownloadIfNeeded(song);
+        if (needsRedownload) {
+          debugPrint('File validation failed for ${song.title}, triggering redownload and falling back to streaming');
+          // Return streaming URL while redownload happens in background
+          if (song.audioUrl.isNotEmpty && (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false) && !song.audioUrl.startsWith('file:/')) {
+            return song.audioUrl;
+          }
+          final apiService = ApiService();
+          final fetchedUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+          return fetchedUrl ?? '';
+        }
         return filePath;
       }
-      // Song was marked downloaded but the file is gone: reset its download state
+      // Song was marked downloaded but the file is gone: reset its download state and trigger redownload
       {
         final updatedSong = song.copyWith(isDownloaded: false, localFilePath: null);
         await _persistSongMetadata(updatedSong);
         updateSongDetails(updatedSong);
         PlaylistManagerService().updateSongInPlaylists(updatedSong);
+        
+        // Trigger redownload for missing file
+        if (!song.isImported) {
+          await redownloadSong(updatedSong);
+        }
       }
       if (song.isImported) {
         debugPrint('Imported song "${song.title}" missing, cannot stream.');
@@ -1302,6 +1325,27 @@ class CurrentSongProvider with ChangeNotifier {
       return;
     }
 
+    // Check if we should retry this download
+    final retryCount = _downloadRetryCount[song.id] ?? 0;
+    if (retryCount > 0) {
+      final lastRetry = _downloadLastRetry[song.id];
+      if (lastRetry != null) {
+        final timeSinceLastRetry = DateTime.now().difference(lastRetry);
+        final retryDelay = Duration(seconds: _baseRetryDelay.inSeconds * (1 << (retryCount - 1))); // Exponential backoff
+        if (timeSinceLastRetry < retryDelay) {
+          debugPrint('Retry attempt ${retryCount} for ${song.title} too soon. Waiting...');
+          // Re-queue the song for later retry
+          _downloadQueue.insert(0, song);
+          _activeDownloads.remove(song.id);
+          _downloadProgress.remove(song.id);
+          _isProcessingProviderDownload = false;
+          notifyListeners();
+          _triggerNextDownloadInProviderQueue();
+          return;
+        }
+      }
+    }
+
     // _activeDownloads[song.id] = song; // Moved to _triggerNextDownloadInProviderQueue
     // _downloadProgress[song.id] = _downloadProgress[song.id] ?? 0.0; // Moved
     // notifyListeners(); // Moved
@@ -1349,33 +1393,84 @@ class CurrentSongProvider with ChangeNotifier {
     );
 
     try {
-      debugPrint('Submitting download for ${song.title} (base filename: $uniqueFileNameBase) to DownloadManager.');
+      debugPrint('Submitting download for ${song.title} (base filename: $uniqueFileNameBase) to DownloadManager. Retry attempt: ${retryCount + 1}');
       final downloadedFile = await _downloadManager!.getFile(queueItem);
 
       if (downloadedFile != null && await downloadedFile.exists()) {
-        _handleDownloadSuccess(song.id, p.basename(downloadedFile.path));
+        // Verify the file is not corrupted by checking its size
+        final fileSize = await downloadedFile.length();
+        if (fileSize > 0) {
+          // Clear retry count on success
+          _downloadRetryCount.remove(song.id);
+          _downloadLastRetry.remove(song.id);
+          _handleDownloadSuccess(song.id, p.basename(downloadedFile.path));
+        } else {
+          // File exists but is empty - treat as download failure
+          await _cleanupCorruptedFile(downloadedFile);
+          _handleDownloadFailure(song.id, Exception('Downloaded file is empty or corrupted'));
+        }
       } else {
         // Attempt to clean up potential partial file if DownloadManager didn't.
         // This part is speculative as DownloadManager should handle its files.
-        final appDocDir = await getApplicationDocumentsDirectory();
-        final String potentialPartialPath = p.join(appDocDir.path, _downloadManager!.subDir, queueItem.fileName!);
-        final File partialFile = File(potentialPartialPath);
-        if (await partialFile.exists()) {
-          try {
-            await partialFile.delete();
-            debugPrint('Deleted potential partial file: $potentialPartialPath');
-          } catch (deleteError) {
-            debugPrint('Error deleting potential partial file $potentialPartialPath: $deleteError');
-          }
-        }
-        _handleDownloadError(song.id, Exception('DownloadManager.getFile completed but file is null or does not exist.'));
+        await _cleanupPartialFile(queueItem.fileName!);
+        _handleDownloadFailure(song.id, Exception('DownloadManager.getFile completed but file is null or does not exist.'));
       }
     } catch (e) {
       debugPrint('Error from DownloadManager for ${song.title}: $e');
-      _handleDownloadError(song.id, e);
+      await _cleanupPartialFile(queueItem.fileName!);
+      _handleDownloadFailure(song.id, e);
     }
   }
 
+  Future<void> _cleanupCorruptedFile(File file) async {
+    try {
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('Deleted corrupted file: ${file.path}');
+      }
+    } catch (e) {
+      debugPrint('Error deleting corrupted file ${file.path}: $e');
+    }
+  }
+
+  Future<void> _cleanupPartialFile(String fileName) async {
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final String potentialPartialPath = p.join(appDocDir.path, _downloadManager!.subDir, fileName);
+      final File partialFile = File(potentialPartialPath);
+      if (await partialFile.exists()) {
+        await partialFile.delete();
+        debugPrint('Deleted potential partial file: $potentialPartialPath');
+      }
+    } catch (e) {
+      debugPrint('Error cleaning up partial file: $e');
+    }
+  }
+
+  void _handleDownloadFailure(String songId, dynamic error) {
+    final song = _activeDownloads[songId];
+    final retryCount = _downloadRetryCount[songId] ?? 0;
+    
+    if (song != null && retryCount < _maxDownloadRetries) {
+      // Increment retry count and schedule retry
+      _downloadRetryCount[songId] = retryCount + 1;
+      _downloadLastRetry[songId] = DateTime.now();
+      
+      debugPrint('Download failed for ${song.title}. Retry attempt ${retryCount + 1}/${_maxDownloadRetries}. Error: $error');
+      
+      // Re-queue the song for retry
+      _downloadQueue.insert(0, song);
+      _activeDownloads.remove(songId);
+      _downloadProgress.remove(songId);
+      _isProcessingProviderDownload = false;
+      notifyListeners();
+      _triggerNextDownloadInProviderQueue();
+    } else {
+      // Max retries exceeded or no song found
+      debugPrint('Download failed for song $songId after ${retryCount + 1} attempts. Giving up.');
+      _handleDownloadError(songId, error);
+    }
+  }
 
   void _handleDownloadSuccess(String songId, String actualLocalFileName) async {
     Song? song = _activeDownloads[songId];
@@ -1617,6 +1712,131 @@ class CurrentSongProvider with ChangeNotifier {
     debugPrint("All download cancellation requests initiated. Provider queue cleared.");
     notifyListeners(); // Notify for the queue clearing and any immediate state changes.
     _forceUpdateDownloadNotification(); // Force update when all downloads are cancelled
+  }
+
+  /// Redownload a song that has failed or is corrupted
+  Future<void> redownloadSong(Song song) async {
+    debugPrint('CurrentSongProvider: Redownloading song: ${song.title}');
+    
+    try {
+      // Clear any existing retry count for this song
+      _downloadRetryCount.remove(song.id);
+      _downloadLastRetry.remove(song.id);
+      
+      // Remove from active downloads if present
+      _activeDownloads.remove(song.id);
+      _downloadProgress.remove(song.id);
+      
+      // Remove from queue if present
+      _downloadQueue.removeWhere((s) => s.id == song.id);
+      
+      // Reset song's download state
+      final resetSong = song.copyWith(
+        isDownloaded: false,
+        localFilePath: null,
+        isDownloading: false,
+        downloadProgress: 0.0,
+      );
+      
+      // Update song metadata
+      await _persistSongMetadata(resetSong);
+      updateSongDetails(resetSong);
+      PlaylistManagerService().updateSongInPlaylists(resetSong);
+      
+      // Clean up any existing corrupted files
+      if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
+        final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+        final file = File(filePath);
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint('Deleted corrupted file for redownload: $filePath');
+        }
+      }
+      
+      // Queue for redownload
+      await queueSongForDownload(resetSong);
+      
+      debugPrint('CurrentSongProvider: Song queued for redownload: ${song.title}');
+    } catch (e) {
+      debugPrint('CurrentSongProvider: Error redownloading song ${song.title}: $e');
+      _errorHandler.logError(e, context: 'redownloadSong');
+    }
+  }
+
+  /// Check if a downloaded song file is corrupted and redownload if necessary
+  Future<bool> validateAndRedownloadIfNeeded(Song song) async {
+    if (!song.isDownloaded || song.localFilePath == null || song.localFilePath!.isEmpty) {
+      return false;
+    }
+    
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
+      final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+      final file = File(filePath);
+      
+      if (!await file.exists()) {
+        debugPrint('File missing for downloaded song ${song.title}, triggering redownload');
+        await redownloadSong(song);
+        return true;
+      }
+      
+      // Check if file is corrupted (empty or too small)
+      final fileSize = await file.length();
+      if (fileSize == 0 || fileSize < 1024) { // Less than 1KB is suspicious
+        debugPrint('File corrupted for downloaded song ${song.title} (size: $fileSize bytes), triggering redownload');
+        await redownloadSong(song);
+        return true;
+      }
+      
+      return false; // File is valid
+    } catch (e) {
+      debugPrint('Error validating file for ${song.title}: $e');
+      // If we can't validate, assume it's corrupted and redownload
+      await redownloadSong(song);
+      return true;
+    }
+  }
+
+  /// Validate all downloaded songs and redownload corrupted ones
+  Future<List<Song>> validateAllDownloadedSongs() async {
+    debugPrint('CurrentSongProvider: Starting validation of all downloaded songs');
+    final List<Song> corruptedSongs = [];
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Set<String> keys = prefs.getKeys();
+      
+      for (String key in keys) {
+        if (key.startsWith('song_')) {
+          final String? songJson = prefs.getString(key);
+          if (songJson != null) {
+            try {
+              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+              Song song = Song.fromJson(songMap);
+              
+              if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+                final needsRedownload = await validateAndRedownloadIfNeeded(song);
+                if (needsRedownload) {
+                  corruptedSongs.add(song);
+                }
+              }
+            } catch (e) {
+              debugPrint('Error parsing song metadata for key $key: $e');
+            }
+          }
+        }
+      }
+      
+      debugPrint('CurrentSongProvider: Validation complete. Found ${corruptedSongs.length} corrupted songs');
+      return corruptedSongs;
+    } catch (e) {
+      debugPrint('CurrentSongProvider: Error during bulk validation: $e');
+      _errorHandler.logError(e, context: 'validateAllDownloadedSongs');
+      return corruptedSongs;
+    }
   }
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {

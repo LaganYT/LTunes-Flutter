@@ -1114,6 +1114,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ListTile(
+                  leading: Icon(Icons.refresh_outlined, color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Validate & Redownload Corrupted Files'),
+                  subtitle: const Text('Check all downloaded songs and redownload corrupted ones'),
+                  onTap: () async {
+                    bool? confirmValidate = await showDialog<bool>(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('Validate Downloads?'),
+                          content: const Text('This will check all downloaded songs for corruption and automatically redownload any corrupted files. This may take some time.'),
+                          actions: <Widget>[
+                            TextButton(
+                              child: const Text('Cancel'),
+                              onPressed: () {
+                                Navigator.of(context).pop(false);
+                              },
+                            ),
+                            TextButton(
+                              child: Text('Validate', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                              onPressed: () {
+                                Navigator.of(context).pop(true);
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                    if (confirmValidate == true && _currentSongProvider != null) {
+                      // Show loading dialog
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (BuildContext context) {
+                          return const AlertDialog(
+                            content: Row(
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(width: 16),
+                                Text('Validating downloads...'),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                      
+                      try {
+                        final corruptedSongs = await _currentSongProvider!.validateAllDownloadedSongs();
+                        Navigator.of(context).pop(); // Close loading dialog
+                        
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                corruptedSongs.isEmpty 
+                                  ? 'All downloads validated successfully!' 
+                                  : 'Found ${corruptedSongs.length} corrupted files. Redownloading...'
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        Navigator.of(context).pop(); // Close loading dialog
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error validating downloads: $e'),
+                              backgroundColor: Theme.of(context).colorScheme.error,
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                ),
+                ListTile(
                   leading: Icon(Icons.clear_all_outlined, color: Theme.of(context).colorScheme.secondary),
                   title: const Text('Clear Recently Played Stations'),
                   subtitle: const Text('Remove recently played radio stations from history'),

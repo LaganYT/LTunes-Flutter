@@ -235,17 +235,37 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                         ],
                       ],
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.cancel_outlined),
-                      tooltip: 'Cancel Download',
-                      color: Colors.orangeAccent,
-                      onPressed: () {
-                        provider.cancelDownload(song.id);
-                        // Optional: Show a SnackBar
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Cancelled download for "${song.title}".')),
-                        );
-                      },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Redownload button for failed downloads
+                        if (song.isDownloaded && song.localFilePath != null) ...[
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            tooltip: 'Redownload',
+                            color: Colors.blue,
+                            onPressed: () async {
+                              await provider.redownloadSong(song);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Redownloading "${song.title}"...')),
+                              );
+                            },
+                          ),
+                        ],
+                        // Cancel button
+                        IconButton(
+                          icon: const Icon(Icons.cancel_outlined),
+                          tooltip: 'Cancel Download',
+                          color: Colors.orangeAccent,
+                          onPressed: () {
+                            provider.cancelDownload(song.id);
+                            // Optional: Show a SnackBar
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Cancelled download for "${song.title}".')),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 );
