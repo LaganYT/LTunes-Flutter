@@ -53,3 +53,5 @@ Consider canceling any active work during "dispose" or using the "mounted" gette
 <asynchronous suspension>
 
 Don't dispose the playlists list screen, just hide it, when importing a playlist
+
+- Whenever i click on a song that needs to load make sure it shows that its loading and that it shows the accurate metadata for that song.
