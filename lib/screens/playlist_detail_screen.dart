@@ -28,34 +28,6 @@ Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   }
 }
 
-Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
-  return FutureBuilder<ImageProvider>(
-    future: getRobustArtworkProvider(artUrl),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-        return Image(
-          image: snapshot.data!,
-          width: width,
-          height: height,
-          fit: fit,
-          errorBuilder: (context, error, stackTrace) => Container(
-            width: width,
-            height: height,
-            color: Colors.grey[700],
-            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
-          ),
-        );
-      }
-      return Container(
-        width: width,
-        height: height,
-        color: Colors.grey[700],
-        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
-      );
-    },
-  );
-}
-
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
 
@@ -70,6 +42,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   
   // Cache Future objects to prevent art flashing
   final Map<String, Future<String>> _localArtFutureCache = {}; // For deleting playlist
+  final Map<String, Future<ImageProvider>> _artProviderFutureCache = {}; // <-- Add this line
 
   // Helper method to resolve local album art path
   Future<String> _resolveLocalArtPath(String fileName) async {
@@ -87,12 +60,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     if (fileName.isEmpty || fileName.startsWith('http')) {
       return Future.value('');
     }
-    
     if (!_localArtFutureCache.containsKey(fileName)) {
       _localArtFutureCache[fileName] = _resolveLocalArtPath(fileName);
     }
-    
     return _localArtFutureCache[fileName]!;
+  }
+
+  // Get cached Future for robust artwork provider
+  Future<ImageProvider> _getCachedArtProviderFuture(String artUrl) {
+    if (!_artProviderFutureCache.containsKey(artUrl)) {
+      _artProviderFutureCache[artUrl] = getRobustArtworkProvider(artUrl);
+    }
+    return _artProviderFutureCache[artUrl]!;
   }
 
   Future<void> _downloadAllSongs(Playlist currentPlaylist) async {
@@ -289,6 +268,35 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         },
       );
     }
+  }
+
+  Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+    return FutureBuilder<ImageProvider>(
+      key: ValueKey('artwork_$artUrl'), // Add stable key
+      future: _getCachedArtProviderFuture(artUrl), // Use cached future
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+          return Image(
+            image: snapshot.data!,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: width,
+              height: height,
+              color: Colors.grey[700],
+              child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+            ),
+          );
+        }
+        return Container(
+          width: width,
+          height: height,
+          color: Colors.grey[700],
+          child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+        );
+      },
+    );
   }
 
   Widget _buildProminentPlaylistArt(List<String> artUrls, double containerSize) {

@@ -40,6 +40,8 @@ class _PlaybarState extends State<Playbar> {
   ImageProvider? _currentArtProvider;
   String? _currentArtId;
   bool _artLoading = false;
+  final Map<String, Future<String>> _localArtFutureCache = {}; // <-- Add this line
+  final Map<String, ImageProvider> _artProviderCache = {}; // <-- Add this line
 
   @override
   void didChangeDependencies() {
@@ -113,18 +115,26 @@ class _PlaybarState extends State<Playbar> {
 
   Future<void> _updateArtProvider(Song song) async {
     setState(() { _artLoading = true; });
-    if (song.albumArtUrl.startsWith('http')) {
-      _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
+    final artUrl = song.albumArtUrl;
+    if (_artProviderCache.containsKey(song.id)) {
+      _currentArtProvider = _artProviderCache[song.id];
+      _currentArtId = song.id;
+      setState(() { _artLoading = false; });
+      return;
+    }
+    if (artUrl.startsWith('http')) {
+      _currentArtProvider = CachedNetworkImageProvider(artUrl);
     } else {
-      final path = await _resolveLocalArtPath(song.albumArtUrl);
+      final path = await _getCachedLocalArtFuture(artUrl);
       if (path.isNotEmpty) {
         _currentArtProvider = FileImage(File(path));
       } else {
-        _currentArtProvider = null;
+        _currentArtProvider = const AssetImage('assets/placeholder.png');
       }
     }
+    _artProviderCache[song.id] = _currentArtProvider!;
     _currentArtId = song.id;
-    if (mounted) setState(() { _artLoading = false; });
+    setState(() { _artLoading = false; });
   }
 
   void playUrl(String url) {
@@ -132,23 +142,21 @@ class _PlaybarState extends State<Playbar> {
     currentSongProvider.playUrl(url);
   }
 
-  Future<String> _resolveLocalArtPath(String? fileName) async {
-    if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
-      return '';
-    }
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, fileName);
-      if (await File(fullPath).exists()) {
-        debugPrint('Found local album art: $fullPath');
-        return fullPath;
-      } else {
-        debugPrint('Local album art not found: $fullPath');
-      }
-    } catch (e) {
-      debugPrint("Error resolving local art path for playbar: $e");
+  Future<String> _resolveLocalArtPath(String fileName) async {
+    if (fileName.isEmpty) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
     }
     return '';
+  }
+
+  Future<String> _getCachedLocalArtFuture(String fileName) {
+    if (!_localArtFutureCache.containsKey(fileName)) {
+      _localArtFutureCache[fileName] = _resolveLocalArtPath(fileName);
+    }
+    return _localArtFutureCache[fileName]!;
   }
 
   ImageProvider getArtworkProvider(String artUrl) {

@@ -91,7 +91,9 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
         final currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
         if (_artPathCache.length != queue.length && !_loading) {
           _loading = true;
-          _precacheArtPaths();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _precacheArtPaths();
+          });
         }
         if (_loading) {
           return const Center(child: CircularProgressIndicator());
