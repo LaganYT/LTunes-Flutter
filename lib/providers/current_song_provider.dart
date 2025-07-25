@@ -527,6 +527,11 @@ class CurrentSongProvider with ChangeNotifier {
             _currentSongFromAppLogic?.title != newCurrentSongLogicCandidate.title ||
             _currentSongFromAppLogic?.artist != newCurrentSongLogicCandidate.artist ||
             _currentSongFromAppLogic?.albumArtUrl != newCurrentSongLogicCandidate.albumArtUrl) {
+          // GUARD: If loading, only allow update if the incoming song matches the one being loaded
+          if (_isLoadingAudio && _currentSongFromAppLogic != null && newCurrentSongLogicCandidate.id != _currentSongFromAppLogic!.id) {
+            // Skip update to prevent fallback to previous song during loading
+            return;
+          }
           _currentSongFromAppLogic = newCurrentSongLogicCandidate;
           needsNotification = true;
         }
@@ -1952,7 +1957,10 @@ class CurrentSongProvider with ChangeNotifier {
         if (indexInExistingQueue != -1) {
           // Song is part of the existing _queue. Play from this queue.
           _currentIndexInAppQueue = indexInExistingQueue;
-          _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
+          // Only update _currentSongFromAppLogic if the song at the index matches the song to play
+          if (_queue[_currentIndexInAppQueue].id == songToPlay.id) {
+            _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
+          }
 
           // Prepare queue for handler, ensuring MediaItems are up to date
           List<MediaItem> fullQueueMediaItems = await Future.wait(
