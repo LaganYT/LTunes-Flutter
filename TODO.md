@@ -31,11 +31,3 @@
 
 - Improve: the download system by allowing syncernous downloading
 - Improve: the playlist import system by searching and matching multiple songs at the same time
-
-- Fix: the broken download system:
-
-flutter: Submitting download for Paralyzed (base filename: 5DHQKZCOZhGNTbYBCekWx0_Paralyzed) to DownloadManager.
-flutter: [DownloadManager:info] [DownloadManager] Download already active or queued: https://ltn-api.vercel.app/api/track/97096574.mp3
-flutter: Error in downloadSong: Exception: DownloadManager.getFile completed but file is null or does not exist.
-
-Add handling for this (redownload and overwrite original files)
