@@ -28,9 +28,6 @@
 ## Download & Notification Handling
 - Replace: the all downloaded button with remove downloads (which makes the songs from offline to online - deleting the song files) from playlist button
 
-## UI/UX Improvements
-- Add: explicit indicator in more places, as well as an explicit filter in settings 
-
 ## Bug Fixes & Miscellaneous
 - Migrate the full playlist import logic to a service that can run without the screen being open. I want the ui to not change at all, just move the logic to a service.
 - the album icon on the playbar flickers when transitioning between parts of a screen (ex. albums list to a specific album or artist lists page to a specific artist's songs) i like the way everything is handled now but would like the flicker to stop
