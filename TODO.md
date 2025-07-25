@@ -12,7 +12,7 @@
 - Add new sorting methods to the songs list page
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
-- Add: a downloaded indicator for specific songs (playlists, albums, artists, etc)
+- Add: a downloaded indicator for songs (playlists, albums, artists, etc)
 
 ## Audio & Playback Features
 - Try adding podcast support
