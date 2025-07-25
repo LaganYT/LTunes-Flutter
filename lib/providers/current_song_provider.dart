@@ -2052,10 +2052,19 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   /// Always sets the queue context before playing the song.
-  Future<void> playWithContext(List<Song> context, Song song) async {
+  Future<void> playWithContext(List<Song> context, Song song, {bool playImmediately = true}) async {
     int index = context.indexWhere((s) => s.id == song.id);
-    if (index == -1) index = 0;
-    await setQueue(context, initialIndex: index);
-    await playSong(song);
+    if (index == -1) return;
+    _queue = List<Song>.from(context);
+    _currentIndexInAppQueue = index;
+    _currentSongFromAppLogic = _queue[index];
+    // Set the handler's _shouldBePaused flag based on playImmediately
+    if (_audioHandler is AudioPlayerHandler) {
+      ( _audioHandler as AudioPlayerHandler).shouldBePaused = !playImmediately;
+    }
+    await _updateAudioHandlerQueue();
+    await _audioHandler.skipToQueueItem(index);
+    notifyListeners();
+    _saveCurrentSongToStorage();
   }
 }

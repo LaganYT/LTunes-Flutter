@@ -39,6 +39,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
   static const double itemHeight = 72.0;
   final Map<String, String> _artPathCache = {};
   bool _loading = true;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -60,6 +61,13 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
       }
     }
     if (mounted) setState(() { _loading = false; });
+    // After loading, scroll to current song
+    if (currentIndex != -1 && _scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final offset = (currentIndex * itemHeight) - 100.0; // Center it a bit
+        _scrollController.jumpTo(offset.clamp(0.0, _scrollController.position.maxScrollExtent));
+      });
+    }
   }
 
   @override
@@ -69,22 +77,24 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
     }
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final TextTheme textTheme = Theme.of(context).textTheme;
+    // Always try to scroll to the current song after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (currentIndex != -1 && _scrollController.hasClients) {
+        final offset = (currentIndex * itemHeight) - 100.0;
+        final clampedOffset = offset.clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(
+          clampedOffset,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.6,
       minChildSize: 0.3,
       maxChildSize: 0.9,
       builder: (_, controller) {
-        if (currentIndex != -1) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (controller.hasClients && controller.offset == 0.0) {
-              double offset = currentIndex * itemHeight;
-              final double initialSheetHeight = MediaQuery.of(context).size.height * 0.6;
-              offset = offset - (initialSheetHeight / 2) + (itemHeight / 2);
-              controller.jumpTo(offset.clamp(0.0, controller.position.maxScrollExtent));
-            }
-          });
-        }
         return Container(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
@@ -108,10 +118,12 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                       TextButton(
                         onPressed: () {
                           currentSongProvider.clearQueue();
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Queue cleared')),
-                          );
+                          if (mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Queue cleared')),
+                            );
+                          }
                         },
                         child: Text(
                           'Clear Queue',
@@ -135,6 +147,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                   child: ReorderableListView.builder(
                     key: const PageStorageKey('queue-reorderable-list'),
                     buildDefaultDragHandles: false,
+                    scrollController: _scrollController,
                     itemCount: queue.length,
                     itemBuilder: (BuildContext context, int index) {
                       final song = queue[index];
@@ -191,8 +204,10 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                             ],
                           ),
                           onTap: () async {
-                            await currentSongProvider.playWithContext(queue, song);
-                            Navigator.pop(context);
+                            final isPlaying = currentSongProvider.isPlaying;
+                            await currentSongProvider.playWithContext(queue, song, playImmediately: isPlaying);
+                            if (mounted) setState(() {}); // Update queue UI immediately
+                            if (mounted) Navigator.pop(context);
                           },
                         ),
                       );
@@ -278,6 +293,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   String? _currentArtId;
   bool _artLoading = false;
 
+  // 1. Add a palette cache at the top of _FullScreenPlayerState
+  final Map<String, Color> _paletteCache = {}; // Palette cache by song ID
+  // 3. Throttle for lyrics index update
+  int _lastLyricUpdate = 0;
+  int _artTransitionId = 0; // Unique id for each album art transition
+
 
   @override
   void initState() {
@@ -335,7 +356,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updatePalette(_currentSongProvider.currentSong);
+      if (mounted) {
+        _updatePalette(_currentSongProvider.currentSong);
+      }
     });
 
     _currentSongProvider.addListener(_onSongChanged);
@@ -349,7 +372,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   Future<void> _updateArtProvider(Song song) async {
-    setState(() { _artLoading = true; });
+    if (mounted) setState(() { _artLoading = true; });
     if (song.albumArtUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
     } else {
@@ -390,6 +413,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
   }
 
+  // 2. Batch setState in _onSongChanged and other methods
   void _onSongChanged() async {
     if (!mounted) return;
 
@@ -422,7 +446,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _albumArtSlideController.forward(from: 0.0);
       _textFadeController.forward(from: 0.0);
 
-      _updatePalette(newSong);
+      if (mounted) _updatePalette(newSong);
       _resetLyricsState();
 
       final provider = Provider.of<CurrentSongProvider>(context, listen: false);
@@ -439,8 +463,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _lyricsScrollController.jumpTo(index: 0);
       }
 
-      _previousSongId = newSongId;
-      _slideOffsetX = 0.0;
+      if (mounted) {
+        setState(() {
+          _previousSongId = newSongId;
+          _slideOffsetX = 0.0;
+          _artTransitionId++; // Increment transition id for each song change
+        });
+      }
       _loadLikeState();
     }
   }
@@ -563,7 +592,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       setState(() {
         _parsedLyrics = tempParsedLyrics;
         _areLyricsSynced = tempAreLyricsSynced;
-        _currentLyricIndex = -1;
+        // Clamp _currentLyricIndex to -1 or valid range
+        if (_currentLyricIndex >= _parsedLyrics.length) {
+          _currentLyricIndex = _parsedLyrics.isEmpty ? -1 : _parsedLyrics.length - 1;
+        }
+        if (_currentLyricIndex < -1) _currentLyricIndex = -1;
       });
     }
   }
@@ -633,34 +666,37 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     return lines;
   }
 
+  // 8. Debounce album art/palette updates: add a debounce for _updatePalette
+  Timer? _paletteDebounce;
   Future<void> _updatePalette(Song? song) async {
     if (song == null || song.albumArtUrl.isEmpty) return;
-    ImageProvider provider;
-    if (song.albumArtUrl.startsWith('http')) {
-      provider = NetworkImage(song.albumArtUrl);
-    } else {
-      final path = await _resolveLocalArtPath(song.albumArtUrl);
-      if (path.isEmpty) return;
-      provider = FileImage(File(path));
-    }
-    try {
-      final palette = await PaletteGenerator.fromImageProvider(provider);
-      // Darken or lighten the extracted dominant color based on theme
-      final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.background;
-      final hsl = HSLColor.fromColor(baseColor);
-
-      // Determine theme brightness
-      final Brightness currentBrightness = Theme.of(context).brightness;
-      final bool isDarkMode = currentBrightness == Brightness.dark;
-
-      final adjustedColor = hsl.withLightness(isDarkMode ? 0.2 : 0.8).toColor(); // 0.2 for dark, 0.8 for light
-
+    if (_paletteCache.containsKey(song.id)) {
       setState(() {
-        _dominantColor = adjustedColor;
+        _dominantColor = _paletteCache[song.id]!;
       });
-    } catch (_) {
-      // ignore any errors
+      return;
     }
+    _paletteDebounce?.cancel();
+    _paletteDebounce = Timer(const Duration(milliseconds: 150), () async {
+      ImageProvider provider;
+      if (song.albumArtUrl.startsWith('http')) {
+        provider = NetworkImage(song.albumArtUrl);
+      } else {
+        final path = await _resolveLocalArtPath(song.albumArtUrl);
+        if (path.isEmpty) return;
+        provider = FileImage(File(path));
+      }
+      try {
+        final palette = await PaletteGenerator.fromImageProvider(provider);
+        final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.background;
+        final hsl = HSLColor.fromColor(baseColor);
+        final Brightness currentBrightness = Theme.of(context).brightness;
+        final bool isDarkMode = currentBrightness == Brightness.dark;
+        final adjustedColor = hsl.withLightness(isDarkMode ? 0.2 : 0.8).toColor();
+        _paletteCache[song.id] = adjustedColor;
+        if (mounted) setState(() { _dominantColor = adjustedColor; });
+      } catch (_) {}
+    });
   }
 
   @override
@@ -670,6 +706,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     _textFadeController.dispose();
     _albumArtSlideController.dispose();
+    // Cancel palette debounce timer if active
+    _paletteDebounce?.cancel();
     super.dispose();
   }
 
@@ -795,6 +833,21 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
   }
 
+  // Add missing seek bar handlers
+  void _onSeekStart() {
+    setState(() => _isSeeking = true);
+  }
+  void _onSeekChange(double value) {
+    setState(() => _sliderValue = value);
+  }
+  Future<void> _onSeekEnd(double value) async {
+    setState(() {
+      _isSeeking = false;
+      _sliderValue = null;
+    });
+    await _currentSongProvider.seek(Duration(milliseconds: value.round()));
+  }
+
   Future<void> _loadLikeState() async {
     final prefs = await SharedPreferences.getInstance();
     final liked = prefs.getStringList('liked_songs') ?? [];
@@ -838,7 +891,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context);
+    final currentSongProvider = _currentSongProvider; // Use cached provider
     final Song? currentSong = currentSongProvider.currentSong;
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoading = currentSongProvider.isLoadingAudio;
@@ -962,7 +1015,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         child: SlideTransition(
                           position: _albumArtSlideAnimation,
                           child: Hero(
-                            tag: 'current-song-art',
+                            tag: 'current-song-art-${_artTransitionId}',
                             child: Material(
                               elevation: 12.0,
                               borderRadius: BorderRadius.circular(16.0),
@@ -1099,87 +1152,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                   ),
 
                 // Seek Bar Section
-                Column(
-                  children: [
-                    StreamBuilder<Duration>(
-                      stream: currentSongProvider.positionStream, // Listen to provider's position stream
-                      builder: (context, snapshot) {
-                        var position = snapshot.data ?? Duration.zero;
-                        
-                        // If the stream returns zero but we have a current position from the provider,
-                        // use the provider's position as a fallback to prevent showing 0:00
-                        if (position == Duration.zero && currentSongProvider.currentPosition != Duration.zero) {
-                          position = currentSongProvider.currentPosition;
-                        }
-                        
-                        if (isRadio) {
-                          // For radio, we don't show a seek bar, just a "Live" indicator.
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32.0), // Adjust padding as needed
-                            child: Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold)),
-                          );
-                        }
-                        final duration = currentSongProvider.totalDuration ?? Duration.zero;
-
-                        // Update lyrics based on position
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && _areLyricsSynced) _updateCurrentLyricIndex(position);
-                        });
-
-                        // compute slider max and clamp the current position
-                        final double maxValue = duration.inMilliseconds.toDouble() > 0
-                            ? duration.inMilliseconds.toDouble()
-                            : 1.0;
-                        final double clampedValue = position.inMilliseconds
-                            .toDouble()
-                            .clamp(0.0, maxValue);
-
-                        if (!_isSeeking) {
-                          _sliderValue = clampedValue;
-                        }
-
-                        return Column(
-                          children: [
-                            Slider(
-                              value: _sliderValue ?? clampedValue,
-                              max: maxValue,
-                              min: 0.0,
-                              onChangeStart: (value) {
-                                setState(() {
-                                  _isSeeking = true;
-                                });
-                              },
-                              onChanged: (value) {
-                                setState(() {
-                                  _sliderValue = value;
-                                });
-                              },
-                              onChangeEnd: (value) async {
-                                setState(() {
-                                  _isSeeking = false;
-                                  _sliderValue = null; // Reset to use actual position from stream
-                                });
-                                await currentSongProvider.seek(Duration(milliseconds: value.round()));
-                                
-
-                              },
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(_formatDuration(Duration(milliseconds: (_sliderValue ?? clampedValue).round())), style: textTheme.bodySmall),
-                                  Text(_formatDuration(duration), style: textTheme.bodySmall),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                _buildSeekBar(currentSongProvider, isRadio, textTheme),
                 const SizedBox(height: 16),
 
                 // Controls Section
@@ -1221,20 +1194,26 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           )
                         ]
                       ),
-                      child: IconButton(
-                        icon: isLoading 
-                            ? SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
-                            : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                        iconSize: 48,
-                        color: colorScheme.onSecondary,
-                        onPressed: isLoading ? null : () {
-                          if (isPlaying) {
-                            currentSongProvider.pauseSong();
-                          } else {
-                            currentSongProvider.resumeSong();
-                          }
+                      child: Consumer<CurrentSongProvider>(
+                        builder: (context, provider, _) {
+                          final isLoading = provider.isLoadingAudio;
+                          final isPlaying = provider.isPlaying;
+                          return IconButton(
+                            icon: isLoading
+                                ? SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
+                                : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                            iconSize: 48,
+                            color: colorScheme.onSecondary,
+                            onPressed: isLoading ? null : () {
+                              if (isPlaying) {
+                                provider.pauseSong();
+                              } else {
+                                provider.resumeSong();
+                              }
+                            },
+                            tooltip: isPlaying ? 'Pause' : 'Play',
+                          );
                         },
-                        tooltip: isPlaying ? 'Pause' : 'Play',
                       ),
                     ),
                     if (!isRadio)
@@ -1298,6 +1277,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           // Add empty lines at the bottom for centering the last lyric
           return const SizedBox(height: 44.0); // Match lyric line height
         }
+        if (index < 0 || index >= _parsedLyrics.length) {
+          return const SizedBox.shrink();
+        }
         final line = _parsedLyrics[index];
         final bool isCurrent = _areLyricsSynced && index == _currentLyricIndex; // Highlight only if synced
         return GestureDetector(
@@ -1328,7 +1310,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       duration: const Duration(milliseconds: 300),
       child: _currentArtProvider != null
         ? Image(
-            key: ValueKey(_currentArtId),
+            key: ValueKey('art_${_currentArtId}_${_artTransitionId}'),
             image: _currentArtProvider!,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
@@ -1453,5 +1435,110 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     } else {
       return FileImage(File(artUrl));
     }
+  }
+
+  // 4. Extracted seek bar widget
+  Widget _buildSeekBar(CurrentSongProvider currentSongProvider, bool isRadio, TextTheme textTheme) {
+    return SeekBar(
+      currentSongProvider: currentSongProvider,
+      isRadio: isRadio,
+      areLyricsSynced: _areLyricsSynced,
+      updateCurrentLyricIndex: _updateCurrentLyricIndex,
+      isSeeking: _isSeeking,
+      sliderValue: _sliderValue,
+      onSeekStart: _onSeekStart,
+      onSeekChange: _onSeekChange,
+      onSeekEnd: _onSeekEnd,
+      formatDuration: _formatDuration,
+      textTheme: textTheme,
+    );
+  }
+}
+
+// 4. Add SeekBar widget at the end of the file
+class SeekBar extends StatelessWidget {
+  final CurrentSongProvider currentSongProvider;
+  final bool isRadio;
+  final bool areLyricsSynced;
+  final void Function(Duration) updateCurrentLyricIndex;
+  final bool isSeeking;
+  final double? sliderValue;
+  final VoidCallback onSeekStart;
+  final ValueChanged<double> onSeekChange;
+  final ValueChanged<double> onSeekEnd;
+  final String Function(Duration?) formatDuration;
+  final TextTheme textTheme;
+  // Remove key from constructor
+  const SeekBar({
+    // super.key, // REMOVE THIS LINE
+    required this.currentSongProvider,
+    required this.isRadio,
+    required this.areLyricsSynced,
+    required this.updateCurrentLyricIndex,
+    required this.isSeeking,
+    required this.sliderValue,
+    required this.onSeekStart,
+    required this.onSeekChange,
+    required this.onSeekEnd,
+    required this.formatDuration,
+    required this.textTheme,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        StreamBuilder<Duration>(
+          stream: currentSongProvider.positionStream, // Ensure this is a stable stream
+          builder: (context, snapshot) {
+            var position = snapshot.data ?? Duration.zero;
+            if (position == Duration.zero && currentSongProvider.currentPosition != Duration.zero) {
+              position = currentSongProvider.currentPosition;
+            }
+            if (isRadio) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32.0),
+                child: Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold)),
+              );
+            }
+            final duration = currentSongProvider.totalDuration ?? Duration.zero;
+            // Only update lyrics index if not seeking
+            if (areLyricsSynced && !isSeeking) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                updateCurrentLyricIndex(position);
+              });
+            }
+            final double maxValue = duration.inMilliseconds.toDouble() > 0
+                ? duration.inMilliseconds.toDouble()
+                : 1.0;
+            final double clampedValue = position.inMilliseconds
+                .toDouble()
+                .clamp(0.0, maxValue);
+            final double sliderVal = isSeeking ? (sliderValue ?? clampedValue) : clampedValue;
+            return Column(
+              children: [
+                Slider(
+                  value: sliderVal,
+                  max: maxValue,
+                  min: 0.0,
+                  onChangeStart: (_) => onSeekStart(),
+                  onChanged: onSeekChange,
+                  onChangeEnd: onSeekEnd,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(formatDuration(Duration(milliseconds: sliderVal.round())), style: textTheme.bodySmall),
+                      Text(formatDuration(duration), style: textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
   }
 }

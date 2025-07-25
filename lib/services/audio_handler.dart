@@ -48,6 +48,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   String? _lastCompletedSongId;
   bool _isHandlingCompletion = false;
   Duration? _lastKnownPosition; // Store last known position for online songs
+  bool _shouldBePaused = false; // Track if user wanted pause
+  set shouldBePaused(bool value) => _shouldBePaused = value;
 
   AudioPlayerHandler() {
     _initializeAudioSession();
@@ -341,6 +343,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
+    _shouldBePaused = false;
     if (_audioPlayer.playing) {
       debugPrint("AudioHandler: Play requested but already playing, ignoring");
       return;
@@ -454,6 +457,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> pause() async {
+    _shouldBePaused = true;
     debugPrint("AudioHandler: Pause requested");
     await _audioPlayer.pause();
     playbackState.add(playbackState.value.copyWith(playing: false));
@@ -531,23 +535,25 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       await stop();
       return;
     }
-            await _prepareToPlay(index);
-        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-          try {
-            if (_isIOS && _audioSession != null) await _safeActivateSession();
-            await _audioPlayer.play();
-            
-            // Ensure metadata is properly broadcast to audio session after skip
-            final currentItem = mediaItem.value;
-            if (currentItem != null) {
-              // Force a metadata update to ensure iOS Control Center gets the new track info
-              mediaItem.add(currentItem);
-              
-              // Add a small delay to ensure metadata propagation
-              await Future.delayed(const Duration(milliseconds: 50));
-              mediaItem.add(currentItem);
-            }
-          } catch (e) {
+    await _prepareToPlay(index);
+    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+      try {
+        if (_isIOS && _audioSession != null) await _safeActivateSession();
+        await _audioPlayer.play();
+        // Ensure metadata is properly broadcast to audio session after skip
+        final currentItem = mediaItem.value;
+        if (currentItem != null) {
+          // Force a metadata update to ensure iOS Control Center gets the new track info
+          mediaItem.add(currentItem);
+          // Add a small delay to ensure metadata propagation
+          await Future.delayed(const Duration(milliseconds: 50));
+          mediaItem.add(currentItem);
+        }
+        // Pause if we should be paused
+        if (_shouldBePaused) {
+          await _audioPlayer.pause();
+        }
+      } catch (e) {
         playbackState.add(playbackState.value.copyWith(
           playing: false,
           processingState: AudioProcessingState.error,
@@ -598,15 +604,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
     int index = _playlist.indexWhere((element) => element.id == mediaItem.id);
-    if (index == -1) {
-      _playlist.clear();
-      _playlist.add(mediaItem);
-      queue.add(List.unmodifiable(_playlist));
-      index = 0;
-    } else {
-      _playlist[index] = mediaItem;
+    if (index != -1) {
+      await skipToQueueItem(index);
+      // Pause if we should be paused
+      if (_shouldBePaused) {
+        await _audioPlayer.pause();
+      }
     }
-    await skipToQueueItem(index);
   }
 
   @override
