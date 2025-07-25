@@ -884,12 +884,19 @@ class CurrentSongProvider with ChangeNotifier {
       if (qIndex != -1) {
         _queue[qIndex] = effectiveSong;
       }
+      bool updatedCurrentSong = false;
       if (_currentSongFromAppLogic?.id == effectiveSong.id) {
-        _currentSongFromAppLogic = effectiveSong;
+        if (_currentSongFromAppLogic != effectiveSong) {
+          _currentSongFromAppLogic = effectiveSong;
+          updatedCurrentSong = true;
+        }
       }
       // If the song's download status changed from downloaded to not-downloaded
       if (song.isDownloaded && !effectiveSong.isDownloaded) {
           PlaylistManagerService().updateSongInPlaylists(effectiveSong);
+      }
+      if (updatedCurrentSong) {
+        notifyListeners(); // Ensure UI updates with the latest metadata
       }
     }
 
