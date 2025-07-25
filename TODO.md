@@ -29,7 +29,7 @@
 - Replace: the all downloaded button with remove downloads (which makes the songs from offline to online - deleting the song files) from playlist button
 
 ## UI/UX Improvements
-- Add: explicit thing in more places, as well as an explicit filter 
+- Add: explicit indicator in more places, as well as an explicit filter in settings 
 
 ## Bug Fixes & Miscellaneous
 - Migrate the full playlist import logic to a service that can run without the screen being open. I want the ui to not change at all, just move the logic to a service.
