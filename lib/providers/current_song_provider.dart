@@ -46,6 +46,7 @@ class CurrentSongProvider with ChangeNotifier {
   // Add retry tracking for downloads
   final Map<String, int> _downloadRetryCount = {};
   final Map<String, DateTime> _downloadLastRetry = {};
+  final Map<String, Timer> _retryTimers = {};
   static const int _maxDownloadRetries = 3;
   static const Duration _baseRetryDelay = Duration(seconds: 2);
 
@@ -1333,9 +1334,21 @@ class CurrentSongProvider with ChangeNotifier {
         final timeSinceLastRetry = DateTime.now().difference(lastRetry);
         final retryDelay = Duration(seconds: _baseRetryDelay.inSeconds * (1 << (retryCount - 1))); // Exponential backoff
         if (timeSinceLastRetry < retryDelay) {
-          debugPrint('Retry attempt ${retryCount} for ${song.title} too soon. Waiting...');
-          // Re-queue the song for later retry
-          _downloadQueue.insert(0, song);
+          final remainingDelay = retryDelay - timeSinceLastRetry;
+          debugPrint('Retry attempt ${retryCount} for ${song.title} too soon. Scheduling retry in ${remainingDelay.inSeconds}s...');
+          
+          // Cancel any existing timer for this song
+          _retryTimers[song.id]?.cancel();
+          
+          // Schedule retry with timer
+          _retryTimers[song.id] = Timer(remainingDelay, () {
+            if (_activeDownloads.containsKey(song.id)) {
+              debugPrint('Retry timer expired for ${song.title}, attempting download...');
+              _processAndSubmitDownload(song);
+            }
+          });
+          
+          // Move to next song in queue
           _activeDownloads.remove(song.id);
           _downloadProgress.remove(song.id);
           _isProcessingProviderDownload = false;
@@ -1458,8 +1471,26 @@ class CurrentSongProvider with ChangeNotifier {
       
       debugPrint('Download failed for ${song.title}. Retry attempt ${retryCount + 1}/${_maxDownloadRetries}. Error: $error');
       
-      // Re-queue the song for retry
-      _downloadQueue.insert(0, song);
+      // Calculate retry delay
+      final retryDelay = Duration(seconds: _baseRetryDelay.inSeconds * (1 << retryCount));
+      debugPrint('Scheduling retry for ${song.title} in ${retryDelay.inSeconds}s...');
+      
+      // Cancel any existing timer for this song
+      _retryTimers[songId]?.cancel();
+      
+      // Schedule retry with timer
+      _retryTimers[songId] = Timer(retryDelay, () {
+        debugPrint('Retry timer expired for ${song.title}, re-queuing for download...');
+        // Re-queue the song for retry
+        _downloadQueue.insert(0, song);
+        _activeDownloads.remove(songId);
+        _downloadProgress.remove(songId);
+        _isProcessingProviderDownload = false;
+        notifyListeners();
+        _triggerNextDownloadInProviderQueue();
+      });
+      
+      // Clean up current state
       _activeDownloads.remove(songId);
       _downloadProgress.remove(songId);
       _isProcessingProviderDownload = false;
@@ -1648,6 +1679,14 @@ class CurrentSongProvider with ChangeNotifier {
       debugPrint('Filename-based cancel also failed for ${song.title}: $e');
     }
     
+    // Cancel any retry timer for this song
+    _retryTimers[songId]?.cancel();
+    _retryTimers.remove(songId);
+    
+    // Clear retry tracking for this song
+    _downloadRetryCount.remove(songId);
+    _downloadLastRetry.remove(songId);
+    
     // Regardless of DownloadManager's cancel success, treat this as an error/completion locally.
     // The DownloadManager's getFile() Future should complete (often with an error) if cancelled.
     // _handleDownloadError will be called when that Future completes.
@@ -1704,6 +1743,14 @@ class CurrentSongProvider with ChangeNotifier {
     // or the active one.
     _downloadQueue.clear();
 
+    // Clear retry tracking and cancel timers
+    _downloadRetryCount.clear();
+    _downloadLastRetry.clear();
+    for (final timer in _retryTimers.values) {
+      timer.cancel();
+    }
+    _retryTimers.clear();
+
     // _activeDownloads and _downloadProgress should be cleared by the individual cancelDownload calls
     // as they complete or error out.
     // If there was an active download, its cancellation will set _isProcessingProviderDownload to false
@@ -1722,6 +1769,10 @@ class CurrentSongProvider with ChangeNotifier {
       // Clear any existing retry count for this song
       _downloadRetryCount.remove(song.id);
       _downloadLastRetry.remove(song.id);
+      
+      // Cancel any existing retry timer for this song
+      _retryTimers[song.id]?.cancel();
+      _retryTimers.remove(song.id);
       
       // Remove from active downloads if present
       _activeDownloads.remove(song.id);
