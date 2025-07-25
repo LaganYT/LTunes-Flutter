@@ -32,26 +32,22 @@ class _QueueBottomSheetContent extends StatefulWidget {
 }
 
 class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
-  late final CurrentSongProvider currentSongProvider;
-  late final List<Song> queue;
-  late final Song? currentSong;
-  late final int currentIndex;
   static const double itemHeight = 72.0;
   final Map<String, String> _artPathCache = {};
   bool _loading = true;
   final ScrollController _scrollController = ScrollController();
+  String? _lastSongId; // Track last song ID for scroll logic
+  bool _hasAutoScrolled = false; // Only scroll on first open
 
   @override
   void initState() {
     super.initState();
-    currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    queue = List<Song>.from(currentSongProvider.queue);
-    currentSong = currentSongProvider.currentSong;
-    currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
     _precacheArtPaths();
   }
 
   Future<void> _precacheArtPaths() async {
+    final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final queue = List<Song>.from(provider.queue);
     for (final song in queue) {
       if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
         final path = await _resolveLocalArtPath(song.albumArtUrl);
@@ -61,171 +57,274 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
       }
     }
     if (mounted) setState(() { _loading = false; });
-    // After loading, scroll to current song
+  }
+
+  bool _isIndexVisible(int index) {
+    if (!_scrollController.hasClients) return false;
+    final double minVisible = _scrollController.offset;
+    final double maxVisible = _scrollController.offset + (_scrollController.position.viewportDimension);
+    final double itemTop = index * itemHeight;
+    final double itemBottom = itemTop + itemHeight;
+    return itemBottom > minVisible && itemTop < maxVisible;
+  }
+
+  void _maybeScrollToCurrentSong(List<Song> queue, Song? currentSong) {
+    if (_hasAutoScrolled) return;
+    final currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
     if (currentIndex != -1 && _scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final offset = (currentIndex * itemHeight) - 100.0; // Center it a bit
-        _scrollController.jumpTo(offset.clamp(0.0, _scrollController.position.maxScrollExtent));
-      });
+      final offset = (currentIndex * itemHeight) - 100.0;
+      _scrollController.animateTo(
+        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+      _hasAutoScrolled = true;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    // Always try to scroll to the current song after the first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (currentIndex != -1 && _scrollController.hasClients) {
-        final offset = (currentIndex * itemHeight) - 100.0;
-        final clampedOffset = offset.clamp(0.0, _scrollController.position.maxScrollExtent);
-        _scrollController.animateTo(
-          clampedOffset,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-        );
-      }
-    });
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      builder: (_, controller) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Up Next',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    if (queue.isNotEmpty)
-                      TextButton(
-                        onPressed: () {
-                          currentSongProvider.clearQueue();
-                          if (mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Queue cleared')),
-                            );
-                          }
-                        },
-                        child: Text(
-                          'Clear Queue',
-                          style: TextStyle(color: Theme.of(context).colorScheme.primary),
-                        ),
-                      ),
-                  ],
+    return Consumer<CurrentSongProvider>(
+      builder: (context, currentSongProvider, _) {
+        final queue = List<Song>.from(currentSongProvider.queue);
+        final currentSong = currentSongProvider.currentSong;
+        final currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
+        if (_artPathCache.length != queue.length && !_loading) {
+          _loading = true;
+          _precacheArtPaths();
+        }
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final ColorScheme colorScheme = Theme.of(context).colorScheme;
+        final TextTheme textTheme = Theme.of(context).textTheme;
+        // Only scroll to current song the first time the sheet is opened
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _maybeScrollToCurrentSong(queue, currentSong);
+        });
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
               ),
-              if (queue.isEmpty)
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'Queue is empty.',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ReorderableListView.builder(
-                    key: const PageStorageKey('queue-reorderable-list'),
-                    buildDefaultDragHandles: false,
-                    scrollController: _scrollController,
-                    itemCount: queue.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final song = queue[index];
-                      final bool isCurrentlyPlaying = song.id == currentSong?.id;
-                      final String artPath = _artPathCache[song.id] ?? '';
-                      Widget imageWidget;
-                      if (song.albumArtUrl.startsWith('http')) {
-                        imageWidget = Image.network(
-                          song.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
-                        );
-                      } else if (artPath.isNotEmpty) {
-                        imageWidget = Image.file(
-                          File(artPath), width: 40, height: 40, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
-                        );
-                      } else {
-                        imageWidget = const Icon(Icons.music_note, size: 40);
-                      }
-                      return SizedBox(
-                        key: ValueKey(song.id),
-                        height: itemHeight,
-                        child: ListTile(
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: imageWidget,
-                          ),
-                          title: Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
-                              color: isCurrentlyPlaying ? colorScheme.primary : colorScheme.onSurface,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Up Next',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        if (queue.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              currentSongProvider.clearQueue();
+                              if (mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Queue cleared')),
+                                );
+                              }
+                            },
+                            child: Text(
+                              'Clear Queue',
+                              style: TextStyle(color: Theme.of(context).colorScheme.primary),
                             ),
                           ),
-                          subtitle: Text(
-                            song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (isCurrentlyPlaying)
-                                Icon(Icons.bar_chart_rounded, color: colorScheme.primary),
-                              ReorderableDragStartListener(
-                                index: index,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 8.0),
-                                  child: Icon(Icons.drag_handle, color: colorScheme.onSurface.withOpacity(0.5)),
+                      ],
+                    ),
+                  ),
+                  if (queue.isEmpty)
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          'Queue is empty.',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ReorderableListView.builder(
+                        key: const PageStorageKey('queue-reorderable-list'),
+                        buildDefaultDragHandles: false,
+                        scrollController: _scrollController,
+                        itemCount: queue.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final song = queue[index];
+                          final bool isCurrentlyPlaying = song.id == currentSong?.id;
+                          final String artPath = _artPathCache[song.id] ?? '';
+                          Widget imageWidget;
+                          if (song.albumArtUrl.startsWith('http')) {
+                            imageWidget = Image.network(
+                              song.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                            );
+                          } else if (artPath.isNotEmpty) {
+                            imageWidget = Image.file(
+                              File(artPath), width: 40, height: 40, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                            );
+                          } else {
+                            imageWidget = const Icon(Icons.music_note, size: 40);
+                          }
+                          return SizedBox(
+                            key: ValueKey(song.id),
+                            height: itemHeight,
+                            child: ListTile(
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: imageWidget,
+                              ),
+                              title: Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
+                                  color: isCurrentlyPlaying ? colorScheme.primary : colorScheme.onSurface,
                                 ),
                               ),
-                            ],
-                          ),
-                          onTap: () async {
-                            final isPlaying = currentSongProvider.isPlaying;
-                            await currentSongProvider.playWithContext(queue, song, playImmediately: isPlaying);
-                            if (mounted) setState(() {}); // Update queue UI immediately
-                            if (mounted) Navigator.pop(context);
-                          },
-                        ),
-                      );
-                    },
-                    onReorder: (int oldIndex, int newIndex) async {
-                      if (newIndex > oldIndex) newIndex -= 1;
-                      await currentSongProvider.reorderQueue(oldIndex, newIndex);
-                      setState(() {
-                        final song = queue.removeAt(oldIndex);
-                        queue.insert(newIndex, song);
-                      });
-                    },
-                  ),
-                ),
-            ],
-          ),
+                              subtitle: Text(
+                                song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isCurrentlyPlaying)
+                                    AnimatedEqualizerIcon(isPlaying: currentSongProvider.isPlaying, color: colorScheme.primary),
+                                  ReorderableDragStartListener(
+                                    index: index,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 8.0),
+                                      child: Icon(Icons.drag_handle, color: colorScheme.onSurface.withOpacity(0.5)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () async {
+                                final isPlaying = currentSongProvider.isPlaying;
+                                await currentSongProvider.playWithContext(queue, song, playImmediately: isPlaying);
+                                if (mounted) setState(() {}); // Update queue UI immediately
+                                // Do not close the queue after selecting a song
+                                // if (mounted) Navigator.pop(context);
+                              },
+                            ),
+                          );
+                        },
+                        onReorder: (int oldIndex, int newIndex) async {
+                          if (newIndex > oldIndex) newIndex -= 1;
+                          await currentSongProvider.reorderQueue(oldIndex, newIndex);
+                          setState(() {
+                            final song = queue.removeAt(oldIndex);
+                            queue.insert(newIndex, song);
+                          });
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
+    );
+  }
+}
+
+// Add this widget above _QueueBottomSheetContentState
+class AnimatedEqualizerIcon extends StatefulWidget {
+  final bool isPlaying;
+  final Color color;
+  const AnimatedEqualizerIcon({Key? key, required this.isPlaying, required this.color}) : super(key: key);
+
+  @override
+  State<AnimatedEqualizerIcon> createState() => _AnimatedEqualizerIconState();
+}
+
+class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late List<Animation<double>> _barAnimations;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _barAnimations = List.generate(3, (i) {
+      final start = i * 0.15;
+      final end = start + 0.7;
+      return Tween<double>(begin: 0.3, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: Interval(start, end, curve: Curves.easeInOut),
+        ),
+      );
+    });
+    if (widget.isPlaying) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AnimatedEqualizerIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.isPlaying && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 22,
+      height: 22,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(3, (i) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                child: Container(
+                  width: 4,
+                  height: 14 * _barAnimations[i].value + 6,
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
+      ),
     );
   }
 }
