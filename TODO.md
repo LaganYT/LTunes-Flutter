@@ -34,24 +34,5 @@
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration
 - Replace: the swipe left/right gestures with a swipe from right to left to review an add to queue and add to playlist button
-
-flutter: Failed to import playlist: This widget has been unmounted, so the State no longer has a context (and should be considered defunct).
-Consider canceling any active work during "dispose" or using the "mounted" getter to determine if the State is still active.
-#0      State.context.<anonymous closure> (package:flutter/src/widgets/framework.dart:952:9)
-#1      State.context (package:flutter/src/widgets/framework.dart:958:6)
-#2      _PlaylistsScreenState._importPlaylistFromXLSX (package:ltunes/screens/playlists_list_screen.dart:774:18)
-<asynchronous suspension>
-#3      _PlaylistsScreenState._showImportExplanationAndStart (package:ltunes/screens/playlists_list_screen.dart:942:7)
-<asynchronous suspension>
-[ERROR:flutter/runtime/dart_vm_initializer.cc(40)] Unhandled Exception: This widget has been unmounted, so the State no longer has a context (and should be considered defunct).
-Consider canceling any active work during "dispose" or using the "mounted" getter to determine if the State is still active.
-#0      State.context.<anonymous closure> (package:flutter/src/widgets/framework.dart:952:9)
-#1      State.context (package:flutter/src/widgets/framework.dart:958:6)
-#2      _PlaylistsScreenState._importPlaylistFromXLSX (package:ltunes/screens/playlists_list_screen.dart:813:28)
-<asynchronous suspension>
-#3      _PlaylistsScreenState._showImportExplanationAndStart (package:ltunes/screens/playlists_list_screen.dart:942:7)
-<asynchronous suspension>
-
-Don't dispose the playlists list screen, just hide it, when importing a playlist
-
+- Migrate the full playlist import logic to a service that can run without the screen being open. I want the ui to not change at all, just move the logic to a service.
 - Whenever i click on a song that needs to load make sure it shows that its loading and that it shows the accurate metadata for that song.
