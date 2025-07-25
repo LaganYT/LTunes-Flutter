@@ -22,6 +22,7 @@ import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import 'delete_downloads_screen.dart'; // Import DeleteDownloadsScreen
+import '../screens/playlists_list_screen.dart' show robustArtwork;
 
 
 class SettingsScreen extends StatefulWidget {
@@ -1338,17 +1339,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 Text('Most Played Songs:', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                                 ...topSongs.map((song) => ListTile(
-                                  leading: song.albumArtUrl.isNotEmpty
-                                      ? (song.albumArtUrl.startsWith('http')
-                                          ? CircleAvatar(
-                                              backgroundImage: NetworkImage(song.albumArtUrl),
-                                            )
-                                          : (File(song.albumArtUrl).existsSync()
-                                              ? CircleAvatar(
-                                                  backgroundImage: FileImage(File(song.albumArtUrl)),
-                                                )
-                                              : const CircleAvatar(child: Icon(Icons.music_note))))
-                                      : const CircleAvatar(child: Icon(Icons.music_note)),
+                                  leading: robustArtwork(
+                                    song.albumArtUrl,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                  ),
                                   title: Text(song.title),
                                   subtitle: Text(song.artist),
                                   trailing: Text('${song.playCount} plays'),
