@@ -10,6 +10,7 @@ import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
 import '../widgets/playbar.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 class LikedSongsScreen extends StatefulWidget {
   const LikedSongsScreen({Key? key}) : super(key: key);
@@ -294,49 +295,37 @@ class _LikedSongsScreenState extends State<LikedSongsScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, i) {
                   final song = _likedSongs[i];
-                  return Dismissible(
+                  return Slidable(
                     key: Key(song.id),
-                    direction: DismissDirection.horizontal,
-                    confirmDismiss: (direction) async {
-                      if (direction == DismissDirection.startToEnd) {
-                        provider.addToQueue(song);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${song.title} added to queue')),
-                        );
-                        return false;
-                      } else if (direction == DismissDirection.endToStart) {
-                        showDialog(
-                          context: context,
-                          builder: (_) => AddToPlaylistDialog(song: song),
-                        );
-                        return false;
-                      }
-                      return false;
-                    },
-                    background: Container(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: Row(
-                        children: [
-                          Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
-                          const SizedBox(width: 8),
-                          Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-                        ],
-                      ),
-                    ),
-                    secondaryBackground: Container(
-                      color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-                          const SizedBox(width: 8),
-                          Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
-                        ],
-                      ),
+                    endActionPane: ActionPane(
+                      motion: const DrawerMotion(),
+                      extentRatio: 0.32, // enough for two square buttons
+                      children: [
+                        SlidableAction(
+                          onPressed: (context) {
+                            provider.addToQueue(song);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('${song.title} added to queue')),
+                            );
+                          },
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          icon: Icons.playlist_add,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        SlidableAction(
+                          onPressed: (context) {
+                            showDialog(
+                              context: context,
+                              builder: (_) => AddToPlaylistDialog(song: song),
+                            );
+                          },
+                          backgroundColor: Theme.of(context).colorScheme.secondary,
+                          foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                          icon: Icons.library_add,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ],
                     ),
                     child: ListTile(
                       leading: ClipRRect(

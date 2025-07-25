@@ -33,6 +33,5 @@
 
 ## Bug Fixes & Miscellaneous
 - Add: Discord intergration
-- Replace: the swipe left/right gestures with a swipe from right to left to review an add to queue and add to playlist button
 - Migrate the full playlist import logic to a service that can run without the screen being open. I want the ui to not change at all, just move the logic to a service.
 - Whenever i click on a song that needs to load make sure it shows that its loading and that it shows the accurate metadata for that song.

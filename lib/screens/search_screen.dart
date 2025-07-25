@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p; // Added import
 import 'dart:convert'; // Added import
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -287,60 +288,43 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
         final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
 
-        return Dismissible(
+        return Slidable(
           key: Key(songWithStatus.id),
-          direction: DismissDirection.horizontal,
-          dismissThresholds: const {
-            DismissDirection.startToEnd: 0.25,
-            DismissDirection.endToStart: 0.25,
-          },
-          confirmDismiss: (direction) async {
-            if (direction == DismissDirection.startToEnd) {
-              if (!isRadioPlayingGlobal) {
-                currentSongProvider.addToQueue(songWithStatus);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${songWithStatus.title} added to queue')),
-                );
-              }
-              return false;
-            } else if (direction == DismissDirection.endToStart) {
-              if (!isRadioPlayingGlobal) {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext dialogContext) {
-                    return AddToPlaylistDialog(song: songWithStatus);
-                  },
-                );
-              }
-              return false;
-            }
-            return false;
-          },
-          background: Container(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                Icon(Icons.playlist_add, color: Theme.of(context).colorScheme.onPrimary),
-                const SizedBox(width: 8),
-                Text('Add to Queue', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-              ],
-            ),
-          ),
-          secondaryBackground: Container(
-            color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text('Add to Playlist', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-                const SizedBox(width: 8),
-                Icon(Icons.library_add, color: Theme.of(context).colorScheme.onSecondary),
-              ],
-            ),
+          endActionPane: ActionPane(
+            motion: const DrawerMotion(),
+            extentRatio: 0.32, // enough for two square buttons
+            children: [
+              SlidableAction(
+                onPressed: (context) {
+                  if (!isRadioPlayingGlobal) {
+                    currentSongProvider.addToQueue(songWithStatus);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${songWithStatus.title} added to queue')),
+                    );
+                  }
+                },
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                icon: Icons.playlist_add,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              SlidableAction(
+                onPressed: (context) {
+                  if (!isRadioPlayingGlobal) {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        return AddToPlaylistDialog(song: songWithStatus);
+                      },
+                    );
+                  }
+                },
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                icon: Icons.library_add,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ],
           ),
           child: ListTile(
             leading: SizedBox(
