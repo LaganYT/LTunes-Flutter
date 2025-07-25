@@ -15,7 +15,7 @@ import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
 import '../services/api_service.dart'; 
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
-import 'dart:math'; // Added for min/max in lyrics scroll
+import 'dart:math' as math; // Added for min/max in lyrics scroll
 import 'package:cached_network_image/cached_network_image.dart'; // Added for CachedNetworkImageProvider
 
 // Helper class for parsed lyric lines
@@ -258,27 +258,20 @@ class AnimatedEqualizerIcon extends StatefulWidget {
 
 class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late List<Animation<double>> _barAnimations;
+  static const int barCount = 3;
+  static const double baseHeight = 10;
+  static const double amplitude = 10;
+  static const double minHeight = 8;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 1800),
     );
-    _barAnimations = List.generate(3, (i) {
-      final start = i * 0.15;
-      final end = start + 0.7;
-      return Tween<double>(begin: 0.3, end: 1.0).animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: Interval(start, end, curve: Curves.easeInOut),
-        ),
-      );
-    });
     if (widget.isPlaying) {
-      _controller.repeat(reverse: true);
+      _controller.repeat();
     }
   }
 
@@ -286,7 +279,7 @@ class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with Sing
   void didUpdateWidget(covariant AnimatedEqualizerIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isPlaying && !_controller.isAnimating) {
-      _controller.repeat(reverse: true);
+      _controller.repeat();
     } else if (!widget.isPlaying && _controller.isAnimating) {
       _controller.stop();
     }
@@ -298,23 +291,31 @@ class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with Sing
     super.dispose();
   }
 
+  double _barHeight(int i, double t) {
+    // t goes from 0 to 1, map to 0 to 2pi
+    final double phase = i * 1.2; // phase offset for each bar
+    final double wave = math.sin(2 * math.pi * t + phase);
+    return minHeight + baseHeight + amplitude * wave;
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 22,
-      height: 22,
+      height: 28,
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
+          final t = _controller.value;
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(3, (i) {
+            children: List.generate(barCount, (i) {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 1.5),
                 child: Container(
                   width: 4,
-                  height: 14 * _barAnimations[i].value + 6,
+                  height: _barHeight(i, t),
                   decoration: BoxDecoration(
                     color: widget.color,
                     borderRadius: BorderRadius.circular(2),
