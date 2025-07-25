@@ -1,4 +1,5 @@
 import 'dart:ui'; // Import for ImageFilter
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/playlist.dart';
@@ -8,9 +9,12 @@ import 'dart:io'; // Required for File
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import '../services/api_service.dart'; // Import ApiService
 import 'song_detail_screen.dart';
 import '../widgets/playbar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/album_manager_service.dart';
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
@@ -96,6 +100,145 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('All songs are already downloaded or imported.')),
+      );
+    }
+  }
+
+  Future<void> _removeDownloadsFromPlaylist(Playlist currentPlaylist) async {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    if (currentPlaylist.songs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Playlist is empty. Nothing to remove.')),
+      );
+      return;
+    }
+
+    // Get songs that are downloaded (not imported)
+    final songsToRemoveDownloads = currentPlaylist.songs.where((s) => !s.isImported && s.isDownloaded).toList();
+
+    if (songsToRemoveDownloads.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No downloaded songs to remove from this playlist.')),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Remove Downloads?'),
+          content: Text('Are you sure you want to remove downloads for ${songsToRemoveDownloads.length} song(s) from this playlist? This will delete the local files but keep the songs in your library.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: Text('Remove', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    int removedCount = 0;
+    final appDocDir = await getApplicationDocumentsDirectory();
+    const String downloadsSubDir = 'ltunes_downloads';
+
+    for (final song in songsToRemoveDownloads) {
+      try {
+        // Delete the local audio file
+        if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+          final audioFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+            debugPrint('Deleted audio file: ${audioFile.path}');
+          }
+        }
+
+        // Delete the local album art file if it exists and is not used by other songs
+        if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+          // Check if any other song uses this cover
+          bool coverIsUsedElsewhere = currentPlaylist.songs.any((other) => 
+            other.id != song.id && other.albumArtUrl == song.albumArtUrl);
+          
+          if (!coverIsUsedElsewhere) {
+            final albumArtFile = File(p.join(appDocDir.path, song.albumArtUrl));
+            if (await albumArtFile.exists()) {
+              await albumArtFile.delete();
+              debugPrint('Deleted album art file: ${albumArtFile.path}');
+            }
+          }
+        }
+
+        // Fetch the original network album art URL
+        String originalAlbumArtUrl = '';
+        if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+          // Try to fetch the original network URL for the album art
+          try {
+            final apiService = ApiService();
+            // First try to find the song to get its album art URL
+            final searchResults = await apiService.fetchSongs('${song.title} ${song.artist}');
+            Song? exactMatch;
+            for (final result in searchResults) {
+              if (result.title.toLowerCase() == song.title.toLowerCase() &&
+                  result.artist.toLowerCase() == song.artist.toLowerCase()) {
+                exactMatch = result;
+                break;
+              }
+            }
+            
+            if (exactMatch != null && exactMatch.albumArtUrl.isNotEmpty && exactMatch.albumArtUrl.startsWith('http')) {
+              originalAlbumArtUrl = exactMatch.albumArtUrl;
+            } else if (song.album != null && song.album!.isNotEmpty) {
+              // Try to get the album art from the album
+              final album = await apiService.getAlbum(song.album!, song.artist);
+              if (album != null && album.fullAlbumArtUrl.isNotEmpty) {
+                originalAlbumArtUrl = album.fullAlbumArtUrl;
+              }
+            }
+          } catch (e) {
+            debugPrint('Error fetching original album art URL for ${song.title}: $e');
+            // If we can't fetch the original URL, we'll leave it empty
+          }
+        }
+
+        // Update song metadata to mark as not downloaded and restore network album art URL
+        final updatedSong = song.copyWith(
+          isDownloaded: false, 
+          localFilePath: null,
+          albumArtUrl: originalAlbumArtUrl.isNotEmpty ? originalAlbumArtUrl : song.albumArtUrl,
+        );
+        
+        // Update in SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('song_${updatedSong.id}', jsonEncode(updatedSong.toJson()));
+
+        // Notify services
+        currentSongProvider.updateSongDetails(updatedSong);
+        PlaylistManagerService().updateSongInPlaylists(updatedSong);
+        await AlbumManagerService().updateSongInAlbums(updatedSong);
+
+        removedCount++;
+      } catch (e) {
+        debugPrint('Error removing download for song ${song.title}: $e');
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Removed downloads for $removedCount song(s) from playlist.')),
       );
     }
   }
@@ -643,20 +786,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 if (hasSongs)
                                   Expanded(
                                     child: TextButton.icon(
-                                      onPressed: isFullyDownloaded ? null : () => _downloadAllSongs(currentPlaylist), // Use currentPlaylist
+                                      onPressed: isFullyDownloaded ? () => _removeDownloadsFromPlaylist(currentPlaylist) : () => _downloadAllSongs(currentPlaylist), // Use currentPlaylist
                                       icon: Icon(
-                                        isFullyDownloaded ? Icons.download_done_outlined : Icons.download_for_offline_outlined,
-                                        color: isFullyDownloaded ? Colors.greenAccent.withOpacity(0.85) : Colors.white.withOpacity(0.85)
+                                        isFullyDownloaded ? Icons.delete_outline : Icons.download_for_offline_outlined,
+                                        color: isFullyDownloaded ? Colors.red.withOpacity(0.85) : Colors.white.withOpacity(0.85)
                                       ),
                                       label: Text(
-                                        isFullyDownloaded ? 'All Downloaded' : 'Download', 
-                                        style: TextStyle(color: isFullyDownloaded ? Colors.greenAccent.withOpacity(0.85) : Colors.white.withOpacity(0.85)),
+                                        isFullyDownloaded ? 'Remove Downloads' : 'Download', 
+                                        style: TextStyle(color: isFullyDownloaded ? Colors.red.withOpacity(0.85) : Colors.white.withOpacity(0.85)),
                                       ),
                                       style: TextButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(vertical: 10),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(20),
-                                          side: BorderSide(color: Colors.white.withOpacity(0.4)),
+                                          side: BorderSide(color: isFullyDownloaded ? Colors.red.withOpacity(0.4) : Colors.white.withOpacity(0.4)),
                                         ),
                                       ),
                                     ),
@@ -667,7 +810,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                     onPressed: () => _showDeletePlaylistDialog(currentPlaylist), // Use currentPlaylist
                                     icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
                                     label: Text(
-                                      'Delete', // Shorter label
+                                      'Delete Playlist', // Shorter label
                                       style: TextStyle(color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
                                     ),
                                     style: TextButton.styleFrom(
