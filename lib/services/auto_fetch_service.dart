@@ -75,7 +75,6 @@ class AutoFetchService {
         localFilePath: localSong.localFilePath, // Keep the local file path
         extras: apiSong.extras,
         isImported: false, // Mark as native now
-        isExplicit: apiSong.isExplicit,
         plainLyrics: apiSong.plainLyrics,
         syncedLyrics: apiSong.syncedLyrics,
         playCount: localSong.playCount, // Preserve play count

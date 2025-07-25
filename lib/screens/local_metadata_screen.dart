@@ -671,7 +671,6 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                       extras: {},
                                       duration: null, // No duration
                                       isImported: true, // Mark as imported
-                                      isExplicit: false,
                                       plainLyrics: null, // No lyrics
                                       syncedLyrics: null,
                                       playCount: localSong.playCount,
@@ -780,7 +779,6 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
         localFilePath: localSong.localFilePath, // Keep the local file path
         extras: apiSong.extras,
         isImported: apiSong.isCustomMetadata == true ? true : false, // Mark as imported if custom
-        isExplicit: apiSong.isExplicit,
         plainLyrics: apiSong.plainLyrics,
         syncedLyrics: apiSong.syncedLyrics,
         playCount: localSong.playCount, // Preserve play count
@@ -1063,7 +1061,6 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                       extras: {},
                       duration: null, // No duration
                       isImported: true, // Mark as imported
-                      isExplicit: false,
                       plainLyrics: null, // No lyrics
                       syncedLyrics: null,
                       playCount: baseSong.playCount,

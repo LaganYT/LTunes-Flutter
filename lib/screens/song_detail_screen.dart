@@ -695,24 +695,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                           maxLines: 2,
                         ),
                       ),
-                      if (widget.song.isExplicit)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8.0),
-                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4.0),
-                            border: Border.all(color: Colors.red, width: 1.0),
-                          ),
-                          child: Text(
-                            'E',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                   const SizedBox(height: 8),

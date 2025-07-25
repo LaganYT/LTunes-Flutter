@@ -380,24 +380,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
-              if (track.isExplicit)
-                Container(
-                  margin: const EdgeInsets.only(left: 8.0),
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(3.0),
-                    border: Border.all(color: Colors.red, width: 0.5),
-                  ),
-                  child: Text(
-                    'E',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
             ],
           ),
           subtitle: Text(

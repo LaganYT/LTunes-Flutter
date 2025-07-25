@@ -15,7 +15,6 @@ class Song {
   bool get isLocal => !albumArtUrl.startsWith('http');
   final Map<String, dynamic>? extras; // Added extras field
   final bool isImported; // New field for imported songs
-  final bool isExplicit; // New field for explicit content
   int playCount; // New field for play count
   final bool isCustomMetadata; // New field for custom metadata
 
@@ -46,7 +45,6 @@ class Song {
     this.isDownloading = false, // Default value
     this.downloadProgress = 0.0, // Default value
     this.isImported = false, // Default to false
-    this.isExplicit = false, // Default to false
     this.plainLyrics,
     this.syncedLyrics,
     this.playCount = 0, // Default to 0
@@ -69,7 +67,6 @@ class Song {
     bool? isDownloading,
     double? downloadProgress,
     bool? isImported, // Added isImported
-    bool? isExplicit, // Added isExplicit
     String? plainLyrics,
     String? syncedLyrics,
     int? playCount, // New field
@@ -91,7 +88,6 @@ class Song {
       isDownloading: isDownloading ?? this.isDownloading,
       downloadProgress: downloadProgress ?? this.downloadProgress,
       isImported: isImported ?? this.isImported, // Added isImported logic
-      isExplicit: isExplicit ?? this.isExplicit, // Added isExplicit logic
       plainLyrics: plainLyrics ?? this.plainLyrics,
       syncedLyrics: syncedLyrics ?? this.syncedLyrics,
       playCount: playCount ?? this.playCount, // New field
@@ -172,7 +168,6 @@ class Song {
       }
 
       final bool isImported = json['isImported'] as bool? ?? false; // Parse isImported
-      final bool isExplicit = json['isExplicit'] as bool? ?? false; // Parse isExplicit
       final String? plainLyrics = _asNullableString(json['plainLyrics']);
       final String? syncedLyrics = _asNullableString(json['syncedLyrics']);
       final int playCount = json['playCount'] as int? ?? 0; // Parse playCount
@@ -192,7 +187,6 @@ class Song {
         extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
         duration: parsedDuration, // Assign parsed duration
         isImported: isImported, // Assign parsed isImported
-        isExplicit: isExplicit, // Assign parsed isExplicit
         plainLyrics: plainLyrics,
         syncedLyrics: syncedLyrics,
         playCount: playCount, // Assign playCount
@@ -225,9 +219,6 @@ class Song {
     final String diskNumberStr = trackJson['DISK_NUMBER']?.toString() ?? '1';
     final String trackNumberStr = trackJson['TRACK_NUMBER']?.toString() ?? '0';
 
-    final bool isExplicit = (trackJson['EXPLICIT_LYRICS']?.toString() == '1') || 
-                           (trackJson['explicit'] as bool? ?? false); // Parse explicit from API
-
     final Map<String, dynamic> extras = {
       'diskNumber': int.tryParse(diskNumberStr) ?? 1,
       'trackNumber': int.tryParse(trackNumberStr) ?? 0,
@@ -252,7 +243,6 @@ class Song {
       duration: duration,
       extras: extras,
       isImported: false, // API songs are not imported by default
-      isExplicit: isExplicit, // Assign parsed isExplicit
       isCustomMetadata: false, // API songs are not custom metadata by default
       // plainLyrics and syncedLyrics will be null by default
       // isDownloading and downloadProgress will use default constructor values
@@ -273,7 +263,6 @@ class Song {
         'extras': extras, // Added extras to JSON
         'duration_ms': duration?.inMilliseconds, // Serialize duration to milliseconds
         'isImported': isImported, // Serialize isImported
-        'isExplicit': isExplicit, // Serialize isExplicit
         'plainLyrics': plainLyrics,
         'syncedLyrics': syncedLyrics,
         'playCount': playCount, // Serialize playCount
