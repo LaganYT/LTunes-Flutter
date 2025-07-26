@@ -6,7 +6,6 @@
 - Offline Search & Filtering
   - Advanced search and filtering by any metadata (genre, year, composer, etc.).
   - Search across lyrics if available.
-- Add a more complex unifed search to the library (search by metadata and not specific song/album/playlist names)
 
 ## Library & Song Management
 - Add new sorting methods to the songs list page
