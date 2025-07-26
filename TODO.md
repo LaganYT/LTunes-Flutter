@@ -1,11 +1,5 @@
 # TODO
-
-## Search & Filtering
-- Redo the search page to add the ability to show albums, artists, songs, and stations in one redesign of the search screen
-- Add radio stations into this new search system (without need for a different tab to search for them)
-
 ## Library & Song Management
-- Add new sorting methods to the songs list page
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
 

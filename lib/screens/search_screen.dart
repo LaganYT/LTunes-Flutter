@@ -1,18 +1,44 @@
 import 'package:flutter/material.dart';
 import '../models/song.dart';
-import 'song_detail_screen.dart'; // Ensure AddToPlaylistDialog is accessible
+import '../models/album.dart';
+import 'song_detail_screen.dart';
+import 'album_screen.dart';
+import 'artist_screen.dart';
 import '../services/api_service.dart';
+import '../services/unified_search_service.dart';
 import '../services/error_handler_service.dart';
+import '../services/album_manager_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io'; // Required for File
-import 'package:path_provider/path_provider.dart'; // Added import
-import 'package:path/path.dart' as p; // Added import
-import 'dart:convert'; // Added import
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:flutter_slidable/flutter_slidable.dart';
+
+// Enum for content types
+enum ContentType {
+  song,
+  album,
+  artist,
+  station,
+}
+
+// Unified search result item
+class SearchResultItem {
+  final ContentType type;
+  final dynamic data;
+  final double relevanceScore;
+
+  SearchResultItem({
+    required this.type,
+    required this.data,
+    required this.relevanceScore,
+  });
+}
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -22,29 +48,31 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-  late Future<List<Song>> _songsFuture;
-  late Future<List<dynamic>> _stationsFuture;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late TabController _tabController;
   final ApiService _apiService = ApiService();
+  final UnifiedSearchService _unifiedSearchService = UnifiedSearchService();
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
-  bool _showRadioTab = true;
-  Set<String> _likedSongIds = {};
+  final AlbumManagerService _albumManager = AlbumManagerService();
+  
+  // Search results
+  List<SearchResultItem> _musicResults = [];
+  List<SearchResultItem> _stationResults = [];
+  
+  // Loading states
+  bool _isLoadingMusic = false;
+  bool _isLoadingStations = false;
   
   // Performance: Search debouncing
   Timer? _searchDebounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 500);
   
-  // Performance: Lazy loading
-  static const int _pageSize = 20;
-  int _currentPage = 0;
-  bool _hasMoreSongs = true;
-  final List<Song> _allSongs = [];
-  final ScrollController _scrollController = ScrollController();
-  
   // Performance: Cache for song download status
   final Map<String, Song> _songDownloadStatusCache = {};
+  
+  // Liked songs tracking
+  Set<String> _likedSongIds = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -52,14 +80,16 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    _loadShowRadioTab();
-    _songsFuture = _getSongsFuture();
-    _stationsFuture = _fetchRadioStations();
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
+    _albumManager.addListener(_onAlbumManagerStateChanged);
     _loadLikedSongIds();
-    
-    // Performance: Add scroll listener for lazy loading
-    _scrollController.addListener(_onScroll);
+    _loadInitialContent();
+  }
+
+  void _onAlbumManagerStateChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -67,25 +97,8 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     _searchDebounceTimer?.cancel();
     _tabController.dispose();
     _searchController.dispose();
-    _scrollController.dispose();
+    _albumManager.removeListener(_onAlbumManagerStateChanged);
     super.dispose();
-  }
-
-  // Performance: Lazy loading scroll listener
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      _loadMoreSongs();
-    }
-  }
-
-  // Performance: Load more songs for lazy loading
-  void _loadMoreSongs() {
-    if (!_hasMoreSongs || _searchQuery.isNotEmpty) return; // Only for top charts
-    
-    setState(() {
-      _currentPage++;
-      _songsFuture = _getSongsFuture();
-    });
   }
 
   Future<void> _loadLikedSongIds() async {
@@ -103,6 +116,241 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
         _likedSongIds = ids;
       });
     }
+  }
+
+  Future<void> _loadInitialContent() async {
+    if (_searchQuery.isEmpty) {
+      _loadInitialMusic();
+      _loadInitialStations();
+    }
+  }
+
+  Future<void> _loadInitialMusic() async {
+    setState(() {
+      _isLoadingMusic = true;
+    });
+
+    try {
+      // Load only songs when no search query
+      final songs = await _apiService.fetchSongs('');
+      
+      if (mounted) {
+        final results = <SearchResultItem>[];
+        
+        // Add songs (top 50)
+        for (final song in songs.take(50)) {
+          results.add(SearchResultItem(
+            type: ContentType.song,
+            data: song,
+            relevanceScore: 1.0,
+          ));
+        }
+        
+        setState(() {
+          _musicResults = results;
+          _isLoadingMusic = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMusic = false;
+        });
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'loading music');
+      }
+    }
+  }
+
+  Future<void> _loadInitialStations() async {
+    setState(() {
+      _isLoadingStations = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
+      final country = usRadioOnly ? 'United States' : '';
+      final stations = await _apiService.fetchStationsByCountry(country);
+      
+      if (mounted) {
+        final results = <SearchResultItem>[];
+        
+        // Add stations (top 50)
+        for (final station in stations.take(50)) {
+          results.add(SearchResultItem(
+            type: ContentType.station,
+            data: station,
+            relevanceScore: 1.0,
+          ));
+        }
+        
+        setState(() {
+          _stationResults = results;
+          _isLoadingStations = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingStations = false;
+        });
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'loading stations');
+      }
+    }
+  }
+
+  // Performance: Debounced search
+  void _onSearch(String value) async {
+    _searchDebounceTimer?.cancel();
+    
+    _searchDebounceTimer = Timer(_debounceDelay, () async {
+      final newQuery = value.trim();
+      
+      if (mounted) {
+        setState(() {
+          _searchQuery = newQuery;
+        });
+        
+        if (newQuery.isEmpty) {
+          _loadInitialContent();
+        } else {
+          _performSearch(newQuery);
+        }
+      }
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    _searchMusic(query);
+    _searchStations(query);
+  }
+
+  Future<void> _searchMusic(String query) async {
+    setState(() {
+      _isLoadingMusic = true;
+    });
+
+    try {
+      final results = <SearchResultItem>[];
+      
+      // Search songs
+      final songs = await _apiService.fetchSongs(query);
+      for (final song in songs) {
+        results.add(SearchResultItem(
+          type: ContentType.song,
+          data: song,
+          relevanceScore: _calculateRelevance(song.title, query) + _calculateRelevance(song.artist, query),
+        ));
+      }
+      
+      // Search albums
+      final albums = await _apiService.searchAlbums(query);
+      for (final album in albums) {
+        results.add(SearchResultItem(
+          type: ContentType.album,
+          data: album,
+          relevanceScore: _calculateRelevance(album.title, query) + _calculateRelevance(album.artistName, query),
+        ));
+      }
+      
+      // Search artists
+      final artists = await _apiService.searchArtists(query);
+      for (final artist in artists) {
+        final artistName = artist['ART_NAME'] as String? ?? artist['name'] as String? ?? '';
+        results.add(SearchResultItem(
+          type: ContentType.artist,
+          data: artist,
+          relevanceScore: _calculateRelevance(artistName, query),
+        ));
+      }
+      
+      // Sort by relevance score
+      results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+      
+      if (mounted) {
+        setState(() {
+          _musicResults = results;
+          _isLoadingMusic = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMusic = false;
+        });
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'searching music');
+      }
+    }
+  }
+
+  Future<void> _searchStations(String query) async {
+    setState(() {
+      _isLoadingStations = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
+      final country = usRadioOnly ? 'United States' : '';
+      final stations = await _apiService.fetchStationsByCountry(country, name: query);
+      
+      final results = <SearchResultItem>[];
+      
+      for (final station in stations) {
+        results.add(SearchResultItem(
+          type: ContentType.station,
+          data: station,
+          relevanceScore: _calculateRelevance(station['name'] ?? '', query),
+        ));
+      }
+      
+      // Sort by relevance score
+      results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+      
+      if (mounted) {
+        setState(() {
+          _stationResults = results;
+          _isLoadingStations = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingStations = false;
+        });
+        _errorHandler.showErrorSnackBar(context, e, errorContext: 'searching stations');
+      }
+    }
+  }
+
+  double _calculateRelevance(String text, String query) {
+    final textLower = text.toLowerCase();
+    final queryLower = query.toLowerCase();
+    
+    // Exact match gets highest score
+    if (textLower == queryLower) {
+      return 1.0;
+    }
+    
+    // Starts with query gets high score
+    if (textLower.startsWith(queryLower)) {
+      return 0.9;
+    }
+    
+    // Contains query gets medium score
+    if (textLower.contains(queryLower)) {
+      return 0.7;
+    }
+    
+    // Word boundary matches get lower score
+    final words = textLower.split(' ');
+    for (final word in words) {
+      if (word.startsWith(queryLower)) {
+        return 0.6;
+      }
+    }
+    
+    return 0.3; // Default low score for partial matches
   }
 
   Future<void> _toggleLike(Song song) async {
@@ -132,126 +380,22 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     setState(() {});
   }
 
-  Future<void> _loadShowRadioTab() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _showRadioTab = prefs.getBool('showRadioTab') ?? true;
-    });
-  }
-
-  // Performance: Optimized song fetching with pagination
-  Future<List<Song>> _getSongsFuture() async {
-    try {
-      final songs = await _apiService.fetchSongs(_searchQuery);
-      
-      if (_searchQuery.isEmpty) {
-        // For top charts, implement pagination
-        final startIndex = _currentPage * _pageSize;
-        final endIndex = startIndex + _pageSize;
-        
-        if (startIndex < songs.length) {
-          final pageSongs = songs.sublist(startIndex, endIndex > songs.length ? songs.length : endIndex);
-          _allSongs.addAll(pageSongs);
-          _hasMoreSongs = endIndex < songs.length;
-          return _allSongs;
-        } else {
-          _hasMoreSongs = false;
-          return _allSongs;
-        }
-      } else {
-        // For search results, return all results
-        return songs;
-      }
-    } catch (e) {
-      _errorHandler.logError(e, context: 'fetchSongs');
-      if (mounted) {
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'fetching songs');
-      }
-      return [];
-    }
-  }
-
-  Future<List<dynamic>> _fetchRadioStations() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
-      final country = usRadioOnly ? 'United States' : '';
-      final stations = await _apiService.fetchStationsByCountry(country, name: _searchQuery);
-      
-      // Debug: Log the first station structure to understand the API response
-      if (stations.isNotEmpty) {
-        debugPrint('Radio station structure: ${stations.first}');
-      }
-      
-      return stations;
-    } catch (e) {
-      _errorHandler.logError(e, context: 'fetchRadioStations');
-      if (mounted) {
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'fetching radio stations');
-      }
-      return [];
-    }
-  }
-
-  // Performance: Debounced search
-  void _onSearch(String value) async {
-    _searchDebounceTimer?.cancel();
+  Future<void> _toggleAlbumSave(Album album) async {
+    final isSaved = _albumManager.isAlbumSaved(album.id);
     
-    _searchDebounceTimer = Timer(_debounceDelay, () async {
-      final newQuery = value.trim();
-      final oldQuery = _searchQuery;
-
-      if (newQuery.isEmpty && oldQuery.isNotEmpty) {
-        _apiService.clearSongCache(oldQuery);
-
-        final prefs = await SharedPreferences.getInstance();
-        final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
-        final country = usRadioOnly ? 'United States' : '';
-        _apiService.clearRadioStationCache(country, oldQuery);
-      }
-
-      if (mounted) {
-        setState(() {
-          _searchQuery = newQuery;
-          if (newQuery.isEmpty) {
-            // Reset pagination for top charts
-            _currentPage = 0;
-            _allSongs.clear();
-            _hasMoreSongs = true;
-          }
-          _songsFuture = _getSongsFuture();
-          _stationsFuture = _fetchRadioStations();
-        });
-      }
-    });
-  }
-
-  Future<void> _handleRefreshMusic() async {
-    _apiService.clearSongCache(_searchQuery);
-    if (_searchQuery.isEmpty) {
-      _currentPage = 0;
-      _allSongs.clear();
-      _hasMoreSongs = true;
+    if (isSaved) {
+      await _albumManager.removeSavedAlbum(album.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${album.title} removed from library')),
+      );
+    } else {
+      await _albumManager.addSavedAlbum(album);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${album.title} added to library')),
+      );
     }
-    final newSongsFuture = _getSongsFuture();
-    setState(() {
-      _songsFuture = newSongsFuture;
-    });
-    await newSongsFuture;
-  }
-
-  Future<void> _handleRefreshRadio() async {
-    final prefs = await SharedPreferences.getInstance();
-    final usRadioOnly = prefs.getBool('usRadioOnly') ?? false;
-    final country = usRadioOnly ? 'United States' : '';
-
-    _apiService.clearRadioStationCache(country, _searchQuery);
     
-    final newStationsFuture = _fetchRadioStations();
-    setState(() {
-      _stationsFuture = newStationsFuture;
-    });
-    await newStationsFuture;
+    setState(() {});
   }
 
   // Performance: Optimized song download status resolution
@@ -286,7 +430,18 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
     return songFromApi;
   }
 
-  // Performance: Optimized song list item widget
+  // Performance: Optimized local art path resolution
+  Future<String> _resolveLocalArtPath(String fileName) async {
+    if (fileName.isEmpty) return '';
+    final directory = await getApplicationDocumentsDirectory();
+    final fullPath = p.join(directory.path, fileName);
+    if (await File(fullPath).exists()) {
+      return fullPath;
+    }
+    return '';
+  }
+
+  // Build song list item
   Widget _buildSongListItem(Song song) {
     return FutureBuilder<Song>(
       future: _getSongWithDownloadStatusInternal(song),
@@ -299,7 +454,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
           key: Key(songWithStatus.id),
           endActionPane: ActionPane(
             motion: const DrawerMotion(),
-            extentRatio: 0.32, // enough for two square buttons
+            extentRatio: 0.32,
             children: [
               SlidableAction(
                 onPressed: (context) {
@@ -333,7 +488,9 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               ),
             ],
           ),
-          child: ListTile(
+          child: Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
             leading: SizedBox(
               width: 56,
               height: 56,
@@ -410,11 +567,9 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               ],
             ),
             onTap: () async {
-              // Play the song immediately
               await currentSongProvider.playWithContext([songWithStatus], songWithStatus);
             },
             onLongPress: () {
-              // Show more info
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -422,26 +577,334 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                 ),
               );
             },
+            ),
           ),
         );
       },
     );
   }
 
-  // Performance: Optimized local art path resolution
-  Future<String> _resolveLocalArtPath(String fileName) async {
-    if (fileName.isEmpty) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
+  // Build album list item
+  Widget _buildAlbumListItem(Album album) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: ListTile(
+        leading: SizedBox(
+          width: 56,
+          height: 56,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: album.fullAlbumArtUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: album.fullAlbumArtUrl,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 112,
+                    memCacheHeight: 112,
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.album),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.album),
+                    ),
+                  )
+                : Container(
+                    color: Colors.grey[300],
+                    child: const Icon(Icons.album),
+                  ),
+          ),
+        ),
+        title: Text(
+          album.title,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              album.artistName,
+              style: TextStyle(color: Colors.grey[600]),
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (album.trackCount != null)
+              Text(
+                '${album.trackCount} tracks',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              ),
+          ],
+        ),
+        trailing: IconButton(
+          icon: Icon(
+            _albumManager.isAlbumSaved(album.id) 
+                ? Icons.bookmark 
+                : Icons.bookmark_border,
+            color: _albumManager.isAlbumSaved(album.id) 
+                ? Theme.of(context).colorScheme.primary 
+                : null,
+          ),
+          onPressed: () => _toggleAlbumSave(album),
+        ),
+
+        onTap: () async {
+          // Show loading dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            },
+          );
+
+          try {
+            // Fetch full album details with tracks
+            final fullAlbum = await _apiService.fetchAlbumDetailsById(album.id);
+            if (mounted) {
+              Navigator.of(context).pop(); // Remove loading dialog
+              if (fullAlbum != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AlbumScreen(album: fullAlbum),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Could not load album details.')),
+                );
+              }
+            }
+          } catch (e) {
+            if (mounted) {
+              Navigator.of(context).pop(); // Remove loading dialog
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error loading album: $e')),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  // Build artist list item
+  Widget _buildArtistListItem(dynamic artist) {
+    // Handle the actual API response structure
+    final artistName = artist['ART_NAME'] as String? ?? 
+                      artist['name'] as String? ?? 
+                      'Unknown Artist';
+    final artistPicture = artist['ART_PICTURE'] as String? ?? 
+                         artist['picture'] as String?;
+    
+    // Construct the artist picture URL if we have the picture ID
+    String? artistImageUrl;
+    if (artistPicture != null && artistPicture.isNotEmpty) {
+      artistImageUrl = 'https://e-cdns-images.dzcdn.net/images/artist/$artistPicture/1000x1000-000000-80-0-0.jpg';
     }
-    return '';
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: ListTile(
+        leading: SizedBox(
+          width: 56,
+          height: 56,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: artistImageUrl != null && artistImageUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: artistImageUrl,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 112,
+                    memCacheHeight: 112,
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.person),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.person),
+                    ),
+                  )
+                : Container(
+                    color: Colors.grey[300],
+                    child: const Icon(Icons.person),
+                  ),
+          ),
+        ),
+        title: Text(
+          artistName,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          'Artist',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ArtistScreen(
+                artistId: artist['ART_ID']?.toString() ?? artist['id']?.toString() ?? '',
+                artistName: artistName,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Build station list item
+  Widget _buildStationListItem(dynamic station) {
+    final stationName = station['name'] as String? ?? 'Unknown Station';
+    final stationCountry = station['country'] as String? ?? 'Unknown Country';
+    final stationFavicon = station['favicon'] as String?;
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: ListTile(
+        leading: SizedBox(
+          width: 56,
+          height: 56,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: stationFavicon != null && stationFavicon.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: stationFavicon,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 112,
+                    memCacheHeight: 112,
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.radio),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.radio),
+                    ),
+                  )
+                : Container(
+                    color: Colors.grey[300],
+                    child: const Icon(Icons.radio),
+                  ),
+          ),
+        ),
+        title: Text(
+          stationName,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          stationCountry,
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.play_arrow),
+          onPressed: () {
+            final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
+            final stationFavicon = station['favicon'] ?? station['imageUrl'] ?? '';
+            
+            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+            currentSongProvider.playStream(
+              streamUrl,
+              stationName: stationName,
+              stationFavicon: stationFavicon,
+            );
+          },
+        ),
+        onTap: () {
+          final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
+          final stationFavicon = station['favicon'] ?? station['imageUrl'] ?? '';
+          
+          final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+          currentSongProvider.playStream(
+            streamUrl,
+            stationName: stationName,
+            stationFavicon: stationFavicon,
+          );
+        },
+      ),
+    );
+  }
+
+  // Build unified list item based on content type
+  Widget _buildListItem(SearchResultItem item) {
+    switch (item.type) {
+      case ContentType.song:
+        return _buildSongListItem(item.data as Song);
+      case ContentType.album:
+        return _buildAlbumListItem(item.data as Album);
+      case ContentType.artist:
+        return _buildArtistListItem(item.data);
+      case ContentType.station:
+        return _buildStationListItem(item.data);
+    }
+  }
+
+  // Build music tab content
+  Widget _buildMusicTab() {
+    if (_isLoadingMusic) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_musicResults.isEmpty) {
+      return _errorHandler.buildEmptyStateWidget(
+        context,
+        title: _searchQuery.isEmpty ? 'No Music Available' : 'No Music Found',
+        message: _searchQuery.isEmpty 
+            ? 'Unable to load music. Please check your connection and try again.'
+            : 'No music found for "$_searchQuery". Try a different search term.',
+        icon: _searchQuery.isEmpty ? Icons.music_note : Icons.search_off,
+        onAction: _searchQuery.isEmpty ? _loadInitialMusic : null,
+        actionText: _searchQuery.isEmpty ? 'Retry' : null,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _searchQuery.isEmpty ? _loadInitialMusic : () => _searchMusic(_searchQuery),
+      child: ListView.builder(
+        itemCount: _musicResults.length,
+        itemBuilder: (context, index) => _buildListItem(_musicResults[index]),
+      ),
+    );
+  }
+
+  // Build stations tab content
+  Widget _buildStationsTab() {
+    if (_isLoadingStations) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_stationResults.isEmpty) {
+      return _errorHandler.buildEmptyStateWidget(
+        context,
+        title: _searchQuery.isEmpty ? 'No Radio Stations Available' : 'No Radio Stations Found',
+        message: _searchQuery.isEmpty 
+            ? 'Unable to load radio stations. Please check your connection and try again.'
+            : 'No radio stations found for "$_searchQuery". Try a different search term.',
+        icon: _searchQuery.isEmpty ? Icons.radio : Icons.search_off,
+        onAction: _searchQuery.isEmpty ? _loadInitialStations : null,
+        actionText: _searchQuery.isEmpty ? 'Retry' : null,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _searchQuery.isEmpty ? _loadInitialStations : () => _searchStations(_searchQuery),
+      child: ListView.builder(
+        itemCount: _stationResults.length,
+        itemBuilder: (context, index) => _buildListItem(_stationResults[index]),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
     
     return Scaffold(
       appBar: AppBar(
@@ -481,7 +944,6 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       ),
       body: Column(
         children: [
-          if (_showRadioTab)
             TabBar(
               controller: _tabController,
               tabs: const [
@@ -490,218 +952,12 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               ],
             ),
           Expanded(
-            child: _showRadioTab
-                ? TabBarView(
+            child: TabBarView(
                     controller: _tabController,
                     children: [
-                      // Music Tab
-                      RefreshIndicator(
-                        onRefresh: _handleRefreshMusic,
-                        child: FutureBuilder<List<Song>>(
-                          future: _songsFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            if (snapshot.hasError) {
-                              return _errorHandler.buildLoadingErrorWidget(
-                                context,
-                                snapshot.error!,
-                                title: 'Failed to Load Songs',
-                                onRetry: () {
-                                  setState(() {
-                                    _songsFuture = _getSongsFuture();
-                                  });
-                                },
-                              );
-                            }
-                            final songs = snapshot.data ?? [];
-                            if (songs.isEmpty) {
-                              return _errorHandler.buildEmptyStateWidget(
-                                context,
-                                title: _searchQuery.isEmpty ? 'No Songs Available' : 'No Songs Found',
-                                message: _searchQuery.isEmpty 
-                                    ? 'Unable to load top charts. Please check your connection and try again.'
-                                    : 'No songs found for "$_searchQuery". Try a different search term.',
-                                icon: _searchQuery.isEmpty ? Icons.cloud_off : Icons.search_off,
-                                onAction: _searchQuery.isEmpty ? () {
-                                  setState(() {
-                                    _songsFuture = _getSongsFuture();
-                                  });
-                                } : null,
-                                actionText: _searchQuery.isEmpty ? 'Retry' : null,
-                              );
-                            }
-                            return ListView.builder(
-                              controller: _scrollController,
-                              itemCount: songs.length + (_hasMoreSongs && _searchQuery.isEmpty ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                if (index == songs.length) {
-                                  return const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.all(16.0),
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                }
-                                return _buildSongListItem(songs[index]);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      // Radio Tab
-                      RefreshIndicator(
-                        onRefresh: _handleRefreshRadio,
-                        child: FutureBuilder<List<dynamic>>(
-                          future: _stationsFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            if (snapshot.hasError) {
-                              return _errorHandler.buildLoadingErrorWidget(
-                                context,
-                                snapshot.error!,
-                                title: 'Failed to Load Radio Stations',
-                                onRetry: () {
-                                  setState(() {
-                                    _stationsFuture = _fetchRadioStations();
-                                  });
-                                },
-                              );
-                            }
-                            final stations = snapshot.data ?? [];
-                            if (stations.isEmpty) {
-                              return _errorHandler.buildEmptyStateWidget(
-                                context,
-                                title: _searchQuery.isEmpty ? 'No Radio Stations Available' : 'No Radio Stations Found',
-                                message: _searchQuery.isEmpty 
-                                    ? 'Unable to load radio stations. Please check your connection and try again.'
-                                    : 'No radio stations found for "$_searchQuery". Try a different search term.',
-                                icon: _searchQuery.isEmpty ? Icons.radio : Icons.search_off,
-                                onAction: _searchQuery.isEmpty ? () {
-                                  setState(() {
-                                    _stationsFuture = _fetchRadioStations();
-                                  });
-                                } : null,
-                                actionText: _searchQuery.isEmpty ? 'Retry' : null,
-                              );
-                            }
-                            return ListView.builder(
-                              itemCount: stations.length,
-                              itemBuilder: (context, index) {
-                                final station = stations[index];
-                                return ListTile(
-                                  leading: station['favicon'] != null
-                                      ? CachedNetworkImage(
-                                          imageUrl: station['favicon'],
-                                          width: 56,
-                                          height: 56,
-                                          fit: BoxFit.cover,
-                                          memCacheWidth: 112,
-                                          memCacheHeight: 112,
-                                          placeholder: (context, url) => Container(
-                                            width: 56,
-                                            height: 56,
-                                            color: Colors.grey[300],
-                                            child: const Icon(Icons.radio),
-                                          ),
-                                          errorWidget: (context, url, error) => Container(
-                                            width: 56,
-                                            height: 56,
-                                            color: Colors.grey[300],
-                                            child: const Icon(Icons.radio),
-                                          ),
-                                        )
-                                      : Container(
-                                          width: 56,
-                                          height: 56,
-                                          color: Colors.grey[300],
-                                          child: const Icon(Icons.radio),
-                                        ),
-                                  title: Text(station['name'] ?? 'Unknown Station'),
-                                  subtitle: Text(station['country'] ?? 'Unknown Country'),
-                                                                     onTap: () {
-                                     if (mounted && context.mounted) {
-                                       final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
-                                       final stationName = station['name'] ?? 'Unknown Station';
-                                       final stationFavicon = station['favicon'] ?? station['imageUrl'] ?? '';
-                                       
-                                       // Debug: Log the radio station data
-                                       debugPrint('Playing radio station: $stationName');
-                                       debugPrint('Stream URL: $streamUrl');
-                                       debugPrint('Favicon: $stationFavicon');
-                                       
-                                       final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                                       currentSongProvider.playStream(
-                                         streamUrl,
-                                         stationName: stationName,
-                                         stationFavicon: stationFavicon,
-                                       );
-                                     }
-                                   },
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  )
-                : RefreshIndicator(
-                    onRefresh: _handleRefreshMusic,
-                    child: FutureBuilder<List<Song>>(
-                      future: _songsFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (snapshot.hasError) {
-                          return _errorHandler.buildLoadingErrorWidget(
-                            context,
-                            snapshot.error!,
-                            title: 'Failed to Load Songs',
-                            onRetry: () {
-                              setState(() {
-                                _songsFuture = _getSongsFuture();
-                              });
-                            },
-                          );
-                        }
-                        final songs = snapshot.data ?? [];
-                        if (songs.isEmpty) {
-                          return const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.music_note, size: 64, color: Colors.grey),
-                                SizedBox(height: 16),
-                                Text(
-                                  'No songs found',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return ListView.builder(
-                          controller: _scrollController,
-                          itemCount: songs.length + (_hasMoreSongs && _searchQuery.isEmpty ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == songs.length) {
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            return _buildSongListItem(songs[index]);
-                          },
-                        );
-                      },
-                    ),
+                _buildMusicTab(),
+                _buildStationsTab(),
+              ],
                   ),
           ),
         ],

@@ -4,13 +4,21 @@ import '../services/api_service.dart';
 import '../services/error_handler_service.dart';
 import '../models/song.dart';
 import '../models/album.dart';
+import '../models/playlist.dart';
+import '../services/playlist_manager_service.dart';
+import '../services/album_manager_service.dart';
 import 'song_detail_screen.dart';
 import 'album_screen.dart';
 import '../widgets/playbar.dart';
+import 'package:provider/provider.dart';
+import '../providers/current_song_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 class ArtistScreen extends StatefulWidget {
   final String artistId;
-  final String? artistName; // Optional artist name for display while loading
+  final String? artistName;
   final Map<String, dynamic>? preloadedArtistInfo;
   final List<Song>? preloadedArtistTracks;
   final List<Album>? preloadedArtistAlbums;
@@ -37,11 +45,20 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   String? _errorMessage;
   late TabController _tabController;
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
+  
+  // Like functionality
+  Set<String> _likedSongIds = {};
+  
+  // Download functionality
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadLikedSongIds();
+    
     if (widget.preloadedArtistInfo != null && widget.preloadedArtistTracks != null && widget.preloadedArtistAlbums != null) {
       setState(() {
         _artistInfo = widget.preloadedArtistInfo;
@@ -49,7 +66,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         _albums = widget.preloadedArtistAlbums;
         _loading = false;
       });
-      // Optionally, trigger a background refresh:
       Future.microtask(_loadArtistData);
     } else {
       _loadArtistData();
@@ -60,6 +76,50 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadLikedSongIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final ids = raw.map((s) {
+      try {
+        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+      } catch (_) {
+        return null;
+      }
+    }).whereType<String>().toSet();
+    if (mounted) {
+      setState(() {
+        _likedSongIds = ids;
+      });
+    }
+  }
+
+  Future<void> _toggleLike(Song song) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('liked_songs') ?? [];
+    final isLiked = _likedSongIds.contains(song.id);
+
+    if (isLiked) {
+      raw.removeWhere((s) {
+        try {
+          return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
+        } catch (_) {
+          return false;
+        }
+      });
+      _likedSongIds.remove(song.id);
+    } else {
+      raw.add(jsonEncode(song.toJson()));
+      _likedSongIds.add(song.id);
+      final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
+      if (autoDL) {
+        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+      }
+    }
+
+    await prefs.setStringList('liked_songs', raw);
+    setState(() {});
   }
 
   Future<void> _loadArtistData() async {
@@ -73,22 +133,16 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
 
       final api = ApiService();
       
-      // Use artist name for search instead of ID
       final searchQuery = widget.artistName ?? widget.artistId;
-      
-      // Load artist info and tracks
       final artistData = await api.getArtistById(searchQuery);
       
-      // Extract the actual artist ID from the response for albums
       final artistInfo = artistData['info'] as Map<String, dynamic>;
       final actualArtistId = artistInfo['ART_ID']?.toString() ?? widget.artistId;
       
-      // Load artist albums using the actual ID
       List<Album>? albums;
       try {
         albums = await api.getArtistAlbums(actualArtistId);
       } catch (e) {
-        // Albums loading failed, continue without them
         albums = [];
       }
 
@@ -148,7 +202,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Artist Image
           Container(
             width: 120,
             height: 120,
@@ -195,7 +248,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
             ),
           ),
           const SizedBox(height: 12),
-          // Artist Name
           Text(
             name,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -204,7 +256,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          // Stats Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -275,48 +326,102 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
       itemCount: _tracks!.length,
       itemBuilder: (context, index) {
         final track = _tracks![index];
+        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+        final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
+
         return Card(
           margin: const EdgeInsets.only(bottom: 8.0),
-          child: ListTile(
-            leading: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8.0),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              ),
-              child: track.albumArtUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: CachedNetworkImage(
-                        imageUrl: track.albumArtUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Icon(
-                          Icons.music_note,
-                          color: Theme.of(context).colorScheme.onSurface,
+          child: Slidable(
+            endActionPane: ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.32,
+              children: [
+                SlidableAction(
+                  onPressed: (context) {
+                    if (!isRadioPlayingGlobal) {
+                      currentSongProvider.addToQueue(track);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${track.title} added to queue')),
+                      );
+                    }
+                  },
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  icon: Icons.playlist_add,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                SlidableAction(
+                  onPressed: (context) {
+                    if (!isRadioPlayingGlobal) {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext dialogContext) {
+                          return AddToPlaylistDialog(song: track);
+                        },
+                      );
+                    }
+                  },
+                  backgroundColor: Theme.of(context).colorScheme.secondary,
+                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  icon: Icons.library_add,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8.0),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                child: track.albumArtUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8.0),
+                        child: CachedNetworkImage(
+                          imageUrl: track.albumArtUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Icon(
+                            Icons.music_note,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
+                      )
+                    : Icon(
+                        Icons.music_note,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
-                    )
-                  : Icon(
-                      Icons.music_note,
-                      color: Theme.of(context).colorScheme.onSurface,
+              ),
+              title: Text(
+                track.title,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(track.album ?? 'Unknown Album'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (track.isDownloaded)
+                    const Icon(Icons.download_done, color: Colors.green, size: 20),
+                  IconButton(
+                    icon: Icon(
+                      _likedSongIds.contains(track.id)
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color: _likedSongIds.contains(track.id) ? Colors.red : null,
                     ),
-            ),
-            title: Text(
-              track.title,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            subtitle: Text(track.album ?? 'Unknown Album'),
-            trailing: track.duration != null
-                ? Text(
-                    '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  )
-                : null,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SongDetailScreen(song: track),
+                    onPressed: () => _toggleLike(track),
+                  ),
+                ],
+              ),
+              onTap: () async {
+                await currentSongProvider.playWithContext(_tracks!, track);
+              },
+              onLongPress: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SongDetailScreen(song: track),
+                ),
               ),
             ),
           ),
@@ -357,7 +462,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         final album = _albums![index];
         return GestureDetector(
           onTap: () async {
-            // Show loading dialog
             showDialog(
               context: context,
               barrierDismissible: false,
@@ -374,7 +478,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
             try {
               final fullAlbum = await api.fetchAlbumDetailsById(album.id);
               if (mounted) {
-                navigator.pop(); // Remove loading dialog
+                navigator.pop();
                 if (fullAlbum != null) {
                   navigator.push(
                     MaterialPageRoute(
@@ -383,14 +487,13 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                   );
                 } else {
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                        content: Text('Could not load album details.')),
+                    const SnackBar(content: Text('Could not load album details.')),
                   );
                 }
               }
             } catch (e) {
               if (mounted) {
-                navigator.pop(); // Remove loading dialog
+                navigator.pop();
                 scaffoldMessenger.showSnackBar(
                   SnackBar(content: Text('Error: $e')),
                 );
@@ -400,7 +503,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Album Cover
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -447,8 +549,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                 ),
               ),
               const SizedBox(height: 8),
-              
-              // Album Title
               Text(
                 album.title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -458,8 +558,6 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              
-              // Release Year
               Text(
                 album.releaseDate.isNotEmpty && album.releaseDate.length >= 4
                     ? album.releaseDate.substring(0, 4)

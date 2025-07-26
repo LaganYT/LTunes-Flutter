@@ -32,17 +32,30 @@ class Album {
       : '';
 
   factory Album.fromJson(Map<String, dynamic> json) {
-    final info = json['info'] as Map<String, dynamic>? ?? {};
-    // final tracksData = json['tracks'] as List<dynamic>? ?? []; // Old line, source of confusion
-
-    final albumId = info['ALB_ID']?.toString() ?? json['id']?.toString() ?? '';
-    final albumTitle = info['ALB_TITLE']?.toString() ?? json['title']?.toString() ?? 'Unknown Album';
-    final albumArtPicId = info['ALB_PICTURE']?.toString() ?? json['albumArtPictureId']?.toString() ?? '';
-    final albumReleaseDate = info['DIGITAL_RELEASE_DATE']?.toString() ?? json['releaseDate']?.toString() ?? '';
+    // Handle different API response structures
+    Map<String, dynamic> albumData;
     
-    String artistName = info['ART_NAME']?.toString() ?? json['artistName']?.toString() ?? '';
+    // Check if this is a search API response (direct album data)
+    if (json.containsKey('ALB_ID') && json.containsKey('ALB_TITLE')) {
+      albumData = json;
+    } else if (json.containsKey('info')) {
+      // Handle legacy structure with 'info' wrapper
+      albumData = json['info'] as Map<String, dynamic>? ?? {};
+    } else {
+      // Handle other structures
+      albumData = json;
+    }
+
+    final albumId = albumData['ALB_ID']?.toString() ?? json['id']?.toString() ?? '';
+    final albumTitle = albumData['ALB_TITLE']?.toString() ?? json['title']?.toString() ?? 'Unknown Album';
+    final albumArtPicId = albumData['ALB_PICTURE']?.toString() ?? json['albumArtPictureId']?.toString() ?? '';
+    final albumReleaseDate = albumData['PHYSICAL_RELEASE_DATE']?.toString() ?? 
+                            albumData['ORIGINAL_RELEASE_DATE']?.toString() ?? 
+                            json['releaseDate']?.toString() ?? '';
+    
+    String artistName = albumData['ART_NAME']?.toString() ?? json['artistName']?.toString() ?? '';
     if (artistName.isEmpty) {
-      final artistsList = info['ARTISTS'] as List<dynamic>?;
+      final artistsList = albumData['ARTISTS'] as List<dynamic>?;
       if (artistsList != null && artistsList.isNotEmpty) {
         final firstArtistMap = artistsList.first as Map<String, dynamic>?;
         artistName = firstArtistMap?['ART_NAME']?.toString() ?? 'Unknown Artist';
@@ -109,9 +122,9 @@ class Album {
       albumArtPictureId: albumArtPicId,
       releaseDate: albumReleaseDate,
       tracks: songs,
-      upc: info['UPC']?.toString() ?? json['upc']?.toString(),
-      durationSeconds: int.tryParse(info['DURATION']?.toString() ?? json['durationSeconds']?.toString() ?? ''),
-      trackCount: int.tryParse(info['NUMBER_TRACK']?.toString() ?? json['trackCount']?.toString() ?? ''),
+      upc: albumData['UPC']?.toString() ?? json['upc']?.toString(),
+      durationSeconds: int.tryParse(albumData['DURATION']?.toString() ?? json['durationSeconds']?.toString() ?? ''),
+      trackCount: int.tryParse(albumData['NUMBER_TRACK']?.toString() ?? json['trackCount']?.toString() ?? ''),
       isSaved: json['isSaved'] as bool? ?? false, // Load isSaved
       playCount: json['playCount'] as int? ?? 0, // Load playCount
     );

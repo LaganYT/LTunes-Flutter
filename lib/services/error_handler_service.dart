@@ -18,7 +18,6 @@ class ErrorHandlerService {
   // Error messages
   static const Map<String, String> _errorMessages = {
     networkError: 'Connection failed. Please check your internet connection and try again.',
-    apiError: 'A server error occurred. Please try again later.',
     fileError: 'Unable to access file. The file may be corrupted or missing.',
     audioError: 'Unable to play audio. Please try again.',
     downloadError: 'Download failed. Please check your connection and try again.',
@@ -29,7 +28,6 @@ class ErrorHandlerService {
   // Error actions
   static const Map<String, String> _errorActions = {
     networkError: 'Retry',
-    apiError: 'Retry',
     fileError: 'OK',
     audioError: 'Retry',
     downloadError: 'Retry',
@@ -41,8 +39,6 @@ class ErrorHandlerService {
   String getErrorMessage(dynamic error, {String? context}) {
     if (error is SocketException) {
       return _errorMessages[networkError]!;
-    } else if (error is HttpException) {
-      return _errorMessages[apiError]!;
     } else if (error is FileSystemException) {
       return _errorMessages[fileError]!;
     } else if (error.toString().contains('permission')) {
@@ -64,8 +60,6 @@ class ErrorHandlerService {
   String getErrorType(dynamic error) {
     if (error is SocketException) {
       return networkError;
-    } else if (error is HttpException) {
-      return apiError;
     } else if (error is FileSystemException) {
       return fileError;
     } else if (error.toString().contains('permission')) {
