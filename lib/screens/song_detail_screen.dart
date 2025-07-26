@@ -266,9 +266,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       return;
     }
 
-    setState(() {
-      _isPreloadingAlbum = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isPreloadingAlbum = true;
+      });
+    }
 
     try {
       final apiService = ApiService();
@@ -296,9 +298,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       return;
     }
 
-    setState(() {
-      _isPreloadingLyrics = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isPreloadingLyrics = true;
+      });
+    }
 
     try {
       final apiService = ApiService();
@@ -388,9 +392,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       return;
     }
 
-    setState(() {
-      _isLoadingAlbum = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoadingAlbum = true;
+      });
+    }
 
     try {
       final apiService = ApiService();
@@ -450,10 +456,12 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       return;
     }
 
-    setState(() {
-      _isLoadingLyrics = true;
-      _lyrics = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoadingLyrics = true;
+        _lyrics = null;
+      });
+    }
 
     try {
       final apiService = ApiService();
@@ -539,7 +547,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     }
 
     await prefs.setStringList('liked_songs', raw);
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _saveAlbum() async {
@@ -1567,15 +1577,17 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                 if (playlistName.isNotEmpty) {
                   final newPlaylist = Playlist(id: DateTime.now().millisecondsSinceEpoch.toString(), name: playlistName, songs: []);
                   _playlistManagerService.addPlaylist(newPlaylist);
-                  setState(() { 
-                     _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists); // Refresh the master list
-                     // Re-apply filter based on the new _allPlaylists and existing search term
-                     final searchQuery = _searchController.text.toLowerCase();
-                     _filteredPlaylists = _allPlaylists.where((playlist) {
-                       return playlist.name.toLowerCase().contains(searchQuery);
-                     }).toList();
-                     // No need to re-sort as sorting is removed
-                  });
+                  if (mounted) {
+                    setState(() { 
+                       _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists); // Refresh the master list
+                       // Re-apply filter based on the new _allPlaylists and existing search term
+                       final searchQuery = _searchController.text.toLowerCase();
+                       _filteredPlaylists = _allPlaylists.where((playlist) {
+                         return playlist.name.toLowerCase().contains(searchQuery);
+                       }).toList();
+                       // No need to re-sort as sorting is removed
+                    });
+                  }
                 }
                 Navigator.of(dialogContext).pop(); // Use dialogContext to pop CreatePlaylistDialog
               },
