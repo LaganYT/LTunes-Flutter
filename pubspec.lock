@@ -29,10 +29,10 @@ packages:
     dependency: "direct main"
     description:
       name: audio_metadata_reader
-      sha256: "3a8f69540f2c8ffab3d22fad65d3dd91a29170850766843390d2b5beebc902ee"
+      sha256: b7cecf78178075c8f8281ae184ae81d137eb6e751f5d193334984eb732662ee0
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.1"
+    version: "1.4.2"
   audio_service:
     dependency: "direct main"
     description:
@@ -260,10 +260,10 @@ packages:
     dependency: "direct main"
     description:
       name: fl_chart
-      sha256: "00b74ae680df6b1135bdbea00a7d1fc072a9180b7c3f3702e4b19a9943f5ed7d"
+      sha256: "577aeac8ca414c25333334d7c4bb246775234c0e44b38b10a82b559dd4d764e7"
       url: "https://pub.dev"
     source: hosted
-    version: "0.66.2"
+    version: "1.0.0"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -297,10 +297,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_local_notifications
-      sha256: edae0c34573233ab03f5ba1f07465e55c384743893042cb19e010b4ee8541c12
+      sha256: "20ca0a9c82ce0c855ac62a2e580ab867f3fbea82680a90647f7953832d0850ae"
       url: "https://pub.dev"
     source: hosted
-    version: "19.3.0"
+    version: "19.4.0"
   flutter_local_notifications_linux:
     dependency: transitive
     description:
@@ -321,10 +321,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_local_notifications_windows
-      sha256: f8fc0652a601f83419d623c85723a3e82ad81f92b33eaa9bcc21ea1b94773e6e
+      sha256: ed46d7ae4ec9d19e4c8fa2badac5fe27ba87a3fe387343ce726f927af074ec98
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "1.0.2"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -379,10 +379,10 @@ packages:
     dependency: transitive
     description:
       name: intl
-      sha256: d6f56758b7d3014a48af9701c085700aac781a92a87a62b1333b46d8879661cf
+      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
       url: "https://pub.dev"
     source: hosted
-    version: "0.19.0"
+    version: "0.20.2"
   jiffy:
     dependency: transitive
     description:
@@ -800,26 +800,26 @@ packages:
     dependency: transitive
     description:
       name: syncfusion_flutter_core
-      sha256: "27cbeb650b780d1f3ab254b26ac64e2b06e92e2d64349537b0db3f714ff1e962"
+      sha256: "536753489e168f49659261d0abd02b101b34c0b1bde27898f2869aab05f1cbb6"
       url: "https://pub.dev"
     source: hosted
-    version: "30.1.40"
+    version: "30.1.41"
   syncfusion_flutter_xlsio:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_xlsio
-      sha256: "0bbae5763a4a6010f39143d8ec14ff72a9787ba21d03309a427007f203867c29"
+      sha256: "23f304d603281b5c64973dc2a6e582124d1d3ec57d4e296b1215bce90c3c64a2"
       url: "https://pub.dev"
     source: hosted
-    version: "30.1.40"
+    version: "30.1.41"
   syncfusion_officecore:
     dependency: transitive
     description:
       name: syncfusion_officecore
-      sha256: "907f8b7a2150e8a7334939199e39478d59d7101c8d43316029829bad7d423915"
+      sha256: "344b5895adcb430c64360f6307c25296948be8f686eb177349b32725c1468c19"
       url: "https://pub.dev"
     source: hosted
-    version: "30.1.40"
+    version: "30.1.41"
   synchronized:
     dependency: transitive
     description:
@@ -864,10 +864,10 @@ packages:
     dependency: "direct main"
     description:
       name: url_launcher
-      sha256: "9d06212b1362abc2f0f0d78e6f09f726608c74e3b9462e8368bb03314aa8d603"
+      sha256: f6a7e5c4835bb4e3026a04793a4199ca2d14c739ec378fdfe23fc8075d0439f8
       url: "https://pub.dev"
     source: hosted
-    version: "6.3.1"
+    version: "6.3.2"
   url_launcher_android:
     dependency: transitive
     description:
@@ -1014,4 +1014,4 @@ packages:
     version: "3.1.3"
 sdks:
   dart: ">=3.8.0 <4.0.0"
-  flutter: ">=3.27.0"
+  flutter: ">=3.27.4"

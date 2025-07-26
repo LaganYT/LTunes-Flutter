@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../providers/current_song_provider.dart';
 import '../models/song.dart'; // For Song model
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DownloadQueueScreen extends StatefulWidget {
   const DownloadQueueScreen({super.key});
@@ -140,7 +141,59 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                 );
               }
 
-              return ListView.builder(
+              return Column(
+                children: [
+                  // Header with concurrent download info
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    margin: const EdgeInsets.all(8.0),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.download,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Download Status',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              FutureBuilder<SharedPreferences>(
+                                future: SharedPreferences.getInstance(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData) {
+                                    final maxConcurrent = snapshot.data!.getInt('maxConcurrentDownloads') ?? 1;
+                                    return Text(
+                                      '${activeTasksMap.length} active • ${queuedSongsList.length} queued • Max: $maxConcurrent concurrent',
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    );
+                                  }
+                                  return Text(
+                                    '${activeTasksMap.length} active • ${queuedSongsList.length} queued',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Download list
+                  Expanded(
+                    child: ListView.builder(
                 itemCount: allDownloadItems.length,
                 itemBuilder: (context, index) {
                   final song = allDownloadItems[index];
@@ -270,7 +323,7 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                   ),
                 );
               },
-            );
+            ))]);
           },
           ),
           if (_isCancelling)

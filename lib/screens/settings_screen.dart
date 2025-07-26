@@ -43,6 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<String> currentAppVersionNotifier = ValueNotifier<String>('Loading...');
   final ValueNotifier<String> latestKnownVersionNotifier = ValueNotifier<String>('N/A');
   final ValueNotifier<bool?> showOnlySavedSongsInAlbumsNotifier = ValueNotifier<bool?>(null); // NEW
+  final ValueNotifier<int> maxConcurrentDownloadsNotifier = ValueNotifier<int>(1); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -136,6 +137,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final showOnlySavedSongs = prefs.getBool('showOnlySavedSongsInAlbums') ?? false;
     showOnlySavedSongsInAlbumsNotifier.value = showOnlySavedSongs;
 
+    // Load Max Concurrent Downloads setting
+    final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 1;
+    maxConcurrentDownloadsNotifier.value = maxConcurrentDownloads;
+
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -161,6 +166,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveShowOnlySavedSongsInAlbumsSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('showOnlySavedSongsInAlbums', value);
+  }
+
+  Future<void> _saveMaxConcurrentDownloadsSetting(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('maxConcurrentDownloads', value);
+    
+    // Reinitialize the download manager with the new setting
+    if (_currentSongProvider != null) {
+      await _currentSongProvider!.reinitializeDownloadManager();
+    }
   }
 
 
@@ -475,6 +490,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Custom speed presets saved')),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMaxConcurrentDownloadsDialog(BuildContext context, int currentValue) {
+    int selectedValue = currentValue;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Max Concurrent Downloads'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Choose how many songs to download simultaneously',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: selectedValue.toDouble(),
+                    min: 1,
+                    max: 20,
+                    divisions: 19,
+                    label: selectedValue.toString(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedValue = value.round();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Download up to $selectedValue song${selectedValue == 1 ? '' : 's'} simultaneously',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    maxConcurrentDownloadsNotifier.value = selectedValue;
+                    await _saveMaxConcurrentDownloadsSetting(selectedValue);
+                    Navigator.of(context).pop();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Max concurrent downloads set to $selectedValue')),
                       );
                     }
                   },
@@ -872,6 +950,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           await _saveShowOnlySavedSongsInAlbumsSetting(value);
                         },
                       ),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<int>(
+                  valueListenable: maxConcurrentDownloadsNotifier,
+                  builder: (context, maxConcurrentDownloads, _) {
+                    return ListTile(
+                      leading: const Icon(Icons.download),
+                      title: const Text('Max Concurrent Downloads'),
+                      subtitle: Text('Download up to $maxConcurrentDownloads song${maxConcurrentDownloads == 1 ? '' : 's'} simultaneously'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _showMaxConcurrentDownloadsDialog(context, maxConcurrentDownloads),
                     );
                   },
                 ),
@@ -1302,7 +1392,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         barTouchData: BarTouchData(
                                           enabled: true,
                                           touchTooltipData: BarTouchTooltipData(
-                                            tooltipBgColor: Theme.of(context).colorScheme.surface,
                                             tooltipBorder: BorderSide(color: Theme.of(context).colorScheme.outline),
                                             getTooltipItem: (group, groupIndex, rod, rodIndex) {
                                               final keys = dailyCounts.keys.toList();

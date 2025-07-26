@@ -35,13 +35,14 @@ class CurrentSongProvider with ChangeNotifier {
   DownloadManager? _downloadManager;
   bool _isDownloadManagerInitialized = false;
 
-  // _activeDownloads will now track the single song actively being processed by the provider's logic
+  // _activeDownloads tracks songs currently being processed by the provider's logic
   final Map<String, Song> _activeDownloads = {}; 
   
-  // New: Provider-level download queue and processing flag
+  // New: Provider-level download queue
   final List<Song> _downloadQueue = [];
-  // ignore: unused_field
-  bool _isProcessingProviderDownload = false;
+  
+  // Track the current number of active downloads to respect maxConcurrentDownloads setting
+  int _currentActiveDownloadCount = 0;
 
   // Add retry tracking for downloads
   final Map<String, int> _downloadRetryCount = {};
@@ -405,12 +406,15 @@ class CurrentSongProvider with ChangeNotifier {
     }
     try {
       final baseDir = await getApplicationDocumentsDirectory();
+      final prefs = await SharedPreferences.getInstance();
+      final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 1;
+      
       _downloadManager = DownloadManager(
         subDir: 'ltunes_downloads',
         baseDirectory: baseDir,
         fileExistsStrategy: FileExistsStrategy.resume,
         maxRetries: 2,
-        maxConcurrentDownloads: 1000000,
+        maxConcurrentDownloads: maxConcurrentDownloads,
         delayBetweenRetries: const Duration(seconds: 2),
         logger: (log) => debugPrint('[DownloadManager:${log.level.name}] ${log.message}'),
       );
@@ -422,6 +426,13 @@ class CurrentSongProvider with ChangeNotifier {
       _isDownloadManagerInitialized = false;
       _downloadManager = null;
     }
+  }
+
+  Future<void> reinitializeDownloadManager() async {
+    // Reset the initialization flag to force reinitialization
+    _isDownloadManagerInitialized = false;
+    _downloadManager = null;
+    await _initializeDownloadManager();
   }
 
   void _listenToAudioHandler() {
@@ -1298,20 +1309,21 @@ class CurrentSongProvider with ChangeNotifier {
     _triggerNextDownloadInProviderQueue();
   }
 
-  void _triggerNextDownloadInProviderQueue() {
-    // only start a new download if none is processing and queue isn't empty
-    if (_isProcessingProviderDownload || _downloadQueue.isEmpty) {
-      return;
+  void _triggerNextDownloadInProviderQueue() async {
+    // Get the current max concurrent downloads setting
+    final prefs = await SharedPreferences.getInstance();
+    final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 1;
+    
+    // Start new downloads if we haven't reached the limit and queue isn't empty
+    while (_currentActiveDownloadCount < maxConcurrentDownloads && _downloadQueue.isNotEmpty) {
+      final Song songToDownload = _downloadQueue.removeAt(0);
+      _activeDownloads[songToDownload.id] = songToDownload;
+      _downloadProgress[songToDownload.id] = _downloadProgress[songToDownload.id] ?? 0.0;
+      _currentActiveDownloadCount++;
+      notifyListeners();
+      _forceUpdateDownloadNotification(); // Force update when download starts
+      _processAndSubmitDownload(songToDownload);
     }
-
-    _isProcessingProviderDownload = true;
-    // For O(1) performance, _downloadQueue should be a `Queue` from `dart:collection`.
-    final Song songToDownload = _downloadQueue.removeAt(0);
-    _activeDownloads[songToDownload.id] = songToDownload;
-    _downloadProgress[songToDownload.id] = _downloadProgress[songToDownload.id] ?? 0.0;
-    notifyListeners();
-    _forceUpdateDownloadNotification(); // Force update when download starts
-    _processAndSubmitDownload(songToDownload);
   }
 
   Future<void> _processAndSubmitDownload(Song song) async {
@@ -1351,7 +1363,7 @@ class CurrentSongProvider with ChangeNotifier {
           // Move to next song in queue
           _activeDownloads.remove(song.id);
           _downloadProgress.remove(song.id);
-          _isProcessingProviderDownload = false;
+          _currentActiveDownloadCount--;
           notifyListeners();
           _triggerNextDownloadInProviderQueue();
           return;
@@ -1485,7 +1497,7 @@ class CurrentSongProvider with ChangeNotifier {
         _downloadQueue.insert(0, song);
         _activeDownloads.remove(songId);
         _downloadProgress.remove(songId);
-        _isProcessingProviderDownload = false;
+        _currentActiveDownloadCount--;
         notifyListeners();
         _triggerNextDownloadInProviderQueue();
       });
@@ -1493,7 +1505,7 @@ class CurrentSongProvider with ChangeNotifier {
       // Clean up current state
       _activeDownloads.remove(songId);
       _downloadProgress.remove(songId);
-      _isProcessingProviderDownload = false;
+      _currentActiveDownloadCount--;
       notifyListeners();
       _triggerNextDownloadInProviderQueue();
     } else {
@@ -1562,7 +1574,7 @@ class CurrentSongProvider with ChangeNotifier {
         _activeDownloads.remove(songId);
         _downloadProgress.remove(songId);
       }
-      _isProcessingProviderDownload = false;
+      _currentActiveDownloadCount--;
       notifyListeners();
       _forceUpdateDownloadNotification(); // Force update when download completes
       _triggerNextDownloadInProviderQueue();
@@ -1587,7 +1599,7 @@ class CurrentSongProvider with ChangeNotifier {
         _activeDownloads.remove(songId);
         _downloadProgress.remove(songId);
       }
-      _isProcessingProviderDownload = false;
+      _currentActiveDownloadCount--;
       notifyListeners();
       _forceUpdateDownloadNotification(); // Force update when download completes
       _triggerNextDownloadInProviderQueue();
