@@ -258,7 +258,7 @@ class ApiService {
   }
 
   Future<List<dynamic>> fetchStationsByCountry(String country, {String name = ''}) async {
-    final String cacheKey = "${country}_${name}";
+    final String cacheKey = "${country}_$name";
     final cached = _radioStationCache[cacheKey];
     if (cached != null && !cached.isExpired) {
       return cached.data;
@@ -304,7 +304,7 @@ class ApiService {
   }
 
   void clearRadioStationCache(String country, String name) {
-    final String cacheKey = "${country}_${name}";
+    final String cacheKey = "${country}_$name";
     _radioStationCache.remove(cacheKey);
   }
 

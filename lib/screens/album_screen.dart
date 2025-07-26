@@ -192,6 +192,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
   void _playAlbum() async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final navigator = Navigator.of(context); // Capture before async
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     if (widget.album.tracks.isNotEmpty) {
       // Increment album play count in SharedPreferences
       final prefs = await SharedPreferences.getInstance();
@@ -213,12 +215,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
         }
       }
       await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
-      Navigator.push(
-        context,
+      navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('This album has no tracks to play.')),
       );
     }
@@ -226,18 +227,19 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
   void _playAlbumShuffle() async {
     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final navigator = Navigator.of(context); // Capture before async
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     if (widget.album.tracks.isNotEmpty) {
       // Ensure shuffle is on
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
       await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
-      Navigator.push(
-        context,
+      navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('This album has no tracks to shuffle play.')),
       );
     }
@@ -818,9 +820,9 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       ),
                       onTap: () async {
                         final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                        final navigator = Navigator.of(context); // Capture before async
                         await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks[index]);
-                        Navigator.push(
-                          context,
+                        navigator.push(
                           MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
                         );
                       },

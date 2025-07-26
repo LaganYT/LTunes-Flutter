@@ -298,8 +298,9 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                             tooltip: 'Redownload',
                             color: Colors.blue,
                             onPressed: () async {
+                              final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
                               await provider.redownloadSong(song);
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              scaffoldMessenger.showSnackBar(
                                 SnackBar(content: Text('Redownloading "${song.title}"...')),
                               );
                             },
@@ -328,7 +329,7 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
           ),
           if (_isCancelling)
             Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               child: const Center(
                 child: CircularProgressIndicator(),
               ),

@@ -278,6 +278,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async gap
     showDialog(
       context: context,
       barrierDismissible: false, // User must interact with the dialog
@@ -300,12 +301,10 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                 if (await canLaunchUrl(url)) {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 } else {
-                  if (mounted) {
-                    final scaffoldMessenger = ScaffoldMessenger.of(context);
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('Could not launch ${updateInfo.url}')),
-                    );
-                  }
+                  // Use captured scaffoldMessenger instead of context after async
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(content: Text('Could not launch ${updateInfo.url}')),
+                  );
                 }
               },
             ),

@@ -96,8 +96,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     await _saveIgnoredSongs();
     await _loadLocalSongs(); // Refresh the list immediately
     
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     if (mounted && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('"${song.title}" will be ignored from metadata lookup'),
           backgroundColor: Colors.orange,
@@ -119,8 +120,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     // Refresh the local songs list to include the unignored song
     await _loadLocalSongs();
     
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     if (mounted && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('"${song.title}" will be included in metadata lookup'),
           backgroundColor: Colors.green,
@@ -226,8 +228,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     await _saveIgnoredSongs();
     await _loadLocalSongs();
     
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     if (mounted && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('All ignored songs have been restored to metadata lookup'),
           backgroundColor: Colors.green,
@@ -350,8 +353,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       }
       if (bestMatch != null) {
         await _convertToNativeSong(song, bestMatch);
+        final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
         if (mounted && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             SnackBar(
               content: Text('Successfully fetched metadata for "${song.title}"'),
               backgroundColor: Colors.green,
@@ -468,8 +472,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                       setState(() {
                                         isSearching = false;
                                       });
+                                      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        scaffoldMessenger.showSnackBar(
                                           SnackBar(
                                             content: Text('Search error: $e'),
                                             backgroundColor: Colors.red,
@@ -498,8 +503,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                             setState(() {
                               isSearching = false;
                             });
+                            final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              scaffoldMessenger.showSnackBar(
                                 SnackBar(
                                   content: Text('Search error: $e'),
                                   backgroundColor: Colors.red,
@@ -545,9 +551,10 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                   onTap: () async {
                                     final navigator = Navigator.of(context);
                                     navigator.pop();
+                                    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
                                     await _convertToNativeSong(localSong, result);
                                     if (mounted && context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      scaffoldMessenger.showSnackBar(
                                         SnackBar(
                                           content: Text('Successfully converted "${localSong.title}" to "${result.title}"'),
                                           backgroundColor: Colors.green,
@@ -688,9 +695,10 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                     );
                     if (customSong != null) {
                       Navigator.of(context).pop();
+                      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
                       await _convertToNativeSong(localSong, customSong);
                       if (mounted && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        scaffoldMessenger.showSnackBar(
                           SnackBar(
                             content: Text('Successfully converted "${localSong.title}" to custom metadata'),
                             backgroundColor: Colors.green,
@@ -858,8 +866,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       await _loadLocalSongs();
       await _loadMetadataHistory(); // Refresh history
       
+      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
       if (mounted && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Metadata fetch undone'),
             backgroundColor: Colors.blue,
@@ -868,8 +877,9 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       }
     } catch (e) {
       debugPrint('Error undoing metadata fetch: $e');
+      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
       if (mounted && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Error undoing: ${e.toString()}'),
             backgroundColor: Colors.red,
@@ -1353,7 +1363,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: Card(
-                        color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.2),
+                        color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.2),
                         child: ExpansionTile(
                           title: const Text('Edited Metadata Songs', style: TextStyle(fontWeight: FontWeight.bold)),
                           initiallyExpanded: false,

@@ -515,7 +515,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                                 title: _searchQuery.isEmpty ? 'No Songs Available' : 'No Songs Found',
                                 message: _searchQuery.isEmpty 
                                     ? 'Unable to load top charts. Please check your connection and try again.'
-                                    : 'No songs found for "${_searchQuery}". Try a different search term.',
+                                    : 'No songs found for "$_searchQuery". Try a different search term.',
                                 icon: _searchQuery.isEmpty ? Icons.cloud_off : Icons.search_off,
                                 onAction: _searchQuery.isEmpty ? () {
                                   setState(() {
@@ -571,7 +571,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                                 title: _searchQuery.isEmpty ? 'No Radio Stations Available' : 'No Radio Stations Found',
                                 message: _searchQuery.isEmpty 
                                     ? 'Unable to load radio stations. Please check your connection and try again.'
-                                    : 'No radio stations found for "${_searchQuery}". Try a different search term.',
+                                    : 'No radio stations found for "$_searchQuery". Try a different search term.',
                                 icon: _searchQuery.isEmpty ? Icons.radio : Icons.search_off,
                                 onAction: _searchQuery.isEmpty ? () {
                                   setState(() {
@@ -616,12 +616,14 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                                   title: Text(station['name'] ?? 'Unknown Station'),
                                   subtitle: Text(station['country'] ?? 'Unknown Country'),
                                                                      onTap: () {
-                                     final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                                     currentSongProvider.playStream(
-                                       station['url'] ?? '',
-                                       stationName: station['name'] ?? 'Unknown Station',
-                                       stationFavicon: station['favicon'],
-                                     );
+                                     if (mounted && context.mounted) {
+                                       final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                                       currentSongProvider.playStream(
+                                         station['url'] ?? '',
+                                         stationName: station['name'] ?? 'Unknown Station',
+                                         stationFavicon: station['favicon'],
+                                       );
+                                     }
                                    },
                                 );
                               },

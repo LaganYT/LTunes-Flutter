@@ -211,10 +211,10 @@ class ModernLibraryScreen extends StatefulWidget {
   const ModernLibraryScreen({super.key});
 
   @override
-  _ModernLibraryScreenState createState() => _ModernLibraryScreenState();
+  ModernLibraryScreenState createState() => ModernLibraryScreenState();
 }
 
-class _ModernLibraryScreenState extends State<ModernLibraryScreen> with AutomaticKeepAliveClientMixin {
+class ModernLibraryScreenState extends State<ModernLibraryScreen> with AutomaticKeepAliveClientMixin {
   List<Song> _songs = [];
   List<Playlist> _playlists = [];
   List<Album> _savedAlbums = []; // New list for saved albums
@@ -750,10 +750,12 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
             TextButton(
               child: Text('Delete', style: TextStyle(color: Colors.red[700])),
               onPressed: () async { // Make async
+                final navigator = Navigator.of(context); // Capture before async
+                final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
                 await _playlistManager.removePlaylist(playlist); // await the operation
                 // _loadPlaylists(); // No longer needed here, listener will handle it.
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
+                navigator.pop();
+                scaffoldMessenger.showSnackBar(
                   SnackBar(content: Text('Playlist "${playlist.name}" deleted.')),
                 );
               },
@@ -812,9 +814,12 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
   // ignore: unused_element
   Future<void> _addSongsToPlaylistDialog(BuildContext context, Playlist playlist) async {
     if (_songs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No downloaded songs available to add.')),
-      );
+      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+      if (mounted && context.mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('No downloaded songs available to add.')),
+        );
+      }
       return;
     }
 
@@ -825,9 +830,12 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
     availableSongs.removeWhere((s) => playlist.songs.any((ps) => ps.id == s.id));
 
     if (availableSongs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('All downloaded songs are already in "${playlist.name}".')),
-      );
+      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+      if (mounted && context.mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('All downloaded songs are already in "${playlist.name}".')),
+        );
+      }
       return;
     }
     
@@ -884,29 +892,37 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
     ) ?? []; // Return empty list if dialog is dismissed
 
     if (selectedSongs.isNotEmpty) {
+      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
       for (var song in selectedSongs) {
         await _playlistManager.addSongToPlaylist(playlist, song); // await
       }
       // _loadPlaylists(); // No longer needed here, listener will handle it.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${selectedSongs.length} song(s) added to "${playlist.name}"')),
-      );
+      if (mounted && context.mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('${selectedSongs.length} song(s) added to "${playlist.name}"')),
+        );
+      }
     }
   }
 
   // ignore: unused_element
   Future<void> _removeSongFromPlaylist(Playlist playlist, Song song) async {
     await _playlistManager.removeSongFromPlaylist(playlist, song); // await
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     // _loadPlaylists(); // No longer needed here, listener will handle it.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Removed "${song.title}" from "${playlist.name}"')),
-    );
+    if (mounted && context.mounted) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Removed "${song.title}" from "${playlist.name}"')),
+      );
+    }
   }
 
   Future<void> _deleteDownloadedSong(Song songToDelete) async {
     // Show confirmation dialog
+    final navigator = Navigator.of(context); // Capture before async
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     final bool? confirmed = await showDialog<bool>(
-      context: context,
+      context: navigator.context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Delete "${songToDelete.title}"?'),
@@ -915,13 +931,13 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
-                Navigator.of(context).pop(false); // User canceled
+                navigator.pop(false); // User canceled
               },
             ),
             TextButton(
               child: Text('Delete', style: TextStyle(color: Colors.red[700])),
               onPressed: () {
-                Navigator.of(context).pop(true); // User confirmed
+                navigator.pop(true); // User confirmed
               },
             ),
           ],
@@ -988,15 +1004,15 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
       // The _loadDownloadedSongs will be called by the listener _onSongDataChanged
       // due to currentSongProvider.updateSongDetails.
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('Deleted "${updatedSong.title}"')),
         );
       }
     } catch (e) {
       debugPrint('Error deleting song: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('Error deleting song: $e')),
         );
       }
@@ -1005,6 +1021,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
   // ignore: unused_element
   Future<void> _importSongs() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom, // Changed from FileType.audio
@@ -1023,10 +1040,11 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
         
         int importCount = 0;
 
-        // Show a loading indicator
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Importing songs...')),
-        );
+        if (context.mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Importing songs...')),
+          );
+        }
 
         for (var file in result.files) {
           if (file.path == null) continue;
@@ -1057,7 +1075,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
             // Try to extract metadata for all formats, including M4A and MP4
             try {
               // getImage: true to attempt to load album art
-              metadata = await readMetadata(copied, getImage: true); 
+              metadata = readMetadata(copied, getImage: true); 
             } catch (e) {
               debugPrint('Error reading metadata for $origName: $e');
               // Proceed with default values if metadata reading fails
@@ -1086,7 +1104,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                 }
                 // Add more formats as needed
                 
-                albumArtFileName = 'albumart_${songId}$extension'; // Just the filename
+                albumArtFileName = 'albumart_$songId$extension'; // Just the filename
                 // Album art is saved in the root of appDocDir, not the downloadsSubDir
                 String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
                 
@@ -1153,10 +1171,12 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                                 // If not, a direct call to _loadDownloadedSongs() here after the loop would be needed.
                                 // However, the current structure relies on listeners.
 
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$importCount song(s) imported successfully.')),
-        );
+        if (context.mounted) {
+          scaffoldMessenger.removeCurrentSnackBar();
+          scaffoldMessenger.showSnackBar(
+            SnackBar(content: Text('$importCount song(s) imported successfully.')),
+          );
+        }
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
@@ -1164,15 +1184,19 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
         }
       } else {
         // User canceled the picker or no files selected
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No songs selected for import.')),
-        );
+        if (context.mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('No songs selected for import.')),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error importing songs: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred during import: $e')),
-      );
+      if (context.mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('An error occurred during import: $e')),
+        );
+      }
     }
   }
 
@@ -1341,8 +1365,9 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                 }
 
                 await _albumManager.removeSavedAlbum(album.id);
-                if (mounted) { // Check if the widget is still in the tree
-                  ScaffoldMessenger.of(context).showSnackBar(
+                final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+                if (mounted && context.mounted) { // Check if the widget is still in the tree
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(content: Text('"${album.title}" unsaved.')),
                   );
                 }
@@ -1480,7 +1505,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
 
   // Helper widget to build album art for playlists (handles local and network)
   Widget _buildPlaylistArtWidget(String artUrl, double size) {
-    Widget placeholder = Icon(Icons.music_note, size: size * 0.7, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
+    Widget placeholder = Icon(Icons.music_note, size: size * 0.7, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5));
     
     return SizedBox(
       width: size,
@@ -1722,7 +1747,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                         color: Colors.grey[800],
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.playlist_play, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      child: Icon(Icons.playlist_play, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                     );
                   } else if (uniqueAlbumArtUrls.length < 4) {
                     leadingWidget = ClipRRect(
@@ -1830,7 +1855,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                           color: Colors.grey[800],
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                        child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                       ),
                     );
                   } else {
@@ -1841,7 +1866,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                         color: Colors.grey[800],
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                     );
                   }
 
@@ -1930,7 +1955,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                                 color: Colors.grey[800],
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                             ),
                           );
                         } else {
@@ -1946,7 +1971,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                                 color: Colors.grey[800],
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                             ),
                           );
                         }
@@ -1960,7 +1985,7 @@ class _ModernLibraryScreenState extends State<ModernLibraryScreen> with Automati
                         color: Colors.grey[800],
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                     );
                   }
 

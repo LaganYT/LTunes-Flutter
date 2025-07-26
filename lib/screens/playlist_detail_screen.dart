@@ -361,7 +361,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 await _playlistManager.removePlaylist(currentPlaylist);
                 Navigator.of(dialogContext).pop(); // Close the dialog
 
-                if (isCurrentlyMounted) {
+                if (isCurrentlyMounted && currentContext.mounted) {
                   // Navigate back to the previous screen (LibraryScreen)
                   Navigator.of(currentContext).pop();
                   ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -450,12 +450,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           gradient: LinearGradient(
-            colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withOpacity(0.7)],
+            colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
-        child: Icon(Icons.music_note, color: Colors.white.withOpacity(0.7), size: containerSize * 0.5),
+        child: Icon(Icons.music_note, color: Colors.white.withValues(alpha: 0.7), size: containerSize * 0.5),
       );
     }
 
@@ -601,7 +601,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           flexibleSpaceBackground = Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)],
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -673,7 +673,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
                         child: Container(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha: 0.6),
                         ),
                       ),
                       // Use Padding to position the content column correctly
@@ -712,22 +712,22 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                       const SizedBox(height: 6),
                                       Text(
                                         '${currentPlaylist.songs.length} songs', // Use currentPlaylist
-                                        style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         _calculateAndFormatPlaylistDuration(currentPlaylist), // Use currentPlaylist
-                                        style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
                                       ),
                                       if (isFullyDownloaded && hasSongs) ...[
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
-                                            Icon(Icons.check_circle, color: Colors.greenAccent.withOpacity(0.9), size: 16),
+                                            Icon(Icons.check_circle, color: Colors.greenAccent.withValues(alpha: 0.9), size: 16),
                                             const SizedBox(width: 4),
                                             Text(
                                               'All songs downloaded',
-                                              style: TextStyle(color: Colors.greenAccent.withOpacity(0.9), fontSize: 12, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                              style: TextStyle(color: Colors.greenAccent.withValues(alpha: 0.9), fontSize: 12, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
                                             ),
                                           ],
                                         ),
@@ -769,7 +769,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                     label: const Text('Shuffle'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.white,
-                                      side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                                      side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(24),
@@ -789,17 +789,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                       onPressed: isFullyDownloaded ? () => _removeDownloadsFromPlaylist(currentPlaylist) : () => _downloadAllSongs(currentPlaylist), // Use currentPlaylist
                                       icon: Icon(
                                         isFullyDownloaded ? Icons.delete_outline : Icons.download_for_offline_outlined,
-                                        color: isFullyDownloaded ? Colors.red.withOpacity(0.85) : Colors.white.withOpacity(0.85)
+                                        color: isFullyDownloaded ? Colors.red.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.85)
                                       ),
                                       label: Text(
                                         isFullyDownloaded ? 'Remove Downloads' : 'Download', 
-                                        style: TextStyle(color: isFullyDownloaded ? Colors.red.withOpacity(0.85) : Colors.white.withOpacity(0.85)),
+                                        style: TextStyle(color: isFullyDownloaded ? Colors.red.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.85)),
                                       ),
                                       style: TextButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(vertical: 10),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(20),
-                                          side: BorderSide(color: isFullyDownloaded ? Colors.red.withOpacity(0.4) : Colors.white.withOpacity(0.4)),
+                                          side: BorderSide(color: isFullyDownloaded ? Colors.red.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.4)),
                                         ),
                                       ),
                                     ),
@@ -808,16 +808,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 Expanded(
                                   child: TextButton.icon(
                                     onPressed: () => _showDeletePlaylistDialog(currentPlaylist), // Use currentPlaylist
-                                    icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
+                                    icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withValues(alpha: 0.9)),
                                     label: Text(
                                       'Delete Playlist', // Shorter label
-                                      style: TextStyle(color: Theme.of(context).colorScheme.error.withOpacity(0.9)),
+                                      style: TextStyle(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.9)),
                                     ),
                                     style: TextButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(vertical: 10),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(color: Theme.of(context).colorScheme.error.withOpacity(0.5)),
+                                        side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5)),
                                       ),
                                     ),
                                   ),
@@ -880,21 +880,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                           ),
                           subtitle: Text(
                             song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                              maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                                 tooltip: 'Remove from playlist',
                                 onPressed: () {
                                   _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
                                 },
                               ),
                               const SizedBox(width: 8), // Spacing before drag handle
-                              Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                              Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                             ],
                           ),
                           onTap: () async {
@@ -908,14 +908,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   proxyDecorator: (Widget child, int index, Animation<double> animation) {
                     return AnimatedBuilder(
                       animation: animation,
-                      builder: (BuildContext context, Widget? _child) {
+                      builder: (BuildContext context, Widget? child) {
                         final double animValue = Curves.easeInOut.transform(animation.value);
                         final double elevation = lerpDouble(0, 8, animValue)!; // Elevate when dragging
                         final double scale = lerpDouble(1, 1.05, animValue)!; // Slightly scale up
                         return Material( // Material for shadow and proper rendering of the proxy
                           elevation: elevation,
-                          color: Theme.of(context).colorScheme.surfaceVariant, // Or another suitable color for drag proxy
-                          shadowColor: Colors.black.withOpacity(0.5),
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest, // Or another suitable color for drag proxy
+                          shadowColor: Colors.black.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8), // Optional: match ListTile's visual style
                           child: Transform.scale(scale: scale, child: child),
                         );
@@ -941,7 +941,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         // and the Consumer will rebuild with the new order.
                       }).catchError((error) {
                         // Optional: Handle error during saving
-                        if (mounted) {
+                        if (mounted && context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Error saving playlist order: $error')),
                           );

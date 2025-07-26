@@ -96,7 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadAppVersion() async {
     try {
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      if (mounted) {
+      if (mounted && context.mounted) {
         currentAppVersionNotifier.value = packageInfo.version;
         latestKnownVersionNotifier.value = packageInfo.version; // Initially set to current version
       }
@@ -319,7 +319,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
 
-    if (mounted) { // Check if the widget is still in the tree
+    if (mounted && context.mounted) { // Check if the widget is still in the tree
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$deletedFilesCount downloaded song(s) deleted.')),
       );
@@ -386,7 +386,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults(); 
 
-    if (mounted) { // Ensure mounted check before showing SnackBar
+    if (mounted && context.mounted) { // Ensure mounted check before showing SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Settings have been reset to default.')),
       );
@@ -497,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     customSpeedPresetsNotifier.value = List<double>.from(currentPresets);
                     await _saveCustomSpeedPresets(currentPresets);
                     Navigator.of(context).pop();
-                    if (mounted) {
+                    if (mounted && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Custom speed presets saved')),
                       );
@@ -560,7 +560,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     maxConcurrentDownloadsNotifier.value = selectedValue;
                     await _saveMaxConcurrentDownloadsSetting(selectedValue);
                     Navigator.of(context).pop();
-                    if (mounted) {
+                    if (mounted && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Max concurrent downloads set to $selectedValue')),
                       );
@@ -623,7 +623,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     maxConcurrentPlaylistMatchesNotifier.value = selectedValue;
                     await _saveMaxConcurrentPlaylistMatchesSetting(selectedValue);
                     Navigator.of(context).pop();
-                    if (mounted) {
+                    if (mounted && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Max concurrent playlist matches set to $selectedValue')),
                       );
@@ -792,7 +792,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (await canLaunchUrl(url)) {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 } else {
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Could not launch ${updateInfo.url}')),
                     );
@@ -808,9 +808,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _performUpdateCheck() async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Checking for updates...')),
-    );
+    if (mounted && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Checking for updates...')),
+      );
+    }
 
     try {
       PackageInfo packageInfo = await PackageInfo.fromPlatform();
@@ -824,13 +826,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _showUpdateDialog(updateInfo);
         latestKnownVersionNotifier.value = updateInfo.version; // Only update the notifier
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('App is up to date.')),
-        );
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('App is up to date.')),
+          );
+        }
         latestKnownVersionNotifier.value = currentAppVersion; // Only update the notifier
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error checking for updates: $e')),
         );
@@ -1864,11 +1868,11 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> setAccentColor(MaterialColor color) async {
-    if (_accentColor.value != color.value) {
+    if (_accentColor.toARGB32() != color.toARGB32()) {
       _accentColor = color;
       notifyListeners();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('accentColor', color.value);
+      await prefs.setInt('accentColor', color.toARGB32());
     }
   }
 
@@ -1879,12 +1883,12 @@ class ThemeProvider extends ChangeNotifier {
     
     if (colorValue != null) {
       newAccentColor = accentColorOptions.values.firstWhere(
-        (c) => c.value == colorValue,
+        (c) => c.toARGB32() == colorValue,
         orElse: () => _defaultAccentColor, // Fallback to default if saved color not in options
       );
     }
 
-    if (_accentColor.value != newAccentColor.value) {
+    if (_accentColor.toARGB32() != newAccentColor.toARGB32()) {
       _accentColor = newAccentColor;
       // notifyListeners(); // Notifying here might cause issues if called during build.
                           // ThemeProvider constructor calls this, so it should be fine.
@@ -1899,7 +1903,7 @@ class ThemeProvider extends ChangeNotifier {
     // If it's the same as the initial default, it might not notify, but the value is set.
     // This means if it loads the default and it was already the default, it won't notify.
     // This is usually fine. Let's stick to the original conditional notify.
-    if (_accentColor.value != newAccentColor.value) {
+    if (_accentColor.toARGB32() != newAccentColor.toARGB32()) {
        _accentColor = newAccentColor;
        notifyListeners();
     } else {
@@ -1918,7 +1922,7 @@ class ThemeProvider extends ChangeNotifier {
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('themeMode', _themeMode.toString());
-    await prefs.setInt('accentColor', _accentColor.value);
+    await prefs.setInt('accentColor', _accentColor.toARGB32());
     
     notifyListeners();
   }

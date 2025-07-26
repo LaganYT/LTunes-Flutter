@@ -141,7 +141,7 @@ class ErrorHandlerService {
                 Text(
                   'Details: ${error.toString()}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
             ],
@@ -209,7 +209,7 @@ class ErrorHandlerService {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 24),
@@ -284,13 +284,13 @@ class ErrorHandlerService {
             Icon(
               icon ?? Icons.inbox_outlined,
               size: 64,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
               title,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 8),
@@ -298,7 +298,7 @@ class ErrorHandlerService {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
             if (onAction != null && actionText != null) ...[
@@ -352,15 +352,17 @@ class ErrorHandlerService {
         logError(error, context: errorContext);
         
         if (attempts >= maxRetries) {
-          showErrorDialog(
-            context,
-            error,
-            title: 'Operation Failed',
-            onRetry: () {
-              // This would restart the operation
-              debugPrint('Retry requested for: $errorContext');
-            },
-          );
+          if (context.mounted) {
+            showErrorDialog(
+              context,
+              error,
+              title: 'Operation Failed',
+              onRetry: () {
+                // This would restart the operation
+                debugPrint('Retry requested for: $errorContext');
+              },
+            );
+          }
           return null;
         }
         

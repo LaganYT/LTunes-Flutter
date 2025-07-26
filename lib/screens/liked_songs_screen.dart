@@ -13,12 +13,12 @@ import '../widgets/playbar.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class LikedSongsScreen extends StatefulWidget {
-  const LikedSongsScreen({Key? key}) : super(key: key);
+  const LikedSongsScreen({super.key});
   @override
-  _LikedSongsScreenState createState() => _LikedSongsScreenState();
+  LikedSongsScreenState createState() => LikedSongsScreenState();
   }
 
-class _LikedSongsScreenState extends State<LikedSongsScreen> {
+class LikedSongsScreenState extends State<LikedSongsScreen> {
   List<Song> _likedSongs = [];
   late final CurrentSongProvider _currentSongProvider;
 

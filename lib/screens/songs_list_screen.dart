@@ -21,11 +21,11 @@ class SongsScreen extends StatefulWidget {
   final String? artistFilter;
   const SongsScreen({super.key, this.artistFilter});
   @override
-  _SongsScreenState createState() => _SongsScreenState();
+  SongsScreenState createState() => SongsScreenState();
   
 }
 
-class _SongsScreenState extends State<SongsScreen> {
+class SongsScreenState extends State<SongsScreen> {
   List<Song> _songs = [];
   final _playlistManager = PlaylistManagerService();
   final Uuid _uuid = const Uuid(); // For generating unique IDs
@@ -157,7 +157,9 @@ class _SongsScreenState extends State<SongsScreen> {
     // Notify CurrentSongProvider to remove the song from its active state (queue, current song)
     // This should happen before file deletion and SharedPreferences.remove
     // so that CurrentSongProvider saves its state *without* the song.
-    await Provider.of<CurrentSongProvider>(context, listen: false).processSongLibraryRemoval(s.id);
+    if (mounted && context.mounted) {
+      await Provider.of<CurrentSongProvider>(context, listen: false).processSongLibraryRemoval(s.id);
+    }
 
     // Remove song from any playlists. This should modify playlist data.
     await _playlistManager.removeSongFromAllPlaylists(s);
@@ -229,9 +231,11 @@ Future<void> _importSongs() async {
         int importCount = 0;
 
         // Show a loading indicator
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Importing songs...')),
-        );
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Importing songs...')),
+          );
+        }
 
         for (PlatformFile file in result.files) {
           if (file.path == null) continue;
@@ -258,7 +262,7 @@ Future<void> _importSongs() async {
             // Try to extract metadata for all formats, including M4A and MP4
             try {
               // getImage: true to attempt to load album art
-              metadata = await readMetadata(copiedFile, getImage: true); 
+              metadata = readMetadata(copiedFile, getImage: true); 
             } catch (e) {
               debugPrint('Error reading metadata for $originalFileName: $e');
               // Proceed with default values if metadata reading fails
@@ -287,7 +291,7 @@ Future<void> _importSongs() async {
                 }
                 // Add more formats as needed
                 
-                albumArtFileName = 'albumart_${songId}$extension'; // Just the filename
+                albumArtFileName = 'albumart_$songId$extension'; // Just the filename
                 // Album art is saved in the root of appDocDir, not the downloadsSubDir
                 String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
                 
@@ -344,10 +348,12 @@ Future<void> _importSongs() async {
           }
         }
 
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$importCount song(s) imported successfully.')),
-        );
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).removeCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$importCount song(s) imported successfully.')),
+          );
+        }
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
@@ -355,15 +361,19 @@ Future<void> _importSongs() async {
         }
       } else {
         // User canceled the picker or no files selected
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No songs selected for import.')),
-        );
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No songs selected for import.')),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error importing songs: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred during import: $e')),
-      );
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred during import: $e')),
+        );
+      }
     }
   }
 
@@ -386,7 +396,7 @@ Future<void> _importSongs() async {
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {

@@ -402,7 +402,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     final artist = item.artist ?? '';
     final album = item.album ?? '';
     if (songId == null || songId.isEmpty) return;
-    final songKey = 'song_' + songId;
+    final songKey = 'song_$songId';
     final songJson = prefs.getString(songKey);
     if (songJson != null) {
       try {
@@ -634,11 +634,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       }
     }
   }
-
-  @override
-  Future<void> onTaskRemoved() async => super.onTaskRemoved();
-  @override
-  Future<void> onNotificationDeleted() async => super.onNotificationDeleted();
 
   Future<void> ensureBackgroundPlayback() async {
     if (_isIOS && _audioSession != null) {

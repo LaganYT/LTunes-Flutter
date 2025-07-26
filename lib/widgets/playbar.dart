@@ -10,16 +10,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 
 class Playbar extends StatefulWidget {
-  static _PlaybarState of(BuildContext context) =>
-      context.findAncestorStateOfType<_PlaybarState>()!;
+  static PlaybarState of(BuildContext context) =>
+      context.findAncestorStateOfType<PlaybarState>()!;
 
   const Playbar({super.key});
 
   @override
-  _PlaybarState createState() => _PlaybarState();
+  PlaybarState createState() => PlaybarState();
 }
 
-class _PlaybarState extends State<Playbar> {
+class PlaybarState extends State<Playbar> {
   String? _previousSongId;
   
   // Performance: Debounced state updates
@@ -179,7 +179,7 @@ class _PlaybarState extends State<Playbar> {
     }
 
     // Use cached song for album art to prevent flashing, but current song for other UI
-    final Song? songForArt = _cachedCurrentSong ?? currentSong;
+    final Song songForArt = _cachedCurrentSong ?? currentSong;
     
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -203,7 +203,7 @@ class _PlaybarState extends State<Playbar> {
             Icons.album,
             size: 48,
             color: colorScheme.onSurfaceVariant,
-            key: ValueKey<String>('playbar_art_${songForArt?.id ?? "none"}'),
+            key: ValueKey<String>('playbar_art_${songForArt.id}'),
           ),
     );
 
@@ -252,7 +252,7 @@ class _PlaybarState extends State<Playbar> {
          },
         child: Material(
           elevation: 8.0,
-          color: colorScheme.surfaceVariant.withOpacity(0.95),
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           clipBehavior: Clip.antiAlias,
           child: AnimatedSwitcher(
@@ -269,7 +269,7 @@ class _PlaybarState extends State<Playbar> {
               );
             },
             child: Container(
-              key: ValueKey<String>('playbar_container_${songForArt?.id}'), // Key to trigger animation only on song change
+              key: ValueKey<String>('playbar_container_${songForArt.id}'), // Key to trigger animation only on song change
               padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
               height: 64, // Standard height for a playbar
               child: Row(
@@ -294,7 +294,7 @@ class _PlaybarState extends State<Playbar> {
                         Text(
                           currentSong.artist,
                           style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.7),
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,

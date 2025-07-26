@@ -12,10 +12,10 @@ import 'package:path/path.dart' as p;
 class ArtistsListScreen extends StatefulWidget {
   const ArtistsListScreen({super.key});
   @override
-  _ArtistsListScreenState createState() => _ArtistsListScreenState();
+  ArtistsListScreenState createState() => ArtistsListScreenState();
 }
 
-class _ArtistsListScreenState extends State<ArtistsListScreen> {
+class ArtistsListScreenState extends State<ArtistsListScreen> {
   List<Song> _songs = [];
   List<String> _artists = [];
   List<String> _allArtists = []; // Keep a copy of all artists for search
@@ -113,7 +113,7 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {

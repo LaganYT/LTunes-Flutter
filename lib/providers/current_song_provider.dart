@@ -330,7 +330,7 @@ class CurrentSongProvider with ChangeNotifier {
     if (extension.isEmpty || extension.length > 5 || !extension.startsWith('.')) {
       extension = '.jpg';
     }
-    final fileName = 'art_${albumIdentifier}$extension';
+    final fileName = 'art_$albumIdentifier$extension';
     final filePath = p.join(directory.path, fileName);
     final file = File(filePath);
 
@@ -356,7 +356,7 @@ class CurrentSongProvider with ChangeNotifier {
         debugPrint('[downloadAlbumArt] Local art file missing, attempting to fetch from network for ${song.title} by ${song.artist}');
         final apiService = ApiService();
         // 1. Try to find the song
-        final searchResults = await apiService.fetchSongs('${song.title} ${song.artist}');
+        final searchResults = await apiService.fetchSongs('$song.title $song.artist');
         Song? exactMatch;
         for (final result in searchResults) {
           if (result.title.toLowerCase() == song.title.toLowerCase() &&
@@ -1347,7 +1347,7 @@ class CurrentSongProvider with ChangeNotifier {
         final retryDelay = Duration(seconds: _baseRetryDelay.inSeconds * (1 << (retryCount - 1))); // Exponential backoff
         if (timeSinceLastRetry < retryDelay) {
           final remainingDelay = retryDelay - timeSinceLastRetry;
-          debugPrint('Retry attempt ${retryCount} for ${song.title} too soon. Scheduling retry in ${remainingDelay.inSeconds}s...');
+          debugPrint('Retry attempt $retryCount for ${song.title} too soon. Scheduling retry in ${remainingDelay.inSeconds}s...');
           
           // Cancel any existing timer for this song
           _retryTimers[song.id]?.cancel();
@@ -1481,7 +1481,7 @@ class CurrentSongProvider with ChangeNotifier {
       _downloadRetryCount[songId] = retryCount + 1;
       _downloadLastRetry[songId] = DateTime.now();
       
-      debugPrint('Download failed for ${song.title}. Retry attempt ${retryCount + 1}/${_maxDownloadRetries}. Error: $error');
+      debugPrint('Download failed for ${song.title}. Retry attempt ${retryCount + 1}/$_maxDownloadRetries. Error: $error');
       
       // Calculate retry delay
       final retryDelay = Duration(seconds: _baseRetryDelay.inSeconds * (1 << retryCount));

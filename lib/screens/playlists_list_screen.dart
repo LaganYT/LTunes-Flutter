@@ -64,10 +64,10 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
 class PlaylistsScreen extends StatefulWidget {
   const PlaylistsScreen({super.key});
   @override
-  _PlaylistsScreenState createState() => _PlaylistsScreenState();
+  PlaylistsScreenState createState() => PlaylistsScreenState();
 }
 
-class _ImportJob {
+class ImportJob {
   bool cancel = false;
   bool isImporting = true;
   int totalRows = 0;
@@ -78,13 +78,13 @@ class _ImportJob {
   VoidCallback? notifyParent;
 }
 
-class _SongEntry {
+class SongEntry {
   final String title;
   final String artist;
   final String album;
   final int originalIndex;
 
-  _SongEntry({
+  SongEntry({
     required this.title,
     required this.artist,
     required this.album,
@@ -92,12 +92,12 @@ class _SongEntry {
   });
 }
 
-class _BatchResult {
-  final _SongEntry entry;
+class BatchResult {
+  final SongEntry entry;
   final Song? matchedSong;
   final String? error;
 
-  _BatchResult({
+  BatchResult({
     required this.entry,
     this.matchedSong,
     this.error,
@@ -109,14 +109,14 @@ class ImportJobManager extends ChangeNotifier {
   factory ImportJobManager() => _instance;
   ImportJobManager._internal();
 
-  final List<_ImportJob> jobs = [];
+  final List<ImportJob> jobs = [];
 
-  void addJob(_ImportJob job) {
+  void addJob(ImportJob job) {
     jobs.add(job);
     notifyListeners();
   }
 
-  void removeJob(_ImportJob job) {
+  void removeJob(ImportJob job) {
     jobs.remove(job);
     notifyListeners();
   }
@@ -126,7 +126,7 @@ class ImportJobManager extends ChangeNotifier {
   }
 }
 
-class _PlaylistsScreenState extends State<PlaylistsScreen> {
+class PlaylistsScreenState extends State<PlaylistsScreen> {
   final _manager = PlaylistManagerService();
   List<Playlist> _playlists = [];
   
@@ -135,7 +135,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
 
   ImageProvider? _currentArtProvider;
   String? _currentArtKey;
-  bool _artLoading = false;
+  final bool _artLoading = false;
 
   @override
   void initState() {
@@ -296,7 +296,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                       ),
                       filled: true,
                       fillColor: Theme.of(context).colorScheme.surface,
-                      hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                      hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                     ),
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                     onChanged: (query) {
@@ -320,8 +320,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                   ),
             floatingActionButton: FloatingActionButton(
               onPressed: _createPlaylist,
-              child: const Icon(Icons.add),
               tooltip: 'Create Playlist',
+              child: const Icon(Icons.add),
             ),
             bottomNavigationBar: const Padding(
               padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
@@ -451,7 +451,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     );
   }
 
-  Future<void> _importPlaylistFromXLSX(_ImportJob job) async {
+  Future<void> _importPlaylistFromXLSX(ImportJob job) async {
     await WakelockPlus.enable(); // Keep device awake during import
     job.cancel = false;
     job.isImporting = true;
@@ -461,11 +461,11 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     void notifyParent() => ImportJobManager().update();
     job.notifyParent = notifyParent;
     ImportJobManager().update();
-    print('Starting XLSX import...');
+    debugPrint('Starting XLSX import...');
     final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx']);
-    print('File picker result: $result');
+    debugPrint('File picker result: $result');
     if (result == null || result.files.isEmpty) {
-      print('No file selected or file picker returned empty.');
+      debugPrint('No file selected or file picker returned empty.');
       job.isImporting = false;
       ImportJobManager().removeJob(job);
       if (mounted) {
@@ -481,9 +481,9 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     if (fileBytes == null && result.files.first.path != null) {
       fileBytes = await File(result.files.first.path!).readAsBytes();
     }
-    print('File bytes: ${fileBytes?.length ?? 0}');
+    debugPrint('File bytes: ${fileBytes?.length ?? 0}');
     if (fileBytes == null) {
-      print('File bytes are null.');
+      debugPrint('File bytes are null.');
       job.isImporting = false;
       ImportJobManager().removeJob(job);
       if (mounted) {
@@ -497,26 +497,26 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     }
 
     try {
-      print('Decoding Excel...');
+      debugPrint('Decoding Excel...');
       final excel = Excel.decodeBytes(fileBytes);
       final sheet = excel.tables.values.first;
-      print('Parsed sheet, rows: ${sheet.maxRows}');
+      debugPrint('Parsed sheet, rows: ${sheet.maxRows}');
       if (sheet.maxRows == 0) throw Exception('No data found in XLSX');
 
       // Assume first row is header: id, name, artist, album
       final header = sheet.row(0).map((cell) => cell?.value.toString().toLowerCase() ?? '').toList();
-      print('Parsed header: $header');
+      debugPrint('Parsed header: $header');
       final nameIdx = header.indexOf('name');
       final artistIdx = header.indexOf('artist');
       final albumIdx = header.indexOf('album');
-      print('Header indices: name=$nameIdx, artist=$artistIdx, album=$albumIdx');
+      debugPrint('Header indices: name=$nameIdx, artist=$artistIdx, album=$albumIdx');
       if ([nameIdx, artistIdx, albumIdx].contains(-1)) {
-        print('Missing required columns.');
+        debugPrint('Missing required columns.');
         throw Exception('Missing required columns (name, artist, album)');
       }
 
       // Parse all songs from the Excel file first
-      final List<_SongEntry> songEntries = [];
+      final List<SongEntry> songEntries = [];
       for (var i = 1; i < sheet.maxRows; i++) {
         final row = sheet.row(i);
         final title = row[nameIdx]?.value.toString() ?? '';
@@ -524,7 +524,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         final album = row[albumIdx]?.value.toString() ?? '';
         
         if (title.isNotEmpty && (artist.isNotEmpty || album.isNotEmpty)) {
-          songEntries.add(_SongEntry(
+          songEntries.add(SongEntry(
             title: title,
             artist: artist,
             album: album,
@@ -583,7 +583,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       );
 
       if (job.cancel) {
-        print('Import cancelled by user.');
+        debugPrint('Import cancelled by user.');
         job.isImporting = false;
         ImportJobManager().removeJob(job);
         await WakelockPlus.disable();
@@ -598,14 +598,14 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
 
       for (int i = 0; i < songEntries.length; i += batchSize) {
         if (job.cancel) {
-          print('Import cancelled by user.');
+          debugPrint('Import cancelled by user.');
           break;
         }
 
         final endIndex = (i + batchSize < songEntries.length) ? i + batchSize : songEntries.length;
         final batch = songEntries.sublist(i, endIndex);
         
-        print('Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} songs');
+        debugPrint('Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} songs');
 
         // Process batch concurrently
         final batchResults = await _processSongBatch(batch, apiService, job);
@@ -659,9 +659,11 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           if (action == 'keep' && matchedSongs.isNotEmpty) {
             await _createPlaylistFromMatchedSongs(matchedSongs);
           } else if (action == 'discard') {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Playlist import cancelled and discarded.')),
-            );
+            if (mounted && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Playlist import cancelled and discarded.')),
+              );
+            }
           }
         }
         await WakelockPlus.disable();
@@ -669,8 +671,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       }
 
       if (matchedSongs.isEmpty) {
-        print('No songs matched in the imported file.');
-        if (mounted) {
+        debugPrint('No songs matched in the imported file.');
+        if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('No songs matched in the imported file.')),
           );
@@ -683,8 +685,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       await WakelockPlus.disable();
 
     } catch (e, stack) {
-      print('Failed to import playlist: $e\n$stack');
-      if (mounted) {
+      debugPrint('Failed to import playlist: $e\n$stack');
+      if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to import playlist: $e')),
         );
@@ -693,15 +695,15 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     }
   }
 
-  Future<List<_BatchResult>> _processSongBatch(
-    List<_SongEntry> batch, 
+  Future<List<BatchResult>> _processSongBatch(
+    List<SongEntry> batch, 
     ApiService apiService, 
-    _ImportJob job
+    ImportJob job
   ) async {
-    final List<_BatchResult> results = [];
+    final List<BatchResult> results = [];
     
     // Create futures for concurrent API calls
-    final List<Future<_BatchResult>> futures = batch.map((entry) async {
+    final List<Future<BatchResult>> futures = batch.map((entry) async {
       return await _searchAndMatchSong(entry, apiService);
     }).toList();
 
@@ -712,7 +714,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     return results;
   }
 
-  Future<_BatchResult> _searchAndMatchSong(_SongEntry entry, ApiService apiService) async {
+  Future<BatchResult> _searchAndMatchSong(SongEntry entry, ApiService apiService) async {
     try {
       String searchQuery;
       List<Song> searchResults = [];
@@ -737,8 +739,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       } catch (e) {
         final errorStr = e.toString();
         if (errorStr.contains('Status Code: 500')) {
-          print('Skipping "${entry.title}" due to 500 error.');
-          return _BatchResult(entry: entry, matchedSong: null, error: '500 error');
+          debugPrint('Skipping "${entry.title}" due to 500 error.');
+          return BatchResult(entry: entry, matchedSong: null, error: '500 error');
         } else {
           rethrow;
         }
@@ -756,7 +758,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           try {
             final strippedQuery = '$strippedTitle $strippedArtist';
             searchResults = await apiService.fetchSongs(strippedQuery);
-            bestMatch = _findExactMatch(searchResults, _SongEntry(
+            bestMatch = _findExactMatch(searchResults, SongEntry(
               title: strippedTitle,
               artist: strippedArtist,
               album: entry.album,
@@ -765,22 +767,22 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           } catch (e) {
             final errorStr = e.toString();
             if (errorStr.contains('Status Code: 500')) {
-              print('Skipping stripped search for "${entry.title}" due to 500 error.');
-              return _BatchResult(entry: entry, matchedSong: null, error: '500 error');
+              debugPrint('Skipping stripped search for "${entry.title}" due to 500 error.');
+              return BatchResult(entry: entry, matchedSong: null, error: '500 error');
             }
           }
         }
       }
 
-      return _BatchResult(entry: entry, matchedSong: bestMatch, error: null);
+      return BatchResult(entry: entry, matchedSong: bestMatch, error: null);
 
     } catch (e) {
-      print('Error processing song "${entry.title}": $e');
-      return _BatchResult(entry: entry, matchedSong: null, error: e.toString());
+      debugPrint('Error processing song "${entry.title}": $e');
+      return BatchResult(entry: entry, matchedSong: null, error: e.toString());
     }
   }
 
-  Song? _findExactMatch(List<Song> searchResults, _SongEntry entry) {
+  Song? _findExactMatch(List<Song> searchResults, SongEntry entry) {
     for (final result in searchResults) {
       if (result.title.toLowerCase() == entry.title.toLowerCase() &&
           (entry.artist.isEmpty || result.artist.toLowerCase() == entry.artist.toLowerCase())) {
@@ -810,7 +812,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     );
     
     if (playlistName == null || playlistName.isEmpty) {
-      print('No playlist name entered.');
+      debugPrint('No playlist name entered.');
       return;
     }
 
@@ -820,10 +822,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       songs: matchedSongs,
     );
     
-    print('Created playlist: ${playlist.toJson()}');
+    debugPrint('Created playlist: ${playlist.toJson()}');
     await _manager.addPlaylist(playlist);
     await _manager.savePlaylists();
-    print('Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
+    debugPrint('Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
     _reload();
     
     if (mounted) {
@@ -885,9 +887,11 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                             });
                           } catch (e) {
                             setState(() { isSearching = false; });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Search error: $e'), backgroundColor: Colors.red),
-                            );
+                            if (mounted && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Search error: $e'), backgroundColor: Colors.red),
+                              );
+                            }
                           }
                         }
                       },
@@ -953,14 +957,16 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       ),
     );
     if (confirmed == true) {
-      final job = _ImportJob();
+      final job = ImportJob();
       job.autoSkipUnmatched = false;
       ImportJobManager().addJob(job);
-      await _importPlaylistFromXLSX(job);
+      if (mounted && context.mounted) {
+        await _importPlaylistFromXLSX(job);
+      }
     }
   }
 
-  void _showImportProgressDialog(_ImportJob job) {
+  void _showImportProgressDialog(ImportJob job) {
     showDialog(
       context: context,
       barrierDismissible: false,

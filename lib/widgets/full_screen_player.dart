@@ -1,4 +1,4 @@
-import 'dart:ui'; // For ImageFilter
+
 import 'dart:convert'; // For jsonEncode
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -213,7 +213,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                     index: index,
                                     child: Padding(
                                       padding: const EdgeInsets.only(left: 8.0),
-                                      child: Icon(Icons.drag_handle, color: colorScheme.onSurface.withOpacity(0.5)),
+                                      child: Icon(Icons.drag_handle, color: colorScheme.onSurface.withValues(alpha: 0.5)),
                                     ),
                                   ),
                                 ],
@@ -252,7 +252,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
 class AnimatedEqualizerIcon extends StatefulWidget {
   final bool isPlaying;
   final Color color;
-  const AnimatedEqualizerIcon({Key? key, required this.isPlaying, required this.color}) : super(key: key);
+  const AnimatedEqualizerIcon({super.key, required this.isPlaying, required this.color});
 
   @override
   State<AnimatedEqualizerIcon> createState() => _AnimatedEqualizerIconState();
@@ -398,7 +398,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // 1. Add a palette cache at the top of _FullScreenPlayerState
   final Map<String, Color> _paletteCache = {}; // Palette cache by song ID
   // 3. Throttle for lyrics index update
-  int _lastLyricUpdate = 0;
+  final int _lastLyricUpdate = 0;
   int _artTransitionId = 0; // Unique id for each album art transition
 
 
@@ -790,7 +790,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       }
       try {
         final palette = await PaletteGenerator.fromImageProvider(provider);
-        final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.background;
+        final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.surface;
         final hsl = HSLColor.fromColor(baseColor);
         final Brightness currentBrightness = Theme.of(context).brightness;
         final bool isDarkMode = currentBrightness == Brightness.dark;
@@ -815,14 +815,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   Future<void> _downloadCurrentSong(Song song) async {
     // Use the CurrentSongProvider to handle the download
-    Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+    if (mounted && context.mounted) {
+      Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
 
-    // Show a snackbar indicating the download has started
-    // You might want to check if the song is already downloading via provider state
-    // to avoid redundant messages, but downloadSongInBackground itself has checks.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Download started for "${song.title}"...')),
-    );
+      // Show a snackbar indicating the download has started
+      // You might want to check if the song is already downloading via provider state
+      // to avoid redundant messages, but downloadSongInBackground itself has checks.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Download started for "${song.title}"...')),
+      );
+    }
   }
 
   // ignore: unused_element
@@ -983,7 +985,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       // like: add and queue if auto-download enabled
       list.add(jsonStr);
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
-      if (autoDL) {
+      if (autoDL && mounted && context.mounted) {
         Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
       }
     }
@@ -1088,7 +1090,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                               : Center(
                                   child: Text(
                                     _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
-                                    style: textTheme.titleMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+                                    style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
                                     textAlign: TextAlign.center,
                                   ),
                                 )
@@ -1117,11 +1119,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         child: SlideTransition(
                           position: _albumArtSlideAnimation,
                           child: Hero(
-                            tag: 'current-song-art-${_artTransitionId}',
+                            tag: 'current-song-art-$_artTransitionId',
                             child: Material(
                               elevation: 12.0,
                               borderRadius: BorderRadius.circular(16.0),
-                              shadowColor: Colors.black.withOpacity(0.5),
+                              shadowColor: Colors.black.withValues(alpha: 0.5),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(16.0),
                                 child: albumArtWidget,
@@ -1146,7 +1148,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         child: Text(
                           currentSong.title,
                           key: ValueKey<String>('title_${currentSong.id}'),
-                          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onBackground),
+                          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1158,7 +1160,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         child: Text(
                           isRadio ? (currentSong.artist.isNotEmpty ? currentSong.artist : "Live Radio") : (currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist'),
                           key: ValueKey<String>('artist_${currentSong.id}'),
-                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1190,7 +1192,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             onPressed: () => _downloadCurrentSong(currentSong),
                             tooltip: 'Download Song',
                             iconSize: 26.0,
-                            color: colorScheme.onSurface.withOpacity(0.7),
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                         // Add to Playlist
                         IconButton(
@@ -1198,7 +1200,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           onPressed: () => _showAddToPlaylistDialog(context, currentSong),
                           tooltip: 'Add to Playlist',
                           iconSize: 26.0,
-                          color: colorScheme.onSurface.withOpacity(0.7),
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                         // Like button
                         IconButton(
@@ -1206,7 +1208,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           onPressed: _toggleLike,
                           tooltip: _isLiked ? 'Unlike' : 'Like',
                           iconSize: 26.0,
-                          color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withOpacity(0.7),
+                          color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                         // Lyrics toggle
                         IconButton(
@@ -1224,7 +1226,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           },
                           iconSize: 26.0,
                           tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
-                          color: colorScheme.onSurface.withOpacity(0.7),
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                         // Queue
                         IconButton(
@@ -1232,7 +1234,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           onPressed: () => _showQueueBottomSheet(context),
                           tooltip: 'Show Queue',
                           iconSize: 26.0,
-                          color: colorScheme.onSurface.withOpacity(0.7),
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                         // Playback Speed (disabled on iOS)
                         if (!Platform.isIOS)
@@ -1243,7 +1245,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                   : Icons.speed_rounded,
                               color: currentSongProvider.playbackSpeed != 1.0 
                                   ? colorScheme.secondary 
-                                  : colorScheme.onSurface.withOpacity(0.7),
+                                  : colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
                             onPressed: () => _showPlaybackSpeedDialog(context),
                             tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
@@ -1268,7 +1270,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         builder: (context, provider, _) => IconButton(
                           icon: Icon(
                             provider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
-                            color: provider.isShuffling ? colorScheme.secondary : colorScheme.onBackground.withOpacity(0.7),
+                            color: provider.isShuffling ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                           iconSize: 26,
                           onPressed: () => provider.toggleShuffle(),
@@ -1279,7 +1281,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       IconButton(
                        icon: const Icon(Icons.skip_previous_rounded),
                        iconSize: 42,
-                       color: colorScheme.onBackground,
+                       color: colorScheme.onSurface,
                        onPressed: () {
                         _slideOffsetX = -1.0;
                         currentSongProvider.playPrevious();
@@ -1292,7 +1294,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         color: colorScheme.secondary,
                         boxShadow: [
                           BoxShadow(
-                            color: colorScheme.secondary.withOpacity(0.4),
+                            color: colorScheme.secondary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             spreadRadius: 2,
                           )
@@ -1324,7 +1326,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       IconButton(
                        icon: const Icon(Icons.skip_next_rounded),
                        iconSize: 42,
-                       color: colorScheme.onBackground,
+                       color: colorScheme.onSurface,
                        onPressed: () {
                          _slideOffsetX = 1.0;
                          currentSongProvider.playNext();
@@ -1342,7 +1344,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                     : Icons.repeat_one_on_rounded,
                             color: provider.loopMode != LoopMode.none
                                 ? colorScheme.secondary
-                                : colorScheme.onBackground.withOpacity(0.7),
+                                : colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                           iconSize: 26,
                           onPressed: () => provider.toggleLoop(),
@@ -1376,7 +1378,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       return Center(
         child: Text(
           "No lyrics available.", 
-          style: textTheme.titleMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.7)),
+          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
         ),
       );
     }
@@ -1408,7 +1410,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               line.text,
               textAlign: TextAlign.center,
               style: textTheme.titleLarge?.copyWith(
-                color: isCurrent ? colorScheme.secondary : colorScheme.onBackground.withOpacity(isCurrent ? 1.0 : 0.6),
+                                            color: isCurrent ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: isCurrent ? 1.0 : 0.6),
                 fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                 fontSize: isCurrent ? 22 : 20, // Slightly larger for current line if synced
               ),
@@ -1424,7 +1426,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       duration: const Duration(milliseconds: 300),
       child: _currentArtProvider != null
         ? Image(
-            key: ValueKey('art_${_currentArtId}_${_artTransitionId}'),
+            key: ValueKey('art_${_currentArtId}_$_artTransitionId'),
             image: _currentArtProvider!,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
@@ -1438,8 +1440,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).colorScheme.primaryContainer.withOpacity(0.7),
-            Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.7),
+            Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+            Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.7),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1449,7 +1451,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         child: Icon(
           isRadio ? Icons.radio_rounded : Icons.music_note_rounded,
           size: 100,
-          color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.8),
+          color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
         ),
       ),
     );
@@ -1582,9 +1584,8 @@ class SeekBar extends StatelessWidget {
   final ValueChanged<double> onSeekEnd;
   final String Function(Duration?) formatDuration;
   final TextTheme textTheme;
-  // Remove key from constructor
   const SeekBar({
-    // super.key, // REMOVE THIS LINE
+    super.key,
     required this.currentSongProvider,
     required this.isRadio,
     required this.areLyricsSynced,

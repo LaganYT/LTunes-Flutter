@@ -124,16 +124,19 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
   Future<void> _deleteEntity(FileSystemEntity entity) async {
     final isDir = entity is Directory;
     final fileName = p.basename(entity.path);
+    final navigator = Navigator.of(context); // Capture before async
     final confirmDanger = await _showDangerConfirmDialog('delete operation');
     if (!confirmDanger) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+    if (!context.mounted) return; // Guard after async
     final confirm = await showDialog<bool>(
-      context: context,
+      context: navigator.context,
       builder: (_) => AlertDialog(
         title: Text('Delete ${isDir ? 'Folder' : 'File'}?'),
         content: Text('Are you sure you want to delete "$fileName"?${isDir ? '\n(Folder must be empty)' : ''}'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => navigator.pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => navigator.pop(true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -141,9 +144,11 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
       try {
         if (isDir) {
           if ((entity).listSync().isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Folder is not empty: $fileName')),
-            );
+            if (context.mounted) {
+              scaffoldMessenger.showSnackBar(
+                SnackBar(content: Text('Folder is not empty: $fileName')),
+              );
+            }
             return;
           }
           await entity.delete();
@@ -175,14 +180,18 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
             }
           }
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Deleted $fileName')),
-        );
+        if (context.mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(content: Text('Deleted $fileName')),
+          );
+        }
         await _loadEntities();
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
-        );
+        if (context.mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(content: Text('Failed to delete: $e')),
+          );
+        }
       }
     }
   }
@@ -221,10 +230,11 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
 
   Future<void> _clearDeadAudioFiles() async {
     setState(() => _clearingDeadFiles = true);
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     final downloadsDir = await getDownloadsDir();
     if (!await downloadsDir.exists()) {
       setState(() => _clearingDeadFiles = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('Audio Files folder does not exist.')),
       );
       return;
@@ -256,7 +266,7 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
       }
     }
     setState(() => _clearingDeadFiles = false);
-    ScaffoldMessenger.of(context).showSnackBar(
+    scaffoldMessenger.showSnackBar(
       SnackBar(content: Text('Cleared $deleted dead file${deleted == 1 ? '' : 's'} from Audio Files')),
     );
     await _loadEntities();
@@ -264,6 +274,7 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
 
   Future<void> _clearDeadFilesWithPrompt() async {
     setState(() => _clearingDeadFiles = true);
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     final downloadsDir = await getDownloadsDir();
     final docsDir = await getApplicationDocumentsDirectory();
     final audioFiles = downloadsDir.existsSync() ? downloadsDir.listSync().whereType<File>().toList() : <File>[];
@@ -299,14 +310,15 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
     final allDead = [...deadAudio, ...deadArt];
     if (allDead.isEmpty) {
       setState(() => _clearingDeadFiles = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('No dead audio or art files found.')),
       );
       return;
     }
     final selected = Set<File>.from(allDead);
+    final navigator = Navigator.of(context); // Capture before async
     final result = await showDialog<bool>(
-      context: context,
+      context: navigator.context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete Dead Files'),
@@ -334,9 +346,9 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => navigator.pop(false), child: const Text('Cancel')),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => navigator.pop(true),
               child: const Text('Delete Selected'),
             ),
           ],
@@ -351,9 +363,11 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
           deleted++;
         } catch (_) {}
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted $deleted dead file${deleted == 1 ? '' : 's'}')),
-      );
+      if (context.mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Deleted $deleted dead file${deleted == 1 ? '' : 's'}')),
+        );
+      }
       await _loadEntities();
     }
     setState(() => _clearingDeadFiles = false);
@@ -498,6 +512,7 @@ class _GroupedFolderScreenState extends State<_GroupedFolderScreen> {
 
   Future<void> _clearDeadFiles() async {
     setState(() => _clearing = true);
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
     final usedFiles = <String>{};
@@ -524,7 +539,7 @@ class _GroupedFolderScreenState extends State<_GroupedFolderScreen> {
       }
     }
     setState(() => _clearing = false);
-    ScaffoldMessenger.of(context).showSnackBar(
+    scaffoldMessenger.showSnackBar(
       SnackBar(content: Text('Cleared $deleted dead file${deleted == 1 ? '' : 's'}')),
     );
     setState(() {}); // Refresh UI

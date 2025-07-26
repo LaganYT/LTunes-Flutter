@@ -70,10 +70,10 @@ class SongDetailScreen extends StatefulWidget {
   const SongDetailScreen({super.key, required this.song});
 
   @override
-  _SongDetailScreenState createState() => _SongDetailScreenState();
+  SongDetailScreenState createState() => SongDetailScreenState();
 }
 
-class _SongDetailScreenState extends State<SongDetailScreen> {
+class SongDetailScreenState extends State<SongDetailScreen> {
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
@@ -234,7 +234,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         Provider.of<CurrentSongProvider>(currentContext, listen: false).updateSongDetails(updatedSong);
 
         // Update local state if the widget is still mounted.
-        if (mounted) {
+        if (mounted && currentContext.mounted) {
           setState(() {
             // Reflect that the song is no longer downloaded.
             // This assumes widget.song is not directly mutated,
@@ -248,7 +248,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       }
     } catch (e) {
       _errorHandler.logError(e, context: 'deleteSong');
-      if (mounted) {
+      if (mounted && currentContext.mounted) {
         _errorHandler.showErrorSnackBar(currentContext, e, errorContext: 'deleting song');
       }
     }
@@ -834,14 +834,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                         icon: Icon(
                           Icons.playlist_add_rounded,
                           color: isRadioPlayingGlobal 
-                              ? colorScheme.onSurface.withOpacity(0.38) 
+                              ? colorScheme.onSurface.withValues(alpha: 0.38) 
                               : colorScheme.onSecondary,
                         ),
                         label: Text(
                           'Add to Playlist',
                           style: TextStyle(
                             color: isRadioPlayingGlobal 
-                                ? colorScheme.onSurface.withOpacity(0.38) 
+                                ? colorScheme.onSurface.withValues(alpha: 0.38) 
                                 : colorScheme.onSecondary,
                             fontWeight: FontWeight.w500,
                           ),
@@ -868,14 +868,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                         icon: Icon(
                           Icons.queue_music,
                           color: isRadioPlayingGlobal 
-                              ? colorScheme.onSurface.withOpacity(0.38) 
+                              ? colorScheme.onSurface.withValues(alpha: 0.38) 
                               : colorScheme.onTertiary,
                         ),
                         label: Text(
                           'Add to Queue',
                           style: TextStyle(
                             color: isRadioPlayingGlobal 
-                                ? colorScheme.onSurface.withOpacity(0.38) 
+                                ? colorScheme.onSurface.withValues(alpha: 0.38) 
                                 : colorScheme.onTertiary,
                             fontWeight: FontWeight.w500,
                           ),
@@ -907,9 +907,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceVariant.withOpacity(0.3),
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -951,9 +951,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colorScheme.tertiaryContainer.withOpacity(0.3),
+                    color: colorScheme.tertiaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1009,9 +1009,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colorScheme.secondaryContainer.withOpacity(0.3),
+                    color: colorScheme.secondaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1109,9 +1109,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withOpacity(0.3),
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1341,10 +1341,10 @@ class AddToPlaylistDialog extends StatefulWidget {
   const AddToPlaylistDialog({super.key, required this.song});
 
   @override
-  _AddToPlaylistDialogState createState() => _AddToPlaylistDialogState();
+  AddToPlaylistDialogState createState() => AddToPlaylistDialogState();
 }
 
-class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
+class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   List<Playlist> _allPlaylists = [];
   List<Playlist> _filteredPlaylists = [];
   final PlaylistManagerService _playlistManagerService = PlaylistManagerService();
@@ -1470,13 +1470,13 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                       controller: _searchController,
                       decoration: InputDecoration(
                         hintText: 'Find playlist',
-                        prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withOpacity(0.7)),
+                        prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withValues(alpha: 0.7)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24.0),
                           borderSide: BorderSide.none,
                         ),
                         filled: true,
-                        fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                        fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                         contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                       ),
                     ),
