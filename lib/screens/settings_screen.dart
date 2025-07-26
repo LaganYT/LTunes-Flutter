@@ -799,7 +799,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         key: const PageStorageKey('settings_list'),
         children: [
-          _buildSectionTitle(context, 'Content'),
+          _buildSectionTitle(context, 'Content & Discovery'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             shape: RoundedRectangleBorder(
@@ -867,64 +867,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ValueListenableBuilder<bool?>(
-                  valueListenable: autoDownloadLikedSongsNotifier,
-                  builder: (context, autoDownloadLikedSongs, _) {
-                    if (autoDownloadLikedSongs == null) {
-                      return const ListTile(
-                        leading: Icon(Icons.favorite),
-                        title: Text('Auto Download Liked Songs'),
-                        subtitle: Text('Automatically download songs when liked'),
-                        trailing: SizedBox(
-                          width: 50,
-                          height: 30,
-                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
-                        ),
-                      );
-                    }
-                    return ListTile(
-                      leading: const Icon(Icons.favorite),
-                      title: const Text('Auto Download Liked Songs'),
-                      subtitle: const Text('Automatically download songs when liked'),
-                      trailing: Switch(
-                        value: autoDownloadLikedSongs,
-                        onChanged: (bool value) async {
-                          autoDownloadLikedSongsNotifier.value = value;
-                          await _saveAutoDownloadLikedSongsSetting(value);
-                        },
-                      ),
-                    );
-                  },
-                ),
-                ValueListenableBuilder<bool?>(
-                  valueListenable: autoCheckForUpdatesNotifier,
-                  builder: (context, autoCheckForUpdates, _) {
-                    if (autoCheckForUpdates == null) {
-                      return const ListTile(
-                        leading: Icon(Icons.system_update),
-                        title: Text('Auto Check for Updates'),
-                        subtitle: Text('Automatically check for updates on app open'),
-                        trailing: SizedBox(
-                          width: 50,
-                          height: 30,
-                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
-                        ),
-                      );
-                    }
-                    return ListTile(
-                      leading: const Icon(Icons.system_update),
-                      title: const Text('Auto Check for Updates'),
-                      subtitle: const Text('Automatically check for updates on app open'),
-                      trailing: Switch(
-                        value: autoCheckForUpdates,
-                        onChanged: (bool value) async {
-                          autoCheckForUpdatesNotifier.value = value;
-                          await _saveAutoCheckForUpdatesSetting(value);
-                        },
-                      ),
-                    );
-                  },
-                ),
-                ValueListenableBuilder<bool?>(
                   valueListenable: showOnlySavedSongsInAlbumsNotifier,
                   builder: (context, showOnlySaved, _) {
                     if (showOnlySaved == null) {
@@ -953,6 +895,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
+              ],
+            ),
+          ),
+          _buildSectionTitle(context, 'Downloads & Storage'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
+            ),
+            elevation: 2,
+            child: Column(
+              children: [
+                ValueListenableBuilder<bool?>(
+                  valueListenable: autoDownloadLikedSongsNotifier,
+                  builder: (context, autoDownloadLikedSongs, _) {
+                    if (autoDownloadLikedSongs == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.favorite),
+                        title: Text('Auto Download Liked Songs'),
+                        subtitle: Text('Automatically download songs when liked'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.favorite),
+                      title: const Text('Auto Download Liked Songs'),
+                      subtitle: const Text('Automatically download songs when liked'),
+                      trailing: Switch(
+                        value: autoDownloadLikedSongs,
+                        onChanged: (bool value) async {
+                          autoDownloadLikedSongsNotifier.value = value;
+                          await _saveAutoDownloadLikedSongsSetting(value);
+                        },
+                      ),
+                    );
+                  },
+                ),
                 ValueListenableBuilder<int>(
                   valueListenable: maxConcurrentDownloadsNotifier,
                   builder: (context, maxConcurrentDownloads, _) {
@@ -965,7 +948,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.cloud_download_outlined),
                   title: const Text('Fetch Metadata for Local Songs'),
@@ -1084,7 +1066,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          _buildSectionTitle(context, 'Storage'),
+          _buildSectionTitle(context, 'Storage Management'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             shape: RoundedRectangleBorder(
@@ -1667,6 +1649,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       }
                     }
+                  },
+                ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: autoCheckForUpdatesNotifier,
+                  builder: (context, autoCheckForUpdates, _) {
+                    if (autoCheckForUpdates == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.system_update),
+                        title: Text('Auto Check for Updates'),
+                        subtitle: Text('Automatically check for updates on app open'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.system_update),
+                      title: const Text('Auto Check for Updates'),
+                      subtitle: const Text('Automatically check for updates on app open'),
+                      trailing: Switch(
+                        value: autoCheckForUpdates,
+                        onChanged: (bool value) async {
+                          autoCheckForUpdatesNotifier.value = value;
+                          await _saveAutoCheckForUpdatesSetting(value);
+                        },
+                      ),
+                    );
                   },
                 ),
                 ListTile(
