@@ -228,6 +228,38 @@ class ApiService {
     return null;
   }
 
+  // Search albums by query
+  Future<List<Album>> searchAlbums(String query) async {
+    try {
+      final url = '${baseUrl}search/albums?query=${Uri.encodeComponent(query)}';
+      final response = await _get(url);
+      final data = jsonDecode(response.body) as List<dynamic>;
+      
+      return data.map((albumJson) {
+        return Album.fromJson(albumJson as Map<String, dynamic>);
+      }).toList();
+    } catch (e) {
+      _errorHandler.logError(e, context: 'searchAlbums');
+      return [];
+    }
+  }
+
+  // Search artists by query
+  Future<List<Map<String, dynamic>>> searchArtists(String query) async {
+    try {
+      final url = '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
+      final response = await _get(url);
+      final data = jsonDecode(response.body) as List<dynamic>;
+      
+      return data.map((artistJson) {
+        return artistJson as Map<String, dynamic>;
+      }).toList();
+    } catch (e) {
+      _errorHandler.logError(e, context: 'searchArtists');
+      return [];
+    }
+  }
+
   // Performance: Use debounced fetch
   Future<List<Song>> fetchSongs(String query) async {
     return _debouncedFetchSongs(query);
