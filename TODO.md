@@ -3,9 +3,6 @@
 ## Search & Filtering
 - Redo the search page to add the ability to show albums, artists, songs, and stations in one redesign of the search screen
 - Add radio stations into this new search system (without need for a different tab to search for them)
-- Offline Search & Filtering
-  - Advanced search and filtering by any metadata (genre, year, composer, etc.).
-  - Search across lyrics if available.
 
 ## Library & Song Management
 - Add new sorting methods to the songs list page
