@@ -137,6 +137,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       );
     }
     try {
+      debugPrint("Setting audio source for: ${itemToPlay.title} with URL: ${itemToPlay.id}");
       await _audioPlayer.setAudioSource(source);
       playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
       // Ensure metadata is properly synchronized after setting audio source
@@ -147,6 +148,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       if (_isIOS && _audioSession != null) {
         await _safeActivateSession();
       }
+      debugPrint("Successfully set audio source for: ${itemToPlay.title}");
     } catch (e) {
       debugPrint("Error preparing audio source: $e");
       if (_isRadioStream) _showRadioErrorDialog(itemToPlay.title);

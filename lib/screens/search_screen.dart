@@ -176,7 +176,14 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       final prefs = await SharedPreferences.getInstance();
       final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
       final country = usRadioOnly ? 'United States' : '';
-      return await _apiService.fetchStationsByCountry(country, name: _searchQuery);
+      final stations = await _apiService.fetchStationsByCountry(country, name: _searchQuery);
+      
+      // Debug: Log the first station structure to understand the API response
+      if (stations.isNotEmpty) {
+        debugPrint('Radio station structure: ${stations.first}');
+      }
+      
+      return stations;
     } catch (e) {
       _errorHandler.logError(e, context: 'fetchRadioStations');
       if (mounted) {
@@ -617,11 +624,20 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
                                   subtitle: Text(station['country'] ?? 'Unknown Country'),
                                                                      onTap: () {
                                      if (mounted && context.mounted) {
+                                       final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
+                                       final stationName = station['name'] ?? 'Unknown Station';
+                                       final stationFavicon = station['favicon'] ?? station['imageUrl'] ?? '';
+                                       
+                                       // Debug: Log the radio station data
+                                       debugPrint('Playing radio station: $stationName');
+                                       debugPrint('Stream URL: $streamUrl');
+                                       debugPrint('Favicon: $stationFavicon');
+                                       
                                        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
                                        currentSongProvider.playStream(
-                                         station['url'] ?? '',
-                                         stationName: station['name'] ?? 'Unknown Station',
-                                         stationFavicon: station['favicon'],
+                                         streamUrl,
+                                         stationName: stationName,
+                                         stationFavicon: stationFavicon,
                                        );
                                      }
                                    },

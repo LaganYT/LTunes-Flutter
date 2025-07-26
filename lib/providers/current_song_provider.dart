@@ -1903,6 +1903,13 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> playStream(String streamUrl, {required String stationName, String? stationFavicon}) async {
+    debugPrint('playStream called with URL: $streamUrl, name: $stationName');
+    
+    if (streamUrl.isEmpty) {
+      debugPrint('Error: Empty stream URL provided');
+      return;
+    }
+    
     _playRequestCounter++;
     final int currentPlayRequest = _playRequestCounter;
 
@@ -1947,7 +1954,10 @@ class CurrentSongProvider with ChangeNotifier {
       artUri: stationFavicon != null && stationFavicon.isNotEmpty ? Uri.tryParse(stationFavicon) : null,
       extras: {'isRadio': true, 'songId': radioSongId},
     );
-    await _audioHandler.playMediaItem(mediaItem);
+    
+    // Clear the current queue and add the radio station
+    await _audioHandler.updateQueue([mediaItem]);
+    await _audioHandler.skipToQueueItem(0);
 
     if (currentPlayRequest != _playRequestCounter) return;
 

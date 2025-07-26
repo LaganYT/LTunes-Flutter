@@ -78,7 +78,12 @@ class ApiService {
     
     try {
       while (true) {
-        final response = await _httpClient.get(Uri.parse(url));
+        final response = await _httpClient.get(Uri.parse(url)).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('Request timeout for URL: $url');
+          },
+        );
         if (response.statusCode == 200) {
           return response;
         } else if (response.statusCode == 404) {
@@ -103,7 +108,11 @@ class ApiService {
   void _processPendingRequests() {
     if (_pendingRequests.isNotEmpty && _activeRequests < _maxConcurrentRequests) {
       final request = _pendingRequests.removeFirst();
-      _get(request.url).then(request.completer.complete).catchError(request.completer.completeError);
+      _get(request.url).then(request.completer.complete).catchError((error) {
+        request.completer.completeError(error);
+        // Ensure we process more pending requests even if this one failed
+        _processPendingRequests();
+      });
     }
   }
 
