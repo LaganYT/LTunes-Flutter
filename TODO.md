@@ -8,11 +8,10 @@
 - Add new sorting methods to the songs list page
 - Song Ratings
   - Allow users to rate songs and sort/filter by rating.
-- Add: a downloaded indicator for songs (playlists, albums, artists, etc)
 
 ## Audio & Playback Features
 - Try adding podcast support
-- Audiobooks?
+- Audiobooks
 - Audio Effects
   - Add a built-in equalizer or simple audio effects (bass boost, reverb, etc.).
 - Lyrics Support
