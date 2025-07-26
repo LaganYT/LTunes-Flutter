@@ -107,7 +107,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     Provider.of<CurrentSongProvider>(context, listen: false).addListener(() {
       final currentSong = Provider.of<CurrentSongProvider>(context, listen: false).currentSong;
       // Check if the current song in the provider is the same as the one in this widget
-      if (currentSong?.id == widget.song.id) {
+      if (currentSong?.id == widget.song.id && mounted) {
         setState(() {
           _isDownloading = currentSong?.isDownloading ?? false;
           _downloadProgress = currentSong?.downloadProgress ?? 0.0;
@@ -125,14 +125,34 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _updateArtProvider(String artUrl) async {
-    setState(() { _artLoading = true; });
+    if (mounted) {
+      setState(() { _artLoading = true; });
+    }
+    
     if (artUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(artUrl);
     } else if (artUrl.isNotEmpty) {
-      _currentArtProvider = FileImage(File(artUrl));
+      // Handle local file paths like the library screen does
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final fileName = p.basename(artUrl);
+        final fullPath = p.join(directory.path, fileName);
+        
+        if (await File(fullPath).exists()) {
+          _currentArtProvider = FileImage(File(fullPath));
+          debugPrint('Song detail: Found local album art: $fullPath');
+        } else {
+          debugPrint('Song detail: Local album art not found: $fullPath');
+          _currentArtProvider = null;
+        }
+      } catch (e) {
+        debugPrint('Song detail: Error loading local art: $e');
+        _currentArtProvider = null;
+      }
     } else {
       _currentArtProvider = null;
     }
+    
     _currentArtKey = artUrl;
     if (mounted) setState(() { _artLoading = false; });
   }
@@ -681,10 +701,26 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                     ? Image(
                         key: ValueKey(_currentArtKey),
                         image: _currentArtProvider!,
+                        width: 300,
+                        height: 300,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.album, size: 150),
+                        errorBuilder: (context, error, stackTrace) {
+                          debugPrint('Song detail: Image error: $error');
+                          return Container(
+                            width: 300,
+                            height: 300,
+                            color: Colors.grey[700],
+                            child: const Icon(Icons.music_note, size: 150, color: Colors.white70),
+                          );
+                        },
                       )
-                    : const Icon(Icons.album, size: 150, key: ValueKey('song_detail_art_none')),
+                    : Container(
+                        width: 300,
+                        height: 300,
+                        color: Colors.grey[700],
+                        child: const Icon(Icons.music_note, size: 150, color: Colors.white70),
+                        key: ValueKey('song_detail_art_none'),
+                      ),
                 ),
               ),
               const SizedBox(height: 24),

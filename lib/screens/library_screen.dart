@@ -10,6 +10,7 @@ import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import '../services/auto_fetch_service.dart';
+import '../services/unified_search_service.dart';
 import 'playlist_detail_screen.dart'; // Import for navigation
 import 'album_screen.dart'; // Import AlbumScreen for navigation
 import 'package:file_picker/file_picker.dart';
@@ -23,8 +24,10 @@ import 'artists_list_screen.dart';
 import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
 import 'liked_songs_screen.dart'; // new import
+import 'song_detail_screen.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart'; // For consolidateHttpClientResponseBytes
+import '../widgets/unified_search_widget.dart';
 
 // Place this at the top level, outside any class
 Future<String> cacheStationIcon(String imageUrl, String stationId) async {
@@ -255,6 +258,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // Performance: Debounced search
   Timer? _searchDebounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 300);
+  late VoidCallback _searchListener;
   
   // Performance: Lazy loading
   // static const int _pageSize = 20;
@@ -274,7 +278,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchChanged);
+    _searchListener = () => _onSearchChanged(_searchController.text);
+    _searchController.addListener(_searchListener);
     
     // Performance: Add scroll listener for lazy loading
     _scrollController.addListener(_onScroll);
@@ -387,18 +392,27 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
 
   // Performance: Debounced search
-  void _onSearchChanged() {
+  void _onSearchChanged(String value) {
     _searchDebounceTimer?.cancel();
     
     _searchDebounceTimer = Timer(_debounceDelay, () {
       if (!mounted) return;
       
       setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
+        _searchQuery = value.toLowerCase();
         // Reset pagination for new search
         // _currentPage = 0;
         // _hasMoreItems = true;
       });
+      
+      // Scroll to top when search results appear
+      if (value.isNotEmpty && _scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
     });
   }
 
@@ -437,7 +451,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   @override
   void dispose() {
     _searchDebounceTimer?.cancel();
-    _searchController.removeListener(_onSearchChanged);
+    _searchController.removeListener(_searchListener);
     _searchController.dispose();
     // audioPlayer.dispose(); // REMOVED
     _playlistNameController.dispose();
@@ -464,6 +478,515 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       // _currentPage++;
       _loadData();
     });
+  }
+
+  // Search filter state
+  bool _showSongs = true;
+  bool _showAlbums = true;
+  bool _showPlaylists = true;
+  bool _showRadioStations = true;
+  bool _searchInLyrics = true;
+
+  // Unified search results builder
+  Widget _buildUnifiedSearchResults() {
+    final results = <Widget>[];
+    
+    // Search in songs (including lyrics if enabled)
+    final songMatches = _songs.where((song) {
+      final matchesTitle = song.title.toLowerCase().contains(_searchQuery);
+      final matchesArtist = song.artist.toLowerCase().contains(_searchQuery);
+      final matchesAlbum = song.album != null && song.album!.toLowerCase().contains(_searchQuery);
+      final matchesLyrics = _searchInLyrics && song.plainLyrics != null && 
+                           song.plainLyrics!.toLowerCase().contains(_searchQuery);
+      
+      return matchesTitle || matchesArtist || matchesAlbum || matchesLyrics;
+    }).map((song) {
+      // Determine match type for highlighting
+      final matchesTitle = song.title.toLowerCase().contains(_searchQuery);
+      final matchesArtist = song.artist.toLowerCase().contains(_searchQuery);
+      final matchesAlbum = song.album != null && song.album!.toLowerCase().contains(_searchQuery);
+      final matchesLyrics = _searchInLyrics && song.plainLyrics != null && 
+                           song.plainLyrics!.toLowerCase().contains(_searchQuery);
+      
+      return {
+        'song': song,
+        'matchesTitle': matchesTitle,
+        'matchesArtist': matchesArtist,
+        'matchesAlbum': matchesAlbum,
+        'matchesLyrics': matchesLyrics,
+      };
+    }).toList();
+    
+    // Search in playlists
+    final playlistMatches = _playlists.where((playlist) =>
+      playlist.name.toLowerCase().contains(_searchQuery)
+    ).toList();
+    
+    // Search in albums
+    final albumMatches = _savedAlbums.where((album) =>
+      album.title.toLowerCase().contains(_searchQuery) ||
+      album.artistName.toLowerCase().contains(_searchQuery)
+    ).toList();
+    
+    // Search in radio stations
+    final stationMatches = _recentStations.where((station) =>
+      station.name.toLowerCase().contains(_searchQuery)
+    ).toList();
+    
+    // Add filter buttons at the top
+    results.add(_buildSearchFilters());
+    
+    if (_showSongs && songMatches.isNotEmpty) {
+      results.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 4.0),
+          child: Text(
+            'Songs (${songMatches.length})',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+      results.addAll(songMatches.map((match) => _buildSongSearchTile(
+        match['song'] as Song,
+        matchesTitle: match['matchesTitle'] as bool,
+        matchesArtist: match['matchesArtist'] as bool,
+        matchesAlbum: match['matchesAlbum'] as bool,
+        matchesLyrics: match['matchesLyrics'] as bool,
+      )));
+    }
+    
+    if (_showPlaylists && playlistMatches.isNotEmpty) {
+      results.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 4.0),
+          child: Text(
+            'Playlists (${playlistMatches.length})',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+      results.addAll(playlistMatches.map((playlist) => _buildPlaylistSearchTile(playlist)));
+    }
+    
+    if (_showAlbums && albumMatches.isNotEmpty) {
+      results.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 4.0),
+          child: Text(
+            'Albums (${albumMatches.length})',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+      results.addAll(albumMatches.map((album) => _buildAlbumSearchTile(album)));
+    }
+    
+    if (_showRadioStations && stationMatches.isNotEmpty) {
+      results.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 4.0),
+          child: Text(
+            'Radio Stations (${stationMatches.length})',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+      results.addAll(stationMatches.map((station) => _buildRadioStationSearchTile(station)));
+    }
+    
+    if (results.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 32.0),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off, size: 48, color: Colors.grey[600]),
+              const SizedBox(height: 8),
+              Text(
+                'No results found for "$_searchQuery"',
+                style: TextStyle(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return ListView(
+      controller: _scrollController,
+      padding: EdgeInsets.zero,
+      children: results,
+    );
+  }
+
+  Widget _buildSearchFilters() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildFilterChip('Songs', _showSongs, (value) {
+              setState(() {
+                _showSongs = value;
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildFilterChip('Albums', _showAlbums, (value) {
+              setState(() {
+                _showAlbums = value;
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildFilterChip('Playlists', _showPlaylists, (value) {
+              setState(() {
+                _showPlaylists = value;
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildFilterChip('Radio', _showRadioStations, (value) {
+              setState(() {
+                _showRadioStations = value;
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildFilterChip('Lyrics', _searchInLyrics, (value) {
+              setState(() {
+                _searchInLyrics = value;
+              });
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, bool isSelected, ValueChanged<bool> onChanged) {
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: onChanged,
+      selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+      checkmarkColor: Theme.of(context).colorScheme.primary,
+      labelStyle: TextStyle(
+        color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+  }
+
+  Widget _buildSongSearchTile(
+    Song song, {
+    bool matchesTitle = false,
+    bool matchesArtist = false,
+    bool matchesAlbum = false,
+    bool matchesLyrics = false,
+  }) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    
+    // Get lyrics context if it matches
+    String? lyricsContext;
+    if (matchesLyrics && song.plainLyrics != null) {
+      final lyrics = song.plainLyrics!;
+      final queryIndex = lyrics.toLowerCase().indexOf(_searchQuery.toLowerCase());
+      if (queryIndex != -1) {
+        final start = (queryIndex - 30).clamp(0, lyrics.length);
+        final end = (queryIndex + _searchQuery.length + 30).clamp(0, lyrics.length);
+        lyricsContext = lyrics.substring(start, end);
+        if (start > 0) lyricsContext = '...$lyricsContext';
+        if (end < lyrics.length) lyricsContext = '$lyricsContext...';
+      }
+    }
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8.0),
+          child: song.albumArtUrl.isNotEmpty
+              ? (song.albumArtUrl.startsWith('http')
+                  ? Image.network(
+                      song.albumArtUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 56),
+                    )
+                  : FutureBuilder<String>(
+                      future: _getCachedLocalArtFuture(song.albumArtUrl),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            snapshot.data!.isNotEmpty) {
+                          return Image.file(
+                            File(snapshot.data!),
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 56),
+                          );
+                        }
+                        return const Icon(Icons.music_note, size: 56);
+                      },
+                    ))
+              : const Icon(Icons.music_note, size: 56),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                song.title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (matchesLyrics)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'LYRICS',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (song.album != null && song.album!.isNotEmpty)
+              Text(
+                song.album!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (matchesLyrics && lyricsContext != null)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  lyricsContext,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (song.isDownloaded)
+              const Icon(Icons.download_done, color: Colors.green, size: 20),
+            IconButton(
+              icon: const Icon(Icons.play_arrow, size: 28),
+              onPressed: () async {
+                await currentSongProvider.playWithContext([song], song);
+              },
+            ),
+          ],
+        ),
+        onTap: () async {
+          await currentSongProvider.playWithContext([song], song);
+        },
+        onLongPress: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SongDetailScreen(song: song),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPlaylistSearchTile(Playlist playlist) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        leading: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.purple.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+          child: const Icon(Icons.playlist_play, color: Colors.purple, size: 28),
+        ),
+        title: Text(
+          playlist.name,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          '${playlist.songs.length} songs',
+          style: TextStyle(
+            fontSize: 14,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PlaylistDetailScreen(playlist: playlist),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAlbumSearchTile(Album album) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8.0),
+          child: album.fullAlbumArtUrl.isNotEmpty
+              ? Image.network(
+                  album.fullAlbumArtUrl,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 56),
+                )
+              : const Icon(Icons.album, size: 56),
+        ),
+        title: Text(
+          album.title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              album.artistName,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              '${album.tracks.length} tracks',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AlbumScreen(album: album),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRadioStationSearchTile(RadioStation station) {
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8.0),
+          child: station.imageUrl.isNotEmpty
+              ? Image.network(
+                  station.imageUrl,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.radio, size: 56),
+                )
+              : const Icon(Icons.radio, size: 56),
+        ),
+        title: Text(
+          station.name,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: const Text(
+          'Radio Station',
+          style: TextStyle(fontSize: 14),
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.play_arrow, size: 28),
+          onPressed: () async {
+            final radioSong = Song(
+              title: station.name,
+              id: station.id,
+              artist: 'Radio',
+              albumArtUrl: station.imageUrl,
+              audioUrl: station.streamUrl,
+              extras: {'isRadio': true, 'streamUrl': station.streamUrl},
+            );
+            await currentSongProvider.playWithContext([radioSong], radioSong);
+          },
+        ),
+        onTap: () async {
+          final radioSong = Song(
+            title: station.name,
+            id: station.id,
+            artist: 'Radio',
+            albumArtUrl: station.imageUrl,
+            audioUrl: station.streamUrl,
+            extras: {'isRadio': true, 'streamUrl': station.streamUrl},
+          );
+          await currentSongProvider.playWithContext([radioSong], radioSong);
+        },
+      ),
+    );
   }
 
   // Performance: Optimized song loading with caching
@@ -1564,10 +2087,43 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       appBar: AppBar(
         title: const Text('Library'),
         centerTitle: true,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => _onSearchChanged(value),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+              decoration: InputDecoration(
+                hintText: 'Search your library...',
+                prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        color: Theme.of(context).colorScheme.onSurface,
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.grey[200],
+              ),
+            ),
+          ),
+        ),
+     ),
+            body: _searchQuery.isNotEmpty
+          ? _buildUnifiedSearchResults()
+          : ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
           // main categories
           ListTile(
             leading: Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary),
