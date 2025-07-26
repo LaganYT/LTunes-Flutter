@@ -1,0 +1,1 @@
+use git to compare the previous tag and the most recent tag, then use the commit messages to create a one line simple update message.
