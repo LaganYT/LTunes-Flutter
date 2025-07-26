@@ -28,6 +28,3 @@
 ## Bug Fixes & Miscellaneous
 - Migrate the full playlist import logic to a service that can run without the screen being open. I want the ui to not change at all, just move the logic to a service.
 - the album icon on the playbar flickers when transitioning between parts of a screen (ex. albums list to a specific album or artist lists page to a specific artist's songs) i like the way everything is handled now but would like the flicker to stop
-
-- Improve: the download system by allowing syncernous downloading
-- Improve: the playlist import system by searching and matching multiple songs at the same time

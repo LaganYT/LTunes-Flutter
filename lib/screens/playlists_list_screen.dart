@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 import '../services/playlist_manager_service.dart';
@@ -75,6 +76,32 @@ class _ImportJob {
   bool autoSkipUnmatched = false;
   // For dialog state
   VoidCallback? notifyParent;
+}
+
+class _SongEntry {
+  final String title;
+  final String artist;
+  final String album;
+  final int originalIndex;
+
+  _SongEntry({
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.originalIndex,
+  });
+}
+
+class _BatchResult {
+  final _SongEntry entry;
+  final Song? matchedSong;
+  final String? error;
+
+  _BatchResult({
+    required this.entry,
+    this.matchedSong,
+    this.error,
+  });
 }
 
 class ImportJobManager extends ChangeNotifier {
@@ -488,22 +515,28 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         throw Exception('Missing required columns (name, artist, album)');
       }
 
-      final apiService = ApiService();
-      final List<Song> matchedSongs = [];
-      int processedRows = 0;
-      int matchedCount = 0;
-      // Calculate the total number of non-empty data rows (excluding header)
-      int totalEntries = 0;
+      // Parse all songs from the Excel file first
+      final List<_SongEntry> songEntries = [];
       for (var i = 1; i < sheet.maxRows; i++) {
         final row = sheet.row(i);
         final title = row[nameIdx]?.value.toString() ?? '';
         final artist = row[artistIdx]?.value.toString() ?? '';
-        if (title.isNotEmpty && artist.isNotEmpty) totalEntries++;
+        final album = row[albumIdx]?.value.toString() ?? '';
+        
+        if (title.isNotEmpty && (artist.isNotEmpty || album.isNotEmpty)) {
+          songEntries.add(_SongEntry(
+            title: title,
+            artist: artist,
+            album: album,
+            originalIndex: i,
+          ));
+        }
       }
-      job.totalRows = totalEntries;
+
+      job.totalRows = songEntries.length;
       ImportJobManager().update();
 
-      // Show progress dialog unless importing in background
+      // Show progress dialog
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -515,7 +548,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(height: 16),
-                Text('Processed ${job.matchedCount + (processedRows - job.matchedCount)} / $totalEntries entries'),
+                Text('Processing ${job.matchedCount} / ${job.totalRows} entries'),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -549,215 +582,92 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         ),
       );
 
-      for (var i = 1; i < sheet.maxRows; i++) {
+      if (job.cancel) {
+        print('Import cancelled by user.');
+        job.isImporting = false;
+        ImportJobManager().removeJob(job);
+        await WakelockPlus.disable();
+        return;
+      }
+
+      // Process songs in batches for better performance
+      final List<Song> matchedSongs = [];
+      final prefs = await SharedPreferences.getInstance();
+      final int batchSize = prefs.getInt('maxConcurrentPlaylistMatches') ?? 5; // Get from settings
+      final apiService = ApiService();
+
+      for (int i = 0; i < songEntries.length; i += batchSize) {
         if (job.cancel) {
           print('Import cancelled by user.');
-          job.isImporting = false;
-          ImportJobManager().removeJob(job);
-          if (mounted) {
-            // Prompt user to keep or discard matched songs
-            final action = await showDialog<String>(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) => AlertDialog(
-                title: const Text('Import Cancelled'),
-                content: const Text('Do you want to keep the songs that were already matched as a playlist, or discard them?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, 'discard'),
-                    child: const Text('Delete Playlist'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, 'keep'),
-                    child: const Text('Keep Playlist'),
-                  ),
-                ],
-              ),
+          break;
+        }
+
+        final endIndex = (i + batchSize < songEntries.length) ? i + batchSize : songEntries.length;
+        final batch = songEntries.sublist(i, endIndex);
+        
+        print('Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} songs');
+
+        // Process batch concurrently
+        final batchResults = await _processSongBatch(batch, apiService, job);
+        
+        // Handle user selections for unmatched songs
+        for (final result in batchResults) {
+          if (result.matchedSong != null) {
+            matchedSongs.add(result.matchedSong!);
+            job.matchedCount = matchedSongs.length;
+            ImportJobManager().update();
+          } else if (!job.autoSkipUnmatched && mounted) {
+            // Show user selection dialog for unmatched songs
+            final userSelected = await _showSongSearchPopup(
+              result.entry.title, 
+              result.entry.artist,
+              missingFields: result.entry.artist.isEmpty
             );
-            if (action == 'keep' && matchedSongs.isNotEmpty) {
-              final nameCtrl = TextEditingController();
-              final playlistName = await showDialog<String>(
-                context: context,
-                useRootNavigator: true,
-                builder: (dialogContext) => AlertDialog(
-                  title: const Text('Name Your Playlist'),
-                  content: TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(hintText: 'Playlist Name'),
-                    autofocus: true,
-                  ),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-                    TextButton(onPressed: () => Navigator.pop(dialogContext, nameCtrl.text.trim()), child: const Text('OK')),
-                  ],
-                ),
-              );
-              if (playlistName != null && playlistName.isNotEmpty) {
-                final playlist = Playlist(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: playlistName,
-                  songs: List<Song>.from(matchedSongs),
-                );
-                await _manager.addPlaylist(playlist);
-                await _manager.savePlaylists();
-                _reload();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Playlist "$playlistName" created with ${matchedSongs.length} songs.')),
-                );
-              }
-            } else if (action == 'discard') {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Playlist import cancelled and discarded.')),
-              );
-            }
-          }
-          ImportJobManager().update();
-          await WakelockPlus.disable(); // Release wakelock
-          return;
-        }
-        final row = sheet.row(i);
-        final title = row[nameIdx]?.value.toString() ?? '';
-        final artist = row[artistIdx]?.value.toString() ?? '';
-        final album = row[albumIdx]?.value.toString() ?? '';
-        if (title.isEmpty || (artist.isEmpty && album.isEmpty)) {
-          // Prompt user that the song or artist/album is missing and allow them to search manually
-          if (mounted) {
-            final userSelected = await _showSongSearchPopup(title, artist, missingFields: true);
             if (userSelected != null) {
               matchedSongs.add(userSelected);
-              matchedCount++;
-            }
-          }
-          continue;
-        }
-        // If artist is missing but album and title are present, try matching by album and title
-        if (artist.isEmpty && album.isNotEmpty && title.isNotEmpty) {
-          print('Artist missing, searching for "$title" in album "$album"...');
-          List<Song> searchResults = [];
-          try {
-            searchResults = await apiService.fetchSongs('$title $album');
-          } catch (e) {
-            final errorStr = e.toString();
-            if (errorStr.contains('Status Code: 500')) {
-              print('Skipping "$title" in album "$album" due to 500 error.');
-              totalEntries--;
-              job.totalRows = totalEntries;
+              job.matchedCount = matchedSongs.length;
               ImportJobManager().update();
-              continue;
-            } else {
-              rethrow;
-            }
-          }
-          Song? bestMatch;
-          for (final result in searchResults) {
-            if (result.title.toLowerCase() == title.toLowerCase() &&
-                (result.album != null && result.album?.toLowerCase() == album.toLowerCase())) {
-              bestMatch = result;
-              break;
-            }
-          }
-          if (bestMatch != null) {
-            matchedSongs.add(bestMatch);
-            matchedCount++;
-            continue;
-          } else {
-            print('No match found for "$title" in album "$album" (artist missing, even after search)');
-            // Fall through to prompt user below
-            if (mounted) {
-              final userSelected = await _showSongSearchPopup(title, '', missingFields: true);
-              if (userSelected != null) {
-                matchedSongs.add(userSelected);
-                matchedCount++;
-              }
-            }
-            continue;
-          }
-        }
-        processedRows++;
-        job.matchedCount = matchedSongs.length;
-        ImportJobManager().update();
-        print('Searching for "$title" by "$artist"...');
-        List<Song> searchResults = [];
-        try {
-          searchResults = await apiService.fetchSongs('$title $artist');
-        } catch (e) {
-          // If the error is a 500 error, skip this song
-          final errorStr = e.toString();
-          if (errorStr.contains('Status Code: 500')) {
-            print('Skipping "$title" by "$artist" due to 500 error.');
-            // Decrement totalRows since this song is skipped
-            totalEntries--; // Decrement totalEntries when skipping
-            job.totalRows = totalEntries;
-            ImportJobManager().update();
-            continue;
-          } else {
-            // For other errors, rethrow
-            rethrow;
-          }
-        }
-        Song? bestMatch;
-        for (final result in searchResults) {
-          if (result.title.toLowerCase() == title.toLowerCase() &&
-              result.artist.toLowerCase() == artist.toLowerCase()) {
-            bestMatch = result;
-            break;
-          }
-        }
-        // If not found, retry with stripped title/artist
-        if (bestMatch == null) {
-          final strippedTitle = _stripFeaturing(title);
-          final strippedArtist = _truncateArtistAtComma(artist);
-          if (strippedTitle != title || strippedArtist != artist) {
-            print('Retrying with stripped title/artist: "$strippedTitle" by "$strippedArtist"');
-            try {
-              searchResults = await apiService.fetchSongs('$strippedTitle $strippedArtist');
-            } catch (e) {
-              final errorStr = e.toString();
-              if (errorStr.contains('Status Code: 500')) {
-                print('Skipping "$strippedTitle" by "$strippedArtist" due to 500 error.');
-                // Decrement totalRows since this song is skipped
-                totalEntries--; // Decrement totalEntries when skipping
-                job.totalRows = totalEntries;
-                ImportJobManager().update();
-                continue;
-              } else {
-                rethrow;
-              }
-            }
-            for (final result in searchResults) {
-              if (result.title.toLowerCase() == strippedTitle.toLowerCase() &&
-                  result.artist.toLowerCase() == strippedArtist.toLowerCase()) {
-                bestMatch = result;
-                break;
-              }
-            }
-          }
-        }
-        if (bestMatch != null) {
-          matchedSongs.add(bestMatch);
-          matchedCount++;
-        } else {
-          print('No match found for "$title" by "$artist" (even after retry)');
-          if (job.autoSkipUnmatched) {
-            print('Auto-skip enabled, skipping unmatched song.');
-            // Decrement totalRows since this song is skipped and not attempted for user selection
-            totalEntries--; // Decrement totalEntries when skipping
-            job.totalRows = totalEntries;
-            ImportJobManager().update();
-            continue;
-          }
-          // Show popup for user to select a song or skip
-          if (mounted) {
-            final userSelected = await _showSongSearchPopup(title, artist);
-            if (userSelected != null) {
-              matchedSongs.add(userSelected);
-              matchedCount++;
             }
           }
         }
       }
+
       job.isImporting = false;
       ImportJobManager().removeJob(job);
+
+      if (job.cancel) {
+        if (mounted) {
+          // Prompt user to keep or discard matched songs
+          final action = await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text('Import Cancelled'),
+              content: const Text('Do you want to keep the songs that were already matched as a playlist, or discard them?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'discard'),
+                  child: const Text('Delete Playlist'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'keep'),
+                  child: const Text('Keep Playlist'),
+                ),
+              ],
+            ),
+          );
+          if (action == 'keep' && matchedSongs.isNotEmpty) {
+            await _createPlaylistFromMatchedSongs(matchedSongs);
+          } else if (action == 'discard') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Playlist import cancelled and discarded.')),
+            );
+          }
+        }
+        await WakelockPlus.disable();
+        return;
+      }
+
       if (matchedSongs.isEmpty) {
         print('No songs matched in the imported file.');
         if (mounted) {
@@ -765,56 +675,163 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             SnackBar(content: Text('No songs matched in the imported file.')),
           );
         }
-        await WakelockPlus.disable(); // Release wakelock
+        await WakelockPlus.disable();
         return;
       }
 
-      final nameCtrl = TextEditingController();
-      final playlistName = await showDialog<String>(
-        context: context,
-        useRootNavigator: true,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Name Your Playlist'),
-          content: TextField(
-            controller: nameCtrl,
-            decoration: const InputDecoration(hintText: 'Playlist Name'),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(dialogContext, nameCtrl.text.trim()), child: const Text('OK')),
-          ],
-        ),
-      );
-      if (playlistName == null || playlistName.isEmpty) {
-        print('No playlist name entered.');
-        return;
-      }
+      await _createPlaylistFromMatchedSongs(matchedSongs);
+      await WakelockPlus.disable();
 
-      final playlist = Playlist(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: playlistName,
-        songs: matchedSongs,
-      );
-      print('Created playlist: ${playlist.toJson()}');
-      await _manager.addPlaylist(playlist);
-      await _manager.savePlaylists();
-      print('Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
-      _reload();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Playlist import completed: $matchedCount of $totalEntries songs matched.')),
-        );
-      }
-      ImportJobManager().update();
-      await WakelockPlus.disable(); // Release wakelock
     } catch (e, stack) {
       print('Failed to import playlist: $e\n$stack');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to import playlist: $e')),
-      );
-      await WakelockPlus.disable(); // Release wakelock on error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to import playlist: $e')),
+        );
+      }
+      await WakelockPlus.disable();
     }
+  }
+
+  Future<List<_BatchResult>> _processSongBatch(
+    List<_SongEntry> batch, 
+    ApiService apiService, 
+    _ImportJob job
+  ) async {
+    final List<_BatchResult> results = [];
+    
+    // Create futures for concurrent API calls
+    final List<Future<_BatchResult>> futures = batch.map((entry) async {
+      return await _searchAndMatchSong(entry, apiService);
+    }).toList();
+
+    // Wait for all API calls to complete
+    final batchResults = await Future.wait(futures);
+    results.addAll(batchResults);
+    
+    return results;
+  }
+
+  Future<_BatchResult> _searchAndMatchSong(_SongEntry entry, ApiService apiService) async {
+    try {
+      String searchQuery;
+      List<Song> searchResults = [];
+
+      // Handle different scenarios based on available data
+      if (entry.artist.isNotEmpty && entry.album.isNotEmpty) {
+        // Full data available
+        searchQuery = '${entry.title} ${entry.artist}';
+      } else if (entry.artist.isNotEmpty) {
+        // Only artist available
+        searchQuery = '${entry.title} ${entry.artist}';
+      } else if (entry.album.isNotEmpty) {
+        // Only album available, search by title and album
+        searchQuery = '${entry.title} ${entry.album}';
+      } else {
+        // Only title available
+        searchQuery = entry.title;
+      }
+
+      try {
+        searchResults = await apiService.fetchSongs(searchQuery);
+      } catch (e) {
+        final errorStr = e.toString();
+        if (errorStr.contains('Status Code: 500')) {
+          print('Skipping "${entry.title}" due to 500 error.');
+          return _BatchResult(entry: entry, matchedSong: null, error: '500 error');
+        } else {
+          rethrow;
+        }
+      }
+
+      // Try exact match first
+      Song? bestMatch = _findExactMatch(searchResults, entry);
+      
+      // If no exact match, try with stripped title/artist
+      if (bestMatch == null && entry.artist.isNotEmpty) {
+        final strippedTitle = _stripFeaturing(entry.title);
+        final strippedArtist = _truncateArtistAtComma(entry.artist);
+        
+        if (strippedTitle != entry.title || strippedArtist != entry.artist) {
+          try {
+            final strippedQuery = '$strippedTitle $strippedArtist';
+            searchResults = await apiService.fetchSongs(strippedQuery);
+            bestMatch = _findExactMatch(searchResults, _SongEntry(
+              title: strippedTitle,
+              artist: strippedArtist,
+              album: entry.album,
+              originalIndex: entry.originalIndex,
+            ));
+          } catch (e) {
+            final errorStr = e.toString();
+            if (errorStr.contains('Status Code: 500')) {
+              print('Skipping stripped search for "${entry.title}" due to 500 error.');
+              return _BatchResult(entry: entry, matchedSong: null, error: '500 error');
+            }
+          }
+        }
+      }
+
+      return _BatchResult(entry: entry, matchedSong: bestMatch, error: null);
+
+    } catch (e) {
+      print('Error processing song "${entry.title}": $e');
+      return _BatchResult(entry: entry, matchedSong: null, error: e.toString());
+    }
+  }
+
+  Song? _findExactMatch(List<Song> searchResults, _SongEntry entry) {
+    for (final result in searchResults) {
+      if (result.title.toLowerCase() == entry.title.toLowerCase() &&
+          (entry.artist.isEmpty || result.artist.toLowerCase() == entry.artist.toLowerCase())) {
+        return result;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _createPlaylistFromMatchedSongs(List<Song> matchedSongs) async {
+    final nameCtrl = TextEditingController();
+    final playlistName = await showDialog<String>(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Name Your Playlist'),
+        content: TextField(
+          controller: nameCtrl,
+          decoration: const InputDecoration(hintText: 'Playlist Name'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, nameCtrl.text.trim()), child: const Text('OK')),
+        ],
+      ),
+    );
+    
+    if (playlistName == null || playlistName.isEmpty) {
+      print('No playlist name entered.');
+      return;
+    }
+
+    final playlist = Playlist(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: playlistName,
+      songs: matchedSongs,
+    );
+    
+    print('Created playlist: ${playlist.toJson()}');
+    await _manager.addPlaylist(playlist);
+    await _manager.savePlaylists();
+    print('Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
+    _reload();
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Playlist import completed: ${matchedSongs.length} songs matched.')),
+      );
+    }
+    ImportJobManager().update();
   }
 
   Future<Song?> _showSongSearchPopup(String localTitle, String localArtist, {bool missingFields = false}) async {

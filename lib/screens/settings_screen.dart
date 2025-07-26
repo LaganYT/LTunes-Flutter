@@ -44,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<String> latestKnownVersionNotifier = ValueNotifier<String>('N/A');
   final ValueNotifier<bool?> showOnlySavedSongsInAlbumsNotifier = ValueNotifier<bool?>(null); // NEW
   final ValueNotifier<int> maxConcurrentDownloadsNotifier = ValueNotifier<int>(1); // NEW
+  final ValueNotifier<int> maxConcurrentPlaylistMatchesNotifier = ValueNotifier<int>(5); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -141,6 +142,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 1;
     maxConcurrentDownloadsNotifier.value = maxConcurrentDownloads;
 
+    // Load Max Concurrent Playlist Matches setting
+    final maxConcurrentPlaylistMatches = prefs.getInt('maxConcurrentPlaylistMatches') ?? 5;
+    maxConcurrentPlaylistMatchesNotifier.value = maxConcurrentPlaylistMatches;
+
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -176,6 +181,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_currentSongProvider != null) {
       await _currentSongProvider!.reinitializeDownloadManager();
     }
+  }
+
+  Future<void> _saveMaxConcurrentPlaylistMatchesSetting(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('maxConcurrentPlaylistMatches', value);
   }
 
 
@@ -553,6 +563,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Max concurrent downloads set to $selectedValue')),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMaxConcurrentPlaylistMatchesDialog(BuildContext context, int currentValue) {
+    int selectedValue = currentValue;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Max Concurrent Playlist Matches'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Choose how many songs to search and match simultaneously during playlist import',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Slider(
+                    value: selectedValue.toDouble(),
+                    min: 1,
+                    max: 35,
+                    divisions: 34,
+                    label: selectedValue.toString(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedValue = value.round();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Search up to $selectedValue song${selectedValue == 1 ? '' : 's'} simultaneously',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    maxConcurrentPlaylistMatchesNotifier.value = selectedValue;
+                    await _saveMaxConcurrentPlaylistMatchesSetting(selectedValue);
+                    Navigator.of(context).pop();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Max concurrent playlist matches set to $selectedValue')),
                       );
                     }
                   },
@@ -945,6 +1018,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: Text('Download up to $maxConcurrentDownloads song${maxConcurrentDownloads == 1 ? '' : 's'} simultaneously'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => _showMaxConcurrentDownloadsDialog(context, maxConcurrentDownloads),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<int>(
+                  valueListenable: maxConcurrentPlaylistMatchesNotifier,
+                  builder: (context, maxConcurrentPlaylistMatches, _) {
+                    return ListTile(
+                      leading: const Icon(Icons.playlist_add),
+                      title: const Text('Max Concurrent Playlist Matches'),
+                      subtitle: Text('Search up to $maxConcurrentPlaylistMatches song${maxConcurrentPlaylistMatches == 1 ? '' : 's'} simultaneously during import'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _showMaxConcurrentPlaylistMatchesDialog(context, maxConcurrentPlaylistMatches),
                     );
                   },
                 ),
