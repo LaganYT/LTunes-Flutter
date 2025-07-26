@@ -1,7 +1,7 @@
 # TODO
 
 ## Search & Filtering
-- Redo the search to show albums and artists in the search itself
+- Redo the search page to add the ability to show albums, artists, songs, and stations in one redesign of the search screen
 - Add radio stations into this new search system (without need for a different tab to search for them)
 - Offline Search & Filtering
   - Advanced search and filtering by any metadata (genre, year, composer, etc.).
