@@ -9,35 +9,39 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - **Full-Screen Player**: Beautiful player with album art, controls, and lyrics view
 - **Smart Queue Management**: Play songs, albums, playlists, or radio stations
 - **Audio Controls**: Shuffle, repeat, seek, and volume control
-- **Crossfade Support**: Smooth transitions between tracks
-- **Playback Speed Control**: Adjust playback speed from 0.25x to 3.0x with pitch correction
-- **Custom Speed Presets**: Create and save your favorite playback speeds
-- **Sleep Timer**: Set automatic playback stop with preset or custom duration
+- **Playback Speed Control**: Adjust playback speed from 0.25x to 3.0x with pitch correction (Android only)
+- **Custom Speed Presets**: Create and save your favorite playback speeds (Android only)
+- **Sleep Timer**: Set automatic playback stop with preset (15, 30, 60 min) or custom duration
+- **Enhanced iOS Background Playback**: Optimized background audio continuity and session management
+- **Bluetooth Device Support**: Automatic audio session activation for Bluetooth connections
 
 ### 🔍 **Advanced Search**
 - **Global Music Search**: Find songs, albums, and artists instantly
 - **Radio Station Search**: Discover US and global radio stations
-- **Smart Caching**: Fast results with intelligent cache management
-- **Debounced Search**: Optimized performance with search throttling
+- **Smart Caching**: Fast results with intelligent cache management and TTL
+- **Debounced Search**: Optimized performance with 300ms search throttling
 - **Real-time Results**: Instant search suggestions and filtering
+- **Unified Library Search**: Search across all downloaded content, playlists, and recent radio stations
 
 ### 📚 **Modern Library Management**
 - **Organized Categories**: Songs, Albums, Artists, Playlists, and Liked Songs
 - **Smart Collections**: Recently added, recently played, and favorites
 - **Import Local Files**: Add your own music with metadata extraction
 - **Bulk Operations**: Select multiple items for batch actions
-- **Search Within Library**: Find your content quickly
+- **Search Within Library**: Find your content quickly with unified search
 - **Download Indicators**: Visual indicators for downloaded content
-- **Metadata History**: Track and manage local song metadata
+- **Metadata History**: Track and manage local song metadata with persistent history
+- **Recent Radio Stations**: Automatically track and display recently played radio stations
 
 ### 📱 **Download Management**
 - **Background Downloads**: Download songs while using other apps
-- **Progress Tracking**: Real-time download progress with notifications
-- **Queue Management**: Organize and prioritize downloads
+- **Progress Tracking**: Real-time download progress with system notifications
+- **Queue Management**: Organize and prioritize downloads with configurable limits
 - **Resume Support**: Continue interrupted downloads
-- **Storage Management**: Monitor and clear downloaded content
-- **Concurrent Downloads**: Configurable concurrent download limits
-- **Retry Mechanism**: Automatic retry for failed downloads
+- **Storage Management**: Monitor and clear downloaded content with detailed analytics
+- **Concurrent Downloads**: Configurable concurrent download limits (1-10)
+- **Retry Mechanism**: Automatic retry for failed downloads with exponential backoff (max 3 retries)
+- **Download Notifications**: System notifications with progress updates and action buttons
 
 ### 🎼 **Playlist Features**
 - **Create & Customize**: Build playlists with drag-and-drop support
@@ -45,14 +49,15 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - **Collaborative Features**: Share and import playlists
 - **Playlist Art**: Automatic artwork generation from included songs
 - **Advanced Sorting**: Sort by name, date, or song count
-- **Excel Import/Export**: Import playlists from Excel files
+- **Excel Import/Export**: Import playlists from Excel files with configurable matching
 
 ### 🎨 **Album & Artist Pages**
 - **Rich Album Details**: Complete track listings and metadata
 - **Artist Profiles**: Biography, popular tracks, and discography
-- **Album Artwork**: High-quality cover art with fallback handling
+- **Album Artwork**: High-quality cover art with fallback handling for both network and local files
 - **Related Content**: Discover similar artists and albums
 - **Saved Songs Filter**: Show only downloaded songs in albums
+- **Album Play Count Tracking**: Automatic tracking of album playback statistics
 
 ### 🎤 **Lyrics & Media**
 - **Synced Lyrics**: Timed lyrics display during playback
@@ -66,40 +71,46 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - **Accent Colors**: Customize the app's color scheme
 - **Radio Preferences**: US-only or global radio stations
 - **Update System**: Automatic update notifications with configurable checking
-- **Storage Analytics**: Monitor app storage usage with detailed breakdowns
+- **Storage Analytics**: Monitor app storage usage with detailed breakdowns and charts
 - **Cache Management**: Clear cached data and downloads
-- **Download Settings**: Configure concurrent download limits
-- **Playlist Import Settings**: Adjust concurrent playlist matching
+- **Download Settings**: Configure concurrent download limits and playlist matching
+- **Listening Statistics**: Track your listening habits with detailed analytics and charts
+- **Playback Speed Presets**: Create and manage custom playback speed presets
 
 ### 🔧 **Advanced Features**
-- **Error Handling**: Comprehensive error management with retry mechanisms
-- **Performance Optimization**: Lazy loading, caching, and request limiting
+- **Error Handling**: Comprehensive error management with retry mechanisms and user-friendly messages
+- **Performance Optimization**: Lazy loading, caching, request limiting, and connection pooling
 - **Offline Support**: Full functionality for downloaded content
 - **Notification Integration**: System notifications for downloads and playback
 - **Accessibility**: Screen reader support and keyboard navigation
-- **iOS Background Playback**: Enhanced background audio support for iOS
+- **iOS Background Playback**: Enhanced background audio support with periodic session checks
 - **Bluetooth Integration**: Automatic audio session management for Bluetooth devices
-- **Listening Statistics**: Track your listening habits and preferences
+- **Listening Statistics**: Track your listening habits with song, album, artist, and daily play counts
+- **Metadata History**: Persistent history for local song metadata fetching
 
-## 🚀 Recent Updates (v2.1.1)
+## 🚀 Recent Updates (v2.2.0)
 
 ### ✨ New Features
-- **Sleep Timer**: Set automatic playback stop with preset (15, 30, 60 min) or custom duration
-- **Custom Playback Speed Presets**: Create and save your favorite playback speeds (Android only)
-- **Enhanced iOS Background Playback**: Improved background audio continuity and session management
+- **Enhanced Listening Statistics**: Comprehensive tracking of song, album, artist, and daily play counts with detailed analytics
+- **Unified Library Search**: Search across all downloaded content, playlists, and recent radio stations
+- **Recent Radio Stations**: Automatic tracking and display of recently played radio stations
+- **Enhanced iOS Background Playback**: Improved background audio continuity with periodic session checks
 - **Bluetooth Device Support**: Automatic audio session activation for Bluetooth connections
 - **Download Retry System**: Automatic retry mechanism for failed downloads with exponential backoff
-- **Concurrent Download Limits**: Configurable maximum concurrent downloads setting
+- **Concurrent Download Limits**: Configurable maximum concurrent downloads setting (1-10)
 - **Playlist Import Optimization**: Configurable concurrent playlist matching for faster imports
 - **Metadata History**: Persistent history for local song metadata fetching
+- **Enhanced Download Notifications**: System notifications with progress updates and action buttons
 
 ### 🔧 Improvements
 - **Enhanced Error Handling**: More robust error recovery and user feedback
-- **Performance Optimizations**: Improved caching, request debouncing, and connection pooling
+- **Performance Optimizations**: Improved caching with TTL, request debouncing, and connection pooling
 - **Background Continuity**: Better iOS background playback with periodic session checks
 - **Download Progress**: More accurate progress tracking and notification updates
 - **Storage Analytics**: Detailed breakdown of app storage usage with charts
 - **Settings Management**: Improved settings persistence and reset functionality
+- **Album Artwork Handling**: Enhanced support for both network URLs and local file paths
+- **Queue Management**: Improved queue reordering and state management
 
 ### 🐛 Bug Fixes
 - Fixed album artwork flickering during screen transitions
@@ -107,6 +118,7 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - Enhanced download queue stability
 - Better handling of network interruptions
 - Fixed playback speed persistence across app restarts
+- Improved background playback continuity on iOS
 
 ## 📱 Screenshots
 
@@ -148,7 +160,7 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 
 ### Getting Started
 1. **Search**: Use the search tab to find music and radio stations
-2. **Library**: Access your downloaded content and playlists
+2. **Library**: Access your downloaded content, playlists, and recent radio stations
 3. **Settings**: Customize themes, preferences, and manage storage
 
 ### Key Features
@@ -159,11 +171,13 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - **Sleep Timer**: Set automatic playback stop in settings
 - **Playback Speed**: Adjust speed in the full-screen player (Android only)
 - **Custom Speed Presets**: Create your own speed presets in settings
+- **Listening Statistics**: View your listening habits and preferences in settings
+- **Unified Search**: Search across all your content from the library screen
 
 ## 🏗️ Architecture
 
 ### Core Services
-- **ApiService**: Handles all API communication with caching and request limiting
+- **ApiService**: Handles all API communication with caching, TTL, and request limiting
 - **AudioHandler**: Manages background audio playback with iOS optimization
 - **ErrorHandlerService**: Centralized error management with retry mechanisms
 - **DownloadNotificationService**: System notification management for downloads
@@ -171,6 +185,7 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 - **AlbumManagerService**: Album management and metadata handling
 - **SleepTimerService**: Sleep timer functionality with preset and custom options
 - **MetadataHistoryService**: Local song metadata history management
+- **UnifiedSearchService**: Cross-library search functionality
 
 ### State Management
 - **Provider Pattern**: Clean state management with Provider
@@ -209,6 +224,8 @@ lib/
 - **excel**: Playlist import/export functionality
 - **wakelock_plus**: Keep screen on during downloads
 - **audio_session**: Enhanced audio session management
+- **fl_chart**: Storage analytics and listening statistics charts
+- **flutter_slidable**: Swipe actions for list items
 
 ### Error Handling
 The app includes a comprehensive error handling system:
