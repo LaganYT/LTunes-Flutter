@@ -12,6 +12,7 @@ class Album {
   final int? trackCount;
   bool isSaved; // New field
   int playCount; // New field for play count
+  final String? localAlbumArtUrl; // New field for local album artwork
 
   Album({
     required this.id,
@@ -25,11 +26,17 @@ class Album {
     this.trackCount,
     this.isSaved = false, // Default to false
     this.playCount = 0, // Default to 0
+    this.localAlbumArtUrl, // New field
   });
 
   String get fullAlbumArtUrl => albumArtPictureId.isNotEmpty
       ? 'https://e-cdns-images.dzcdn.net/images/cover/$albumArtPictureId/1000x1000-000000-80-0-0.jpg'
       : '';
+
+  // New getter to prioritize local artwork over network
+  String get effectiveAlbumArtUrl => localAlbumArtUrl?.isNotEmpty == true 
+      ? localAlbumArtUrl! 
+      : fullAlbumArtUrl;
 
   factory Album.fromJson(Map<String, dynamic> json) {
     // Handle different API response structures
@@ -127,6 +134,7 @@ class Album {
       trackCount: int.tryParse(albumData['NUMBER_TRACK']?.toString() ?? json['trackCount']?.toString() ?? ''),
       isSaved: json['isSaved'] as bool? ?? false, // Load isSaved
       playCount: json['playCount'] as int? ?? 0, // Load playCount
+      localAlbumArtUrl: json['localAlbumArtUrl'] as String?, // Load localAlbumArtUrl
     );
   }
 
@@ -142,6 +150,7 @@ class Album {
         'trackCount': trackCount,
         'isSaved': isSaved, // Save isSaved
         'playCount': playCount, // Save playCount
+        'localAlbumArtUrl': localAlbumArtUrl, // Save localAlbumArtUrl
       };
 
   Album copyWith({
@@ -156,6 +165,7 @@ class Album {
     int? trackCount,
     bool? isSaved,
     int? playCount, // New field
+    String? localAlbumArtUrl, // New field
   }) {
     return Album(
       id: id ?? this.id,
@@ -169,6 +179,7 @@ class Album {
       trackCount: trackCount ?? this.trackCount,
       isSaved: isSaved ?? this.isSaved,
       playCount: playCount ?? this.playCount, // New field
+      localAlbumArtUrl: localAlbumArtUrl ?? this.localAlbumArtUrl, // New field
     );
   }
 }

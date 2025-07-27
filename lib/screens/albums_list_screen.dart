@@ -82,6 +82,22 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
     setState(() { _artLoading = true; });
     if (artUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(artUrl);
+    } else if (artUrl.isNotEmpty) {
+      // Handle local file paths
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final fileName = p.basename(artUrl);
+        final fullPath = p.join(directory.path, fileName);
+        
+        if (await File(fullPath).exists()) {
+          _currentArtProvider = FileImage(File(fullPath));
+        } else {
+          _currentArtProvider = null;
+        }
+      } catch (e) {
+        debugPrint('Error loading local art: $e');
+        _currentArtProvider = null;
+      }
     } else {
       _currentArtProvider = null;
     }
@@ -161,7 +177,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4.0),
                           child: Container(
-                            child: robustArtwork(a.fullAlbumArtUrl, width: double.infinity, height: double.infinity),
+                            child: robustArtwork(a.effectiveAlbumArtUrl, width: double.infinity, height: double.infinity),
                           ),
                         ),
                       ),

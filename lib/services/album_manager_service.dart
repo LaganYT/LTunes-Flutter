@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:http/http.dart' as http;
 import '../models/album.dart';
 import '../models/song.dart';
 
@@ -38,16 +42,65 @@ class AlbumManagerService with ChangeNotifier {
     await prefs.setStringList(_savedAlbumsKey, albumsJsonList);
   }
 
+  /// Downloads and saves album artwork locally
+  Future<String?> _downloadAlbumArtwork(Album album) async {
+    if (album.fullAlbumArtUrl.isEmpty) return null;
+    
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      
+      // Create a unique filename for the album artwork
+      final albumIdentifier = '${album.id}_${album.title.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}';
+      final fileName = 'album_art_$albumIdentifier.jpg';
+      final filePath = p.join(directory.path, fileName);
+      final file = File(filePath);
+      
+      // Check if file already exists
+      if (await file.exists()) {
+        debugPrint('Album artwork already exists: $fileName');
+        return fileName;
+      }
+      
+      // Download the artwork
+      final response = await http.get(Uri.parse(album.fullAlbumArtUrl));
+      if (response.statusCode == 200) {
+        await file.writeAsBytes(response.bodyBytes);
+        debugPrint('Album artwork downloaded successfully: $fileName');
+        return fileName;
+      } else {
+        debugPrint('Failed to download album artwork. Status code: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error downloading album artwork: $e');
+      return null;
+    }
+  }
+
   Future<void> addSavedAlbum(Album album) async {
     if (!_savedAlbums.any((a) => a.id == album.id)) {
-      final albumToSave = album.copyWith(isSaved: true);
+      // Download album artwork if not already present
+      String? localArtUrl;
+      if (album.localAlbumArtUrl == null || album.localAlbumArtUrl!.isEmpty) {
+        localArtUrl = await _downloadAlbumArtwork(album);
+      } else {
+        localArtUrl = album.localAlbumArtUrl;
+      }
+      
+      final albumToSave = album.copyWith(isSaved: true, localAlbumArtUrl: localArtUrl);
       _savedAlbums.add(albumToSave);
       await _saveAlbumsToPrefs();
       notifyListeners();
     } else { // If album exists, ensure its isSaved status is true
       int index = _savedAlbums.indexWhere((a) => a.id == album.id);
       if (index != -1 && !_savedAlbums[index].isSaved) {
-        _savedAlbums[index] = _savedAlbums[index].copyWith(isSaved: true);
+        // Download album artwork if not already present
+        String? localArtUrl = _savedAlbums[index].localAlbumArtUrl;
+        if (localArtUrl == null || localArtUrl.isEmpty) {
+          localArtUrl = await _downloadAlbumArtwork(album);
+        }
+        
+        _savedAlbums[index] = _savedAlbums[index].copyWith(isSaved: true, localAlbumArtUrl: localArtUrl);
         await _saveAlbumsToPrefs();
         notifyListeners();
       }

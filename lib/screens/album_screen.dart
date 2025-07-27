@@ -1,6 +1,9 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
@@ -322,8 +325,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
     final imageSize = 160.0; 
 
     String imageUrl = '';
-    if (widget.album.fullAlbumArtUrl.isNotEmpty && widget.album.fullAlbumArtUrl.startsWith('http')) {
-      imageUrl = widget.album.fullAlbumArtUrl;
+    if (widget.album.effectiveAlbumArtUrl.isNotEmpty) {
+      imageUrl = widget.album.effectiveAlbumArtUrl;
     } else if (widget.album.tracks.isNotEmpty && widget.album.tracks.first.albumArtUrl.isNotEmpty && widget.album.tracks.first.albumArtUrl.startsWith('http')) {
       imageUrl = widget.album.tracks.first.albumArtUrl;
     }
@@ -351,13 +354,36 @@ class _AlbumScreenState extends State<AlbumScreen> {
     
     return ClipRRect(
       borderRadius: BorderRadius.circular(8.0),
-      child: Image.network(
-        imageUrl,
-        width: imageSize,
-        height: imageSize,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => placeholder,
-      ),
+      child: imageUrl.startsWith('http')
+          ? Image.network(
+              imageUrl,
+              width: imageSize,
+              height: imageSize,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => placeholder,
+            )
+          : FutureBuilder<String>(
+              future: () async {
+                final directory = await getApplicationDocumentsDirectory();
+                final fileName = p.basename(imageUrl);
+                final fullPath = p.join(directory.path, fileName);
+                return await File(fullPath).exists() ? fullPath : '';
+              }(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData &&
+                    snapshot.data!.isNotEmpty) {
+                  return Image.file(
+                    File(snapshot.data!),
+                    width: imageSize,
+                    height: imageSize,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => placeholder,
+                  );
+                }
+                return placeholder;
+              },
+            ),
     );
   }
 

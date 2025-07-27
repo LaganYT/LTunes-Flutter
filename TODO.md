@@ -16,5 +16,4 @@
 
 ## Bug Fixes & Miscellaneous
 - the album icon on the playbar flickers when transitioning between parts of a screen (ex. albums list to a specific album or artist lists page to a specific artist's songs) i like the way everything is handled now but would like the flicker to stop
-- Saved albums icons dont display offline
 - When i re-arrange a playlist it shouldn’t switch the context to that playlist

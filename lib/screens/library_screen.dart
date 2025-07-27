@@ -913,14 +913,32 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
-          child: album.fullAlbumArtUrl.isNotEmpty
-              ? Image.network(
-                  album.fullAlbumArtUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 56),
-                )
+          child: album.effectiveAlbumArtUrl.isNotEmpty
+              ? (album.effectiveAlbumArtUrl.startsWith('http')
+                  ? Image.network(
+                      album.effectiveAlbumArtUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 56),
+                    )
+                  : FutureBuilder<String>(
+                      future: _getCachedLocalArtFuture(album.effectiveAlbumArtUrl),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            snapshot.data!.isNotEmpty) {
+                          return Image.file(
+                            File(snapshot.data!),
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 56),
+                          );
+                        }
+                        return const Icon(Icons.album, size: 56);
+                      },
+                    ))
               : const Icon(Icons.album, size: 56),
         ),
         title: Text(
@@ -1863,12 +1881,37 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       itemBuilder: (context, index) {
         final album = filteredAlbums[index];
         Widget leadingImage;
-        if (album.fullAlbumArtUrl.isNotEmpty) {
-          leadingImage = Image.network(
-            album.fullAlbumArtUrl,
-            width: 56, height: 56, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
-          );
+        
+        // Use the effective album art URL which prioritizes local over network
+        final artUrl = album.effectiveAlbumArtUrl;
+        if (artUrl.isNotEmpty) {
+          if (artUrl.startsWith('http')) {
+            // Network image
+            leadingImage = Image.network(
+              artUrl,
+              width: 56, height: 56, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
+            );
+          } else {
+            // Local image - use the same pattern as songs
+            leadingImage = FutureBuilder<String>(
+              future: _getCachedLocalArtFuture(artUrl),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData &&
+                    snapshot.data!.isNotEmpty) {
+                  return Image.file(
+                    File(snapshot.data!),
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
+                  );
+                }
+                return const Icon(Icons.album, size: 40);
+              },
+            );
+          }
         } else {
           leadingImage = const Icon(Icons.album, size: 40);
         }
