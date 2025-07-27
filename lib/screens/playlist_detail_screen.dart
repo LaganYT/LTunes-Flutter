@@ -949,19 +949,27 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         // Optionally, revert the order in UI if save fails, though this can be complex.
                       });
 
-
+                      // Only update the queue if the currently playing song is from this playlist
+                      // and only if the current queue context matches this playlist
                       Song? currentlyPlayingSong = currentSongProvider.currentSong;
-                      int newPlayingIndex = -1;
-
                       if (currentlyPlayingSong != null) {
-                        newPlayingIndex = updatedPlaylist.songs.indexWhere((s) => s.id == currentlyPlayingSong.id);
-                      }
-                      
-                      // Update the provider's queue.
-                      if (newPlayingIndex != -1) {
-                        currentSongProvider.setQueue(List.from(updatedPlaylist.songs), initialIndex: newPlayingIndex);
-                      } else {
-                        currentSongProvider.setQueue(List.from(updatedPlaylist.songs), initialIndex: 0);
+                        // Check if the current song is from this playlist
+                        int songIndexInPlaylist = updatedPlaylist.songs.indexWhere((s) => s.id == currentlyPlayingSong.id);
+                        if (songIndexInPlaylist != -1) {
+                          // Check if the current queue context matches this playlist
+                          final currentQueue = currentSongProvider.queue;
+                          if (currentQueue.length == updatedPlaylist.songs.length) {
+                            // Compare if all songs in the queue match the playlist (in any order)
+                            bool queueMatchesPlaylist = currentQueue.every((queueSong) => 
+                              updatedPlaylist.songs.any((playlistSong) => playlistSong.id == queueSong.id)
+                            );
+                            
+                            if (queueMatchesPlaylist) {
+                              // Update the queue order without changing context
+                              currentSongProvider.reorderQueue(oldIndex, newIndex);
+                            }
+                          }
+                        }
                       }
                     });
                   },
