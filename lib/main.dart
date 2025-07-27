@@ -223,6 +223,13 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
               _audioHandler.customAction('forceSessionActivation', {});
             });
           }
+          
+          // Add queue looping continuity checks for better background playback
+          for (int i = 1; i <= 6; i++) {
+            Future.delayed(Duration(seconds: 10 * i), () {
+              _audioHandler.customAction('ensureQueueLoopingContinuity', {});
+            });
+          }
 
           break;
         default:

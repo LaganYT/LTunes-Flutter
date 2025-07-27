@@ -505,10 +505,18 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> skipToNext() async {
     if (_playlist.isEmpty) return;
     int newIndex = _currentIndex + 1;
+    debugPrint("AudioHandler: skipToNext - currentIndex: $_currentIndex, newIndex: $newIndex, playlistLength: ${_playlist.length}, repeatMode: ${playbackState.value.repeatMode}");
+    
     if (newIndex >= _playlist.length) {
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
         newIndex = 0;
+        debugPrint("AudioHandler: Looping back to beginning of queue");
+        // Ensure audio session is maintained when looping back to the beginning
+        if (_isIOS && _audioSession != null && _isBackgroundMode) {
+          await _safeActivateSession();
+        }
       } else {
+        debugPrint("AudioHandler: Reached end of queue, stopping playback");
         await stop();
         return;
       }
@@ -537,11 +545,22 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       await stop();
       return;
     }
+    
+    // Ensure audio session is active before preparing to play, especially for background playback
+    if (_isIOS && _audioSession != null) {
+      await _safeActivateSession();
+    }
+    
     await _prepareToPlay(index);
     if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
       try {
-        if (_isIOS && _audioSession != null) await _safeActivateSession();
+        // Additional session activation before playing for better background playback continuity
+        if (_isIOS && _audioSession != null && _isBackgroundMode) {
+          await _safeActivateSession();
+        }
+        
         await _audioPlayer.play();
+        
         // Ensure metadata is properly broadcast to audio session after skip
         final currentItem = mediaItem.value;
         if (currentItem != null) {
@@ -551,6 +570,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           await Future.delayed(const Duration(milliseconds: 50));
           mediaItem.add(currentItem);
         }
+        
         // Pause if we should be paused
         if (_shouldBePaused) {
           await _audioPlayer.pause();
@@ -660,9 +680,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   Future<void> _handleSongCompletion() async {
     final repeatMode = playbackState.value.repeatMode;
+    
+    debugPrint("AudioHandler: Song completion detected - repeatMode: $repeatMode, backgroundMode: $_isBackgroundMode");
+    
+    // Ensure audio session is active before handling completion, especially for background playback
+    if (_isIOS && _audioSession != null) {
+      await _safeActivateSession();
+    }
+    
     if (repeatMode == AudioServiceRepeatMode.one) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-        if (_isIOS && _audioSession != null) await _safeActivateSession();
         await _prepareToPlay(_currentIndex);
         await _audioPlayer.play();
         
@@ -677,7 +704,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         }
       }
     } else {
+      // For queue looping (repeat all), ensure we maintain the audio session
+      debugPrint("AudioHandler: Handling queue looping completion");
       await skipToNext();
+      
+      // Use the specialized queue looping continuity handler
+      await customAction('ensureQueueLoopingContinuity', {});
+      debugPrint("AudioHandler: Queue looping completion handled");
     }
   }
 
@@ -755,6 +788,20 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       if (_isIOS && _audioSession != null) await _safeActivateSession();
     } else if (name == 'ensureBackgroundPlaybackContinuity') {
       if (_isIOS && _audioSession != null && _isBackgroundMode) await _safeActivateSession();
+    } else if (name == 'ensureQueueLoopingContinuity') {
+      // Special handling for queue looping in background mode
+      debugPrint("AudioHandler: Ensuring queue looping continuity - backgroundMode: $_isBackgroundMode");
+      if (_isIOS && _audioSession != null && _isBackgroundMode) {
+        await _safeActivateSession();
+        debugPrint("AudioHandler: Queue looping continuity - session activated");
+        // Add additional session activation after a short delay for better persistence
+        Future.delayed(const Duration(milliseconds: 200), () async {
+          if (_isIOS && _audioSession != null && _isBackgroundMode) {
+            await _safeActivateSession();
+            debugPrint("AudioHandler: Queue looping continuity - delayed session activation");
+          }
+        });
+      }
     } else if (name == 'seekToPosition') {
       final positionMillis = extras?['position'] as int?;
       if (positionMillis != null) {

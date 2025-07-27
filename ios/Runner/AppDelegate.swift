@@ -158,6 +158,18 @@ import AVFoundation
           print("Error in iOS background session maintenance: \(error)")
         }
       }
+      
+      // Add more frequent checks for queue looping continuity
+      for i in 1...6 {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i * 10)) {
+          do {
+            try audioSession.setActive(true)
+            print("iOS background session maintenance: \(i * 10) second check for queue looping")
+          } catch {
+            print("Error in iOS background session maintenance for queue looping: \(error)")
+          }
+        }
+      }
     } catch {
       print("Error configuring iOS audio session for background: \(error)")
     }
@@ -175,6 +187,20 @@ import AVFoundation
       print("iOS audio session reactivated for foreground")
     } catch {
       print("Error reactivating iOS audio session: \(error)")
+    }
+  }
+  
+  // Handle app about to be suspended (additional background audio session maintenance)
+  override func applicationWillResignActive(_ application: UIApplication) {
+    super.applicationWillResignActive(application)
+    
+    // Ensure audio session is maintained when app is about to be suspended
+    do {
+      let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+      try audioSession.setActive(true, options: [])
+      print("iOS audio session maintained for app suspension")
+    } catch {
+      print("Error maintaining iOS audio session for suspension: \(error)")
     }
   }
   
