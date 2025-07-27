@@ -10,6 +10,7 @@ import 'package:audio_session/audio_session.dart';
 import '../screens/download_queue_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'audio_effects_service.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -50,10 +51,12 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Duration? _lastKnownPosition; // Store last known position for online songs
   bool _shouldBePaused = false; // Track if user wanted pause
   set shouldBePaused(bool value) => _shouldBePaused = value;
+  final AudioEffectsService _audioEffectsService = AudioEffectsService();
 
   AudioPlayerHandler() {
     _initializeAudioSession();
     _notifyAudioHandlerAboutPlaybackEvents();
+    _initializeAudioEffects();
   }
 
   Future<void> _initializeAudioSession() async {
@@ -97,6 +100,11 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   void _handleBecomingNoisy() {
     if (_audioPlayer.playing) _audioPlayer.pause();
+  }
+
+  void _initializeAudioEffects() {
+    _audioEffectsService.setAudioPlayer(_audioPlayer);
+    _audioEffectsService.loadSettings();
   }
 
   Future<void> _prepareToPlay(int index) async {

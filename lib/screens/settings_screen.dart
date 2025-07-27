@@ -23,6 +23,8 @@ import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import 'delete_downloads_screen.dart'; // Import DeleteDownloadsScreen
 import '../screens/playlists_list_screen.dart' show robustArtwork;
+import 'audio_effects_screen.dart'; // Import AudioEffectsScreen
+import '../services/audio_effects_service.dart'; // Import AudioEffectsService
 
 
 class SettingsScreen extends StatefulWidget {
@@ -385,6 +387,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults(); 
+
+    // Reset Audio Effects settings
+    final audioEffectsService = AudioEffectsService();
+    audioEffectsService.resetToDefaults();
 
     if (mounted && context.mounted) { // Ensure mounted check before showing SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1080,6 +1086,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     },
                   ),
+                ListTile(
+                  leading: const Icon(Icons.graphic_eq),
+                  title: const Text('Audio Effects'),
+                  subtitle: const Text('Equalizer, bass boost, and reverb settings'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const AudioEffectsScreen(),
+                      ),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.timer),
                   title: const Text('Sleep Timer'),

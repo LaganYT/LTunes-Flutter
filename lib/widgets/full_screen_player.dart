@@ -18,6 +18,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // 
 import 'dart:math' as math; // Added for min/max in lyrics scroll
 import 'package:cached_network_image/cached_network_image.dart'; // Added for CachedNetworkImageProvider
 import 'playbar.dart'; // Import Playbar to access its state
+import '../screens/audio_effects_screen.dart'; // Import AudioEffectsScreen
+import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -381,6 +383,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   late CurrentSongProvider _currentSongProvider;
   late ApiService _apiService;
+  final SleepTimerService _sleepTimerService = SleepTimerService();
 
   Color _dominantColor = Colors.transparent;
 
@@ -498,6 +501,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
+    
+    // Initialize sleep timer service
+    if (!_sleepTimerService.isInitialized) {
+      _sleepTimerService.initialize(_currentSongProvider);
+    }
+    _sleepTimerService.setCallbacks(
+      onTimerUpdate: () {
+        if (mounted) setState(() {});
+      },
+      onTimerExpired: () {
+        if (mounted && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sleep timer expired. Playback stopped.')),
+          );
+        }
+      },
+    );
 
     if (_currentSongProvider.currentSong != null) {
       _localArtPathFuture = _resolveLocalArtPath(_currentSongProvider.currentSong!.albumArtUrl);
@@ -952,6 +972,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   void dispose() {
     WakelockPlus.disable(); // Allow sleep when player is closed
     _currentSongProvider.removeListener(_onSongChanged);
+    
+    // Clear sleep timer callbacks
+    _sleepTimerService.clearCallbacks();
 
     _textFadeController.dispose();
     _albumArtSlideController.dispose();
@@ -1198,7 +1221,75 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               )
             : null,
         centerTitle: true,
-        actions: [],
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More Options',
+            onSelected: (value) {
+              switch (value) {
+                case 'audio_effects':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AudioEffectsScreen(),
+                    ),
+                  );
+                  break;
+                case 'sleep_timer':
+                  _showSleepTimerDialog(context);
+                  break;
+                case 'cancel_sleep_timer':
+                  _sleepTimerService.cancelTimer();
+                  break;
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'audio_effects',
+                child: Row(
+                  children: [
+                    Icon(Icons.graphic_eq),
+                    SizedBox(width: 8),
+                    Text('Audio Effects'),
+                  ],
+                ),
+              ),
+              if (_sleepTimerService.sleepTimerEndTime == null)
+                const PopupMenuItem<String>(
+                  value: 'sleep_timer',
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer),
+                      SizedBox(width: 8),
+                      Text('Sleep Timer'),
+                    ],
+                  ),
+                )
+              else
+                PopupMenuItem<String>(
+                  value: 'cancel_sleep_timer',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_off),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Cancel Sleep Timer'),
+                            Text(
+                              'Ends at ${_sleepTimerService.getEndTimeString()}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
       body: GestureDetector( 
         onVerticalDragUpdate: (details) {
@@ -1752,6 +1843,80 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       onSeekEnd: _onSeekEnd,
       formatDuration: _formatDuration,
       textTheme: textTheme,
+    );
+  }
+
+  void _showSleepTimerDialog(BuildContext context) {
+    final List<int> presetMinutes = [15, 30, 60];
+    int? selectedMinutes = _sleepTimerService.sleepTimerMinutes;
+    final TextEditingController customController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Set Sleep Timer'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...presetMinutes.map((m) => RadioListTile<int>(
+                        title: Text('$m minutes'),
+                        value: m,
+                        groupValue: selectedMinutes,
+                        onChanged: (val) {
+                          setState(() {
+                            selectedMinutes = val;
+                            customController.clear();
+                          });
+                        },
+                      )),
+                  RadioListTile<int>(
+                    title: Row(
+                      children: [
+                        const Text('Custom: '),
+                        SizedBox(
+                          width: 60,
+                          child: TextField(
+                            controller: customController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(hintText: 'min'),
+                            onChanged: (val) {
+                              final parsed = int.tryParse(val);
+                              setState(() {
+                                selectedMinutes = parsed;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    value: selectedMinutes != null && !presetMinutes.contains(selectedMinutes!) ? selectedMinutes! : -1,
+                    groupValue: selectedMinutes != null && !presetMinutes.contains(selectedMinutes!) ? selectedMinutes! : -1,
+                    onChanged: (_) {},
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: (selectedMinutes != null && selectedMinutes! > 0)
+                      ? () {
+                          _sleepTimerService.startTimer(selectedMinutes!);
+                          Navigator.of(context).pop();
+                        }
+                      : null,
+                  child: const Text('Start'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
