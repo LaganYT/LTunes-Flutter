@@ -16,3 +16,12 @@
 
 ## Bug Fixes & Miscellaneous
 - the album icon on the playbar flickers when transitioning between parts of a screen (ex. albums list to a specific album or artist lists page to a specific artist's songs) i like the way everything is handled now but would like the flicker to stop
+- Disabling the radio tab doesn’t work
+- Clearing recently played radio stations doesn’t work
+- Validate audios button should also go through the shared preferences and find anything marked downloaded and either unmark downloaded or download all song files again
+- For full screen player make the image resize to fit if its too small
+- Try adding integration with apple search (swipe up from home screen search thingy)
+- Fix loop not working properly when the app is in the background
+- Fix radio station icons flashing as a song plays
+- Saved albums icons dont display offline
+- When i re-arrange a playlist it shouldn’t switch the context to that playlist
