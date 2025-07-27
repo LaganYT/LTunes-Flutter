@@ -651,10 +651,47 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         SnackBar(content: Text('${album.title} removed from library')),
       );
     } else {
-      await _albumManager.addSavedAlbum(album);
+      // Show loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${album.title} added to library')),
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Text('Loading album details...'),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+        ),
       );
+
+      try {
+        // Fetch full album details with tracks before saving
+        final fullAlbum = await _apiService.fetchAlbumDetailsById(album.id);
+        if (fullAlbum != null) {
+          await _albumManager.addSavedAlbum(fullAlbum);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${fullAlbum.title} added to library with ${fullAlbum.tracks.length} tracks')),
+          );
+        } else {
+          // Fallback to saving the basic album if full details couldn't be fetched
+          await _albumManager.addSavedAlbum(album);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${album.title} added to library (basic info only)')),
+          );
+        }
+      } catch (e) {
+        // Fallback to saving the basic album if there's an error
+        await _albumManager.addSavedAlbum(album);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${album.title} added to library (basic info only)')),
+        );
+        _errorHandler.logError(e, context: 'fetching album details for save');
+      }
     }
     
     setState(() {});
