@@ -367,6 +367,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   late AnimationController _albumArtSlideController;
   late Animation<Offset> _albumArtSlideAnimation;
+  
+  // New animation controllers for enhanced opening animation
+  late AnimationController _scaleController;
+  late AnimationController _slideController;
+  late AnimationController _backgroundController;
+  late AnimationController _rotationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _backgroundAnimation;
+  late Animation<double> _rotationAnimation;
 
   late CurrentSongProvider _currentSongProvider;
   late ApiService _apiService;
@@ -409,12 +419,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _apiService = ApiService();
 
     _textFadeController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _textFadeAnimation = CurvedAnimation(
       parent: _textFadeController,
-      curve: Curves.easeIn,
+      curve: Curves.easeOut,
     );
 
     _albumArtSlideController = AnimationController(
@@ -431,6 +441,60 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       curve: Curves.easeInOut,
     ));
 
+    // Initialize new animation controllers for enhanced opening animation
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 700),
+      vsync: this,
+    );
+
+    _backgroundController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _rotationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    // Enhanced opening animations
+    _scaleAnimation = Tween<double>(
+      begin: 0.85,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.easeOutBack,
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutQuart,
+    ));
+
+    _backgroundAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _backgroundController,
+      curve: Curves.easeOut,
+    ));
+
+    _rotationAnimation = Tween<double>(
+      begin: -0.05,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _rotationController,
+      curve: Curves.easeOutCubic,
+    ));
+
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
 
@@ -442,19 +506,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _resetLyricsState();
 
     if (_currentSongProvider.currentSong != null) {
-      // Initial appearance: art fades/slides in from right, text fades in
-      _albumArtSlideAnimation = Tween<Offset>(
-        begin: const Offset(0.3, 0.0), // Slight slide from right for initial
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: _albumArtSlideController,
-        curve: Curves.easeInOut,
-      ));
-      _albumArtSlideController.forward();
-      _textFadeController.forward();
-      // If lyrics view should be shown initially (e.g., persisted state, not covered here)
-      // and lyrics are not fetched, trigger loading.
-      // For now, lyrics are not shown by default on init.
+      // Enhanced initial appearance with staggered animations
+      _startOpeningAnimation();
     }
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -515,6 +568,62 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
   }
 
+  // Enhanced opening animation method
+  void _startOpeningAnimation() {
+    // Start background fade immediately
+    _backgroundController.forward();
+    
+    // Start scale, slide, and rotation animations with a slight delay
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _scaleController.forward();
+        _slideController.forward();
+        _rotationController.forward();
+      }
+    });
+    
+    // Stagger the text fade animation with longer delay for smoother feel
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _textFadeController.forward();
+      }
+    });
+  }
+
+  // Enhanced song change animation method
+  void _startSongChangeAnimation(double slideOffsetX) {
+    // Reset and start background animation immediately
+    _backgroundController.reset();
+    _backgroundController.forward();
+    
+    // Reset and start scale animation
+    _scaleController.reset();
+    _scaleController.forward();
+    
+    // Reset and start slide animation with horizontal direction
+    _slideController.reset();
+    _slideAnimation = Tween<Offset>(
+      begin: Offset(slideOffsetX, 0.0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutQuart,
+    ));
+    _slideController.forward();
+    
+    // Reset and start rotation animation
+    _rotationController.reset();
+    _rotationController.forward();
+    
+    // Reset and start text fade animation with longer delay for smoother feel
+    _textFadeController.reset();
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) {
+        _textFadeController.forward();
+      }
+    });
+  }
+
   // 2. Batch setState in _onSongChanged and other methods
   void _onSongChanged() async {
     if (!mounted) return;
@@ -537,16 +646,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         await _updateArtProvider(newSong);
       }
 
-      _albumArtSlideAnimation = Tween<Offset>(
-        begin: Offset(effectiveSlideOffsetX, 0.0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: _albumArtSlideController,
-        curve: Curves.easeInOut,
-      ));
-
-      _albumArtSlideController.forward(from: 0.0);
-      _textFadeController.forward(from: 0.0);
+      // Use enhanced animations for song changes
+      _startSongChangeAnimation(effectiveSlideOffsetX);
 
       if (mounted) _updatePalette(newSong);
       _resetLyricsState();
@@ -808,6 +909,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     _textFadeController.dispose();
     _albumArtSlideController.dispose();
+    _scaleController.dispose();
+    _slideController.dispose();
+    _backgroundController.dispose();
+    _rotationController.dispose();
     // Cancel palette debounce timer if active
     _paletteDebounce?.cancel();
     super.dispose();
@@ -1069,298 +1174,314 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         },
         // Setting behavior to opaque to ensure it participates in hit testing across its area
         // and doesn't let touches pass through to widgets below if it's layered.
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          decoration: BoxDecoration(
-            color: _dominantColor, 
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + kToolbarHeight),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // Album Art Section OR Lyrics Section
-                Expanded(
-                  flex: 5,
-                  child: _showLyrics
-                      ? (_lyricsLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : (_parsedLyrics.isNotEmpty
-                              ? _buildLyricsView(context)
-                              : Center(
-                                  child: Text(
-                                    _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
-                                    style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
-                                    textAlign: TextAlign.center,
-                                  ),
+                behavior: HitTestBehavior.opaque,
+        child: AnimatedBuilder(
+          animation: _backgroundController,
+          builder: (context, child) {
+            return Container(
+              decoration: BoxDecoration(
+                color: _dominantColor.withValues(alpha: _backgroundAnimation.value), 
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + kToolbarHeight),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    // Album Art Section OR Lyrics Section
+                    Expanded(
+                      flex: 5,
+                      child: _showLyrics
+                          ? (_lyricsLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : (_parsedLyrics.isNotEmpty
+                                  ? _buildLyricsView(context)
+                                  : Center(
+                                      child: Text(
+                                        _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
+                                        style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    )
                                 )
                             )
-                        )
-                      : GestureDetector( 
-                    onHorizontalDragEnd: (details) {
-                      if (details.primaryVelocity == null) return; // Should not happen
+                          : GestureDetector( 
+                        onHorizontalDragEnd: (details) {
+                          if (details.primaryVelocity == null) return; // Should not happen
 
-                      // Swipe Left (finger moves from right to left) -> Next Song
-                      if (details.primaryVelocity! < -200) { // Negative velocity for left swipe
-                        _slideOffsetX = 1.0; // New art slides in from right
-                        currentSongProvider.playNext();
-                      }
-                      // Swipe Right (finger moves from left to right) -> Previous Song
-                      else if (details.primaryVelocity! > 200) { // Positive velocity for right swipe
-                        _slideOffsetX = -1.0; // New art slides in from left
-                        currentSongProvider.playPrevious();
-                      }
-                    },
-                    // Ensure this GestureDetector also claims the gesture space over the album art.
-                    behavior: HitTestBehavior.opaque,
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: SlideTransition(
-                          position: _albumArtSlideAnimation,
-                          child: Hero(
-                            tag: 'current-song-art-$_artTransitionId',
-                            child: Material(
-                              elevation: 12.0,
-                              borderRadius: BorderRadius.circular(16.0),
-                              shadowColor: Colors.black.withValues(alpha: 0.5),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16.0),
-                                child: albumArtWidget,
+                          // Swipe Left (finger moves from right to left) -> Next Song
+                          if (details.primaryVelocity! < -200) { // Negative velocity for left swipe
+                            _slideOffsetX = 1.0; // New art slides in from right
+                            currentSongProvider.playNext();
+                          }
+                          // Swipe Right (finger moves from left to right) -> Previous Song
+                          else if (details.primaryVelocity! > 200) { // Positive velocity for right swipe
+                            _slideOffsetX = -1.0; // New art slides in from left
+                            currentSongProvider.playPrevious();
+                          }
+                        },
+                        // Ensure this GestureDetector also claims the gesture space over the album art.
+                        behavior: HitTestBehavior.opaque,
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                                                    child: AnimatedBuilder(
+                          animation: Listenable.merge([_scaleController, _slideController, _rotationController]),
+                          builder: (context, child) {
+                            return Transform.scale(
+                              scale: _scaleAnimation.value,
+                              child: Transform.rotate(
+                                angle: _rotationAnimation.value,
+                                child: SlideTransition(
+                                  position: _slideAnimation,
+                                  child: Hero(
+                                    tag: 'current-song-art-$_artTransitionId',
+                                    child: Material(
+                                      elevation: 12.0,
+                                      borderRadius: BorderRadius.circular(16.0),
+                                      shadowColor: Colors.black.withValues(alpha: 0.5),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16.0),
+                                        child: albumArtWidget,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                            );
+                          },
+                        ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
 
-                // Song Info Section
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      FadeTransition(
-                        opacity: _textFadeAnimation,
-                        child: Text(
-                          currentSong.title,
-                          key: ValueKey<String>('title_${currentSong.id}'),
-                          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      FadeTransition(
-                        opacity: _textFadeAnimation,
-                        child: Text(
-                          isRadio ? (currentSong.artist.isNotEmpty ? currentSong.artist : "Live Radio") : (currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist'),
-                          key: ValueKey<String>('artist_${currentSong.id}'),
-                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Action Icons Row (shown at bottom)
-                if (!isRadio)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // Download button
-                        if (currentSong.isDownloaded)
-                          IconButton(
-                            icon: const Icon(Icons.check_circle_outline_rounded),
-                            tooltip: 'Downloaded',
-                            onPressed: null, // Disabled as it's already downloaded
-                            iconSize: 26.0,
-                            color: colorScheme.secondary,
-                          )
-                        else
-                          IconButton(
-                            icon: const Icon(Icons.download_rounded),
-                            onPressed: () => _downloadCurrentSong(currentSong),
-                            tooltip: 'Download Song',
-                            iconSize: 26.0,
-                            color: colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                        // Add to Playlist
-                        IconButton(
-                          icon: const Icon(Icons.playlist_add_rounded),
-                          onPressed: () => _showAddToPlaylistDialog(context, currentSong),
-                          tooltip: 'Add to Playlist',
-                          iconSize: 26.0,
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                        // Like button
-                        IconButton(
-                          icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
-                          onPressed: _toggleLike,
-                          tooltip: _isLiked ? 'Unlike' : 'Like',
-                          iconSize: 26.0,
-                          color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                        // Lyrics toggle
-                        IconButton(
-                          icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
-                          onPressed: () {
-                            final song = _currentSongProvider.currentSong;
-                            if (song == null) return;
-                            bool newShowLyricsState = !_showLyrics;
-                            if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
-                              _loadAndProcessLyrics(song);
-                            }
-                            setState(() {
-                              _showLyrics = newShowLyricsState;
-                            });
-                          },
-                          iconSize: 26.0,
-                          tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                        // Queue
-                        IconButton(
-                          icon: const Icon(Icons.playlist_play_rounded),
-                          onPressed: () => _showQueueBottomSheet(context),
-                          tooltip: 'Show Queue',
-                          iconSize: 26.0,
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                        // Playback Speed (disabled on iOS)
-                        if (!Platform.isIOS)
-                          IconButton(
-                            icon: Icon(
-                              currentSongProvider.playbackSpeed == 1.0 
-                                  ? Icons.speed_rounded 
-                                  : Icons.speed_rounded,
-                              color: currentSongProvider.playbackSpeed != 1.0 
-                                  ? colorScheme.secondary 
-                                  : colorScheme.onSurface.withValues(alpha: 0.7),
+                    // Song Info Section
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          FadeTransition(
+                            opacity: _textFadeAnimation,
+                            child: Text(
+                              currentSong.title,
+                              key: ValueKey<String>('title_${currentSong.id}'),
+                              style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            onPressed: () => _showPlaybackSpeedDialog(context),
-                            tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
-                            iconSize: 26.0,
+                          ),
+                          const SizedBox(height: 8),
+                          FadeTransition(
+                            opacity: _textFadeAnimation,
+                            child: Text(
+                              isRadio ? (currentSong.artist.isNotEmpty ? currentSong.artist : "Live Radio") : (currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist'),
+                              key: ValueKey<String>('artist_${currentSong.id}'),
+                              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Action Icons Row (shown at bottom)
+                    if (!isRadio)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            // Download button
+                            if (currentSong.isDownloaded)
+                              IconButton(
+                                icon: const Icon(Icons.check_circle_outline_rounded),
+                                tooltip: 'Downloaded',
+                                onPressed: null, // Disabled as it's already downloaded
+                                iconSize: 26.0,
+                                color: colorScheme.secondary,
+                              )
+                            else
+                              IconButton(
+                                icon: const Icon(Icons.download_rounded),
+                                onPressed: () => _downloadCurrentSong(currentSong),
+                                tooltip: 'Download Song',
+                                iconSize: 26.0,
+                                color: colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                            // Add to Playlist
+                            IconButton(
+                              icon: const Icon(Icons.playlist_add_rounded),
+                              onPressed: () => _showAddToPlaylistDialog(context, currentSong),
+                              tooltip: 'Add to Playlist',
+                              iconSize: 26.0,
+                              color: colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            // Like button
+                            IconButton(
+                              icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+                              onPressed: _toggleLike,
+                              tooltip: _isLiked ? 'Unlike' : 'Like',
+                              iconSize: 26.0,
+                              color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            // Lyrics toggle
+                            IconButton(
+                              icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
+                              onPressed: () {
+                                final song = _currentSongProvider.currentSong;
+                                if (song == null) return;
+                                bool newShowLyricsState = !_showLyrics;
+                                if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
+                                  _loadAndProcessLyrics(song);
+                                }
+                                setState(() {
+                                  _showLyrics = newShowLyricsState;
+                                });
+                              },
+                              iconSize: 26.0,
+                              tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+                              color: colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            // Queue
+                            IconButton(
+                              icon: const Icon(Icons.playlist_play_rounded),
+                              onPressed: () => _showQueueBottomSheet(context),
+                              tooltip: 'Show Queue',
+                              iconSize: 26.0,
+                              color: colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            // Playback Speed (disabled on iOS)
+                            if (!Platform.isIOS)
+                              IconButton(
+                                icon: Icon(
+                                  currentSongProvider.playbackSpeed == 1.0 
+                                      ? Icons.speed_rounded 
+                                      : Icons.speed_rounded,
+                                  color: currentSongProvider.playbackSpeed != 1.0 
+                                      ? colorScheme.secondary 
+                                      : colorScheme.onSurface.withValues(alpha: 0.7),
+                                ),
+                                onPressed: () => _showPlaybackSpeedDialog(context),
+                                tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
+                                iconSize: 26.0,
+                              ),
+                          ],
+                        ),
+                      ),
+
+                    // Seek Bar Section
+                    _buildSeekBar(currentSongProvider, isRadio, textTheme),
+                    const SizedBox(height: 16),
+
+                    // Controls Section
+                    Row(
+                      mainAxisAlignment: isRadio
+                          ? MainAxisAlignment.center
+                          : MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (!isRadio)
+                          Consumer<CurrentSongProvider>(
+                            builder: (context, provider, _) => IconButton(
+                              icon: Icon(
+                                provider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
+                                color: provider.isShuffling ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                              iconSize: 26,
+                              onPressed: () => provider.toggleShuffle(),
+                              tooltip: provider.isShuffling ? 'Shuffle On' : 'Shuffle Off',
+                            ),
+                          ),
+                        if (!isRadio)
+                          IconButton(
+                           icon: const Icon(Icons.skip_previous_rounded),
+                           iconSize: 42,
+                           color: colorScheme.onSurface,
+                           onPressed: () {
+                             _slideOffsetX = -1.0;
+                             currentSongProvider.playPrevious();
+                           },
+                           tooltip: 'Previous Song',
+                         ),
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: colorScheme.secondary,
+                            boxShadow: [
+                              BoxShadow(
+                                color: colorScheme.secondary.withValues(alpha: 0.4),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              )
+                            ]
+                          ),
+                          child: Consumer<CurrentSongProvider>(
+                            builder: (context, provider, _) {
+                              final isLoading = provider.isLoadingAudio;
+                              final isPlaying = provider.isPlaying;
+                              return IconButton(
+                                icon: isLoading
+                                    ? SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
+                                    : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                                iconSize: 48,
+                                color: colorScheme.onSecondary,
+                                onPressed: isLoading ? null : () {
+                                  if (isPlaying) {
+                                    provider.pauseSong();
+                                  } else {
+                                    provider.resumeSong();
+                                  }
+                                },
+                                tooltip: isPlaying ? 'Pause' : 'Play',
+                              );
+                            },
+                          ),
+                        ),
+                        if (!isRadio)
+                          IconButton(
+                           icon: const Icon(Icons.skip_next_rounded),
+                           iconSize: 42,
+                           color: colorScheme.onSurface,
+                           onPressed: () {
+                             _slideOffsetX = 1.0;
+                             currentSongProvider.playNext();
+                           },
+                           tooltip: 'Next Song',
+                         ),
+                        if (!isRadio)
+                          Consumer<CurrentSongProvider>(
+                            builder: (context, provider, _) => IconButton(
+                              icon: Icon(
+                                provider.loopMode == LoopMode.none
+                                    ? Icons.repeat_rounded
+                                    : provider.loopMode == LoopMode.queue
+                                        ? Icons.repeat_on_rounded
+                                        : Icons.repeat_one_on_rounded,
+                                color: provider.loopMode != LoopMode.none
+                                    ? colorScheme.secondary
+                                    : colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                              iconSize: 26,
+                              onPressed: () => provider.toggleLoop(),
+                              tooltip: provider.loopMode == LoopMode.none
+                                  ? 'Repeat Off'
+                                  : provider.loopMode == LoopMode.queue
+                                      ? 'Repeat Queue'
+                                      : 'Repeat Song',
+                            ),
                           ),
                       ],
                     ),
-                  ),
-
-                // Seek Bar Section
-                _buildSeekBar(currentSongProvider, isRadio, textTheme),
-                const SizedBox(height: 16),
-
-                // Controls Section
-                Row(
-                  mainAxisAlignment: isRadio
-                      ? MainAxisAlignment.center
-                      : MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (!isRadio)
-                      Consumer<CurrentSongProvider>(
-                        builder: (context, provider, _) => IconButton(
-                          icon: Icon(
-                            provider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
-                            color: provider.isShuffling ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                          iconSize: 26,
-                          onPressed: () => provider.toggleShuffle(),
-                          tooltip: provider.isShuffling ? 'Shuffle On' : 'Shuffle Off',
-                        ),
-                      ),
-                    if (!isRadio)
-                      IconButton(
-                       icon: const Icon(Icons.skip_previous_rounded),
-                       iconSize: 42,
-                       color: colorScheme.onSurface,
-                       onPressed: () {
-                        _slideOffsetX = -1.0;
-                        currentSongProvider.playPrevious();
-                       },
-                       tooltip: 'Previous Song',
-                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colorScheme.secondary,
-                        boxShadow: [
-                          BoxShadow(
-                            color: colorScheme.secondary.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            spreadRadius: 2,
-                          )
-                        ]
-                      ),
-                      child: Consumer<CurrentSongProvider>(
-                        builder: (context, provider, _) {
-                          final isLoading = provider.isLoadingAudio;
-                          final isPlaying = provider.isPlaying;
-                          return IconButton(
-                            icon: isLoading
-                                ? SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
-                                : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                            iconSize: 48,
-                            color: colorScheme.onSecondary,
-                            onPressed: isLoading ? null : () {
-                              if (isPlaying) {
-                                provider.pauseSong();
-                              } else {
-                                provider.resumeSong();
-                              }
-                            },
-                            tooltip: isPlaying ? 'Pause' : 'Play',
-                          );
-                        },
-                      ),
-                    ),
-                    if (!isRadio)
-                      IconButton(
-                       icon: const Icon(Icons.skip_next_rounded),
-                       iconSize: 42,
-                       color: colorScheme.onSurface,
-                       onPressed: () {
-                         _slideOffsetX = 1.0;
-                         currentSongProvider.playNext();
-                       },
-                       tooltip: 'Next Song',
-                     ),
-                    if (!isRadio)
-                      Consumer<CurrentSongProvider>(
-                        builder: (context, provider, _) => IconButton(
-                          icon: Icon(
-                            provider.loopMode == LoopMode.none
-                                ? Icons.repeat_rounded
-                                : provider.loopMode == LoopMode.queue
-                                    ? Icons.repeat_on_rounded
-                                    : Icons.repeat_one_on_rounded,
-                            color: provider.loopMode != LoopMode.none
-                                ? colorScheme.secondary
-                                : colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                          iconSize: 26,
-                          onPressed: () => provider.toggleLoop(),
-                          tooltip: provider.loopMode == LoopMode.none
-                              ? 'Repeat Off'
-                              : provider.loopMode == LoopMode.queue
-                                  ? 'Repeat Queue'
-                                  : 'Repeat Song',
-                        ),
-                      ),
+                    SizedBox(height: MediaQuery.of(context).padding.bottom + 16), // For bottom padding
                   ],
                 ),
-                SizedBox(height: MediaQuery.of(context).padding.bottom + 16), // For bottom padding
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
