@@ -1600,7 +1600,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         child: Image(
           key: ValueKey('art_${playbarArtId}_$_artTransitionId'),
           image: playbarArtProvider,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
         ),
       );
@@ -1613,7 +1613,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         ? Image(
             key: ValueKey('art_${_currentArtId}_$_artTransitionId'),
             image: _currentArtProvider!,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
           )
         : _placeholderArt(context, isRadio),
