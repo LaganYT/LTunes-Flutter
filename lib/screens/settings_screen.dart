@@ -1276,15 +1276,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ListTile(
                   leading: Icon(Icons.refresh_outlined, color: Theme.of(context).colorScheme.primary),
-                  title: const Text('Validate & Redownload Corrupted Files'),
-                  subtitle: const Text('Check all downloaded songs and redownload corrupted ones'),
+                  title: const Text('Validate & Fix Downloaded Files'),
+                  subtitle: const Text('Check all downloaded songs, redownload corrupted ones, and unmark missing files'),
                   onTap: () async {
                     bool? confirmValidate = await showDialog<bool>(
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
                           title: const Text('Validate Downloads?'),
-                          content: const Text('This will check all downloaded songs for corruption and automatically redownload any corrupted files. This may take some time.'),
+                          content: const Text('This will check all downloaded songs for corruption and missing files. Corrupted files will be redownloaded, and missing files will be unmarked as downloaded. This may take some time.'),
                           actions: <Widget>[
                             TextButton(
                               child: const Text('Cancel'),
@@ -1321,17 +1321,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                       
                       try {
-                        final corruptedSongs = await _currentSongProvider!.validateAllDownloadedSongs();
+                        final validationResult = await _currentSongProvider!.validateAllDownloadedSongs();
                         Navigator.of(context).pop(); // Close loading dialog
                         
                         if (mounted) {
+                          String message;
+                          if (validationResult.totalIssues == 0) {
+                            message = 'All downloads validated successfully!';
+                          } else {
+                            final parts = <String>[];
+                            if (validationResult.corruptedSongs.isNotEmpty) {
+                              parts.add('${validationResult.corruptedSongs.length} corrupted files');
+                            }
+                            if (validationResult.unmarkedSongs.isNotEmpty) {
+                              parts.add('${validationResult.unmarkedSongs.length} missing files unmarked');
+                            }
+                            message = 'Found ${parts.join(' and ')}. ${validationResult.corruptedSongs.isNotEmpty ? 'Redownloading...' : ''}';
+                          }
+                          
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(
-                                corruptedSongs.isEmpty 
-                                  ? 'All downloads validated successfully!' 
-                                  : 'Found ${corruptedSongs.length} corrupted files. Redownloading...'
-                              ),
+                              content: Text(message),
+                              duration: const Duration(seconds: 4),
                             ),
                           );
                         }

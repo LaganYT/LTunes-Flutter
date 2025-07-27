@@ -20,6 +20,16 @@ import '../services/download_notification_service.dart';
 // Define LoopMode enum
 enum LoopMode { none, queue, song }
 
+/// Validation result containing information about corrupted and unmarked songs
+class ValidationResult {
+  final List<Song> corruptedSongs;
+  final List<Song> unmarkedSongs;
+  
+  ValidationResult({required this.corruptedSongs, required this.unmarkedSongs});
+  
+  int get totalIssues => corruptedSongs.length + unmarkedSongs.length;
+}
+
 class CurrentSongProvider with ChangeNotifier {
   // final AudioPlayer _audioPlayer = AudioPlayer(); // Removed
   final AudioHandler _audioHandler;
@@ -1829,6 +1839,7 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   /// Check if a downloaded song file is corrupted and redownload if necessary
+  /// Returns true if the file needs redownload (corrupted), false if valid
   Future<bool> validateAndRedownloadIfNeeded(Song song) async {
     if (!song.isDownloaded || song.localFilePath == null || song.localFilePath!.isEmpty) {
       return false;
@@ -1841,9 +1852,10 @@ class CurrentSongProvider with ChangeNotifier {
       final file = File(filePath);
       
       if (!await file.exists()) {
-        debugPrint('File missing for downloaded song ${song.title}, triggering redownload');
-        await redownloadSong(song);
-        return true;
+        // File is missing - this should be handled by the caller
+        // For this method, we only check if the file is corrupted, not missing
+        debugPrint('File missing for downloaded song ${song.title}, but validateAndRedownloadIfNeeded only handles corruption');
+        return false;
       }
       
       // Check if file is corrupted (empty or too small)
@@ -1864,9 +1876,10 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   /// Validate all downloaded songs and redownload corrupted ones
-  Future<List<Song>> validateAllDownloadedSongs() async {
+  Future<ValidationResult> validateAllDownloadedSongs() async {
     debugPrint('CurrentSongProvider: Starting validation of all downloaded songs');
     final List<Song> corruptedSongs = [];
+    final List<Song> unmarkedSongs = [];
     
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1881,9 +1894,30 @@ class CurrentSongProvider with ChangeNotifier {
               Song song = Song.fromJson(songMap);
               
               if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-                final needsRedownload = await validateAndRedownloadIfNeeded(song);
-                if (needsRedownload) {
-                  corruptedSongs.add(song);
+                final appDocDir = await getApplicationDocumentsDirectory();
+                final String downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
+                final filePath = p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+                final file = File(filePath);
+                
+                if (!await file.exists()) {
+                  // File is missing - unmark as downloaded
+                  debugPrint('File missing for downloaded song ${song.title}, unmarking as downloaded');
+                  final updatedSong = song.copyWith(
+                    isDownloaded: false,
+                    localFilePath: null,
+                    isDownloading: false,
+                    downloadProgress: 0.0,
+                  );
+                  await _persistSongMetadata(updatedSong);
+                  updateSongDetails(updatedSong);
+                  PlaylistManagerService().updateSongInPlaylists(updatedSong);
+                  unmarkedSongs.add(song);
+                } else {
+                  // File exists, check if corrupted
+                  final needsRedownload = await validateAndRedownloadIfNeeded(song);
+                  if (needsRedownload) {
+                    corruptedSongs.add(song);
+                  }
                 }
               }
             } catch (e) {
@@ -1893,12 +1927,12 @@ class CurrentSongProvider with ChangeNotifier {
         }
       }
       
-      debugPrint('CurrentSongProvider: Validation complete. Found ${corruptedSongs.length} corrupted songs');
-      return corruptedSongs;
+      debugPrint('CurrentSongProvider: Validation complete. Found ${corruptedSongs.length} corrupted songs and unmarked ${unmarkedSongs.length} missing files');
+      return ValidationResult(corruptedSongs: corruptedSongs, unmarkedSongs: unmarkedSongs);
     } catch (e) {
       debugPrint('CurrentSongProvider: Error during bulk validation: $e');
       _errorHandler.logError(e, context: 'validateAllDownloadedSongs');
-      return corruptedSongs;
+      return ValidationResult(corruptedSongs: corruptedSongs, unmarkedSongs: unmarkedSongs);
     }
   }
 
