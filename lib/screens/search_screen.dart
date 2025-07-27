@@ -47,7 +47,7 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late TabController _tabController;
@@ -68,11 +68,17 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   Timer? _searchDebounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 500);
   
+  // Setting change listener
+  Timer? _settingChangeTimer;
+  
   // Performance: Cache for song download status
   final Map<String, Song> _songDownloadStatusCache = {};
   
   // Liked songs tracking
   Set<String> _likedSongIds = {};
+  
+  // Radio tab visibility
+  bool _showRadioTab = true;
 
   @override
   bool get wantKeepAlive => true;
@@ -80,10 +86,65 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
+    // Initialize tab controller immediately with default value
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
+    
+    _loadRadioTabSetting();
     _albumManager.addListener(_onAlbumManagerStateChanged);
     _loadLikedSongIds();
     _loadInitialContent();
+    
+    // Listen for setting changes
+    _listenForSettingChanges();
+  }
+
+  Future<void> _loadRadioTabSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final showRadioTab = prefs.getBool('showRadioTab') ?? true;
+    
+    if (showRadioTab != _showRadioTab) {
+      setState(() {
+        _showRadioTab = showRadioTab;
+        // Update tab controller with correct length based on setting
+        _tabController.dispose();
+        _tabController = TabController(
+          length: _showRadioTab ? 2 : 1, 
+          vsync: this, 
+          initialIndex: 0
+        );
+      });
+    } else {
+      // Just update the state without recreating the controller
+      setState(() {
+        _showRadioTab = showRadioTab;
+      });
+    }
+  }
+
+  void _listenForSettingChanges() {
+    // Check for setting changes periodically
+    _settingChangeTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      final showRadioTab = prefs.getBool('showRadioTab') ?? true;
+      
+      if (showRadioTab != _showRadioTab) {
+        setState(() {
+          _showRadioTab = showRadioTab;
+          // Dispose old controller and create new one with correct length
+          _tabController.dispose();
+          _tabController = TabController(
+            length: _showRadioTab ? 2 : 1, 
+            vsync: this, 
+            initialIndex: 0
+          );
+        });
+      }
+    });
   }
 
   void _onAlbumManagerStateChanged() {
@@ -95,7 +156,12 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
   @override
   void dispose() {
     _searchDebounceTimer?.cancel();
-    _tabController.dispose();
+    _settingChangeTimer?.cancel();
+    try {
+      _tabController.dispose();
+    } catch (e) {
+      // Controller might already be disposed, ignore
+    }
     _searchController.dispose();
     _albumManager.removeListener(_onAlbumManagerStateChanged);
     super.dispose();
@@ -944,6 +1010,7 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
       ),
       body: Column(
         children: [
+          if (_showRadioTab)
             TabBar(
               controller: _tabController,
               tabs: const [
@@ -952,13 +1019,15 @@ class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderSt
               ],
             ),
           Expanded(
-            child: TabBarView(
+            child: _showRadioTab
+                ? TabBarView(
                     controller: _tabController,
                     children: [
-                _buildMusicTab(),
-                _buildStationsTab(),
-              ],
-                  ),
+                      _buildMusicTab(),
+                      _buildStationsTab(),
+                    ],
+                  )
+                : _buildMusicTab(),
           ),
         ],
       ),
