@@ -17,6 +17,7 @@ import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
 import 'dart:math' as math; // Added for min/max in lyrics scroll
 import 'package:cached_network_image/cached_network_image.dart'; // Added for CachedNetworkImageProvider
+import 'playbar.dart'; // Import Playbar to access its state
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -521,13 +522,37 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     
     final song = _currentSongProvider.currentSong;
     if (song != null) {
-      _updateArtProvider(song);
+      // Try to use playbar's artwork immediately if available
+      final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
+      final playbarArtId = PlaybarState.getCurrentArtworkId();
+      
+      if (playbarArtProvider != null && playbarArtId == song.id && !PlaybarState.isArtworkLoading()) {
+        _currentArtProvider = playbarArtProvider;
+        _currentArtId = song.id;
+        _artLoading = false;
+      } else {
+        _updateArtProvider(song);
+      }
     }
 
   }
 
   Future<void> _updateArtProvider(Song song) async {
     if (mounted) setState(() { _artLoading = true; });
+    
+    // Try to get the artwork from the playbar first
+    final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
+    final playbarArtId = PlaybarState.getCurrentArtworkId();
+    
+    // If the playbar has the same artwork loaded, use it
+    if (playbarArtProvider != null && playbarArtId == song.id) {
+      _currentArtProvider = playbarArtProvider;
+      _currentArtId = song.id;
+      if (mounted) setState(() { _artLoading = false; });
+      return;
+    }
+    
+    // Otherwise, load the artwork as before
     if (song.albumArtUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
     } else {
@@ -550,7 +575,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _currentSongProvider.addListener(_onSongChanged);
     final song = _currentSongProvider.currentSong;
     if (song != null) {
-      _updateArtProvider(song);
+      // Try to use playbar's artwork immediately if available
+      final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
+      final playbarArtId = PlaybarState.getCurrentArtworkId();
+      
+      if (playbarArtProvider != null && playbarArtId == song.id && !PlaybarState.isArtworkLoading()) {
+        _currentArtProvider = playbarArtProvider;
+        _currentArtId = song.id;
+        _artLoading = false;
+      } else {
+        _updateArtProvider(song);
+      }
     }
   }
 
@@ -642,8 +677,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
       if (newSong != null) {
         _localArtPathFuture = _resolveLocalArtPath(newSong.albumArtUrl);
-        // Preload the new art provider and only then animate
-        await _updateArtProvider(newSong);
+        
+        // Try to use playbar's artwork immediately if available
+        final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
+        final playbarArtId = PlaybarState.getCurrentArtworkId();
+        
+        if (playbarArtProvider != null && playbarArtId == newSong.id && !PlaybarState.isArtworkLoading()) {
+          _currentArtProvider = playbarArtProvider;
+          _currentArtId = newSong.id;
+          _artLoading = false;
+        } else {
+          // Preload the new art provider and only then animate
+          await _updateArtProvider(newSong);
+        }
       }
 
       // Use enhanced animations for song changes
@@ -1543,6 +1589,24 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   Widget _buildAlbumArtWidget(Song currentSong, bool isRadio) {
+    // Check if we can get artwork from playbar immediately
+    final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
+    final playbarArtId = PlaybarState.getCurrentArtworkId();
+    
+    // If playbar has the same artwork and it's not loading, use it immediately
+    if (playbarArtProvider != null && playbarArtId == currentSong.id && !PlaybarState.isArtworkLoading()) {
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: Image(
+          key: ValueKey('art_${playbarArtId}_$_artTransitionId'),
+          image: playbarArtProvider,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+        ),
+      );
+    }
+    
+    // Otherwise, use the local artwork provider
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: _currentArtProvider != null

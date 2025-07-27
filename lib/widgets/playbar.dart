@@ -43,9 +43,28 @@ class PlaybarState extends State<Playbar> {
   final Map<String, Future<String>> _localArtFutureCache = {}; // <-- Add this line
   final Map<String, ImageProvider> _artProviderCache = {}; // <-- Add this line
 
+  // Static reference to the current playbar instance
+  static PlaybarState? _currentInstance;
+
+  // Static method to get the current artwork provider
+  static ImageProvider? getCurrentArtworkProvider() {
+    return _currentInstance?._currentArtProvider;
+  }
+
+  // Static method to get the current artwork ID
+  static String? getCurrentArtworkId() {
+    return _currentInstance?._currentArtId;
+  }
+
+  // Static method to check if artwork is loading
+  static bool isArtworkLoading() {
+    return _currentInstance?._artLoading ?? false;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _currentInstance = this; // Set the static instance reference
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     
     // Initialize current song and listener
@@ -75,6 +94,9 @@ class PlaybarState extends State<Playbar> {
   void dispose() {
     _updateTimer?.cancel();
     _currentSongProvider?.removeListener(_onSongChanged);
+    if (_currentInstance == this) {
+      _currentInstance = null; // Clear the static reference if it's this instance
+    }
     super.dispose();
   }
 
