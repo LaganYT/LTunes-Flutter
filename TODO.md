@@ -16,7 +16,6 @@
 
 ## Bug Fixes & Miscellaneous
 - the album icon on the playbar flickers when transitioning between parts of a screen (ex. albums list to a specific album or artist lists page to a specific artist's songs) i like the way everything is handled now but would like the flicker to stop
-- Try adding integration with apple search (swipe up from home screen search thingy)
 - Fix loop not working properly when the app is in the background
 - Fix radio station icons flashing as a song plays
 - Saved albums icons dont display offline
