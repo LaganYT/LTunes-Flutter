@@ -1379,7 +1379,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     if (confirmed == true) {
                       final prefs = await SharedPreferences.getInstance();
-                      await prefs.remove('recentStations');
+                      await prefs.remove('recent_radio_stations');
+                      // Notify the radio recents manager to update its state
+                      radioRecentsManager.clearRecentStations();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Recently played stations cleared.')),
