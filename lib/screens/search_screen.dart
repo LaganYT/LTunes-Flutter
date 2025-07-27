@@ -18,6 +18,10 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import '../models/playlist.dart';
+import '../services/loading_service.dart';
 
 // Enum for content types
 enum ContentType {
@@ -38,6 +42,198 @@ class SearchResultItem {
     required this.data,
     required this.relevanceScore,
   });
+}
+
+// Cache for station icons to prevent flashing
+final Map<String, String> _stationIconCache = {};
+final Map<String, Future<String>> _stationIconFutures = {};
+
+Future<String> cacheStationIcon(String imageUrl, String stationId) async {
+  if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
+  
+  // Check if we already have a cached result
+  if (_stationIconCache.containsKey(stationId)) {
+    return _stationIconCache[stationId]!;
+  }
+  
+  // Check if we already have a future for this station
+  if (_stationIconFutures.containsKey(stationId)) {
+    final result = await _stationIconFutures[stationId]!;
+    return result;
+  }
+  
+  // Create a new future for this station
+  final future = _cacheStationIconInternal(imageUrl, stationId);
+  _stationIconFutures[stationId] = future;
+  
+  try {
+    final result = await future;
+    _stationIconCache[stationId] = result;
+    _stationIconFutures.remove(stationId);
+    return result;
+  } catch (e) {
+    _stationIconFutures.remove(stationId);
+    rethrow;
+  }
+}
+
+Future<String> _cacheStationIconInternal(String imageUrl, String stationId) async {
+  try {
+    final directory = await getApplicationDocumentsDirectory();
+    final fileName = 'stationicon_$stationId.jpg';
+    final filePath = p.join(directory.path, fileName);
+    final file = File(filePath);
+    if (await file.exists()) {
+      return filePath;
+    }
+    // Download the image
+    final response = await HttpClient().getUrl(Uri.parse(imageUrl));
+    final imageResponse = await response.close();
+    if (imageResponse.statusCode == 200) {
+      final bytes = await consolidateHttpClientResponseBytes(imageResponse);
+      await file.writeAsBytes(bytes);
+      return filePath;
+    }
+  } catch (e) {
+    debugPrint('Error caching station icon: $e');
+  }
+  return '';
+}
+
+// Widget for displaying radio station icons without flashing
+class RadioStationIcon extends StatefulWidget {
+  final String imageUrl;
+  final String stationId;
+  final double size;
+  final BorderRadius? borderRadius;
+
+  const RadioStationIcon({
+    super.key,
+    required this.imageUrl,
+    required this.stationId,
+    required this.size,
+    this.borderRadius,
+  });
+
+  @override
+  State<RadioStationIcon> createState() => _RadioStationIconState();
+}
+
+class _RadioStationIconState extends State<RadioStationIcon> {
+  String? _cachedPath;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIcon();
+  }
+
+  @override
+  void didUpdateWidget(RadioStationIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl || oldWidget.stationId != widget.stationId) {
+      _loadIcon();
+    }
+  }
+
+  Future<void> _loadIcon() async {
+    if (widget.imageUrl.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
+    try {
+      final cachedPath = await cacheStationIcon(widget.imageUrl, widget.stationId);
+      if (mounted) {
+        setState(() {
+          _cachedPath = cachedPath;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.radio,
+          size: widget.size * 0.6,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+      );
+    }
+
+    if (_hasError || _cachedPath == null || _cachedPath!.isEmpty) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.radio,
+          size: widget.size * 0.6,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+      );
+    }
+
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+        child: Image.file(
+          File(_cachedPath!),
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.radio,
+              size: widget.size * 0.6,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class SearchScreen extends StatefulWidget {
@@ -840,19 +1036,11 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: stationFavicon != null && stationFavicon.isNotEmpty
-                ? CachedNetworkImage(
+                ? RadioStationIcon(
                     imageUrl: stationFavicon,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 112,
-                    memCacheHeight: 112,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.radio),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.radio),
-                    ),
+                    stationId: stationName.hashCode.toString(),
+                    size: 56,
+                    borderRadius: BorderRadius.circular(8),
                   )
                 : Container(
                     color: Colors.grey[300],

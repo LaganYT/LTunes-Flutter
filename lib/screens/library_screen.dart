@@ -30,8 +30,40 @@ import 'package:flutter/foundation.dart'; // For consolidateHttpClientResponseBy
 import '../widgets/unified_search_widget.dart';
 
 // Place this at the top level, outside any class
+// Cache for station icons to prevent flashing
+final Map<String, String> _stationIconCache = {};
+final Map<String, Future<String>> _stationIconFutures = {};
+
 Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
+  
+  // Check if we already have a cached result
+  if (_stationIconCache.containsKey(stationId)) {
+    return _stationIconCache[stationId]!;
+  }
+  
+  // Check if we already have a future for this station
+  if (_stationIconFutures.containsKey(stationId)) {
+    final result = await _stationIconFutures[stationId]!;
+    return result;
+  }
+  
+  // Create a new future for this station
+  final future = _cacheStationIconInternal(imageUrl, stationId);
+  _stationIconFutures[stationId] = future;
+  
+  try {
+    final result = await future;
+    _stationIconCache[stationId] = result;
+    _stationIconFutures.remove(stationId);
+    return result;
+  } catch (e) {
+    _stationIconFutures.remove(stationId);
+    rethrow;
+  }
+}
+
+Future<String> _cacheStationIconInternal(String imageUrl, String stationId) async {
   try {
     final directory = await getApplicationDocumentsDirectory();
     final fileName = 'stationicon_$stationId.jpg';
@@ -940,15 +972,12 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
-          child: station.imageUrl.isNotEmpty
-              ? Image.network(
-                  station.imageUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.radio, size: 56),
-                )
-              : const Icon(Icons.radio, size: 56),
+          child: RadioStationIcon(
+            imageUrl: station.imageUrl,
+            stationId: station.id,
+            size: 56,
+            borderRadius: BorderRadius.circular(8.0),
+          ),
         ),
         title: Text(
           station.name,
@@ -2493,57 +2522,12 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                   final station = recentStations[i];
                   const double itemArtSize = 140.0;
 
-                  Widget stationArtWidget;
-                  if (station.imageUrl.isNotEmpty) {
-                    stationArtWidget = FutureBuilder<String>(
-                      future: cacheStationIcon(station.imageUrl, station.id),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
-                          return Image.file(
-                            File(snapshot.data!),
-                            width: itemArtSize,
-                            height: itemArtSize,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: itemArtSize,
-                              height: itemArtSize,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[800],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                            ),
-                          );
-                        } else {
-                          return Image.network(
-                            station.imageUrl,
-                            width: itemArtSize,
-                            height: itemArtSize,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: itemArtSize,
-                              height: itemArtSize,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[800],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  } else {
-                    stationArtWidget = Container(
-                      width: itemArtSize,
-                      height: itemArtSize,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[800],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.radio, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                    );
-                  }
+                  Widget stationArtWidget = RadioStationIcon(
+                    imageUrl: station.imageUrl,
+                    stationId: station.id,
+                    size: itemArtSize,
+                    borderRadius: BorderRadius.circular(8),
+                  );
 
                   return GestureDetector(
                     onTap: () {
@@ -2594,6 +2578,142 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             const SizedBox(height: 24),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// Widget for displaying radio station icons without flashing
+class RadioStationIcon extends StatefulWidget {
+  final String imageUrl;
+  final String stationId;
+  final double size;
+  final BorderRadius? borderRadius;
+
+  const RadioStationIcon({
+    super.key,
+    required this.imageUrl,
+    required this.stationId,
+    required this.size,
+    this.borderRadius,
+  });
+
+  @override
+  State<RadioStationIcon> createState() => _RadioStationIconState();
+}
+
+class _RadioStationIconState extends State<RadioStationIcon> {
+  String? _cachedPath;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIcon();
+  }
+
+  @override
+  void didUpdateWidget(RadioStationIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl || oldWidget.stationId != widget.stationId) {
+      _loadIcon();
+    }
+  }
+
+  Future<void> _loadIcon() async {
+    if (widget.imageUrl.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
+    try {
+      final cachedPath = await cacheStationIcon(widget.imageUrl, widget.stationId);
+      if (mounted) {
+        setState(() {
+          _cachedPath = cachedPath;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.radio,
+          size: widget.size * 0.6,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+      );
+    }
+
+    if (_hasError || _cachedPath == null || _cachedPath!.isEmpty) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.radio,
+          size: widget.size * 0.6,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+      );
+    }
+
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+        child: Image.file(
+          File(_cachedPath!),
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.radio,
+              size: widget.size * 0.6,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
       ),
     );
   }
