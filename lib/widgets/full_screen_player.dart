@@ -20,6 +20,8 @@ import 'package:cached_network_image/cached_network_image.dart'; // Added for Ca
 import 'playbar.dart'; // Import Playbar to access its state
 import '../screens/audio_effects_screen.dart'; // Import AudioEffectsScreen
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
+import '../screens/album_screen.dart'; // Import AlbumScreen
+import '../screens/artist_screen.dart'; // Import ArtistScreen
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -1227,6 +1229,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             tooltip: 'More Options',
             onSelected: (value) {
               switch (value) {
+                case 'view_album':
+                  if (currentSong.album?.isNotEmpty == true) {
+                    _viewAlbum(context, currentSong);
+                  }
+                  break;
+                case 'view_artist':
+                  if (currentSong.artist.isNotEmpty) {
+                    _viewArtist(context, currentSong);
+                  }
+                  break;
                 case 'audio_effects':
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -1243,6 +1255,28 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               }
             },
             itemBuilder: (BuildContext context) => [
+              if (currentSong.album?.isNotEmpty == true)
+                const PopupMenuItem<String>(
+                  value: 'view_album',
+                  child: Row(
+                    children: [
+                      Icon(Icons.album),
+                      SizedBox(width: 8),
+                      Text('View Album'),
+                    ],
+                  ),
+                ),
+              if (currentSong.artist.isNotEmpty)
+                const PopupMenuItem<String>(
+                  value: 'view_artist',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person),
+                      SizedBox(width: 8),
+                      Text('View Artist'),
+                    ],
+                  ),
+                ),
               const PopupMenuItem<String>(
                 value: 'audio_effects',
                 child: Row(
@@ -1844,6 +1878,87 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       formatDuration: _formatDuration,
       textTheme: textTheme,
     );
+  }
+
+  Future<void> _viewAlbum(BuildContext context, Song song) async {
+    if (song.album == null || song.album!.isEmpty || song.artist.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Album information is not available for this song.')),
+      );
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+
+    try {
+      final albumDetails = await _apiService.getAlbum(song.album!, song.artist);
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Remove loading dialog
+        if (albumDetails != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AlbumScreen(album: albumDetails),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not find details for album: "${song.album}".')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Remove loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error fetching album details: $e')),
+        );
+      }
+      debugPrint('Error fetching album details: $e');
+    }
+  }
+
+  Future<void> _viewArtist(BuildContext context, Song song) async {
+    if (song.artist.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Artist information is not available for this song.')),
+      );
+      return;
+    }
+
+    try {
+      // Use artistId if available, otherwise use artist name
+      final artistQuery = song.artistId.isNotEmpty 
+          ? song.artistId 
+          : song.artist;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ArtistScreen(
+            artistId: artistQuery,
+            artistName: song.artist,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading artist details: $e')),
+        );
+      }
+      debugPrint('Error loading artist details: $e');
+    }
   }
 
   void _showSleepTimerDialog(BuildContext context) {
