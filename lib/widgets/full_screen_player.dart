@@ -1206,6 +1206,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
