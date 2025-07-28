@@ -469,6 +469,11 @@ class CurrentSongProvider with ChangeNotifier {
         _saveCurrentSongToStorage();
       }
 
+      // Check for stuck loading state
+      if (_isLoadingAudio) {
+        _checkForStuckLoadingState();
+      }
+
       // Notify UI if play/pause/loading state changed
       if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
         notifyListeners();
@@ -1007,6 +1012,42 @@ class CurrentSongProvider with ChangeNotifier {
     // Prefetching logic can be complex with audio_service as it manages its own state.
     // For now, this is simplified. The handler might do its own prefetching if designed to.
     // This example focuses on pre-caching URLs in CurrentSongProvider if needed.
+  }
+
+  void _checkForStuckLoadingState() {
+    // Start a timer to detect if we get stuck in loading state
+    Timer(const Duration(seconds: 45), () {
+      if (_isLoadingAudio) {
+        debugPrint("CurrentSongProvider: Detected stuck loading state, attempting recovery");
+        _audioHandler.customAction('recoverFromStuckState', {}).then((success) {
+          if (success == true) {
+            debugPrint("CurrentSongProvider: Recovery from stuck loading state successful");
+          } else {
+            debugPrint("CurrentSongProvider: Recovery from stuck loading state failed");
+          }
+        });
+      }
+    });
+  }
+
+  Future<void> handleAppForeground() async {
+    debugPrint("CurrentSongProvider: App foregrounded, checking for stuck states");
+    
+    // Check if we're in a stuck loading state
+    if (_isLoadingAudio) {
+      // Wait a bit to see if it resolves naturally
+      await Future.delayed(const Duration(seconds: 3));
+      
+      if (_isLoadingAudio) {
+        debugPrint("CurrentSongProvider: Still loading after 3 seconds, attempting recovery");
+        final success = await _audioHandler.customAction('recoverFromStuckState', {});
+        if (success == true) {
+          debugPrint("CurrentSongProvider: Recovery from stuck state successful");
+        } else {
+          debugPrint("CurrentSongProvider: Recovery from stuck state failed");
+        }
+      }
+    }
   }
 
   void pauseSong() async {

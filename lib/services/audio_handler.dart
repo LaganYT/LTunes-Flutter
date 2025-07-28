@@ -49,14 +49,26 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   String? _lastCompletedSongId;
   bool _isHandlingCompletion = false;
   Duration? _lastKnownPosition; // Store last known position for online songs
-  bool _shouldBePaused = false; // Track if user wanted pause
-  set shouldBePaused(bool value) => _shouldBePaused = value;
+  bool _shouldBePaused = false; // Track if audio should be paused
   final AudioEffectsService _audioEffectsService = AudioEffectsService();
 
   AudioPlayerHandler() {
     _initializeAudioSession();
     _notifyAudioHandlerAboutPlaybackEvents();
     _initializeAudioEffects();
+  }
+
+  // Getter for shouldBePaused
+  bool get shouldBePaused => _shouldBePaused;
+
+  // Setter for shouldBePaused
+  set shouldBePaused(bool value) {
+    _shouldBePaused = value;
+    // If shouldBePaused is true and audio is playing, pause it
+    if (value && _audioPlayer.playing) {
+      _audioPlayer.pause();
+      playbackState.add(playbackState.value.copyWith(playing: false));
+    }
   }
 
   Future<void> _initializeAudioSession() async {
@@ -102,21 +114,24 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     if (_audioPlayer.playing) _audioPlayer.pause();
   }
 
-  void _initializeAudioEffects() {
+  Future<void> _initializeAudioEffects() async {
+    // Set the audio player reference in the effects service
     _audioEffectsService.setAudioPlayer(_audioPlayer);
-    _audioEffectsService.loadSettings();
+    
+    // Load saved audio effects settings
+    await _audioEffectsService.loadSettings();
   }
 
   Future<void> _prepareToPlay(int index) async {
     if (index < 0 || index >= _playlist.length) return;
-    // Stop previous audio before loading new one
-    await _audioPlayer.stop();
     _currentIndex = index;
     MediaItem itemToPlay = await _resolveArtForItem(_playlist[_currentIndex]);
     _playlist[_currentIndex] = itemToPlay;
+    
     // Ensure track metadata is passed to audio session for both local and online songs
     mediaItem.add(itemToPlay);
     playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
+    
     _isRadioStream = itemToPlay.extras?['isRadio'] as bool? ?? false;
     final newSongId = itemToPlay.extras?['songId'] as String?;
     if (newSongId != null && newSongId != _lastCompletedSongId) {
@@ -124,13 +139,16 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       _isHandlingCompletion = false;
       _lastKnownPosition = null; // Reset last known position for new song
     }
+    
     AudioSource source;
+    // Use the same simple approach for all songs
     if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
       final filePath = itemToPlay.id;
       final file = File(filePath);
       if (!await file.exists()) throw Exception("Local file not found: $filePath");
       source = AudioSource.file(filePath);
     } else {
+      // For online songs, we need the tag for proper metadata display
       source = AudioSource.uri(
         Uri.parse(itemToPlay.id),
         tag: MediaItem(
@@ -144,19 +162,23 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         ),
       );
     }
+    
     try {
-      debugPrint("Setting audio source for: ${itemToPlay.title} with URL: ${itemToPlay.id}");
       await _audioPlayer.setAudioSource(source);
+      
+      // Reset position to zero for new tracks
       playbackState.add(playbackState.value.copyWith(updatePosition: Duration.zero));
+      
       // Ensure metadata is properly synchronized after setting audio source
       mediaItem.add(itemToPlay);
-      // Add a small delay and re-broadcast metadata to ensure lock screen/notification update
-      await Future.delayed(const Duration(milliseconds: 50));
-      mediaItem.add(itemToPlay);
+      
+      // Reapply audio effects after setting new audio source
+      _audioEffectsService.reapplyEffects();
+      
+      // Ensure audio session is active for both local and online songs
       if (_isIOS && _audioSession != null) {
         await _safeActivateSession();
       }
-      debugPrint("Successfully set audio source for: ${itemToPlay.title}");
     } catch (e) {
       debugPrint("Error preparing audio source: $e");
       if (_isRadioStream) _showRadioErrorDialog(itemToPlay.title);
@@ -353,9 +375,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> play() async {
-    _shouldBePaused = false;
     if (_audioPlayer.playing) {
       debugPrint("AudioHandler: Play requested but already playing, ignoring");
+      return;
+    }
+    
+    // Check if audio should be paused
+    if (_shouldBePaused) {
+      debugPrint("AudioHandler: Play requested but shouldBePaused is true, ignoring");
       return;
     }
     
@@ -377,6 +404,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           if (currentItem != null) {
             mediaItem.add(currentItem);
           }
+          
+          // Reapply audio effects when starting playback
+          _audioEffectsService.reapplyEffects();
+          
           debugPrint("AudioHandler: Playback started from idle state");
         }
       } else if (_audioPlayer.processingState == ProcessingState.ready) {
@@ -388,6 +419,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         if (currentItem != null) {
           mediaItem.add(currentItem);
         }
+        
+        // Reapply audio effects when resuming playback
+        _audioEffectsService.reapplyEffects();
+        
         debugPrint("AudioHandler: Playback resumed from ready state");
       } else {
         debugPrint("AudioHandler: Starting playback from other state: ${_audioPlayer.processingState}");
@@ -412,7 +447,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     final artist = item.artist ?? '';
     final album = item.album ?? '';
     if (songId == null || songId.isEmpty) return;
-    final songKey = 'song_$songId';
+    final songKey = 'song_' + songId;
     final songJson = prefs.getString(songKey);
     if (songJson != null) {
       try {
@@ -467,7 +502,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   @override
   Future<void> pause() async {
-    _shouldBePaused = true;
     debugPrint("AudioHandler: Pause requested");
     await _audioPlayer.pause();
     playbackState.add(playbackState.value.copyWith(playing: false));
@@ -513,18 +547,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> skipToNext() async {
     if (_playlist.isEmpty) return;
     int newIndex = _currentIndex + 1;
-    debugPrint("AudioHandler: skipToNext - currentIndex: $_currentIndex, newIndex: $newIndex, playlistLength: ${_playlist.length}, repeatMode: ${playbackState.value.repeatMode}");
-    
     if (newIndex >= _playlist.length) {
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
         newIndex = 0;
-        debugPrint("AudioHandler: Looping back to beginning of queue");
-        // Ensure audio session is maintained when looping back to the beginning
-        if (_isIOS && _audioSession != null && _isBackgroundMode) {
-          await _safeActivateSession();
-        }
       } else {
-        debugPrint("AudioHandler: Reached end of queue, stopping playback");
         await stop();
         return;
       }
@@ -553,37 +579,23 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       await stop();
       return;
     }
-    
-    // Ensure audio session is active before preparing to play, especially for background playback
-    if (_isIOS && _audioSession != null) {
-      await _safeActivateSession();
-    }
-    
-    await _prepareToPlay(index);
-    if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-      try {
-        // Additional session activation before playing for better background playback continuity
-        if (_isIOS && _audioSession != null && _isBackgroundMode) {
-          await _safeActivateSession();
-        }
-        
-        await _audioPlayer.play();
-        
-        // Ensure metadata is properly broadcast to audio session after skip
-        final currentItem = mediaItem.value;
-        if (currentItem != null) {
-          // Force a metadata update to ensure iOS Control Center gets the new track info
-          mediaItem.add(currentItem);
-          // Add a small delay to ensure metadata propagation
-          await Future.delayed(const Duration(milliseconds: 50));
-          mediaItem.add(currentItem);
-        }
-        
-        // Pause if we should be paused
-        if (_shouldBePaused) {
-          await _audioPlayer.pause();
-        }
-      } catch (e) {
+            await _prepareToPlay(index);
+        if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+          try {
+            if (_isIOS && _audioSession != null) await _safeActivateSession();
+            await _audioPlayer.play();
+            
+            // Ensure metadata is properly broadcast to audio session after skip
+            final currentItem = mediaItem.value;
+            if (currentItem != null) {
+              // Force a metadata update to ensure iOS Control Center gets the new track info
+              mediaItem.add(currentItem);
+              
+              // Add a small delay to ensure metadata propagation
+              await Future.delayed(const Duration(milliseconds: 50));
+              mediaItem.add(currentItem);
+            }
+          } catch (e) {
         playbackState.add(playbackState.value.copyWith(
           playing: false,
           processingState: AudioProcessingState.error,
@@ -634,13 +646,15 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
     int index = _playlist.indexWhere((element) => element.id == mediaItem.id);
-    if (index != -1) {
-      await skipToQueueItem(index);
-      // Pause if we should be paused
-      if (_shouldBePaused) {
-        await _audioPlayer.pause();
-      }
+    if (index == -1) {
+      _playlist.clear();
+      _playlist.add(mediaItem);
+      queue.add(List.unmodifiable(_playlist));
+      index = 0;
+    } else {
+      _playlist[index] = mediaItem;
     }
+    await skipToQueueItem(index);
   }
 
   @override
@@ -665,6 +679,11 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     }
   }
 
+  @override
+  Future<void> onTaskRemoved() async => super.onTaskRemoved();
+  @override
+  Future<void> onNotificationDeleted() async => super.onNotificationDeleted();
+
   Future<void> ensureBackgroundPlayback() async {
     if (_isIOS && _audioSession != null) {
       await _safeActivateSession();
@@ -688,16 +707,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   Future<void> _handleSongCompletion() async {
     final repeatMode = playbackState.value.repeatMode;
-    
-    debugPrint("AudioHandler: Song completion detected - repeatMode: $repeatMode, backgroundMode: $_isBackgroundMode");
-    
-    // Ensure audio session is active before handling completion, especially for background playback
-    if (_isIOS && _audioSession != null) {
-      await _safeActivateSession();
-    }
-    
     if (repeatMode == AudioServiceRepeatMode.one) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+        if (_isIOS && _audioSession != null) await _safeActivateSession();
         await _prepareToPlay(_currentIndex);
         await _audioPlayer.play();
         
@@ -712,13 +724,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         }
       }
     } else {
-      // For queue looping (repeat all), ensure we maintain the audio session
-      debugPrint("AudioHandler: Handling queue looping completion");
       await skipToNext();
-      
-      // Use the specialized queue looping continuity handler
-      await customAction('ensureQueueLoopingContinuity', {});
-      debugPrint("AudioHandler: Queue looping completion handled");
     }
   }
 
@@ -796,20 +802,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       if (_isIOS && _audioSession != null) await _safeActivateSession();
     } else if (name == 'ensureBackgroundPlaybackContinuity') {
       if (_isIOS && _audioSession != null && _isBackgroundMode) await _safeActivateSession();
-    } else if (name == 'ensureQueueLoopingContinuity') {
-      // Special handling for queue looping in background mode
-      debugPrint("AudioHandler: Ensuring queue looping continuity - backgroundMode: $_isBackgroundMode");
-      if (_isIOS && _audioSession != null && _isBackgroundMode) {
-        await _safeActivateSession();
-        debugPrint("AudioHandler: Queue looping continuity - session activated");
-        // Add additional session activation after a short delay for better persistence
-        Future.delayed(const Duration(milliseconds: 200), () async {
-          if (_isIOS && _audioSession != null && _isBackgroundMode) {
-            await _safeActivateSession();
-            debugPrint("AudioHandler: Queue looping continuity - delayed session activation");
-          }
-        });
-      }
     } else if (name == 'seekToPosition') {
       final positionMillis = extras?['position'] as int?;
       if (positionMillis != null) {
@@ -822,6 +814,65 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       return _audioPlayer.duration?.inMilliseconds;
         } else if (name == 'isAudioReady') {
       return _audioPlayer.processingState == ProcessingState.ready;
+    } else if (name == 'setShouldBePaused') {
+      final shouldPause = extras?['shouldBePaused'] as bool?;
+      if (shouldPause != null) {
+        shouldBePaused = shouldPause;
+      }
+    } else if (name == 'getShouldBePaused') {
+      return shouldBePaused;
+    } else if (name == 'setAudioEffectsEnabled') {
+      final enabled = extras?['enabled'] as bool?;
+      if (enabled != null) {
+        await _audioEffectsService.setEnabled(enabled);
+      }
+    } else if (name == 'setBassBoost') {
+      final value = extras?['value'] as double?;
+      if (value != null) {
+        await _audioEffectsService.setBassBoost(value);
+      }
+    } else if (name == 'setReverb') {
+      final value = extras?['value'] as double?;
+      if (value != null) {
+        await _audioEffectsService.setReverb(value);
+      }
+    } else if (name == 'set8DMode') {
+      final enabled = extras?['enabled'] as bool?;
+      if (enabled != null) {
+        await _audioEffectsService.set8DMode(enabled);
+      }
+    } else if (name == 'set8DIntensity') {
+      final value = extras?['value'] as double?;
+      if (value != null) {
+        await _audioEffectsService.set8DIntensity(value);
+      }
+    } else if (name == 'setEqualizerBand') {
+      final band = extras?['band'] as int?;
+      final value = extras?['value'] as double?;
+      if (band != null && value != null) {
+        await _audioEffectsService.setEqualizerBand(band, value);
+      }
+    } else if (name == 'setEqualizerPreset') {
+      final preset = extras?['preset'] as String?;
+      if (preset != null) {
+        await _audioEffectsService.setEqualizerPreset(preset);
+      }
+    } else if (name == 'resetAudioEffects') {
+      _audioEffectsService.resetToDefaults();
+    } else if (name == 'getAudioEffectsState') {
+      return {
+        'isEnabled': _audioEffectsService.isEnabled,
+        'bassBoost': _audioEffectsService.bassBoost,
+        'reverb': _audioEffectsService.reverb,
+        'is8DMode': _audioEffectsService.is8DMode,
+        'eightDIntensity': _audioEffectsService.eightDIntensity,
+        'equalizerBands': _audioEffectsService.equalizerBands,
+        'equalizerPresets': _audioEffectsService.equalizerPresets,
+        'frequencyBands': _audioEffectsService.frequencyBands,
+        'currentPreset': _audioEffectsService.getCurrentPresetName(),
+      };
+    } else if (name == 'reapplyAudioEffects') {
+      _audioEffectsService.reapplyEffects();
     }
     return null;
   }

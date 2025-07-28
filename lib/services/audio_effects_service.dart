@@ -147,6 +147,10 @@ class AudioEffectsService {
     _applyEffects();
   }
 
+  void reapplyEffects() {
+    _applyEffects();
+  }
+
   void _applyEffects() {
     if (_audioPlayer == null || !_isEnabled) {
       // Reset to default if disabled

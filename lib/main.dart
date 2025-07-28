@@ -159,6 +159,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // App is coming back to foreground, ensure audio session is active
         _audioHandler.customAction('handleAppForeground', {});
+        // Also check for stuck loading states in the CurrentSongProvider
+        Provider.of<CurrentSongProvider>(context, listen: false).handleAppForeground();
         _stopBackgroundContinuityTimer();
         break;
       case AppLifecycleState.paused:
@@ -192,44 +194,15 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
           // This helps prevent audio session from being deactivated
           _audioHandler.customAction('ensureBackgroundPlayback', {});
           
-          // Add a small delay and ensure again for better persistence
-          Future.delayed(const Duration(milliseconds: 500), () {
-            _audioHandler.customAction('ensureBackgroundPlayback', {});
-          });
-          
-          // Add forced session activation after 2 seconds
-          Future.delayed(const Duration(seconds: 2), () {
-            _audioHandler.customAction('forceSessionActivation', {});
-          });
-          
-          // Add another forced session activation after 5 seconds
+          // Add a single session activation check after 5 seconds
           Future.delayed(const Duration(seconds: 5), () {
             _audioHandler.customAction('forceSessionActivation', {});
           });
           
-          // Add background playback continuity check after 10 seconds
-          Future.delayed(const Duration(seconds: 10), () {
-            _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
-          });
-          
-          // Add another background playback continuity check after 30 seconds
+          // Add background playback continuity check after 30 seconds
           Future.delayed(const Duration(seconds: 30), () {
             _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
           });
-          
-          // Add continuous session activation for the first minute
-          for (int i = 1; i <= 12; i++) {
-            Future.delayed(Duration(seconds: 5 * i), () {
-              _audioHandler.customAction('forceSessionActivation', {});
-            });
-          }
-          
-          // Add queue looping continuity checks for better background playback
-          for (int i = 1; i <= 6; i++) {
-            Future.delayed(Duration(seconds: 10 * i), () {
-              _audioHandler.customAction('ensureQueueLoopingContinuity', {});
-            });
-          }
 
           break;
         default:
