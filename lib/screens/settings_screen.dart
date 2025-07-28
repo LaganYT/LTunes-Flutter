@@ -881,6 +881,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         key: const PageStorageKey('settings_list'),
+        physics: const ClampingScrollPhysics(),
         children: [
           _buildSectionTitle(context, 'Content & Discovery'),
           Card(
@@ -1648,21 +1649,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('Advanced Settings'),
               subtitle: const Text('Danger zone: advanced file management'),
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Warning: Deleting files here may break song playback or remove songs from your library. Only delete files if you know what you are doing.',
-                          style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 ListTile(
                   leading: Icon(Icons.folder_delete_outlined, color: Theme.of(context).colorScheme.error),
                   title: const Text('Manage Downloaded Files'),
