@@ -1,7 +1,4 @@
 # TODO
-## Library & Song Management
-- Song Ratings
-  - Allow users to rate songs and sort/filter by rating.
 
 ## Audio & Playback Features
 - Try adding podcast support
