@@ -11,6 +11,8 @@ class AudioEffectsService {
   bool _isEnabled = false;
   double _bassBoost = 0.0;
   double _reverb = 0.0;
+  bool _is8DMode = false;
+  double _eightDIntensity = 0.5;
   List<double> _equalizerBands = List.filled(10, 0.0); // 10-band equalizer
   final List<String> _equalizerPresets = [
     'Flat',
@@ -29,6 +31,8 @@ class AudioEffectsService {
   bool get isEnabled => _isEnabled;
   double get bassBoost => _bassBoost;
   double get reverb => _reverb;
+  bool get is8DMode => _is8DMode;
+  double get eightDIntensity => _eightDIntensity;
   List<double> get equalizerBands => List.unmodifiable(_equalizerBands);
   List<String> get equalizerPresets => List.unmodifiable(_equalizerPresets);
 
@@ -42,6 +46,8 @@ class AudioEffectsService {
     _isEnabled = prefs.getBool('audio_effects_enabled') ?? false;
     _bassBoost = prefs.getDouble('audio_effects_bass_boost') ?? 0.0;
     _reverb = prefs.getDouble('audio_effects_reverb') ?? 0.0;
+    _is8DMode = prefs.getBool('audio_effects_8d_mode') ?? false;
+    _eightDIntensity = prefs.getDouble('audio_effects_8d_intensity') ?? 0.5;
     
     final equalizerBandsJson = prefs.getString('audio_effects_equalizer_bands');
     if (equalizerBandsJson != null) {
@@ -61,6 +67,8 @@ class AudioEffectsService {
     await prefs.setBool('audio_effects_enabled', _isEnabled);
     await prefs.setDouble('audio_effects_bass_boost', _bassBoost);
     await prefs.setDouble('audio_effects_reverb', _reverb);
+    await prefs.setBool('audio_effects_8d_mode', _is8DMode);
+    await prefs.setDouble('audio_effects_8d_intensity', _eightDIntensity);
     await prefs.setString('audio_effects_equalizer_bands', jsonEncode(_equalizerBands));
   }
 
@@ -78,6 +86,18 @@ class AudioEffectsService {
 
   Future<void> setReverb(double value) async {
     _reverb = value.clamp(0.0, 1.0);
+    await saveSettings();
+    _applyEffects();
+  }
+
+  Future<void> set8DMode(bool enabled) async {
+    _is8DMode = enabled;
+    await saveSettings();
+    _applyEffects();
+  }
+
+  Future<void> set8DIntensity(double value) async {
+    _eightDIntensity = value.clamp(0.1, 1.0);
     await saveSettings();
     _applyEffects();
   }
@@ -147,6 +167,15 @@ class AudioEffectsService {
       volumeMultiplier += _reverb * 0.1; // Max 10% volume increase for reverb
     }
 
+    // Apply 8D mode effect (spatial audio simulation)
+    if (_is8DMode) {
+      // 8D effect increases overall volume and adds a slight boost to create spatial feeling
+      volumeMultiplier += _eightDIntensity * 0.15; // Max 15% volume increase for 8D effect
+      
+      // Additional boost to simulate spatial audio enhancement
+      volumeMultiplier += _eightDIntensity * 0.1; // Extra 10% for spatial effect
+    }
+
     // Apply equalizer (simplified - overall volume adjustment based on average)
     double averageEq = _equalizerBands.reduce((a, b) => a + b) / _equalizerBands.length;
     if (averageEq > 0) {
@@ -165,6 +194,8 @@ class AudioEffectsService {
     _isEnabled = false;
     _bassBoost = 0.0;
     _reverb = 0.0;
+    _is8DMode = false;
+    _eightDIntensity = 0.5;
     _equalizerBands = List.filled(10, 0.0);
     saveSettings();
     _applyEffects();

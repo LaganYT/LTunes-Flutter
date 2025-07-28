@@ -13,6 +13,8 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
   bool _isEnabled = false;
   double _bassBoost = 0.0;
   double _reverb = 0.0;
+  bool _is8DMode = false;
+  double _eightDIntensity = 0.5;
   List<double> _equalizerBands = List.filled(10, 0.0);
   String _currentPreset = 'Flat';
 
@@ -28,6 +30,8 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
       _isEnabled = _audioEffectsService.isEnabled;
       _bassBoost = _audioEffectsService.bassBoost;
       _reverb = _audioEffectsService.reverb;
+      _is8DMode = _audioEffectsService.is8DMode;
+      _eightDIntensity = _audioEffectsService.eightDIntensity;
       _equalizerBands = List.from(_audioEffectsService.equalizerBands);
       _currentPreset = _audioEffectsService.getCurrentPresetName();
     });
@@ -295,6 +299,98 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
           
           const SizedBox(height: 16),
           
+          // 8D Mode Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.surround_sound),
+                      const SizedBox(width: 8),
+                      const Text(
+                        '8D Mode',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      Switch(
+                        value: _is8DMode,
+                        onChanged: (value) async {
+                          await _audioEffectsService.set8DMode(value);
+                          setState(() {
+                            _is8DMode = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  if (_is8DMode) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Icon(Icons.tune),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '8D Intensity',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${(_eightDIntensity * 100).toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Slider(
+                      value: _eightDIntensity,
+                      min: 0.1,
+                      max: 1.0,
+                      divisions: 18,
+                      label: '${(_eightDIntensity * 100).toStringAsFixed(0)}%',
+                      onChanged: (value) async {
+                        await _audioEffectsService.set8DIntensity(value);
+                        setState(() {
+                          _eightDIntensity = value;
+                        });
+                      },
+                    ),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('10%', style: TextStyle(fontSize: 12)),
+                        Text('50%', style: TextStyle(fontSize: 12)),
+                        Text('100%', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '8D mode creates a spatial audio effect that simulates sound moving around you in a 360-degree space.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
           // Info Card
           Card(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -323,8 +419,8 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Audio effects are applied in real-time to enhance your listening experience. '
-                    'The equalizer allows you to adjust specific frequency bands, while bass boost '
-                    'and reverb provide additional audio enhancement options.',
+                    'The equalizer allows you to adjust specific frequency bands, while bass boost, '
+                    'reverb, and 8D mode provide additional audio enhancement options.',
                     style: TextStyle(fontSize: 14),
                   ),
                 ],
