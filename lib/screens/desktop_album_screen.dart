@@ -161,9 +161,19 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surface.withOpacity(0.8),
+          ],
+        ),
+      ),
       child: Row(
         children: [
-          // Album artwork
+          // Album artwork with enhanced shadow
           Container(
             width: 300,
             height: 300,
@@ -171,9 +181,9 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -204,6 +214,7 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 32,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -211,6 +222,7 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
                   widget.album.artistName,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 20,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -218,6 +230,7 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
                   '${widget.album.tracks.length} tracks',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 16,
                   ),
                 ),
                 if (widget.album.releaseDate.isNotEmpty) ...[
@@ -230,7 +243,7 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                // Action buttons
+                // Action buttons with Spotify-like styling
                 Row(
                   children: [
                     ElevatedButton.icon(
@@ -241,6 +254,10 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
                         backgroundColor: const Color(0xFFFF9800), // LTunes orange
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        elevation: 0,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -249,9 +266,13 @@ class _DesktopAlbumScreenState extends State<DesktopAlbumScreen> {
                       icon: const Icon(Icons.shuffle),
                       label: const Text('Shuffle'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
                         foregroundColor: Theme.of(context).colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        elevation: 0,
                       ),
                     ),
                     const SizedBox(width: 12),

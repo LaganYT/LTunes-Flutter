@@ -203,9 +203,19 @@ class _DesktopArtistScreenState extends State<DesktopArtistScreen> with SingleTi
 
     return Container(
       padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surface.withOpacity(0.8),
+          ],
+        ),
+      ),
       child: Row(
         children: [
-          // Artist image
+          // Artist image with enhanced shadow
           Container(
             width: 300,
             height: 300,
@@ -213,9 +223,9 @@ class _DesktopArtistScreenState extends State<DesktopArtistScreen> with SingleTi
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -240,6 +250,7 @@ class _DesktopArtistScreenState extends State<DesktopArtistScreen> with SingleTi
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 32,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -248,6 +259,7 @@ class _DesktopArtistScreenState extends State<DesktopArtistScreen> with SingleTi
                     '${_tracks!.length} tracks',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 20,
                     ),
                   ),
                 ],

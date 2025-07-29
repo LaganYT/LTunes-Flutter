@@ -119,36 +119,71 @@ class _DesktopSearchScreenState extends State<DesktopSearchScreen> with TickerPr
   Widget _buildSearchHeader() {
     return Container(
       padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).colorScheme.surface,
+            Theme.of(context).colorScheme.surface.withOpacity(0.8),
+          ],
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Search',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+          Row(
+            children: [
+              Icon(
+                Icons.search,
+                color: const Color(0xFFFF9800),
+                size: 32,
+              ),
+              const SizedBox(width: 16),
+              Text(
+                'Search',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 32,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
+              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
               ),
             ),
             child: TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
               onChanged: _onSearchChanged,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 16,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search for songs, albums, artists...',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
                 prefixIcon: Icon(
                   Icons.search,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
                 border: InputBorder.none,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: const Color(0xFFFF9800),
+                    width: 2,
+                  ),
+                ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 16,
@@ -180,7 +215,7 @@ class _DesktopSearchScreenState extends State<DesktopSearchScreen> with TickerPr
 
     return Column(
       children: [
-        // Tab bar for different result types
+        // Tab bar for different result types with Spotify-like styling
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
@@ -195,6 +230,14 @@ class _DesktopSearchScreenState extends State<DesktopSearchScreen> with TickerPr
             labelColor: const Color(0xFFFF9800), // LTunes orange
             unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
             indicatorColor: const Color(0xFFFF9800), // LTunes orange
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.normal,
+              fontSize: 16,
+            ),
             tabs: const [
               Tab(text: 'All'),
               Tab(text: 'Songs'),

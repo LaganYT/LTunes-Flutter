@@ -1859,7 +1859,7 @@ class ThemeProvider extends ChangeNotifier {
         ),
       );
 
-  // Desktop-specific themes with LTunes orange design
+  // Desktop-specific themes with Spotify-like design and LTunes orange
   ThemeData get desktopLightTheme => ThemeData(
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(
@@ -1900,6 +1900,22 @@ class ThemeProvider extends ChangeNotifier {
         ),
         iconTheme: const IconThemeData(
           color: Color(0xFF1A1A1A),
+        ),
+        // Spotify-like desktop specific styling
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFFE0E0E0),
+          thickness: 0.5,
+        ),
+        listTileTheme: const ListTileThemeData(
+          tileColor: Colors.transparent,
+          selectedTileColor: Color(0xFFF5F5F5),
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        ),
+        tabBarTheme: const TabBarThemeData(
+          labelColor: Color(0xFFFF9800),
+          unselectedLabelColor: Color(0xFF666666),
+          indicatorColor: Color(0xFFFF9800),
+          dividerColor: Color(0xFFE0E0E0),
         ),
       );
 
@@ -1944,10 +1960,23 @@ class ThemeProvider extends ChangeNotifier {
         iconTheme: const IconThemeData(
           color: Colors.white,
         ),
+        // Spotify-like desktop specific styling
+        dividerTheme: const DividerThemeData(
+          color: Color(0xFF2A2A2A),
+          thickness: 0.5,
+        ),
         listTileTheme: const ListTileThemeData(
           tileColor: Color(0xFF181818),
+          selectedTileColor: Color(0xFF282828),
           textColor: Colors.white,
           iconColor: Colors.white,
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        ),
+        tabBarTheme: const TabBarThemeData(
+          labelColor: Color(0xFFFF9800),
+          unselectedLabelColor: Color(0xFFB3B3B3),
+          indicatorColor: Color(0xFFFF9800),
+          dividerColor: Color(0xFF2A2A2A),
         ),
       );
 

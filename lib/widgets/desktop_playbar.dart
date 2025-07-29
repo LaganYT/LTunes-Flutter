@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
-import '../widgets/full_screen_player.dart';
+import '../widgets/desktop_full_screen_player.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -219,28 +219,9 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
               flex: 1,
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
-                          transitionDuration: const Duration(milliseconds: 350),
-                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                            const begin = Offset(0.0, 1.0);
-                            const end = Offset.zero;
-                            final curve = Curves.easeOutQuint;
-                            final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                            final offsetAnimation = animation.drive(tween);
-                            return SlideTransition(position: offsetAnimation, child: child);
-                          },
-                        ),
-                      );
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: albumArtContent,
-                    ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: albumArtContent,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -293,6 +274,7 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
                         onPressed: () {
                           // TODO: Implement shuffle
                         },
+                        hoverColor: colorScheme.surfaceVariant.withOpacity(0.3),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -302,13 +284,21 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
                           size: 24,
                         ),
                         onPressed: () => currentSongProvider.playPrevious(),
+                        hoverColor: colorScheme.surfaceVariant.withOpacity(0.3),
                       ),
                       const SizedBox(width: 8),
-                                             Container(
-                         decoration: BoxDecoration(
-                           color: const Color(0xFFFF9800), // LTunes orange
-                           shape: BoxShape.circle,
-                         ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF9800), // LTunes orange
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFF9800).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: IconButton(
                           icon: Icon(
                             currentSongProvider.isPlaying ? Icons.pause : Icons.play_arrow,
@@ -322,6 +312,7 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
                               currentSongProvider.resumeSong();
                             }
                           },
+                          hoverColor: const Color(0xFFFF9800).withOpacity(0.8),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -332,6 +323,7 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
                           size: 24,
                         ),
                         onPressed: () => currentSongProvider.playNext(),
+                        hoverColor: colorScheme.surfaceVariant.withOpacity(0.3),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -343,6 +335,7 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
                         onPressed: () {
                           // TODO: Implement repeat
                         },
+                        hoverColor: colorScheme.surfaceVariant.withOpacity(0.3),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -353,14 +346,14 @@ class _DesktopPlaybarState extends State<DesktopPlaybar> {
                         ),
                         onPressed: () {
                           if (currentSongProvider.currentSong != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const FullScreenPlayer(),
-                              ),
+                            showDialog(
+                              context: context,
+                              barrierDismissible: true,
+                              builder: (context) => const DesktopFullScreenPlayer(),
                             );
                           }
                         },
+                        hoverColor: colorScheme.surfaceVariant.withOpacity(0.3),
                       ),
                     ],
                   ),

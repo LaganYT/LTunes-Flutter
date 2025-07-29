@@ -92,49 +92,74 @@ class _DesktopLibraryScreenState extends State<DesktopLibraryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
       body: Column(
         children: [
-          // Header
+          // Header with gradient background
           Container(
             padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).colorScheme.surface,
+                  Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                ],
+              ),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Your Library',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.library_music,
+                      color: const Color(0xFFFF9800),
+                      size: 32,
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Your Library',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 32,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                // Search bar
+                const SizedBox(height: 24),
+                // Search bar with Spotify-like styling
                 SizedBox(
                   width: 400,
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: 'Search your library...',
-                      prefixIcon: const Icon(Icons.search),
+                      hintStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide(
-                          color: Theme.of(context).colorScheme.primary,
+                          color: const Color(0xFFFF9800),
                           width: 2,
                         ),
                       ),
                       filled: true,
-                      fillColor: Theme.of(context).colorScheme.surface,
+                      fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
@@ -142,9 +167,18 @@ class _DesktopLibraryScreenState extends State<DesktopLibraryScreen>
             ),
           ),
           
-          // Tabs
+          // Tabs with Spotify-like styling
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+            ),
             child: TabBar(
               controller: _tabController,
               tabs: const [
@@ -153,9 +187,17 @@ class _DesktopLibraryScreenState extends State<DesktopLibraryScreen>
                 Tab(text: 'Artists'),
                 Tab(text: 'Songs'),
               ],
-              labelColor: Theme.of(context).colorScheme.primary,
+              labelColor: const Color(0xFFFF9800),
               unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              indicatorColor: Theme.of(context).colorScheme.primary,
+              indicatorColor: const Color(0xFFFF9800),
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.normal,
+                fontSize: 16,
+              ),
             ),
           ),
           
