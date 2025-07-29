@@ -111,15 +111,25 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     }
   }
 
+  // Helper method to check if this is a rapid skip operation
+  bool _isRapidSkip() {
+    if (_lastSkipOperation == null) return false;
+    final now = DateTime.now();
+    final timeSinceLastSkip = now.difference(_lastSkipOperation!);
+    return timeSinceLastSkip.inMilliseconds < 1000;
+  }
+
+  // Helper method to check if audio session was recently activated
+  bool _wasSessionRecentlyActivated(int thresholdMs) {
+    if (_lastSessionActivation == null) return false;
+    final now = DateTime.now();
+    final timeSinceLastActivation = now.difference(_lastSessionActivation!);
+    return timeSinceLastActivation.inMilliseconds < thresholdMs;
+  }
+
   Future<void> _safeActivateSession() async {
     if (_isIOS && _audioSession != null) {
-      // Check if we're in a rapid skip situation
-      final now = DateTime.now();
-      bool isRapidSkip = false;
-      if (_lastSkipOperation != null) {
-        final timeSinceLastSkip = now.difference(_lastSkipOperation!);
-        isRapidSkip = timeSinceLastSkip.inMilliseconds < 1000;
-      }
+      final isRapidSkip = _isRapidSkip();
       
       // During rapid skips or background operations, be very conservative about audio session activation
       if ((isRapidSkip && _consecutiveRapidSkips > 0) || _isBackgroundAudioSessionOperation()) {
@@ -128,17 +138,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       }
       
       // Debounce audio session activation to prevent overwhelming the system
-      if (_lastSessionActivation != null) {
-        final timeSinceLastActivation = now.difference(_lastSessionActivation!);
-        if (timeSinceLastActivation.inMilliseconds < 500) {
-          debugPrint("AudioHandler: Skipping audio session activation (debounced)");
-          return;
-        }
+      if (_wasSessionRecentlyActivated(500)) {
+        debugPrint("AudioHandler: Skipping audio session activation (debounced)");
+        return;
       }
       
       try {
         debugPrint("AudioHandler: Activating audio session");
-        _lastSessionActivation = now;
+        _lastSessionActivation = DateTime.now();
         _sessionActivationCount++;
         await _audioSession!.setActive(true);
         debugPrint("AudioHandler: Audio session activated successfully");
@@ -151,38 +158,28 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   Future<bool> _ensureAudioSessionActive() async {
     if (_isIOS && _audioSession != null) {
-      final now = DateTime.now();
+      final isRapidSkip = _isRapidSkip();
       
-      // For rapid skips, we'll be more conservative about audio session activation
-      bool isRapidSkip = false;
-      if (_lastSkipOperation != null) {
-        final timeSinceLastSkip = now.difference(_lastSkipOperation!);
-        isRapidSkip = timeSinceLastSkip.inMilliseconds < 1000; // Consider rapid if less than 1 second
+      if (_wasSessionRecentlyActivated(200)) {
+        debugPrint("AudioHandler: Audio session very recently activated, skipping");
+        return true;
       }
       
-      if (_lastSessionActivation != null) {
-        final timeSinceLastActivation = now.difference(_lastSessionActivation!);
-        if (timeSinceLastActivation.inMilliseconds < 200) {
-          debugPrint("AudioHandler: Audio session very recently activated, skipping");
-          return true;
-        }
-        
-              // For rapid skips, be more aggressive about avoiding session activation
-      if (isRapidSkip && timeSinceLastActivation.inMilliseconds < 500) {
+      // For rapid skips, be more aggressive about avoiding session activation
+      if (isRapidSkip && _wasSessionRecentlyActivated(500)) {
         debugPrint("AudioHandler: Rapid skip detected, skipping audio session activation");
         return true;
       }
       
       // If we have consecutive rapid skips, be even more conservative
-      if (_consecutiveRapidSkips > 1 && timeSinceLastActivation.inMilliseconds < 1000) {
+      if (_consecutiveRapidSkips > 1 && _wasSessionRecentlyActivated(1000)) {
         debugPrint("AudioHandler: Multiple consecutive rapid skips, skipping audio session activation");
         return true;
-      }
       }
       
       try {
         debugPrint("AudioHandler: Ensuring audio session is active");
-        _lastSessionActivation = now;
+        _lastSessionActivation = DateTime.now();
         await _audioSession!.setActive(true);
         debugPrint("AudioHandler: Audio session ensured active");
         return true;
@@ -233,6 +230,42 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     
     // Load saved audio effects settings
     await _audioEffectsService.loadSettings();
+  }
+
+  // Helper method to ensure metadata is properly synchronized
+  Future<void> _syncMetadata() async {
+    final currentItem = mediaItem.value;
+    if (currentItem != null) {
+      mediaItem.add(currentItem);
+      // Add a small delay to ensure metadata propagation
+      await Future.delayed(const Duration(milliseconds: 50));
+      mediaItem.add(currentItem);
+    }
+  }
+
+  // Helper method to reapply audio effects and sync metadata
+  Future<void> _reapplyEffectsAndSyncMetadata() async {
+    _audioEffectsService.reapplyEffects();
+    await _syncMetadata();
+  }
+
+  // Helper method to verify playback started successfully
+  Future<void> _verifyPlayback() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (_audioPlayer.playing) {
+      debugPrint("AudioHandler: Playback confirmed - audio player is playing");
+    } else {
+      debugPrint("AudioHandler: WARNING - Playback failed to start despite no error");
+    }
+  }
+
+  // Helper method to safely decode JSON
+  Map<String, dynamic>? _safeJsonDecode(String json) {
+    try {
+      return Map<String, dynamic>.from(jsonDecode(json));
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _prepareToPlay(int index) async {
@@ -345,25 +378,24 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
 
   Future<MediaItem> _resolveArtForItem(MediaItem item) async {
     String? artFileNameToResolve;
-    bool isHttp = item.artUri?.toString().startsWith('http') ?? false;
-    bool isFileUri = item.artUri?.isScheme('file') ?? false;
+    final isHttp = item.artUri?.toString().startsWith('http') ?? false;
+    final isFileUri = item.artUri?.isScheme('file') ?? false;
+    
     if (item.artUri != null && !isHttp && !isFileUri) {
       artFileNameToResolve = item.artUri.toString();
     } else if (item.artUri == null && item.extras?['localArtFileName'] != null) {
       artFileNameToResolve = item.extras!['localArtFileName'] as String;
     }
+    
     if (artFileNameToResolve != null && artFileNameToResolve.isNotEmpty && (item.extras?['isLocal'] as bool? ?? false)) {
       try {
         final directory = await getApplicationDocumentsDirectory();
         final fullPath = p.join(directory.path, artFileNameToResolve);
         if (await File(fullPath).exists()) {
           return item.copyWith(artUri: Uri.file(fullPath));
-        } else {
-          return item.copyWith(artUri: null);
         }
-      } catch (_) {
-        return item.copyWith(artUri: null);
-      }
+      } catch (_) {}
+      return item.copyWith(artUri: null);
     }
     return item;
   }
@@ -534,31 +566,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
           await _prepareToPlay(_currentIndex);
           await _audioPlayer.play();
-          
-          // Ensure metadata is properly synchronized after starting playback
-          final currentItem = mediaItem.value;
-          if (currentItem != null) {
-            mediaItem.add(currentItem);
-          }
-          
-          // Reapply audio effects when starting playback
-          _audioEffectsService.reapplyEffects();
-          
+          await _reapplyEffectsAndSyncMetadata();
           debugPrint("AudioHandler: Playback started from idle state");
         }
       } else if (_audioPlayer.processingState == ProcessingState.ready) {
         debugPrint("AudioHandler: Resuming playback from ready state");
         await _audioPlayer.play();
-        
-        // Ensure metadata is properly synchronized when resuming
-        final currentItem = mediaItem.value;
-        if (currentItem != null) {
-          mediaItem.add(currentItem);
-        }
-        
-        // Reapply audio effects when resuming playback
-        _audioEffectsService.reapplyEffects();
-        
+        await _reapplyEffectsAndSyncMetadata();
         debugPrint("AudioHandler: Playback resumed from ready state");
       } else if (_audioPlayer.processingState == ProcessingState.completed) {
         debugPrint("AudioHandler: Audio player in completed state, resetting and preparing");
@@ -568,16 +582,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
           await _prepareToPlay(_currentIndex);
           await _audioPlayer.play();
-          
-          // Ensure metadata is properly synchronized after reset
-          final currentItem = mediaItem.value;
-          if (currentItem != null) {
-            mediaItem.add(currentItem);
-          }
-          
-          // Reapply audio effects after reset
-          _audioEffectsService.reapplyEffects();
-          
+          await _reapplyEffectsAndSyncMetadata();
           debugPrint("AudioHandler: Playback started after reset from completed state");
         }
       } else {
@@ -606,51 +611,46 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     final songKey = 'song_' + songId;
     final songJson = prefs.getString(songKey);
     if (songJson != null) {
-      try {
-        final songMap = Map<String, dynamic>.from(await Future.value(jsonDecode(songJson)));
+      final songMap = _safeJsonDecode(songJson);
+      if (songMap != null) {
         int playCount = (songMap['playCount'] as int?) ?? 0;
-        playCount++;
-        songMap['playCount'] = playCount;
+        songMap['playCount'] = ++playCount;
         await prefs.setString(songKey, jsonEncode(songMap));
-      } catch (_) {}
+      }
     }
+    
     if (album.isNotEmpty) {
       final albumKeys = prefs.getKeys().where((k) => k.startsWith('album_'));
       for (final key in albumKeys) {
         final albumJson = prefs.getString(key);
         if (albumJson != null) {
-          try {
-            final albumMap = Map<String, dynamic>.from(await Future.value(jsonDecode(albumJson)));
-            if ((albumMap['title'] as String?) == album) {
-              int playCount = (albumMap['playCount'] as int?) ?? 0;
-              playCount++;
-              albumMap['playCount'] = playCount;
-              await prefs.setString(key, jsonEncode(albumMap));
-            }
-          } catch (_) {}
+          final albumMap = _safeJsonDecode(albumJson);
+          if (albumMap != null && (albumMap['title'] as String?) == album) {
+            int playCount = (albumMap['playCount'] as int?) ?? 0;
+            albumMap['playCount'] = ++playCount;
+            await prefs.setString(key, jsonEncode(albumMap));
+          }
         }
       }
     }
+    
     if (artist.isNotEmpty) {
       final artistPlayCountsKey = 'artist_play_counts';
       final artistPlayCountsJson = prefs.getString(artistPlayCountsKey);
       Map<String, int> artistPlayCounts = {};
       if (artistPlayCountsJson != null) {
-        try {
-          artistPlayCounts = Map<String, int>.from(jsonDecode(artistPlayCountsJson));
-        } catch (_) {}
+        artistPlayCounts = _safeJsonDecode(artistPlayCountsJson)?.cast<String, int>() ?? {};
       }
       artistPlayCounts[artist] = (artistPlayCounts[artist] ?? 0) + 1;
       await prefs.setString(artistPlayCountsKey, jsonEncode(artistPlayCounts));
     }
+    
     final now = DateTime.now();
     final todayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final dailyPlayCountsJson = prefs.getString('daily_play_counts');
     Map<String, int> dailyPlayCounts = {};
     if (dailyPlayCountsJson != null) {
-      try {
-        dailyPlayCounts = Map<String, int>.from(jsonDecode(dailyPlayCountsJson));
-      } catch (_) {}
+      dailyPlayCounts = _safeJsonDecode(dailyPlayCountsJson)?.cast<String, int>() ?? {};
     }
     dailyPlayCounts[todayKey] = (dailyPlayCounts[todayKey] ?? 0) + 1;
     await prefs.setString('daily_play_counts', jsonEncode(dailyPlayCounts));
@@ -736,16 +736,8 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     
     // Track skip operations for audio session management
     final now = DateTime.now();
-    
-    // Check if this is a rapid skip
-    bool isRapidSkip = false;
-    if (_lastSkipOperation != null) {
-      final timeSinceLastSkip = now.difference(_lastSkipOperation!);
-      isRapidSkip = timeSinceLastSkip.inMilliseconds < 1000;
-    }
-    
-    // Check if this is a background audio session operation
-    bool isBackgroundOperation = _isBackgroundAudioSessionOperation();
+    final isRapidSkip = _isRapidSkip();
+    final isBackgroundOperation = _isBackgroundAudioSessionOperation();
     
     if (isRapidSkip) {
       _consecutiveRapidSkips++;
@@ -822,13 +814,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           final sessionActive = await _ensureAudioSessionActive();
           if (!sessionActive) {
             // For rapid skips, continue anyway as the session might still be functional
-            final now = DateTime.now();
-            bool isRapidSkip = false;
-            if (_lastSkipOperation != null) {
-              final timeSinceLastSkip = now.difference(_lastSkipOperation!);
-              isRapidSkip = timeSinceLastSkip.inMilliseconds < 1000;
-            }
-            
             if (isRapidSkip) {
               debugPrint("AudioHandler: Rapid skip - continuing despite session activation failure");
             } else {
@@ -856,14 +841,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           // Start playback
           await _audioPlayer.play();
           debugPrint("AudioHandler: Playback started successfully");
-          
-          // Verify that playback actually started
-          await Future.delayed(const Duration(milliseconds: 100));
-          if (_audioPlayer.playing) {
-            debugPrint("AudioHandler: Playback confirmed - audio player is playing");
-          } else {
-            debugPrint("AudioHandler: WARNING - Playback failed to start despite no error");
-          }
+          await _verifyPlayback();
         } else {
           debugPrint("AudioHandler: Audio player not ready, current state: ${_audioPlayer.processingState}");
           // Try to wait a bit more and then play
@@ -871,29 +849,14 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           if (_audioPlayer.processingState == ProcessingState.ready) {
             await _audioPlayer.play();
             debugPrint("AudioHandler: Playback started after delay");
-            
-            // Verify that playback actually started
-            await Future.delayed(const Duration(milliseconds: 100));
-            if (_audioPlayer.playing) {
-              debugPrint("AudioHandler: Playback confirmed after delay - audio player is playing");
-            } else {
-              debugPrint("AudioHandler: WARNING - Playback failed to start after delay");
-            }
+            await _verifyPlayback();
           } else {
             debugPrint("AudioHandler: Failed to start playback - audio player still not ready");
           }
         }
         
         // Ensure metadata is properly broadcast to audio session after skip
-        final currentItem = mediaItem.value;
-        if (currentItem != null) {
-          // Force a metadata update to ensure iOS Control Center gets the new track info
-          mediaItem.add(currentItem);
-          
-          // Add a small delay to ensure metadata propagation
-          await Future.delayed(const Duration(milliseconds: 50));
-          mediaItem.add(currentItem);
-        }
+        await _syncMetadata();
         
         // Verify playback state
         debugPrint("AudioHandler: Final playback state - playing: ${_audioPlayer.playing}, processingState: ${_audioPlayer.processingState}");
@@ -944,10 +907,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   double get currentPlaybackSpeed => _audioPlayer.speed;
 
   Future<void> resetPlaybackSpeed() async {
-    try {
-      await _audioPlayer.setSpeed(1.0);
-      await _audioPlayer.setPitch(1.0);
-    } catch (_) {}
+    await setPlaybackSpeed(1.0);
   }
 
   @override
@@ -1023,19 +983,13 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     // For background operations on iOS, we need to be very careful about audio session management
     try {
       // Ensure the audio session is active but don't overwhelm it
-      if (_audioSession != null) {
-        // Check if session is already active to avoid redundant calls
-        final now = DateTime.now();
-        if (_lastSessionActivation == null || 
-            now.difference(_lastSessionActivation!).inMilliseconds > 1000) {
-          
-          debugPrint("AudioHandler: Activating audio session for background operation");
-          await _audioSession!.setActive(true);
-          _lastSessionActivation = now;
-          debugPrint("AudioHandler: Background audio session activated successfully");
-        } else {
-          debugPrint("AudioHandler: Audio session recently activated, skipping for background operation");
-        }
+      if (_audioSession != null && !_wasSessionRecentlyActivated(1000)) {
+        debugPrint("AudioHandler: Activating audio session for background operation");
+        await _audioSession!.setActive(true);
+        _lastSessionActivation = DateTime.now();
+        debugPrint("AudioHandler: Background audio session activated successfully");
+      } else {
+        debugPrint("AudioHandler: Audio session recently activated, skipping for background operation");
       }
       
       return true;
@@ -1059,14 +1013,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         await _audioPlayer.play();
         
         // Ensure metadata is properly broadcast for repeat one mode
-        final currentItem = mediaItem.value;
-        if (currentItem != null) {
-          mediaItem.add(currentItem);
-          
-          // Add a small delay to ensure metadata propagation
-          await Future.delayed(const Duration(milliseconds: 50));
-          mediaItem.add(currentItem);
-        }
+        await _syncMetadata();
       }
     } else {
       await skipToNext();
@@ -1161,47 +1108,31 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       return _audioPlayer.processingState == ProcessingState.ready;
     } else if (name == 'setShouldBePaused') {
       final shouldPause = extras?['shouldBePaused'] as bool?;
-      if (shouldPause != null) {
-        shouldBePaused = shouldPause;
-      }
+      if (shouldPause != null) shouldBePaused = shouldPause;
     } else if (name == 'getShouldBePaused') {
       return shouldBePaused;
     } else if (name == 'setAudioEffectsEnabled') {
       final enabled = extras?['enabled'] as bool?;
-      if (enabled != null) {
-        await _audioEffectsService.setEnabled(enabled);
-      }
+      if (enabled != null) await _audioEffectsService.setEnabled(enabled);
     } else if (name == 'setBassBoost') {
       final value = extras?['value'] as double?;
-      if (value != null) {
-        await _audioEffectsService.setBassBoost(value);
-      }
+      if (value != null) await _audioEffectsService.setBassBoost(value);
     } else if (name == 'setReverb') {
       final value = extras?['value'] as double?;
-      if (value != null) {
-        await _audioEffectsService.setReverb(value);
-      }
+      if (value != null) await _audioEffectsService.setReverb(value);
     } else if (name == 'set8DMode') {
       final enabled = extras?['enabled'] as bool?;
-      if (enabled != null) {
-        await _audioEffectsService.set8DMode(enabled);
-      }
+      if (enabled != null) await _audioEffectsService.set8DMode(enabled);
     } else if (name == 'set8DIntensity') {
       final value = extras?['value'] as double?;
-      if (value != null) {
-        await _audioEffectsService.set8DIntensity(value);
-      }
+      if (value != null) await _audioEffectsService.set8DIntensity(value);
     } else if (name == 'setEqualizerBand') {
       final band = extras?['band'] as int?;
       final value = extras?['value'] as double?;
-      if (band != null && value != null) {
-        await _audioEffectsService.setEqualizerBand(band, value);
-      }
+      if (band != null && value != null) await _audioEffectsService.setEqualizerBand(band, value);
     } else if (name == 'setEqualizerPreset') {
       final preset = extras?['preset'] as String?;
-      if (preset != null) {
-        await _audioEffectsService.setEqualizerPreset(preset);
-      }
+      if (preset != null) await _audioEffectsService.setEqualizerPreset(preset);
     } else if (name == 'resetAudioEffects') {
       _audioEffectsService.resetToDefaults();
     } else if (name == 'getAudioEffectsState') {
