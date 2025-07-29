@@ -405,7 +405,7 @@ class ApiService {
 
   Future<UpdateInfo?> checkForUpdate(String currentAppVersion) async {
     try {
-      final response = await http.get(Uri.parse(updateUrl));
+      final response = await _get(updateUrl);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final updateInfo = UpdateInfo.fromJson(data);

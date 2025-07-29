@@ -44,9 +44,19 @@ class DownloadNotificationService {
       requestCriticalPermission: true,
     );
 
+    // Initialize settings for macOS
+    const DarwinInitializationSettings initializationSettingsMacOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+      requestCriticalPermission: true,
+    );
+
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
+      macOS: initializationSettingsMacOS,
     );
 
     await _notifications!.initialize(
@@ -107,6 +117,21 @@ class DownloadNotificationService {
         critical: false,
       );
       debugPrint('iOS notification permission granted: $granted');
+    }
+
+    // Request permissions for macOS
+    final MacOSFlutterLocalNotificationsPlugin? macOSImplementation =
+        _notifications!.resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin>();
+
+    if (macOSImplementation != null) {
+      final bool? granted = await macOSImplementation.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: false,
+        critical: false,
+      );
+      debugPrint('macOS notification permission granted: $granted');
     }
   }
 

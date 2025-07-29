@@ -1859,6 +1859,98 @@ class ThemeProvider extends ChangeNotifier {
         ),
       );
 
+  // Desktop-specific themes with LTunes orange design
+  ThemeData get desktopLightTheme => ThemeData(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFFF9800), // LTunes orange
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          titleTextStyle: const TextStyle(
+            color: Color(0xFF1A1A1A),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          iconTheme: const IconThemeData(color: Color(0xFF1A1A1A)),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF9800),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFFFF9800),
+          ),
+        ),
+        iconTheme: const IconThemeData(
+          color: Color(0xFF1A1A1A),
+        ),
+      );
+
+  ThemeData get desktopDarkTheme => ThemeData(
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFFF9800), // LTunes orange
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF121212), // Spotify dark background
+        cardTheme: CardThemeData(
+          color: const Color(0xFF181818), // Spotify card background
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF121212),
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF9800),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFFFF9800),
+          ),
+        ),
+        iconTheme: const IconThemeData(
+          color: Colors.white,
+        ),
+        listTileTheme: const ListTileThemeData(
+          tileColor: Color(0xFF181818),
+          textColor: Colors.white,
+          iconColor: Colors.white,
+        ),
+      );
+
   ThemeProvider() {
     _loadThemeMode();
     _loadAccentColor();

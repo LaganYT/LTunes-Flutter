@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconFile</key>
+	<string></string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>NSMainNibFile</key>
+	<string>MainMenu</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>ltn-api.vercel.app</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LTunes needs microphone access for audio input and voice commands.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>LTunes uses Bluetooth for audio output to wireless headphones and speakers.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>LTunes uses Bluetooth for audio output to wireless headphones and speakers.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>LTunes needs access to documents folder to save and manage downloaded music files.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>LTunes needs access to downloads folder to save downloaded music files.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>LTunes needs access to desktop folder for file import and export operations.</string>
+	<key>NSMusicUsageDescription</key>
+	<string>LTunes needs access to music folder to import and manage local music files.</string>
+	<key>NSPicturesUsageDescription</key>
+	<string>LTunes needs access to pictures folder to save album artwork and images.</string>
+</dict>
+</plist>
