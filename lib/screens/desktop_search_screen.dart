@@ -23,9 +23,6 @@ import 'package:http/http.dart' as http;
 import '../models/playlist.dart';
 import '../services/loading_service.dart';
 
-// Import the SearchResult from unified_search_service
-import '../services/unified_search_service.dart';
-
 class DesktopSearchScreen extends StatefulWidget {
   const DesktopSearchScreen({super.key});
 
