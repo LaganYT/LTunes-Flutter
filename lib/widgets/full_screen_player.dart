@@ -1956,7 +1956,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     final allSpeeds = <double>[
       0.8, // Daycore
       1.0, // Normal
-      1.1, // Nightcore
+      1.2, // Nightcore
       ...customSpeedPresets,
     ];
     allSpeeds.sort();
@@ -1965,7 +1965,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     final speedLabels = <double, String>{
       0.8: '0.8x (Daycore)',
       1.0: '1.0x (Normal)',
-      1.1: '1.1x (Nightcore)',
+      1.2: '1.2x (Nightcore)',
     };
     
     showDialog(
