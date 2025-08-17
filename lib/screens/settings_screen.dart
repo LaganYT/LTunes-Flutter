@@ -540,8 +540,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Slider(
                     value: selectedValue.toDouble(),
                     min: 1,
-                    max: 20,
-                    divisions: 19,
+                    max: 30,
+                    divisions: 29,
                     label: selectedValue.toString(),
                     onChanged: (value) {
                       setState(() {
@@ -603,8 +603,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Slider(
                     value: selectedValue.toDouble(),
                     min: 1,
-                    max: 35,
-                    divisions: 34,
+                    max: 50,
+                    divisions: 49,
                     label: selectedValue.toString(),
                     onChanged: (value) {
                       setState(() {
