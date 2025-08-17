@@ -1,4 +1,3 @@
-
 import 'dart:convert'; // For jsonEncode
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -417,6 +416,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   final int _lastLyricUpdate = 0;
   int _artTransitionId = 0; // Unique id for each album art transition
 
+  // Lyrics animation controllers
+  late AnimationController _lyricTransitionController;
+  late AnimationController _lyricHighlightController;
+  late Animation<double> _lyricTransitionAnimation;
+  late Animation<double> _lyricHighlightAnimation;
+  
+  // Track previous lyric index for smooth transitions
+  int _previousLyricIndex = -1;
+  final Map<int, AnimationController> _lyricLineControllers = {};
 
   @override
   void initState() {
@@ -500,6 +508,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       parent: _rotationController,
       curve: Curves.easeOutCubic,
     ));
+
+    // Initialize lyrics animation controllers
+    _lyricTransitionController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _lyricTransitionAnimation = CurvedAnimation(
+      parent: _lyricTransitionController,
+      curve: Curves.easeInOut,
+    );
+
+    _lyricHighlightController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _lyricHighlightAnimation = CurvedAnimation(
+      parent: _lyricHighlightController,
+      curve: Curves.easeOut,
+    );
 
     _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
@@ -616,12 +643,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       setState(() {
         _parsedLyrics = [];
         _currentLyricIndex = -1;
+        _previousLyricIndex = -1; // Reset previous index
         _areLyricsSynced = false;
         _lyricsFetchedForCurrentSong = false;
         _lyricsLoading = false;
         // _showLyrics remains as is, or reset if desired:
         // _showLyrics = false; 
       });
+      
+      // Reset animation controllers
+      _lyricTransitionController.reset();
+      _lyricHighlightController.reset();
+      
+      // Dispose and clear individual lyric line controllers
+      for (final controller in _lyricLineControllers.values) {
+        controller.dispose();
+      }
+      _lyricLineControllers.clear();
     }
   }
 
@@ -869,6 +907,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         }
         if (_currentLyricIndex < -1) _currentLyricIndex = -1;
       });
+      
+      // Trigger entrance animation for new lyrics
+      if (tempParsedLyrics.isNotEmpty) {
+        _triggerLyricsEntranceAnimation();
+      }
     }
   }
 
@@ -984,6 +1027,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _slideController.dispose();
     _backgroundController.dispose();
     _rotationController.dispose();
+    
+    // Dispose lyrics animation controllers
+    _lyricTransitionController.dispose();
+    _lyricHighlightController.dispose();
+    
+    // Dispose individual lyric line controllers
+    for (final controller in _lyricLineControllers.values) {
+      controller.dispose();
+    }
+    _lyricLineControllers.clear();
+    
     // Cancel palette debounce timer if active
     _paletteDebounce?.cancel();
     super.dispose();
@@ -1096,9 +1150,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     }
 
     if (newIndex != _currentLyricIndex) {
+      // Store previous index for animation transitions
+      _previousLyricIndex = _currentLyricIndex;
+      
       setState(() {
         _currentLyricIndex = newIndex;
       });
+      
+      // Trigger lyric transition animations
+      if (newIndex != -1) {
+        _triggerLyricTransitionAnimation(newIndex);
+      }
+      
       if (newIndex != -1 && _lyricsScrollController.isAttached) {
         // Do not auto-scroll for the first 3 lines
         if (newIndex >= 3) {
@@ -1111,6 +1174,43 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         }
       }
     }
+  }
+
+  // Trigger entrance animation when lyrics are first loaded
+  void _triggerLyricsEntranceAnimation() {
+    // Reset animation controllers
+    _lyricTransitionController.reset();
+    _lyricHighlightController.reset();
+    
+    // Start a subtle entrance animation
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _lyricTransitionController.forward();
+      }
+    });
+  }
+
+  // Trigger animations when lyric index changes
+  void _triggerLyricTransitionAnimation(int newIndex) {
+    // Reset and start the main transition animation
+    _lyricTransitionController.reset();
+    _lyricTransitionController.forward();
+    
+    // Reset and start the highlight animation
+    _lyricHighlightController.reset();
+    _lyricHighlightController.forward();
+    
+    // Create or update individual lyric line controllers
+    if (!_lyricLineControllers.containsKey(newIndex)) {
+      _lyricLineControllers[newIndex] = AnimationController(
+        duration: const Duration(milliseconds: 500),
+        vsync: this,
+      );
+    }
+    
+    // Start the individual line animation
+    _lyricLineControllers[newIndex]!.reset();
+    _lyricLineControllers[newIndex]!.forward();
   }
 
   // Add missing seek bar handlers
@@ -1362,21 +1462,38 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                     // Album Art Section OR Lyrics Section
                     Expanded(
                       flex: 5,
-                      child: _showLyrics
-                          ? (_lyricsLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : (_parsedLyrics.isNotEmpty
-                                  ? _buildLyricsView(context)
-                                  : Center(
-                                      child: Text(
-                                        _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
-                                        style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    )
-                                )
-                            )
-                          : GestureDetector( 
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 600),
+                        transitionBuilder: (Widget child, Animation<double> animation) {
+                          return SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0.0, 0.3),
+                              end: Offset.zero,
+                            ).animate(CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            )),
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _showLyrics
+                            ? (_lyricsLoading
+                                ? const Center(child: CircularProgressIndicator())
+                                : (_parsedLyrics.isNotEmpty
+                                    ? _buildLyricsView(context)
+                                    : Center(
+                                        child: Text(
+                                          _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
+                                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      )
+                                  )
+                              )
+                            : GestureDetector( 
                         onHorizontalDragEnd: (details) {
                           if (details.primaryVelocity == null) return; // Should not happen
 
@@ -1426,6 +1543,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         ),
                       ),
                     ),
+                      ),
 
                     // Song Info Section
                     Expanded(
@@ -1691,23 +1809,90 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         }
         final line = _parsedLyrics[index];
         final bool isCurrent = _areLyricsSynced && index == _currentLyricIndex; // Highlight only if synced
+        final bool wasCurrent = _areLyricsSynced && index == _previousLyricIndex; // Was previously current
+        
         return GestureDetector(
           onTap: () {
             if (_areLyricsSynced && currentSongProvider.currentSong != null && !currentSongProvider.isCurrentlyPlayingRadio) {
               currentSongProvider.seek(line.timestamp);
             }
           },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            child: Text(
-              line.text,
-              textAlign: TextAlign.center,
-              style: textTheme.titleLarge?.copyWith(
-                                            color: isCurrent ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: isCurrent ? 1.0 : 0.6),
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                fontSize: isCurrent ? 22 : 20, // Slightly larger for current line if synced
-              ),
-            ),
+          child: AnimatedBuilder(
+            animation: _lyricTransitionController,
+            builder: (context, child) {
+              return AnimatedBuilder(
+                animation: _lyricHighlightController,
+                builder: (context, child) {
+                  // Get individual line animation if it exists
+                  final lineController = _lyricLineControllers[index];
+                  final lineAnimation = lineController != null 
+                      ? CurvedAnimation(
+                          parent: lineController,
+                          curve: Curves.easeOutBack,
+                        )
+                      : null;
+                  
+                  return AnimatedBuilder(
+                    animation: lineAnimation ?? const AlwaysStoppedAnimation(1.0),
+                    builder: (context, child) {
+                      // Calculate animation values
+                      double scale = 1.0;
+                      double opacity = 1.0;
+                      Color textColor = colorScheme.onSurface.withValues(alpha: 0.6);
+                      FontWeight fontWeight = FontWeight.normal;
+                      double fontSize = 20.0;
+                      
+                      if (isCurrent) {
+                        // Current line animations
+                        scale = 1.0 + (0.1 * _lyricHighlightAnimation.value);
+                        opacity = 0.6 + (0.4 * _lyricHighlightAnimation.value);
+                        textColor = Color.lerp(
+                          colorScheme.onSurface.withValues(alpha: 0.6),
+                          colorScheme.secondary,
+                          _lyricHighlightAnimation.value,
+                        )!;
+                        fontWeight = FontWeight.bold;
+                        fontSize = 20.0 + (2.0 * _lyricHighlightAnimation.value);
+                      } else if (wasCurrent) {
+                        // Previously current line - fade out effect
+                        opacity = 1.0 - (0.3 * _lyricTransitionAnimation.value);
+                        textColor = Color.lerp(
+                          colorScheme.secondary,
+                          colorScheme.onSurface.withValues(alpha: 0.6),
+                          _lyricTransitionAnimation.value,
+                        )!;
+                        fontWeight = FontWeight.normal;
+                        fontSize = 22.0 - (2.0 * _lyricTransitionAnimation.value);
+                      }
+                      
+                      // Apply line-specific animation
+                      if (lineAnimation != null) {
+                        scale *= (0.95 + (0.05 * lineAnimation.value));
+                      }
+                      
+                      return Transform.scale(
+                        scale: scale,
+                        child: Opacity(
+                          opacity: opacity,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                            child: Text(
+                              line.text,
+                              textAlign: TextAlign.center,
+                              style: textTheme.titleLarge?.copyWith(
+                                color: textColor,
+                                fontWeight: fontWeight,
+                                fontSize: fontSize,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
           ),
         );
       },
