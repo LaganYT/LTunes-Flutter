@@ -1462,24 +1462,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                     // Album Art Section OR Lyrics Section
                     Expanded(
                       flex: 7,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 600),
-                        transitionBuilder: (Widget child, Animation<double> animation) {
-                          return SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.0, 0.3),
-                              end: Offset.zero,
-                            ).animate(CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutCubic,
-                            )),
-                            child: FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: _showLyrics
+                      child: _showLyrics
                             ? (_lyricsLoading
                                 ? const Center(child: CircularProgressIndicator())
                                 : (_parsedLyrics.isNotEmpty
@@ -1543,7 +1526,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         ),
                       ),
                     ),
-                      ),
 
                     // Song Info Section
                     Expanded(
