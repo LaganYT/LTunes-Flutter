@@ -371,9 +371,12 @@ class ApiService {
     _albumDetailCache.removeWhere((key, entry) => entry.isAlbumExpired);
   }
 
+  Timer? _cacheCleanupTimer;
+
   // Performance: Periodic cache cleanup
   void startCacheCleanup() {
-    Timer.periodic(const Duration(minutes: 5), (timer) {
+    _cacheCleanupTimer?.cancel();
+    _cacheCleanupTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       _cleanupExpiredCache();
     });
   }
@@ -384,6 +387,7 @@ class ApiService {
       timer.cancel();
     }
     _debounceTimers.clear();
+    _cacheCleanupTimer?.cancel();
     _httpClient.close();
   }
 

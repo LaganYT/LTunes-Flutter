@@ -26,13 +26,16 @@ import 'songs_list_screen.dart';
 import 'liked_songs_screen.dart'; // new import
 import 'song_detail_screen.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart'; // For consolidateHttpClientResponseBytes
 import '../widgets/unified_search_widget.dart';
+import 'package:http/http.dart' as http; // Added import for http
 
 // Place this at the top level, outside any class
 // Cache for station icons to prevent flashing
 final Map<String, String> _stationIconCache = {};
 final Map<String, Future<String>> _stationIconFutures = {};
+
+// Create a reusable HTTP client for image downloads
+final http.Client _imageHttpClient = http.Client();
 
 Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
@@ -72,12 +75,10 @@ Future<String> _cacheStationIconInternal(String imageUrl, String stationId) asyn
     if (await file.exists()) {
       return filePath;
     }
-    // Download the image
-    final response = await HttpClient().getUrl(Uri.parse(imageUrl));
-    final imageResponse = await response.close();
-    if (imageResponse.statusCode == 200) {
-      final bytes = await consolidateHttpClientResponseBytes(imageResponse);
-      await file.writeAsBytes(bytes);
+    // Download the image using the reusable HTTP client
+    final response = await _imageHttpClient.get(Uri.parse(imageUrl));
+    if (response.statusCode == 200) {
+      await file.writeAsBytes(response.bodyBytes);
       return filePath;
     }
   } catch (e) {

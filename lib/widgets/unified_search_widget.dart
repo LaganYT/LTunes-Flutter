@@ -13,7 +13,10 @@ import 'package:path/path.dart' as p;
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+// Create a reusable HTTP client for image downloads
+final http.Client _imageHttpClient = http.Client();
 
 // Cache for station icons to prevent flashing
 final Map<String, String> _stationIconCache = {};
@@ -57,12 +60,10 @@ Future<String> _cacheStationIconInternal(String imageUrl, String stationId) asyn
     if (await file.exists()) {
       return filePath;
     }
-    // Download the image
-    final response = await HttpClient().getUrl(Uri.parse(imageUrl));
-    final imageResponse = await response.close();
-    if (imageResponse.statusCode == 200) {
-      final bytes = await consolidateHttpClientResponseBytes(imageResponse);
-      await file.writeAsBytes(bytes);
+    // Download the image using the reusable HTTP client
+    final response = await _imageHttpClient.get(Uri.parse(imageUrl));
+    if (response.statusCode == 200) {
+      await file.writeAsBytes(response.bodyBytes);
       return filePath;
     }
   } catch (e) {
