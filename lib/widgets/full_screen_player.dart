@@ -1455,13 +1455,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 color: _dominantColor.withValues(alpha: _backgroundAnimation.value), 
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + kToolbarHeight),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16.0),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     // Album Art Section OR Lyrics Section
                     Expanded(
-                      flex: 5,
+                      flex: 7,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 600),
                         transitionBuilder: (Widget child, Animation<double> animation) {
@@ -1547,7 +1547,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
                     // Song Info Section
                     Expanded(
-                      flex: 3,
+                      flex: 2,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
