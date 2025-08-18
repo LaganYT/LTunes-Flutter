@@ -24,7 +24,9 @@ import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import 'delete_downloads_screen.dart'; // Import DeleteDownloadsScreen
 import '../screens/playlists_list_screen.dart' show robustArtwork;
 import 'audio_effects_screen.dart'; // Import AudioEffectsScreen
+import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/audio_effects_service.dart'; // Import AudioEffectsService
+import '../services/animation_service.dart'; // Import AnimationService
 
 
 class SettingsScreen extends StatefulWidget {
@@ -47,6 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<bool?> showOnlySavedSongsInAlbumsNotifier = ValueNotifier<bool?>(null); // NEW
   final ValueNotifier<int> maxConcurrentDownloadsNotifier = ValueNotifier<int>(1); // NEW
   final ValueNotifier<int> maxConcurrentPlaylistMatchesNotifier = ValueNotifier<int>(5); // NEW
+  final ValueNotifier<Map<AnimationType, bool>> animationSettingsNotifier = ValueNotifier<Map<AnimationType, bool>>({}); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -148,6 +151,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final maxConcurrentPlaylistMatches = prefs.getInt('maxConcurrentPlaylistMatches') ?? 5;
     maxConcurrentPlaylistMatchesNotifier.value = maxConcurrentPlaylistMatches;
 
+    // Load Animation Settings
+    final animationService = AnimationService.instance;
+    animationSettingsNotifier.value = animationService.animationSettings;
+
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -188,6 +195,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveMaxConcurrentPlaylistMatchesSetting(int value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('maxConcurrentPlaylistMatches', value);
+  }
+
+  Future<void> _saveAnimationSetting(AnimationType type, bool value) async {
+    await AnimationService.instance.setAnimationEnabled(type, value);
+    animationSettingsNotifier.value = AnimationService.instance.animationSettings;
   }
 
 
@@ -384,6 +396,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showOnlySavedSongsInAlbumsNotifier.value = false;
     await _saveShowOnlySavedSongsInAlbumsSetting(false);
 
+    // Reset Max Concurrent Downloads
+    maxConcurrentDownloadsNotifier.value = 1;
+    await _saveMaxConcurrentDownloadsSetting(1);
+
+    // Reset Max Concurrent Playlist Matches
+    maxConcurrentPlaylistMatchesNotifier.value = 5;
+    await _saveMaxConcurrentPlaylistMatchesSetting(5);
+
+    // Reset Animation Settings
+    await AnimationService.instance.resetToDefaults();
+    animationSettingsNotifier.value = AnimationService.instance.animationSettings;
+
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults(); 
@@ -401,16 +425,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showPrivacyPolicy(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const PrivacyPolicyScreen(),
+      createAnimatedPageRoute(
+        child: const PrivacyPolicyScreen(),
       ),
     );
   }
 
   void _showTermsOfService(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const TermsOfServiceScreen(),
+      createAnimatedPageRoute(
+        child: const TermsOfServiceScreen(),
       ),
     );
   }
@@ -575,6 +599,188 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Text('Save'),
                 ),
               ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAnimationSettingsDialog(BuildContext context) {
+    final animationService = AnimationService.instance;
+    final currentSettings = Map<AnimationType, bool>.from(animationService.animationSettings);
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  maxWidth: MediaQuery.of(context).size.width * 0.9,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'Animation Settings',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Text(
+                        'Choose which animations to enable:',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // All/None buttons
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  for (AnimationType type in AnimationType.values) {
+                                    if (type != AnimationType.all) {
+                                      currentSettings[type] = true;
+                                    }
+                                  }
+                                });
+                              },
+                              child: const Text('Enable All'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  for (AnimationType type in AnimationType.values) {
+                                    if (type != AnimationType.all) {
+                                      currentSettings[type] = false;
+                                    }
+                                  }
+                                });
+                              },
+                              child: const Text('Disable All'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Scrollable content
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: AnimationType.values.where((type) => type != AnimationType.all).map((type) {
+                            String title;
+                            String subtitle;
+                            IconData icon;
+                            
+                            switch (type) {
+                              case AnimationType.pageTransitions:
+                                title = 'Page Transitions';
+                                subtitle = 'Screen transitions and navigation animations';
+                                icon = Icons.swap_horiz;
+                                break;
+                              case AnimationType.equalizerAnimations:
+                                title = 'Equalizer Animations';
+                                subtitle = 'Moving bars in the equalizer';
+                                icon = Icons.graphic_eq;
+                                break;
+                              case AnimationType.songChangeAnimations:
+                                title = 'Song Change Animations';
+                                subtitle = 'Animations when switching songs';
+                                icon = Icons.music_note;
+                                break;
+                              case AnimationType.uiAnimations:
+                                title = 'UI Animations';
+                                subtitle = 'Buttons, switches, and interface animations';
+                                icon = Icons.touch_app;
+                                break;
+                              case AnimationType.lyricsAnimations:
+                                title = 'Lyrics Animations';
+                                subtitle = 'Lyrics scrolling and highlighting';
+                                icon = Icons.text_fields;
+                                break;
+                              default:
+                                title = type.name;
+                                subtitle = '';
+                                icon = Icons.settings;
+                            }
+                            
+                            return ListTile(
+                              leading: Icon(icon),
+                              title: Text(title),
+                              subtitle: Text(subtitle),
+                              trailing: Switch(
+                                value: currentSettings[type] ?? true,
+                                onChanged: (value) {
+                                  setState(() {
+                                    currentSettings[type] = value;
+                                  });
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    // Actions
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () async {
+                              // Save all settings
+                              for (AnimationType type in AnimationType.values) {
+                                if (type != AnimationType.all) {
+                                  await _saveAnimationSetting(type, currentSettings[type] ?? true);
+                                }
+                              }
+                              Navigator.of(context).pop();
+                              if (mounted && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Animation settings saved')),
+                                );
+                              }
+                            },
+                            child: const Text('Save'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         );
@@ -1051,8 +1257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const LocalMetadataScreen(),
+                      createAnimatedPageRoute(
+                        child: const LocalMetadataScreen(),
                       ),
                     );
                   },
@@ -1094,8 +1300,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const AudioEffectsScreen(),
+                      createAnimatedPageRoute(
+                        child: const AudioEffectsScreen(),
                       ),
                     );
                   },
@@ -1649,14 +1855,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('Advanced Settings'),
               subtitle: const Text('Danger zone: advanced file management'),
               children: [
+                ValueListenableBuilder<Map<AnimationType, bool>>(
+                  valueListenable: animationSettingsNotifier,
+                  builder: (context, animationSettings, _) {
+                    final enabledCount = animationSettings.values.where((enabled) => enabled).length;
+                    final totalCount = animationSettings.length;
+                    
+                    return ListTile(
+                      leading: const Icon(Icons.animation),
+                      title: const Text('Animation Settings'),
+                      subtitle: Text('$enabledCount of $totalCount animations enabled'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _showAnimationSettingsDialog(context),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: Icon(Icons.folder_delete_outlined, color: Theme.of(context).colorScheme.error),
                   title: const Text('Manage Downloaded Files'),
                   subtitle: const Text('Delete individual files from the downloads folder'),
                   onTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const DeleteDownloadsScreen(),
+                      createAnimatedPageRoute(
+                        child: const DeleteDownloadsScreen(),
                       ),
                     );
                   },

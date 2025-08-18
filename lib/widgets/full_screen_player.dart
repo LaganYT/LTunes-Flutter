@@ -21,6 +21,7 @@ import '../screens/audio_effects_screen.dart'; // Import AudioEffectsScreen
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../screens/album_screen.dart'; // Import AlbumScreen
 import '../screens/artist_screen.dart'; // Import ArtistScreen
+import '../services/animation_service.dart'; // Import AnimationService
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -276,19 +277,22 @@ class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with Sing
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     );
-    if (widget.isPlaying) {
+    _updateAnimation();
+  }
+
+  void _updateAnimation() {
+    final animationService = AnimationService.instance;
+    if (widget.isPlaying && animationService.isAnimationEnabled(AnimationType.equalizerAnimations)) {
       _controller.repeat();
+    } else {
+      _controller.stop();
     }
   }
 
   @override
   void didUpdateWidget(covariant AnimatedEqualizerIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying && !_controller.isAnimating) {
-      _controller.repeat();
-    } else if (!widget.isPlaying && _controller.isAnimating) {
-      _controller.stop();
-    }
+    _updateAnimation();
   }
 
   @override
@@ -665,6 +669,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // Enhanced opening animation method
   void _startOpeningAnimation() {
+    final animationService = AnimationService.instance;
+    
+    if (!animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
+      // Skip animations if disabled
+      _backgroundController.value = 1.0;
+      _scaleController.value = 1.0;
+      _slideController.value = 1.0;
+      _rotationController.value = 1.0;
+      _textFadeController.value = 1.0;
+      return;
+    }
+    
     // Start background fade immediately
     _backgroundController.forward();
     
@@ -687,6 +703,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // Enhanced song change animation method
   void _startSongChangeAnimation(double slideOffsetX) {
+    final animationService = AnimationService.instance;
+    
+    if (!animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
+      // Skip animations if disabled
+      _backgroundController.value = 1.0;
+      _scaleController.value = 1.0;
+      _slideController.value = 1.0;
+      _rotationController.value = 1.0;
+      _textFadeController.value = 1.0;
+      return;
+    }
+    
     // Reset and start background animation immediately
     _backgroundController.reset();
     _backgroundController.forward();
@@ -1178,6 +1206,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // Trigger entrance animation when lyrics are first loaded
   void _triggerLyricsEntranceAnimation() {
+    final animationService = AnimationService.instance;
+    
+    if (!animationService.isAnimationEnabled(AnimationType.lyricsAnimations)) {
+      // Skip animations if disabled
+      _lyricTransitionController.value = 1.0;
+      _lyricHighlightController.value = 1.0;
+      return;
+    }
+    
     // Reset animation controllers
     _lyricTransitionController.reset();
     _lyricHighlightController.reset();
@@ -1192,6 +1229,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // Trigger animations when lyric index changes
   void _triggerLyricTransitionAnimation(int newIndex) {
+    final animationService = AnimationService.instance;
+    
+    if (!animationService.isAnimationEnabled(AnimationType.lyricsAnimations)) {
+      // Skip animations if disabled
+      _lyricTransitionController.value = 1.0;
+      _lyricHighlightController.value = 1.0;
+      if (_lyricLineControllers.containsKey(newIndex)) {
+        _lyricLineControllers[newIndex]!.value = 1.0;
+      }
+      return;
+    }
+    
     // Reset and start the main transition animation
     _lyricTransitionController.reset();
     _lyricTransitionController.forward();
@@ -1888,29 +1937,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     
     // If playbar has the same artwork and it's not loading, use it immediately
     if (playbarArtProvider != null && playbarArtId == currentSong.id && !PlaybarState.isArtworkLoading()) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: Image(
-          key: ValueKey('art_${playbarArtId}_$_artTransitionId'),
-          image: playbarArtProvider,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-        ),
+      return Image(
+        key: ValueKey('art_${playbarArtId}_$_artTransitionId'),
+        image: playbarArtProvider,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
       );
     }
     
     // Otherwise, use the local artwork provider
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: _currentArtProvider != null
-        ? Image(
-            key: ValueKey('art_${_currentArtId}_$_artTransitionId'),
-            image: _currentArtProvider!,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-          )
-        : _placeholderArt(context, isRadio),
-    );
+    return _currentArtProvider != null
+      ? Image(
+          key: ValueKey('art_${_currentArtId}_$_artTransitionId'),
+          image: _currentArtProvider!,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+        )
+      : _placeholderArt(context, isRadio);
   }
 
   Widget _placeholderArt(BuildContext context, bool isRadio) {

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart'; // Ensure this is the correct path to CurrentSongProvider
+import '../services/animation_service.dart';
 import '../widgets/full_screen_player.dart';
+import 'animated_page_route.dart';
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import 'package:cached_network_image/cached_network_image.dart';
@@ -240,26 +242,36 @@ class PlaybarState extends State<Playbar> {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
-            transitionDuration: const Duration(milliseconds: 350),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              const begin = Offset(0.0, 1.0); // Slide from bottom
-              const end = Offset.zero; // Slide to center
-              final curve = Curves.easeOutQuint; // Smoother curve
+        final animationService = AnimationService.instance;
+        if (animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
+          Navigator.push(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
+              transitionDuration: const Duration(milliseconds: 350),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                const begin = Offset(0.0, 1.0); // Slide from bottom
+                const end = Offset.zero; // Slide to center
+                final curve = Curves.easeOutQuint; // Smoother curve
 
-              final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-              final offsetAnimation = animation.drive(tween);
+                final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                final offsetAnimation = animation.drive(tween);
 
-              return SlideTransition(
-                position: offsetAnimation,
-                child: child,
-              );
-            },
-          ),
-        );
+                return SlideTransition(
+                  position: offsetAnimation,
+                  child: child,
+                );
+              },
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            createAnimatedPageRoute(
+              child: const FullScreenPlayer(),
+            ),
+          );
+        }
       },
       child: GestureDetector( // Added GestureDetector for horizontal swipes
         onHorizontalDragEnd: (details) {
@@ -278,8 +290,14 @@ class PlaybarState extends State<Playbar> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           clipBehavior: Clip.antiAlias,
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 500),
+            duration: AnimationService.instance.getAnimationDuration(
+              const Duration(milliseconds: 500),
+              type: AnimationType.uiAnimations,
+            ),
             transitionBuilder: (Widget child, Animation<double> animation) {
+              if (!AnimationService.instance.isAnimationEnabled(AnimationType.uiAnimations)) {
+                return child;
+              }
               return FadeTransition(
                 opacity: animation,
                 child: ScaleTransition(
