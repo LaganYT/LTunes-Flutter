@@ -45,23 +45,3 @@
 
 ## Onboarding
 - Add an onboarding screen (happens only the first time you open the app)
-2025-08-19 16:39:50.845 [info] > git config --get commit.template [14ms]
-2025-08-19 16:39:50.863 [info] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) --ignore-case refs/heads/main refs/remotes/main [30ms]
-2025-08-19 16:39:50.873 [info] > git for-each-ref --sort -committerdate --format %(refname)%00%(objectname)%00%(*objectname) [8ms]
-2025-08-19 16:39:50.885 [info] > git status -z -uall [21ms]
-2025-08-19 16:39:51.185 [info] > git log --oneline --cherry main...main@{upstream} -- [10ms]
-2025-08-19 16:39:51.557 [info] > git pull --tags origin main [372ms]
-2025-08-19 16:39:51.557 [info] From https://github.com/LaganYT/LTunes-Flutter
- * branch            main       -> FETCH_HEAD
- ! [rejected]        2.2.5      -> 2.2.5  (would clobber existing tag)
-2025-08-19 16:39:51.879 [info] > git pull --tags origin main [321ms]
-2025-08-19 16:39:51.879 [info] From https://github.com/LaganYT/LTunes-Flutter
- * branch            main       -> FETCH_HEAD
- ! [rejected]        2.2.5      -> 2.2.5  (would clobber existing tag)
-2025-08-19 16:39:51.885 [info] > git config --get commit.template [5ms]
-2025-08-19 16:39:51.886 [info] > git for-each-ref --format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref) --ignore-case refs/heads/main refs/remotes/main [6ms]
-2025-08-19 16:39:51.893 [info] > git for-each-ref --sort -committerdate --format %(refname)%00%(objectname)%00%(*objectname) [5ms]
-2025-08-19 16:39:51.895 [info] > git status -z -uall [8ms]
-2025-08-19 16:39:53.139 [info] > git ls-files --stage -- TODO.md [13ms]
-2025-08-19 16:39:53.148 [info] > git cat-file -s 5afcbba23d2942646f723771c29a86a366d76fbe [9ms]
-2025-08-19 16:39:53.157 [info] > git show --textconv :TODO.md [7ms]
