@@ -4,7 +4,6 @@
 - Try adding podcast support
 - Audiobooks
 - Work on ios audio session configuration, its still a little broken
-- When a song changes in the background have it also change the background color
 - When clearing queue have it clear all except the current song
 - Remove the flash after reordering the queue, where the song moves from the animation but it doesn't update for a second causing a flash where the song shows at its old position before showing its new one
 - When you click on the same song in a different playlist/album have it "switch context" which keeps the current song the same and same place and everything but the queue updates as if you were playing that song from that playlist/album
