@@ -165,7 +165,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                   else
                     Expanded(
                       child: ReorderableListView.builder(
-                        key: const PageStorageKey('queue-reorderable-list'),
+                        key: ValueKey(queue.map((s) => s.id).join(',')), // Force rebuild when queue order changes
                         buildDefaultDragHandles: false,
                         scrollController: _scrollController,
                         itemCount: queue.length,
@@ -236,10 +236,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                         onReorder: (int oldIndex, int newIndex) async {
                           if (newIndex > oldIndex) newIndex -= 1;
                           await currentSongProvider.reorderQueue(oldIndex, newIndex);
-                          setState(() {
-                            final song = queue.removeAt(oldIndex);
-                            queue.insert(newIndex, song);
-                          });
+                          // Remove manual setState - let the provider's notifyListeners() handle UI updates
                         },
                       ),
                     ),

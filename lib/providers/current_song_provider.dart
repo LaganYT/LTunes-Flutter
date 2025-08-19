@@ -124,13 +124,15 @@ class CurrentSongProvider with ChangeNotifier {
       _currentIndexInAppQueue = _queue.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
     }
 
-    // Update the audio handler's queue
+    // Notify listeners immediately to update UI without flash
+    notifyListeners();
+
+    // Update the audio handler's queue (async operations after UI update)
     final mediaItems = await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
     await _audioHandler.updateQueue(mediaItems);
     if (_currentIndexInAppQueue != -1) {
       await _audioHandler.customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
     }
-    notifyListeners();
     _saveCurrentSongToStorage();
   }
 
