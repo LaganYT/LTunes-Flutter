@@ -471,7 +471,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     );
 
     _backgroundController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
@@ -1011,7 +1011,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // 8. Debounce album art/palette updates: add a debounce for _updatePalette
   Timer? _paletteDebounce;
   Future<void> _updatePalette(Song? song) async {
-    if (song == null || song.albumArtUrl.isEmpty) return;
+    if (song == null) {
+      // Set a default color when no song is available
+      if (mounted) {
+        setState(() {
+          _dominantColor = Theme.of(context).colorScheme.surface;
+        });
+      }
+      return;
+    }
+    
+    if (song.albumArtUrl.isEmpty) {
+      // Set a default color when no album art is available
+      if (mounted) {
+        setState(() {
+          _dominantColor = Theme.of(context).colorScheme.primaryContainer;
+        });
+      }
+      return;
+    }
     if (_paletteCache.containsKey(song.id)) {
       setState(() {
         _dominantColor = _paletteCache[song.id]!;
@@ -1034,7 +1052,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         final hsl = HSLColor.fromColor(baseColor);
         final Brightness currentBrightness = Theme.of(context).brightness;
         final bool isDarkMode = currentBrightness == Brightness.dark;
-        final adjustedColor = hsl.withLightness(isDarkMode ? 0.2 : 0.8).toColor();
+        
+        // Make the color more vibrant and noticeable
+        final adjustedColor = hsl
+            .withSaturation((hsl.saturation * 1.2).clamp(0.0, 1.0)) // Increase saturation
+            .withLightness(isDarkMode ? 0.15 : 0.85) // Slightly more contrast
+            .toColor();
+            
         _paletteCache[song.id] = adjustedColor;
         if (mounted) setState(() { _dominantColor = adjustedColor; });
       } catch (_) {}
@@ -1499,9 +1523,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         child: AnimatedBuilder(
           animation: _backgroundController,
           builder: (context, child) {
-            return Container(
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeInOut,
               decoration: BoxDecoration(
-                color: _dominantColor.withValues(alpha: _backgroundAnimation.value), 
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.8),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.4),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.2),
+                  ],
+                ),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16.0),
