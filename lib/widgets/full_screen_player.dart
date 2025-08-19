@@ -1402,6 +1402,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 case 'cancel_sleep_timer':
                   _sleepTimerService.cancelTimer();
                   break;
+                case 'playback_speed':
+                  _showPlaybackSpeedDialog(context);
+                  break;
               }
             },
             itemBuilder: (BuildContext context) => [
@@ -1464,6 +1467,40 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             Text(
                               'Ends at ${_sleepTimerService.getEndTimeString()}',
                               style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              // Playback Speed (disabled on iOS)
+              if (!Platform.isIOS)
+                PopupMenuItem<String>(
+                  value: 'playback_speed',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.speed_rounded,
+                        color: currentSongProvider.playbackSpeed != 1.0 
+                            ? colorScheme.secondary 
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Playback Speed'),
+                            Text(
+                              '${currentSongProvider.playbackSpeed}x',
+                              style: TextStyle(
+                                fontSize: 12, 
+                                color: currentSongProvider.playbackSpeed != 1.0 
+                                    ? colorScheme.secondary 
+                                    : Colors.grey,
+                              ),
                             ),
                           ],
                         ),
@@ -1676,21 +1713,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                               iconSize: 26.0,
                               color: colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
-                            // Playback Speed (disabled on iOS)
-                            if (!Platform.isIOS)
-                              IconButton(
-                                icon: Icon(
-                                  currentSongProvider.playbackSpeed == 1.0 
-                                      ? Icons.speed_rounded 
-                                      : Icons.speed_rounded,
-                                  color: currentSongProvider.playbackSpeed != 1.0 
-                                      ? colorScheme.secondary 
-                                      : colorScheme.onSurface.withValues(alpha: 0.7),
-                                ),
-                                onPressed: () => _showPlaybackSpeedDialog(context),
-                                tooltip: 'Playback Speed (${currentSongProvider.playbackSpeed}x)',
-                                iconSize: 26.0,
-                              ),
+
                           ],
                         ),
                       ),
