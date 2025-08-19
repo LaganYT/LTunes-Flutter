@@ -44,6 +44,17 @@ android {
     tasks.withType<JavaCompile> {
         options.compilerArgs.add("-Xlint:-options")
     }
+    
+    // Suppress warnings for all tasks
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.add("-Xlint:-options")
+    }
+    
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions {
+            freeCompilerArgs += listOf("-Xsuppress-version-warnings")
+        }
+    }
 }
 
 dependencies {

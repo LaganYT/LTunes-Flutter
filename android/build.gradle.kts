@@ -14,6 +14,23 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    
+    // Configure Java version for all subprojects
+    afterEvaluate {
+        if (project.hasProperty('android')) {
+            android {
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_11
+                    targetCompatibility = JavaVersion.VERSION_11
+                }
+            }
+        }
+        
+        // Suppress Java version warnings for all subprojects
+        tasks.withType<JavaCompile> {
+            options.compilerArgs.add("-Xlint:-options")
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
