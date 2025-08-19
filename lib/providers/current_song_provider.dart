@@ -2072,15 +2072,28 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> clearQueue() async {
-    _queue.clear();
-    _currentIndexInAppQueue = -1;
-    // If a song is playing, it might continue if it was the current item.
-    // To stop it and clear handler queue:
-    // await _audioHandler.stop(); // This also clears handler's current item
-    await _audioHandler.updateQueue([]); // Clears handler's queue
-
-    // If current song was part of the cleared queue, nullify it
-    // _currentSongFromAppLogic = null; // Or decide based on desired behavior
+    // Keep the current song if it exists
+    Song? currentSong = _currentSongFromAppLogic;
+    int currentIndex = _currentIndexInAppQueue;
+    
+    if (currentSong != null && currentIndex >= 0 && currentIndex < _queue.length) {
+      // Clear the queue but keep the current song
+      _queue.clear();
+      _queue.add(currentSong);
+      _currentIndexInAppQueue = 0; // Current song is now at index 0
+      
+      // Update the audio handler queue with just the current song
+      // but don't restart playback - just update the queue structure
+      final mediaItem = await _prepareMediaItem(currentSong);
+      await _audioHandler.updateQueue([mediaItem]);
+      // Don't call skipToQueueItem to avoid restarting the current song
+    } else {
+      // No current song, clear everything
+      _queue.clear();
+      _currentIndexInAppQueue = -1;
+      await _audioHandler.updateQueue([]);
+    }
+    
     notifyListeners();
     _saveCurrentSongToStorage();
   }
