@@ -381,19 +381,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   late AnimationController _slideController;
   late AnimationController _backgroundController;
   late AnimationController _rotationController;
-  late AnimationController _colorTransitionController; // New controller for color transitions
   late Animation<double> _scaleAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _backgroundAnimation;
   late Animation<double> _rotationAnimation;
-  late Animation<double> _colorTransitionAnimation; // New animation for color transitions
 
   late CurrentSongProvider _currentSongProvider;
   late ApiService _apiService;
   final SleepTimerService _sleepTimerService = SleepTimerService();
 
   Color _dominantColor = Colors.transparent;
-  Color _previousDominantColor = Colors.transparent; // Track previous color for smooth transitions
 
   // Lyrics State
   bool _showLyrics = false;
@@ -483,11 +480,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       vsync: this,
     );
 
-    _colorTransitionController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
     // Enhanced opening animations
     _scaleAnimation = Tween<double>(
       begin: 0.85,
@@ -519,14 +511,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     ).animate(CurvedAnimation(
       parent: _rotationController,
       curve: Curves.easeOutCubic,
-    ));
-
-    _colorTransitionAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _colorTransitionController,
-      curve: Curves.easeInOut,
     ));
 
     // Initialize lyrics animation controllers
@@ -582,11 +566,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _updatePalette(_currentSongProvider.currentSong, skipAnimation: true);
-        // Set initial previous color to match current color for smooth first load
-        if (_dominantColor != Colors.transparent) {
-          _previousDominantColor = _dominantColor;
-        }
+        _updatePalette(_currentSongProvider.currentSong);
       }
     });
 
@@ -767,31 +747,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     });
   }
 
-  // Color transition animation method
-  void _startColorTransitionAnimation() {
-    // Safety check: ensure the controller is initialized and widget is mounted
-    if (!mounted) {
-      return;
-    }
-    
-    try {
-      final animationService = AnimationService.instance;
-      
-      if (!animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
-        // Skip animations if disabled
-        _colorTransitionController.value = 1.0;
-        return;
-      }
-      
-      // Reset and start color transition animation
-      _colorTransitionController.reset();
-      _colorTransitionController.forward();
-    } catch (e) {
-      // If there's any error with the animation controller, just skip the animation
-      debugPrint('Error starting color transition animation: $e');
-    }
-  }
-
   // 2. Batch setState in _onSongChanged and other methods
   void _onSongChanged() async {
     if (!mounted) return;
@@ -827,9 +782,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
       // Use enhanced animations for song changes
       _startSongChangeAnimation(effectiveSlideOffsetX);
-
-      // Start color transition animation
-      _startColorTransitionAnimation();
 
       if (mounted) _updatePalette(newSong);
       _resetLyricsState();
@@ -1058,20 +1010,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // 8. Debounce album art/palette updates: add a debounce for _updatePalette
   Timer? _paletteDebounce;
-  Future<void> _updatePalette(Song? song, {bool skipAnimation = false}) async {
+  Future<void> _updatePalette(Song? song) async {
     if (song == null || song.albumArtUrl.isEmpty) return;
     if (_paletteCache.containsKey(song.id)) {
-      final newColor = _paletteCache[song.id]!;
-      if (_dominantColor != newColor) {
-        setState(() {
-          _previousDominantColor = _dominantColor;
-          _dominantColor = newColor;
-        });
-        // Trigger color transition animation (unless skipped)
-        if (!skipAnimation) {
-          _startColorTransitionAnimation();
-        }
-      }
+      setState(() {
+        _dominantColor = _paletteCache[song.id]!;
+      });
       return;
     }
     _paletteDebounce?.cancel();
@@ -1092,16 +1036,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         final bool isDarkMode = currentBrightness == Brightness.dark;
         final adjustedColor = hsl.withLightness(isDarkMode ? 0.2 : 0.8).toColor();
         _paletteCache[song.id] = adjustedColor;
-        if (mounted) {
-          setState(() { 
-            _previousDominantColor = _dominantColor;
-            _dominantColor = adjustedColor; 
-          });
-          // Trigger color transition animation (unless skipped)
-          if (!skipAnimation) {
-            _startColorTransitionAnimation();
-          }
-        }
+        if (mounted) setState(() { _dominantColor = adjustedColor; });
       } catch (_) {}
     });
   }
@@ -1120,7 +1055,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _slideController.dispose();
     _backgroundController.dispose();
     _rotationController.dispose();
-    _colorTransitionController.dispose();
     
     // Dispose lyrics animation controllers
     _lyricTransitionController.dispose();
@@ -1468,9 +1402,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 case 'cancel_sleep_timer':
                   _sleepTimerService.cancelTimer();
                   break;
-                case 'playback_speed':
-                  _showPlaybackSpeedDialog(context);
-                  break;
               }
             },
             itemBuilder: (BuildContext context) => [
@@ -1540,40 +1471,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                     ],
                   ),
                 ),
-              // Playback Speed (disabled on iOS)
-              if (!Platform.isIOS)
-                PopupMenuItem<String>(
-                  value: 'playback_speed',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.speed_rounded,
-                        color: currentSongProvider.playbackSpeed != 1.0 
-                            ? colorScheme.secondary 
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text('Playback Speed'),
-                            Text(
-                              '${currentSongProvider.playbackSpeed}x',
-                              style: TextStyle(
-                                fontSize: 12, 
-                                color: currentSongProvider.playbackSpeed != 1.0 
-                                    ? colorScheme.secondary 
-                                    : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
             ],
           ),
         ],
@@ -1600,18 +1497,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         // and doesn't let touches pass through to widgets below if it's layered.
                 behavior: HitTestBehavior.opaque,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_backgroundController, _colorTransitionController]),
+          animation: _backgroundController,
           builder: (context, child) {
-            // Interpolate between previous and current color during transition
-            final Color currentBackgroundColor = Color.lerp(
-              _previousDominantColor,
-              _dominantColor,
-              _colorTransitionAnimation.value,
-            ) ?? _dominantColor;
-            
             return Container(
               decoration: BoxDecoration(
-                color: currentBackgroundColor.withValues(alpha: _backgroundAnimation.value), 
+                color: _dominantColor.withValues(alpha: _backgroundAnimation.value), 
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16.0),
