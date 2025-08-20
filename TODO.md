@@ -44,6 +44,4 @@
 - Add an onboarding screen (happens only the first time you open the app)
 
 
-Decrease background color fade time (1500 -> 500?)
-make the background more prominent (0.1 more opacity)
 give the full screen player a new design for the background of individual elements

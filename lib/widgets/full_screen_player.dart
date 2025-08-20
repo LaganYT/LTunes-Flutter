@@ -468,7 +468,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     );
 
     _backgroundController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
 
@@ -678,17 +678,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       return;
     }
     
-    // Start background fade immediately
+    // Start all animations simultaneously for a more cohesive feel
     _backgroundController.forward();
-    
-    // Start scale, slide, and rotation animations with a slight delay
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        _scaleController.forward();
-        _slideController.forward();
-        _rotationController.forward();
-      }
-    });
+    _scaleController.forward();
+    _slideController.forward();
+    _rotationController.forward();
     
     // Stagger the text fade animation with longer delay for smoother feel
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -1528,9 +1522,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.8),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 1.0),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.6),
                     _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.4),
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.2),
                   ],
                 ),
               ),
