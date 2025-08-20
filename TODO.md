@@ -42,6 +42,3 @@
 
 ## Onboarding
 - Add an onboarding screen (happens only the first time you open the app)
-
-
-give the full screen player a new design for the background of individual elements

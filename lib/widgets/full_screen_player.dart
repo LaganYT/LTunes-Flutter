@@ -426,6 +426,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // Track previous lyric index for smooth transitions
   int _previousLyricIndex = -1;
   final Map<int, AnimationController> _lyricLineControllers = {};
+  
+  // Debounce timer for lyrics toggle button to prevent spam
+  Timer? _lyricsToggleDebounceTimer;
 
   @override
   void initState() {
@@ -1083,6 +1086,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     
     // Cancel palette debounce timer if active
     _paletteDebounce?.cancel();
+    
+    // Cancel lyrics toggle debounce timer if active
+    _lyricsToggleDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -1533,15 +1539,27 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    // Album Art Section OR Lyrics Section
+                    // Album Art Section OR Lyrics Section with Fade Transition
                     Expanded(
                       flex: 7,
-                      child: _showLyrics
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                        child: _showLyrics
                             ? (_lyricsLoading
-                                ? const Center(child: CircularProgressIndicator())
+                                ? const Center(
+                                    key: ValueKey('lyrics_loading'),
+                                    child: CircularProgressIndicator(),
+                                  )
                                 : (_parsedLyrics.isNotEmpty
                                     ? _buildLyricsView(context)
                                     : Center(
+                                        key: ValueKey('lyrics_empty'),
                                         child: Text(
                                           _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
                                           style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
@@ -1550,54 +1568,56 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                       )
                                   )
                               )
-                            : GestureDetector( 
-                        onHorizontalDragEnd: (details) {
-                          if (details.primaryVelocity == null) return; // Should not happen
+                            : GestureDetector(
+                                key: const ValueKey('album_art'),
+                                onHorizontalDragEnd: (details) {
+                                  if (details.primaryVelocity == null) return; // Should not happen
 
-                          // Swipe Left (finger moves from right to left) -> Next Song
-                          if (details.primaryVelocity! < -200) { // Negative velocity for left swipe
-                            _slideOffsetX = 1.0; // New art slides in from right
-                            currentSongProvider.playNext();
-                          }
-                          // Swipe Right (finger moves from left to right) -> Previous Song
-                          else if (details.primaryVelocity! > 200) { // Positive velocity for right swipe
-                            _slideOffsetX = -1.0; // New art slides in from left
-                            currentSongProvider.playPrevious();
-                          }
-                        },
-                        // Ensure this GestureDetector also claims the gesture space over the album art.
-                        behavior: HitTestBehavior.opaque,
-                        child: Center(
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                                                    child: AnimatedBuilder(
-                          animation: Listenable.merge([_scaleController, _slideController, _rotationController]),
-                          builder: (context, child) {
-                            return Transform.scale(
-                              scale: _scaleAnimation.value,
-                              child: Transform.rotate(
-                                angle: _rotationAnimation.value,
-                                child: SlideTransition(
-                                  position: _slideAnimation,
-                                  child: Hero(
-                                    tag: 'current-song-art-$_artTransitionId',
-                                    child: Material(
-                                      elevation: 12.0,
-                                      borderRadius: BorderRadius.circular(16.0),
-                                      shadowColor: Colors.black.withValues(alpha: 0.5),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16.0),
-                                        child: albumArtWidget,
-                                      ),
+                                  // Swipe Left (finger moves from right to left) -> Next Song
+                                  if (details.primaryVelocity! < -200) { // Negative velocity for left swipe
+                                    _slideOffsetX = 1.0; // New art slides in from right
+                                    currentSongProvider.playNext();
+                                  }
+                                  // Swipe Right (finger moves from left to right) -> Previous Song
+                                  else if (details.primaryVelocity! > 200) { // Positive velocity for right swipe
+                                    _slideOffsetX = -1.0; // New art slides in from left
+                                    currentSongProvider.playPrevious();
+                                  }
+                                },
+                                // Ensure this GestureDetector also claims the gesture space over the album art.
+                                behavior: HitTestBehavior.opaque,
+                                child: Center(
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: AnimatedBuilder(
+                                      animation: Listenable.merge([_scaleController, _slideController, _rotationController]),
+                                      builder: (context, child) {
+                                        return Transform.scale(
+                                          scale: _scaleAnimation.value,
+                                          child: Transform.rotate(
+                                            angle: _rotationAnimation.value,
+                                            child: SlideTransition(
+                                              position: _slideAnimation,
+                                              child: Hero(
+                                                tag: 'current-song-art-$_artTransitionId',
+                                                child: Material(
+                                                  elevation: 12.0,
+                                                  borderRadius: BorderRadius.circular(16.0),
+                                                  shadowColor: Colors.black.withValues(alpha: 0.5),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(16.0),
+                                                    child: albumArtWidget,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                          ),
-                        ),
                       ),
                     ),
 
@@ -1679,14 +1699,26 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             IconButton(
                               icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
                               onPressed: () {
+                                // Debounce to prevent spam
+                                if (_lyricsToggleDebounceTimer?.isActive == true) {
+                                  return;
+                                }
+                                
                                 final song = _currentSongProvider.currentSong;
                                 if (song == null) return;
+                                
                                 bool newShowLyricsState = !_showLyrics;
                                 if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
                                   _loadAndProcessLyrics(song);
                                 }
+                                
                                 setState(() {
                                   _showLyrics = newShowLyricsState;
+                                });
+                                
+                                // Set debounce timer to prevent rapid toggling
+                                _lyricsToggleDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                                  _lyricsToggleDebounceTimer = null;
                                 });
                               },
                               iconSize: 26.0,
