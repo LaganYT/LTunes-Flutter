@@ -23,7 +23,6 @@
 - Create a new api endpoint for the artist profile api and update the app to use this new api, this should use Spotify for the profile? (Not decided)
 
 ## Full Screen Player & UI
-- Add a subtle slight quick fade from album art to lyrics
 - For the opening of full screen player animation have it use the icon from the playbar and make the transition smoother by not having it wait for the icon to load before finishing the animation, currently it doesn't feel smooth it feels like you get half of the animation wait a few milliseconds then continue 
 - Change the slide down animation to be more reactive like Spotify is (full screen player)
 - Add a source control (airplay/android equivalent) button to the appbar of full screen player
