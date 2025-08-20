@@ -1752,7 +1752,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           Consumer<CurrentSongProvider>(
                             builder: (context, provider, _) => IconButton(
                               icon: Icon(
-                                provider.isShuffling ? Icons.shuffle_on_rounded : Icons.shuffle_rounded,
+                                provider.isShuffling ? Icons.shuffle : Icons.shuffle_outlined,
                                 color: provider.isShuffling ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
                               ),
                               iconSize: 26,
@@ -1821,10 +1821,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             builder: (context, provider, _) => IconButton(
                               icon: Icon(
                                 provider.loopMode == LoopMode.none
-                                    ? Icons.repeat_rounded
+                                    ? Icons.repeat
                                     : provider.loopMode == LoopMode.queue
-                                        ? Icons.repeat_on_rounded
-                                        : Icons.repeat_one_on_rounded,
+                                        ? Icons.repeat_outlined
+                                        : Icons.repeat_one,
                                 color: provider.loopMode != LoopMode.none
                                     ? colorScheme.secondary
                                     : colorScheme.onSurface.withValues(alpha: 0.7),

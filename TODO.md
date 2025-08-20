@@ -24,9 +24,7 @@
 
 ## Full Screen Player & UI
 - For the opening of full screen player animation have it use the icon from the playbar and make the transition smoother by not having it wait for the icon to load before finishing the animation, currently it doesn't feel smooth it feels like you get half of the animation wait a few milliseconds then continue 
-- Change the slide down animation to be more reactive like Spotify is (full screen player)
 - Add a source control (airplay/android equivalent) button to the appbar of full screen player
-- Change the full screen player shuffle/repeat icons to be filled not outlined with color
 
 ## Audio Effects & Settings
 - For the audio effects have it save what eq preset you have on (it currently only saves the slider values and not the name of the preset, if you choose a preset then start editing it then change the name to custom)
