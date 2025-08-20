@@ -26,13 +26,9 @@
 - For the opening of full screen player animation have it use the icon from the playbar and make the transition smoother by not having it wait for the icon to load before finishing the animation, currently it doesn't feel smooth it feels like you get half of the animation wait a few milliseconds then continue 
 - Add a source control (airplay/android equivalent) button to the appbar of full screen player
 
-## Audio Effects & Settings
-- For the audio effects have it save what eq preset you have on (it currently only saves the slider values and not the name of the preset, if you choose a preset then start editing it then change the name to custom)
-- Move the reset audio effects to be a button at the very bottom of the menu
-
 ## Downloads & File Management
 - From the manage downloaded files in settings allow users to export any file (audio or album art) 
-- Have the download notifications open the download queue when clicked
+- 
 
 ## Social & Sharing Features
 - Add SharePlay support via user hosting a hotspot the other person connects to that has a server that is hosted by the original user that the other person opens that syncs with the original user's app
