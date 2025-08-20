@@ -1522,9 +1522,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 1.0),
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.6),
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.4),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.9),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.5),
+                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.3),
                   ],
                 ),
               ),
