@@ -22,6 +22,8 @@ import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../screens/album_screen.dart'; // Import AlbumScreen
 import '../screens/artist_screen.dart'; // Import ArtistScreen
 import '../services/animation_service.dart'; // Import AnimationService
+import '../models/album.dart'; // Import Album model
+import '../services/album_manager_service.dart'; // Import AlbumManagerService
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -2134,10 +2136,56 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     );
   }
 
+  /// Check if an album is already offline in the library
+  Future<Album?> _findOfflineAlbum(String albumTitle, String artistName) async {
+    try {
+      final albumManager = AlbumManagerService();
+      final savedAlbums = albumManager.savedAlbums;
+      
+      // First check if the album is saved in the album manager
+      for (final savedAlbum in savedAlbums) {
+        if (savedAlbum.title.toLowerCase() == albumTitle.toLowerCase() &&
+            savedAlbum.artistName.toLowerCase() == artistName.toLowerCase()) {
+          
+          // Check if all tracks in this album are downloaded
+          bool allTracksDownloaded = true;
+          for (final track in savedAlbum.tracks) {
+            if (!track.isDownloaded || track.localFilePath == null || track.localFilePath!.isEmpty) {
+              allTracksDownloaded = false;
+              break;
+            }
+          }
+          
+          if (allTracksDownloaded) {
+            return savedAlbum;
+          }
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Error checking for offline album: $e');
+      return null;
+    }
+  }
+
   Future<void> _viewAlbum(BuildContext context, Song song) async {
     if (song.album == null || song.album!.isEmpty || song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Album information is not available for this song.')),
+      );
+      return;
+    }
+
+    // Check if album is already offline in library
+    final offlineAlbum = await _findOfflineAlbum(song.album!, song.artist);
+    if (offlineAlbum != null) {
+      // Album is offline, navigate directly to it
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AlbumScreen(album: offlineAlbum),
+        ),
       );
       return;
     }
