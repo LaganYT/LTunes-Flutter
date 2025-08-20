@@ -16,7 +16,6 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
   bool _is8DMode = false;
   double _eightDIntensity = 0.5;
   List<double> _equalizerBands = List.filled(10, 0.0);
-  String _currentPreset = 'Flat';
 
   @override
   void initState() {
@@ -33,7 +32,6 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
       _is8DMode = _audioEffectsService.is8DMode;
       _eightDIntensity = _audioEffectsService.eightDIntensity;
       _equalizerBands = List.from(_audioEffectsService.equalizerBands);
-      _currentPreset = _audioEffectsService.getCurrentPresetName();
     });
   }
 
@@ -43,13 +41,6 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
       appBar: AppBar(
         title: const Text('Audio Effects'),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _resetToDefaults,
-            tooltip: 'Reset to Defaults',
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -94,7 +85,7 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                       ),
                       const Spacer(),
                       Text(
-                        _currentPreset,
+                        _audioEffectsService.currentPresetName,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w500,
@@ -106,7 +97,7 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                   
                   // Preset Dropdown
                   DropdownButtonFormField<String>(
-                    value: _currentPreset,
+                    value: _audioEffectsService.currentPresetName,
                     decoration: const InputDecoration(
                       labelText: 'Preset',
                       border: OutlineInputBorder(),
@@ -122,7 +113,6 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                         await _audioEffectsService.setEqualizerPreset(value);
                         setState(() {
                           _equalizerBands = List.from(_audioEffectsService.equalizerBands);
-                          _currentPreset = value;
                         });
                       }
                     },
@@ -159,7 +149,6 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                                       await _audioEffectsService.setEqualizerBand(index, value);
                                       setState(() {
                                         _equalizerBands[index] = value;
-                                        _currentPreset = _audioEffectsService.getCurrentPresetName();
                                       });
                                     },
                                   ),
@@ -427,6 +416,25 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
+          
+          const SizedBox(height: 32),
+          
+          // Reset Button at the bottom
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _resetToDefaults,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reset Audio Effects to Defaults'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
         ],
       ),
     );

@@ -14,6 +14,7 @@ class AudioEffectsService {
   bool _is8DMode = false;
   double _eightDIntensity = 0.5;
   List<double> _equalizerBands = List.filled(10, 0.0); // 10-band equalizer
+  String _currentPresetName = 'Flat'; // Track current preset name
   final List<String> _equalizerPresets = [
     'Flat',
     'Bass Boost',
@@ -35,6 +36,7 @@ class AudioEffectsService {
   double get eightDIntensity => _eightDIntensity;
   List<double> get equalizerBands => List.unmodifiable(_equalizerBands);
   List<String> get equalizerPresets => List.unmodifiable(_equalizerPresets);
+  String get currentPresetName => _currentPresetName;
 
   void setAudioPlayer(AudioPlayer audioPlayer) {
     _audioPlayer = audioPlayer;
@@ -48,6 +50,7 @@ class AudioEffectsService {
     _reverb = prefs.getDouble('audio_effects_reverb') ?? 0.0;
     _is8DMode = prefs.getBool('audio_effects_8d_mode') ?? false;
     _eightDIntensity = prefs.getDouble('audio_effects_8d_intensity') ?? 0.5;
+    _currentPresetName = prefs.getString('audio_effects_current_preset') ?? 'Flat';
     
     final equalizerBandsJson = prefs.getString('audio_effects_equalizer_bands');
     if (equalizerBandsJson != null) {
@@ -69,6 +72,7 @@ class AudioEffectsService {
     await prefs.setDouble('audio_effects_reverb', _reverb);
     await prefs.setBool('audio_effects_8d_mode', _is8DMode);
     await prefs.setDouble('audio_effects_8d_intensity', _eightDIntensity);
+    await prefs.setString('audio_effects_current_preset', _currentPresetName);
     await prefs.setString('audio_effects_equalizer_bands', jsonEncode(_equalizerBands));
   }
 
@@ -105,12 +109,18 @@ class AudioEffectsService {
   Future<void> setEqualizerBand(int band, double value) async {
     if (band >= 0 && band < _equalizerBands.length) {
       _equalizerBands[band] = value.clamp(-12.0, 12.0);
+      // If user modifies a band, change preset to "Custom" unless it's already custom
+      if (_currentPresetName != 'Custom') {
+        _currentPresetName = 'Custom';
+      }
       await saveSettings();
       _applyEffects();
     }
   }
 
   Future<void> setEqualizerPreset(String presetName) async {
+    _currentPresetName = presetName;
+    
     switch (presetName) {
       case 'Flat':
         _equalizerBands = List.filled(10, 0.0);
@@ -201,20 +211,13 @@ class AudioEffectsService {
     _is8DMode = false;
     _eightDIntensity = 0.5;
     _equalizerBands = List.filled(10, 0.0);
+    _currentPresetName = 'Flat';
     saveSettings();
     _applyEffects();
   }
 
   String getCurrentPresetName() {
-    // Check if current settings match any preset
-    if (_equalizerBands.every((band) => band == 0.0)) return 'Flat';
-    
-    // Simple preset detection (could be improved)
-    if (_equalizerBands[0] > 3.0 && _equalizerBands[1] > 2.0) return 'Bass Boost';
-    if (_equalizerBands[8] > 3.0 && _equalizerBands[9] > 5.0) return 'Treble Boost';
-    if (_equalizerBands[3] > 2.0 && _equalizerBands[4] > 3.0) return 'Vocal Boost';
-    
-    return 'Custom';
+    return _currentPresetName;
   }
 
   // Frequency bands for the 10-band equalizer (typical values)
