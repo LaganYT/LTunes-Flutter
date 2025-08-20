@@ -19,12 +19,10 @@
 
 ## Artist & Album Features
 - Add: allow following an artist to save them to your library, this should replace the old artists page in the library, when clicking an artist from your library's saved artists have it load the artist page with an option to show "saved songs by -artist name-"
-- When you press view album of a song have it check if that album is already offline in your library first
 - Create a new api endpoint for the artist profile api and update the app to use this new api, this should use Spotify for the profile? (Not decided)
 
 ## Full Screen Player & UI
 - For the opening of full screen player animation have it use the icon from the playbar and make the transition smoother by not having it wait for the icon to load before finishing the animation, currently it doesn't feel smooth it feels like you get half of the animation wait a few milliseconds then continue 
-- Add a source control (airplay/android equivalent) button to the appbar of full screen player
 
 ## Downloads & File Management
 - From the manage downloaded files in settings allow users to export any file (audio or album art) 
