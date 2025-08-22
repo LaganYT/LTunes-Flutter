@@ -27,8 +27,5 @@
 ## Downloads & File Management
 - From the manage downloaded files in settings allow users to export any file (audio or album art) 
 
-## Social & Sharing Features
-- Add SharePlay support via user hosting a hotspot the other person connects to that has a server that is hosted by the original user that the other person opens that syncs with the original user's app
-
 ## Onboarding
 - Add an onboarding screen (happens only the first time you open the app)
