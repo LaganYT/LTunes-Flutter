@@ -9,10 +9,8 @@
 ## Lyrics Features
 - Lyrics Support
   - Allow users to add/edit lyrics for their local songs and display them during playback.
-- remove the decreased opacity on previous lyric for synced lyrics
 - Fix the lyric functionality for how it fetches to be more optimized and consistent 
 - Add those dots from better lyrics on Spotify whenever there is a break in lyrics
-- Have lyrics be formatted in a way so when they get resized as they are set to the current lyric that they don't shift positions at all
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
 - For the no lyrics found thing for a song in the full screen player add a subtext saying "Want to add lyrics to our database? Click here" with a Hyperlink to LRCLIB-frontend (maybe add a find song lyrics button to lrclib that fetches a specific song's lyrics from genius, or something. )
 
