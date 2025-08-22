@@ -1984,9 +1984,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       if (isCurrent) {
                         // Current line animations
                         scale = 1.0 + (0.1 * _lyricHighlightAnimation.value);
-                        opacity = 0.6 + (0.4 * _lyricHighlightAnimation.value);
+                        opacity = 0.7 + (0.3 * _lyricHighlightAnimation.value);
                         textColor = Color.lerp(
-                          colorScheme.onSurface.withValues(alpha: 0.6),
+                          colorScheme.onSurface.withValues(alpha: 0.7),
                           colorScheme.secondary,
                           _lyricHighlightAnimation.value,
                         )!;
@@ -1994,14 +1994,32 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         fontSize = 20.0 + (2.0 * _lyricHighlightAnimation.value);
                       } else if (wasCurrent) {
                         // Previously current line - fade out effect
-                        opacity = 1.0 - (0.3 * _lyricTransitionAnimation.value);
+                        opacity = 1.0 - (0.2 * _lyricTransitionAnimation.value);
                         textColor = Color.lerp(
                           colorScheme.secondary,
-                          colorScheme.onSurface.withValues(alpha: 0.6),
+                          colorScheme.onSurface.withValues(alpha: 0.4),
                           _lyricTransitionAnimation.value,
                         )!;
                         fontWeight = FontWeight.normal;
                         fontSize = 22.0 - (2.0 * _lyricTransitionAnimation.value);
+                      } else if (_areLyricsSynced && _currentLyricIndex >= 0 && index < _currentLyricIndex) {
+                        // All previous lyrics - decreased opacity and lighter color
+                        opacity = 0.6;
+                        textColor = colorScheme.onSurface.withValues(alpha: 0.5);
+                        fontWeight = FontWeight.normal;
+                        fontSize = 20.0;
+                      } else if (_areLyricsSynced && _currentLyricIndex >= 0 && index > _currentLyricIndex) {
+                        // Future lyrics - normal appearance
+                        opacity = 0.7;
+                        textColor = colorScheme.onSurface.withValues(alpha: 0.8);
+                        fontWeight = FontWeight.normal;
+                        fontSize = 20.0;
+                      } else {
+                        // Default appearance for unsynced lyrics or edge cases
+                        opacity = 0.7;
+                        textColor = colorScheme.onSurface.withValues(alpha: 0.8);
+                        fontWeight = FontWeight.normal;
+                        fontSize = 20.0;
                       }
                       
                       // Apply line-specific animation
