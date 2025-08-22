@@ -417,7 +417,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   final Map<String, Color> _paletteCache = {}; // Palette cache by song ID
   // 3. Throttle for lyrics index update
   final int _lastLyricUpdate = 0;
-  int _artTransitionId = 0; // Unique id for each album art transition
 
   // Lyrics animation controllers
   late AnimationController _lyricTransitionController;
@@ -562,8 +561,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _resetLyricsState();
 
     if (_currentSongProvider.currentSong != null) {
-      // Enhanced initial appearance with staggered animations
-      _startOpeningAnimation();
+      // Start opening animation immediately for smooth transition
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _startOpeningAnimation();
+        }
+      });
     }
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -586,15 +589,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _currentArtId = song.id;
         _artLoading = false;
       } else {
+        // Set loading state and update artwork asynchronously
+        _artLoading = true;
         _updateArtProvider(song);
       }
     }
 
   }
 
-  Future<void> _updateArtProvider(Song song) async {
-    if (mounted) setState(() { _artLoading = true; });
-    
+  void _updateArtProvider(Song song) {
     // Try to get the artwork from the playbar first
     final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
     final playbarArtId = PlaybarState.getCurrentArtworkId();
@@ -607,19 +610,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       return;
     }
     
-    // Otherwise, load the artwork as before
+    // Otherwise, load the artwork asynchronously
     if (song.albumArtUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
+      _currentArtId = song.id;
+      if (mounted) setState(() { _artLoading = false; });
     } else {
-      final path = await _resolveLocalArtPath(song.albumArtUrl);
-      if (path.isNotEmpty) {
-        _currentArtProvider = FileImage(File(path));
-      } else {
-        _currentArtProvider = null;
-      }
+      // For local files, resolve the path asynchronously
+      _resolveLocalArtPath(song.albumArtUrl).then((path) {
+        if (mounted) {
+          if (path.isNotEmpty) {
+            _currentArtProvider = FileImage(File(path));
+          } else {
+            _currentArtProvider = null;
+          }
+          _currentArtId = song.id;
+          setState(() { _artLoading = false; });
+        }
+      });
     }
-    _currentArtId = song.id;
-    if (mounted) setState(() { _artLoading = false; });
   }
 
 
@@ -639,6 +648,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _currentArtId = song.id;
         _artLoading = false;
       } else {
+        // Set loading state and update artwork asynchronously
+        _artLoading = true;
         _updateArtProvider(song);
       }
     }
@@ -683,14 +694,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       return;
     }
     
-    // Start all animations simultaneously for a more cohesive feel
+    // Start all animations immediately for smooth opening
     _backgroundController.forward();
     _scaleController.forward();
     _slideController.forward();
     _rotationController.forward();
     
-    // Stagger the text fade animation with longer delay for smoother feel
-    Future.delayed(const Duration(milliseconds: 300), () {
+    // Stagger the text fade animation with shorter delay for smoother feel
+    Future.delayed(const Duration(milliseconds: 150), () {
       if (mounted) {
         _textFadeController.forward();
       }
@@ -734,9 +745,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _rotationController.reset();
     _rotationController.forward();
     
-    // Reset and start text fade animation with longer delay for smoother feel
+    // Reset and start text fade animation with shorter delay for smoother feel
     _textFadeController.reset();
-    Future.delayed(const Duration(milliseconds: 200), () {
+    Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         _textFadeController.forward();
       }
@@ -771,12 +782,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           _currentArtId = newSong.id;
           _artLoading = false;
         } else {
-          // Preload the new art provider and only then animate
-          await _updateArtProvider(newSong);
+          // Start animation immediately without waiting for artwork
+          _artLoading = true;
+          // Update artwork asynchronously after animation starts
+          _updateArtProvider(newSong);
         }
       }
 
-      // Use enhanced animations for song changes
+      // Start animation immediately for smooth transition
       _startSongChangeAnimation(effectiveSlideOffsetX);
 
       if (mounted) _updatePalette(newSong);
@@ -800,7 +813,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         setState(() {
           _previousSongId = newSongId;
           _slideOffsetX = 0.0;
-          _artTransitionId++; // Increment transition id for each song change
         });
       }
       _loadLikeState();
@@ -1601,7 +1613,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                             child: SlideTransition(
                                               position: _slideAnimation,
                                               child: Hero(
-                                                tag: 'current-song-art-$_artTransitionId',
+                                                tag: 'current-song-art-${currentSong.id}',
                                                 child: Material(
                                                   elevation: 12.0,
                                                   borderRadius: BorderRadius.circular(16.0),
@@ -1983,22 +1995,57 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     // If playbar has the same artwork and it's not loading, use it immediately
     if (playbarArtProvider != null && playbarArtId == currentSong.id && !PlaybarState.isArtworkLoading()) {
       return Image(
-        key: ValueKey('art_${playbarArtId}_$_artTransitionId'),
+        key: ValueKey('art_${currentSong.id}'),
         image: playbarArtProvider,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
       );
     }
     
-    // Otherwise, use the local artwork provider
-    return _currentArtProvider != null
-      ? Image(
-          key: ValueKey('art_${_currentArtId}_$_artTransitionId'),
-          image: _currentArtProvider!,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
-        )
-      : _placeholderArt(context, isRadio);
+    // If we have a current art provider, use it
+    if (_currentArtProvider != null) {
+      return Image(
+        key: ValueKey('art_${currentSong.id}'),
+        image: _currentArtProvider!,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+      );
+    }
+    
+    // If artwork is loading, show a subtle loading state
+    if (_artLoading) {
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          key: ValueKey('loading_art_${currentSong.id}'),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    
+    // Fallback to placeholder
+    return _placeholderArt(context, isRadio);
   }
 
   Widget _placeholderArt(BuildContext context, bool isRadio) {
