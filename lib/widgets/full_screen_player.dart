@@ -884,6 +884,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           _lyricsLoading = false;
           _lyricsFetchedForCurrentSong = true;
         });
+        
+        // If lyrics are being shown and we have a current lyric index, scroll to it
+        if (_showLyrics && _currentLyricIndex >= 0) {
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              _scrollToCurrentLyricIfNeeded();
+            }
+          });
+        }
       }
       return;
     }
@@ -906,14 +915,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       
       _processLyricsForSongData(lyricsData);
     } catch (e) {
-      debugPrint("Error loading lyrics in FullScreenPlayer: $e");
+            debugPrint("Error loading lyrics in FullScreenPlayer: $e");
       _processLyricsForSongData(null); // Process with null to clear lyrics and show "not available"
     } finally {
       if (mounted) {
         setState(() {
           _lyricsLoading = false;
-          _lyricsFetchedForCurrentSong = true; 
+          _lyricsFetchedForCurrentSong = true;
         });
+        
+        // If lyrics are being shown and we have a current lyric index, scroll to it
+        if (_showLyrics && _currentLyricIndex >= 0) {
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              _scrollToCurrentLyricIfNeeded();
+            }
+          });
+        }
       }
     }
   }
@@ -947,6 +965,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       // Trigger entrance animation for new lyrics
       if (tempParsedLyrics.isNotEmpty) {
         _triggerLyricsEntranceAnimation();
+        
+        // If lyrics are being shown, scroll to current lyric after a short delay
+        if (_showLyrics) {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              _scrollToCurrentLyricIfNeeded();
+            }
+          });
+        }
       }
     }
   }
@@ -1260,6 +1287,21 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _lyricTransitionController.forward();
       }
     });
+  }
+
+  // Helper method to scroll to current lyric if conditions are met
+  void _scrollToCurrentLyricIfNeeded() {
+    if (_showLyrics && _currentLyricIndex >= 0 && _lyricsScrollController.isAttached) {
+      // Do not auto-scroll for the first 3 lines
+      if (_currentLyricIndex >= 3) {
+        _lyricsScrollController.scrollTo(
+          index: _currentLyricIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      }
+    }
   }
 
   // Trigger animations when lyric index changes
@@ -1729,6 +1771,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                 setState(() {
                                   _showLyrics = newShowLyricsState;
                                 });
+                                
+                                // If showing lyrics, scroll to current lyric after a short delay
+                                if (newShowLyricsState && _currentLyricIndex >= 0) {
+                                  Future.delayed(const Duration(milliseconds: 100), () {
+                                    if (mounted) {
+                                      _scrollToCurrentLyricIfNeeded();
+                                    }
+                                  });
+                                }
                                 
                                 // Set debounce timer to prevent rapid toggling
                                 _lyricsToggleDebounceTimer = Timer(const Duration(milliseconds: 300), () {
