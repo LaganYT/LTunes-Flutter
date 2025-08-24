@@ -231,15 +231,12 @@ class PlaybarState extends State<Playbar> {
           ),
     );
 
-    Widget leadingWidget = Hero(
-      tag: 'current-song-art-${songForArt.id}',
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
-          borderRadius: BorderRadius.circular(6.0),
-          child: albumArtContent,
-        ),
+    Widget leadingWidget = SizedBox( // Remove Hero wrapper, just use SizedBox
+      width: 48,
+      height: 48,
+      child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
+        borderRadius: BorderRadius.circular(6.0),
+        child: albumArtContent,
       ),
     );
 
@@ -251,11 +248,11 @@ class PlaybarState extends State<Playbar> {
             context,
             PageRouteBuilder(
               pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
-              transitionDuration: const Duration(milliseconds: 400),
+              transitionDuration: const Duration(milliseconds: 350),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 const begin = Offset(0.0, 1.0); // Slide from bottom
                 const end = Offset.zero; // Slide to center
-                final curve = Curves.easeOutCubic; // Even smoother curve
+                final curve = Curves.easeOutQuint; // Smoother curve
 
                 final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
                 final offsetAnimation = animation.drive(tween);
