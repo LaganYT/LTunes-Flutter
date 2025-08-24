@@ -24,6 +24,7 @@ import '../screens/artist_screen.dart'; // Import ArtistScreen
 import '../services/animation_service.dart'; // Import AnimationService
 import '../models/album.dart'; // Import Album model
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
+import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 
 // Helper class for parsed lyric lines
 class LyricLine {
@@ -1616,10 +1617,51 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                     ? _buildLyricsView(context)
                                     : Center(
                                         key: ValueKey('lyrics_empty'),
-                                        child: Text(
-                                          _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
-                                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
-                                          textAlign: TextAlign.center,
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
+                                              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                                                                         if (_lyricsFetchedForCurrentSong) ...[
+                                               const SizedBox(height: 8),
+                                               Text(
+                                                 'Want to add lyrics to our database?',
+                                                 style: textTheme.bodyMedium?.copyWith(
+                                                   color: colorScheme.onSurface.withValues(alpha: 0.7),
+                                                 ) ?? TextStyle(
+                                                   color: colorScheme.onSurface.withValues(alpha: 0.7),
+                                                   fontSize: 14.0,
+                                                 ),
+                                                 textAlign: TextAlign.center,
+                                               ),
+                                               const SizedBox(height: 4),
+                                               GestureDetector(
+                                                 onTap: () async {
+                                                   const url = 'https://lrclibplusplus.vercel.app/publish';
+                                                   try {
+                                                     await launchUrl(Uri.parse(url));
+                                                   } catch (e) {
+                                                     debugPrint('Error launching URL: $e');
+                                                   }
+                                                 },
+                                                 child: Text(
+                                                   'Click here',
+                                                   style: textTheme.bodyMedium?.copyWith(
+                                                     color: colorScheme.primary,
+                                                     decoration: TextDecoration.underline,
+                                                   ) ?? TextStyle(
+                                                     color: colorScheme.primary,
+                                                     decoration: TextDecoration.underline,
+                                                     fontSize: 14.0,
+                                                   ),
+                                                   textAlign: TextAlign.center,
+                                                 ),
+                                               ),
+                                             ],
+                                          ],
                                         ),
                                       )
                                   )
@@ -1926,9 +1968,48 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     // However, keeping a fallback here is safe.
     if (_parsedLyrics.isEmpty) {
       return Center(
-        child: Text(
-          "No lyrics available.", 
-          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "No lyrics available.", 
+              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              'Want to add lyrics to our database?',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+              ) ?? TextStyle(
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+                fontSize: 14.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () async {
+                const url = 'https://lrclibplusplus.vercel.app/publish';
+                try {
+                  await launchUrl(Uri.parse(url));
+                } catch (e) {
+                  debugPrint('Error launching URL: $e');
+                }
+              },
+              child: Text(
+                'Click here',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ) ?? TextStyle(
+                  color: colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                  fontSize: 14.0,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       );
     }
