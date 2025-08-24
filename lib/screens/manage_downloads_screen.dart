@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 
 class DeleteDownloadsScreen extends StatefulWidget {
   const DeleteDownloadsScreen({super.key});
@@ -121,6 +122,23 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
     ) ?? false;
   }
 
+  Future<void> _exportFile(File file) async {
+    try {
+      final fileName = p.basename(file.path);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export file: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _deleteEntity(FileSystemEntity entity) async {
     final isDir = entity is Directory;
     final fileName = p.basename(entity.path);
@@ -211,10 +229,17 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
 
   void _openGroupedFolder(String label, List<File> files, IconData icon) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _GroupedFolderScreen(label: label, files: files, onDelete: (file) async {
-        await _deleteEntity(file);
-        await _loadEntities();
-      }),
+      builder: (_) => _GroupedFolderScreen(
+        label: label, 
+        files: files, 
+        onDelete: (file) async {
+          await _deleteEntity(file);
+          await _loadEntities();
+        },
+        onExport: (file) async {
+          await _exportFile(file);
+        },
+      ),
     ));
   }
 
@@ -378,7 +403,7 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
     final atRoot = _navStack.isEmpty;
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Manage App Documents"),
+        title: const Text("Manage Downloaded Files"),
         leading: _navStack.isNotEmpty
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -397,12 +422,12 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
       body: Column(
         children: [
           Container(
-            color: Colors.red.shade900,
+            color: Colors.orange.shade800,
             padding: const EdgeInsets.all(12),
             width: double.infinity,
             child: const Text(
-              'Warning: Deleting files or folders here may break the app or cause data loss. Only delete files if you know what you are doing.',
-              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+              'Note: You can export files to share them or save them elsewhere. Deleting files will remove them permanently from the app.',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
           Expanded(
@@ -432,9 +457,20 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
                               ),
                               trailing: (isPlist || isPrefs)
                                 ? null
-                                : IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () => _deleteEntity(entity),
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.share, color: Colors.blue),
+                                        onPressed: () => _exportFile(entity),
+                                        tooltip: 'Export/Share File',
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () => _deleteEntity(entity),
+                                        tooltip: 'Delete File',
+                                      ),
+                                    ],
                                   ),
                             );
                           }
@@ -475,10 +511,26 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
                                       return const SizedBox.shrink();
                                     },
                                   ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _deleteEntity(entity),
-                            ),
+                            trailing: isDir
+                                ? IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _deleteEntity(entity),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.share, color: Colors.blue),
+                                        onPressed: () => _exportFile(File(entity.path)),
+                                        tooltip: 'Export/Share File',
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () => _deleteEntity(entity),
+                                        tooltip: 'Delete File',
+                                      ),
+                                    ],
+                                  ),
                             onTap: isDir ? () => _navigateTo(entity) : null,
                           );
                         },
@@ -501,7 +553,13 @@ class _GroupedFolderScreen extends StatefulWidget {
   final String label;
   final List<File> files;
   final Future<void> Function(File) onDelete;
-  const _GroupedFolderScreen({required this.label, required this.files, required this.onDelete});
+  final Future<void> Function(File) onExport;
+  const _GroupedFolderScreen({
+    required this.label, 
+    required this.files, 
+    required this.onDelete,
+    required this.onExport,
+  });
 
   @override
   State<_GroupedFolderScreen> createState() => _GroupedFolderScreenState();
@@ -578,9 +636,20 @@ class _GroupedFolderScreenState extends State<_GroupedFolderScreen> {
                       return const SizedBox.shrink();
                     },
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => widget.onDelete(file),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.share, color: Colors.blue),
+                        onPressed: () => widget.onExport(file),
+                        tooltip: 'Export/Share File',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => widget.onDelete(file),
+                        tooltip: 'Delete File',
+                      ),
+                    ],
                   ),
                 );
               },

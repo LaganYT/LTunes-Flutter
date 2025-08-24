@@ -17,9 +17,6 @@
 - Add: allow following an artist to save them to your library, this should replace the old artists page in the library, when clicking an artist from your library's saved artists have it load the artist page with an option to show "saved songs by -artist name-"
 - Create a new api endpoint for the artist profile api and update the app to use this new api, this should use Spotify for the profile? (Not decided)
 
-## Downloads & File Management
-- From the manage downloaded files in settings allow users to export any file (audio or album art) 
-
 ## Onboarding
 - Add an onboarding screen (happens only the first time you open the app)
 

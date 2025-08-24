@@ -21,7 +21,7 @@ import 'dart:async'; // Required for Timer
 import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
-import 'delete_downloads_screen.dart'; // Import DeleteDownloadsScreen
+import 'manage_downloads_screen.dart'; // Import DeleteDownloadsScreen
 import '../screens/playlists_list_screen.dart' show robustArtwork;
 import 'audio_effects_screen.dart'; // Import AudioEffectsScreen
 import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
