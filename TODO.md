@@ -7,8 +7,7 @@
 - When you click on the same song in a different playlist/album have it "switch context" which keeps the current song the same and same place and everything but the queue updates as if you were playing that song from that playlist/album
 
 ## Lyrics Features
-- Lyrics Support
-  - Allow users to add/edit lyrics for their local songs and display them during playback.
+- Allow users to add/edit lyrics for their local songs and display them during playback.
 - Fix the lyric functionality for how it fetches to be more optimized and consistent 
 - Add those dots from better lyrics on Spotify whenever there is a break in lyrics
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
@@ -24,6 +23,6 @@
 ## Onboarding
 - Add an onboarding screen (happens only the first time you open the app)
 
-Move the import songs button on the songs list screen to be on the top right app bar
-Before the artist name on a song show an explicit marker and a downloaded marker
-For the selected song show the same indicator how the queue does
+- Move the import songs button on the songs list screen to be on the top right app bar
+- Before the artist name on a song show an explicit marker and a downloaded marker
+- For the selected song show the same indicator how the queue does
