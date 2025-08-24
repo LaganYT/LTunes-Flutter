@@ -23,6 +23,5 @@
 ## Onboarding
 - Add an onboarding screen (happens only the first time you open the app)
 
-- Move the import songs button on the songs list screen to be on the top right app bar
 - Before the artist name on a song show an explicit marker and a downloaded marker
 - For the selected song show the same indicator how the queue does

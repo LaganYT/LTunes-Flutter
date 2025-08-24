@@ -382,6 +382,14 @@ Future<void> _importSongs() async {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.artistFilter == null ? 'Songs' : widget.artistFilter!),
+        actions: [
+          if (widget.artistFilter == null)
+            IconButton(
+              onPressed: _importSongs,
+              tooltip: 'Import Songs',
+              icon: const Icon(Icons.file_upload_outlined),
+            ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48.0),
           child: Padding(
@@ -526,14 +534,6 @@ Future<void> _importSongs() async {
           child: Playbar(),
         ),
       ),
-      floatingActionButton: widget.artistFilter == null
-          ? FloatingActionButton(
-              onPressed: _importSongs,
-              tooltip: 'Import Songs',
-              child: const Icon(Icons.file_upload_outlined),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
