@@ -415,7 +415,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                 ],
               ),
               onTap: () async {
-                await currentSongProvider.playWithContext(_tracks!, track);
+                await currentSongProvider.smartPlayWithContext(_tracks!, track);
               },
               onLongPress: () => Navigator.push(
                 context,

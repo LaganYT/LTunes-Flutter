@@ -744,7 +744,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 Expanded(
                                   child: ElevatedButton.icon(
                                     onPressed: hasSongs ? () async {
-                                      await currentSongProvider.playWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
+                                      await currentSongProvider.smartPlayWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
                                     } : null,
                                     icon: const Icon(Icons.play_arrow),
                                     label: const Text('Play All'),
@@ -763,7 +763,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                   child: OutlinedButton.icon(
                                     onPressed: hasSongs ? () async {
                                       if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
-                                      await currentSongProvider.playWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
+                                      await currentSongProvider.smartPlayWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
                                     } : null,
                                     icon: const Icon(Icons.shuffle),
                                     label: const Text('Shuffle'),
@@ -898,7 +898,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             ],
                           ),
                           onTap: () async {
-                            await currentSongProvider.playWithContext(currentPlaylist.songs, song);
+                            await currentSongProvider.smartPlayWithContext(currentPlaylist.songs, song);
                           },
                         ),
                       ),

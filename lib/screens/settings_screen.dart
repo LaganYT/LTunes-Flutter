@@ -50,6 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ValueNotifier<int> maxConcurrentDownloadsNotifier = ValueNotifier<int>(1); // NEW
   final ValueNotifier<int> maxConcurrentPlaylistMatchesNotifier = ValueNotifier<int>(5); // NEW
   final ValueNotifier<Map<AnimationType, bool>> animationSettingsNotifier = ValueNotifier<Map<AnimationType, bool>>({}); // NEW
+  final ValueNotifier<bool?> switchContextWithoutInterruptionNotifier = ValueNotifier<bool?>(null); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -155,6 +156,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final animationService = AnimationService.instance;
     animationSettingsNotifier.value = animationService.animationSettings;
 
+    // Load Switch Context Without Interruption setting
+    final switchContextWithoutInterruption = prefs.getBool('switch_context_without_interruption') ?? true;
+    switchContextWithoutInterruptionNotifier.value = switchContextWithoutInterruption;
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -200,6 +204,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveAnimationSetting(AnimationType type, bool value) async {
     await AnimationService.instance.setAnimationEnabled(type, value);
     animationSettingsNotifier.value = AnimationService.instance.animationSettings;
+  }
+
+  Future<void> _saveSwitchContextWithoutInterruptionSetting(bool value) async {
+    if (_currentSongProvider != null) {
+      await _currentSongProvider!.setSwitchContextWithoutInterruption(value);
+    }
   }
 
 
@@ -1320,6 +1330,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         )
                       : const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: _sleepTimerService.sleepTimerEndTime == null ? () => _showSleepTimerDialog(context) : null,
+                ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: switchContextWithoutInterruptionNotifier,
+                  builder: (context, switchContextWithoutInterruption, _) {
+                    if (switchContextWithoutInterruption == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.swap_horiz),
+                        title: Text('Seamless Context Switch'),
+                        subtitle: Text('Keep playback uninterrupted when switching playlists/albums'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.swap_horiz),
+                      title: const Text('Seamless Context Switch'),
+                      subtitle: const Text('Keep playback uninterrupted when switching playlists/albums'),
+                      trailing: Switch(
+                        value: switchContextWithoutInterruption,
+                        onChanged: (bool value) async {
+                          switchContextWithoutInterruptionNotifier.value = value;
+                          await _saveSwitchContextWithoutInterruptionSetting(value);
+                        },
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

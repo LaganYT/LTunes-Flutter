@@ -10,6 +10,24 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+double _getSafeIconSize(double? width) {
+  // Ensure we have a safe, finite icon size
+  final safeWidth = width ?? 48.0;
+  if (!safeWidth.isFinite || safeWidth <= 0) {
+    return 24.0; // Default safe size
+  }
+  return (safeWidth * 0.6).clamp(16.0, 48.0);
+}
+
+double _getSafeDimension(double? dimension) {
+  // Ensure we have a safe, finite dimension
+  final safeDim = dimension ?? 48.0;
+  if (!safeDim.isFinite || safeDim <= 0) {
+    return 48.0; // Default safe size
+  }
+  return safeDim.clamp(16.0, double.infinity);
+}
+
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
   if (artUrl.startsWith('http')) {
@@ -37,18 +55,18 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
           height: height,
           fit: fit,
           errorBuilder: (context, error, stackTrace) => Container(
-            width: width,
-            height: height,
+            width: _getSafeDimension(width),
+            height: _getSafeDimension(height),
             color: Colors.grey[700],
-            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+            child: Icon(Icons.music_note, size: _getSafeIconSize(width), color: Colors.white70),
           ),
         );
       }
       return Container(
-        width: width,
-        height: height,
+        width: _getSafeDimension(width),
+        height: _getSafeDimension(height),
         color: Colors.grey[700],
-        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+        child: Icon(Icons.music_note, size: _getSafeIconSize(width), color: Colors.white70),
       );
     },
   );

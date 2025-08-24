@@ -221,7 +221,7 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                               ? () async {
                                   // Always use canonical downloaded versions
                                   final provider = Provider.of<CurrentSongProvider>(context, listen: false);
-                                  await provider.playWithContext(_likedSongs, _likedSongs.first);
+                                  await provider.smartPlayWithContext(_likedSongs, _likedSongs.first);
                                 }
                               : null,
                           icon: const Icon(Icons.play_arrow),

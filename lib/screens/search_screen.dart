@@ -866,7 +866,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
               ],
             ),
             onTap: () async {
-              await currentSongProvider.playWithContext([songWithStatus], songWithStatus);
+              await currentSongProvider.smartPlayWithContext([songWithStatus], songWithStatus);
             },
             onLongPress: () {
               Navigator.push(

@@ -25,7 +25,7 @@ class AlbumScreen extends StatefulWidget {
   State<AlbumScreen> createState() => _AlbumScreenState();
 }
 
-class _AlbumScreenState extends State<AlbumScreen> {
+class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin {
   late bool _isSaved;
   final AlbumManagerService _albumManager = AlbumManagerService();
   late bool _areAllTracksDownloaded;
@@ -37,6 +37,31 @@ class _AlbumScreenState extends State<AlbumScreen> {
   Set<String> _likedSongIds = {};
   Set<String> _playlistSongIds = {};
   bool _loadingSavedSongs = false;
+
+  // Helper function to safely create TextStyle with valid fontSize
+  TextStyle _safeTextStyle(TextStyle? baseStyle, {
+    Color? color,
+    FontWeight? fontWeight,
+    List<Shadow>? shadows,
+    double? fallbackFontSize,
+  }) {
+    // Check if base style has valid fontSize
+    if (baseStyle != null && baseStyle.fontSize != null && baseStyle.fontSize!.isFinite) {
+      return baseStyle.copyWith(
+        color: color,
+        fontWeight: fontWeight,
+        shadows: shadows,
+      );
+    }
+    
+    // Use fallback with safe fontSize
+    return TextStyle(
+      color: color,
+      fontWeight: fontWeight,
+      shadows: shadows,
+      fontSize: fallbackFontSize ?? 16.0,
+    );
+  }
 
   @override
   void initState() {
@@ -217,7 +242,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
           }
         }
       }
-      await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
+      await currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks.first);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
@@ -237,7 +262,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
-      await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks.first);
+      await currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks.first);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
@@ -593,11 +618,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                     opacity: opacity,
                     child: Text(
                       widget.album.title,
-                      style: const TextStyle(
-                        fontSize: 16.0,
-                        color: Colors.white,
-                        shadows: [Shadow(blurRadius: 1.0, color: Colors.black54, offset: Offset(0.5, 0.5))],
-                      ),
+                                              style: _safeTextStyle(textTheme.headlineSmall, color: Colors.white, shadows: const [Shadow(blurRadius: 1.0, color: Colors.black54, offset: Offset(0.5, 0.5))], fallbackFontSize: 16.0),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -639,36 +660,28 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                 children: [
                                   Text(
                                     widget.album.title,
-                                    style: textTheme.headlineSmall
-                                        ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold, shadows: const [
+                                    style: _safeTextStyle(textTheme.headlineSmall, color: Colors.white, fontWeight: FontWeight.bold, shadows: const [
                                           Shadow(blurRadius: 3, color: Colors.black)
-                                        ]),
+                                        ], fallbackFontSize: 24.0),
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     widget.album.artistName,
-                                    style: textTheme.titleMedium
-                                        ?.copyWith(color: Colors.white70, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                    style: _safeTextStyle(textTheme.titleMedium, color: Colors.white70, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)], fallbackFontSize: 16.0),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     '${widget.album.tracks.length} Songs',
-                                    style: textTheme.titleMedium?.copyWith(
-                                      color: Colors.white60,
-                                      shadows: const [Shadow(blurRadius: 2, color: Colors.black54)],
-                                    ),
+                                    style: _safeTextStyle(textTheme.titleMedium, color: Colors.white60, shadows: const [Shadow(blurRadius: 2, color: Colors.black54)], fallbackFontSize: 16.0),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     _formatDuration(_calculateTotalDuration()),
-                                    style: textTheme.bodyMedium?.copyWith(
-                                      color: Colors.white60,
-                                      shadows: const [Shadow(blurRadius: 1, color: Colors.black54)],
-                                    ),
+                                    style: _safeTextStyle(textTheme.bodyMedium, color: Colors.white60, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)], fallbackFontSize: 14.0),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -764,7 +777,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Tracks', style: textTheme.titleLarge?.copyWith(color: colorScheme.onSurface)),
+                                           Text('Tracks', style: _safeTextStyle(textTheme.titleLarge, color: colorScheme.onSurface, fallbackFontSize: 22.0)),
                     if (_showOnlySavedSongs && widget.album.isSaved)
                       TextButton(
                         onPressed: _toggleShowAllSongs,
@@ -781,10 +794,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   child: CircularProgressIndicator(),
                 )),
               ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final track = _filteredTracks[index];
+            if (_filteredTracks.isNotEmpty) ...[
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final track = _filteredTracks[index];
                   return Slidable(
                     key: Key(track.id),
                     endActionPane: ActionPane(
@@ -824,30 +838,28 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                       leading: Text(
                         '${index + 1}',
-                        style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                                                 style: _safeTextStyle(textTheme.bodyMedium, color: colorScheme.onSurfaceVariant, fallbackFontSize: 14.0),
                       ),
                       title: Text(
                         track.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                        style: _safeTextStyle(textTheme.bodyLarge, color: colorScheme.onSurface, fontWeight: FontWeight.w500, fallbackFontSize: 16.0),
                       ),
                       subtitle: Text(
                         track.artist.isNotEmpty ? track.artist : widget.album.artistName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
+                        style: _safeTextStyle(textTheme.bodyMedium, color: colorScheme.onSurface.withValues(alpha: 0.7), fallbackFontSize: 14.0),
                       ),
                       trailing: Text(
                         track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',
-                        style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                                                 style: _safeTextStyle(textTheme.bodySmall, color: colorScheme.onSurfaceVariant, fallbackFontSize: 12.0),
                       ),
                       onTap: () async {
                         final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
                         final navigator = Navigator.of(context); // Capture before async
-                        await currentSongProvider.playWithContext(widget.album.tracks, widget.album.tracks[index]);
+                        await currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks[index]);
                         navigator.push(
                           MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
                         );
@@ -862,10 +874,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       },
                     ),
                   );
-                },
-                childCount: _filteredTracks.length,
+                  },
+                  childCount: _filteredTracks.length,
+                ),
               ),
-            ),
+            ],
           ] else ...[
             SliverFillRemaining(
               child: Center(
@@ -876,7 +889,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                     const SizedBox(height: 16),
                     Text(
                       'This album has no tracks.',
-                      style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                      style: _safeTextStyle(textTheme.titleMedium, color: colorScheme.onSurfaceVariant, fallbackFontSize: 16.0),
                     ),
                   ],
                 ),

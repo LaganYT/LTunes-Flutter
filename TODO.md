@@ -4,7 +4,6 @@
 - Try adding podcast support
 - Audiobooks
 - Work on ios audio session configuration, its still a little broken
-- When you click on the same song in a different playlist/album have it "switch context" which keeps the current song the same and same place and everything but the queue updates as if you were playing that song from that playlist/album
 
 ## Lyrics Features
 - Allow users to add/edit lyrics for their local songs and display them during playback.

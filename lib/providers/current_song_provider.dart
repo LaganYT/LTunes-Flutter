@@ -78,6 +78,10 @@ class CurrentSongProvider with ChangeNotifier {
   double _playbackSpeed = 1.0;
   double get playbackSpeed => _playbackSpeed;
 
+  // Switch context behavior setting
+  bool _switchContextWithoutInterruption = true;
+  bool get switchContextWithoutInterruption => _switchContextWithoutInterruption;
+
   StreamSubscription? _playbackStateSubscription;
   StreamSubscription? _mediaItemSubscription;
   StreamSubscription? _queueSubscription;
@@ -111,6 +115,14 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       debugPrint("Error setting playback speed: $e");
     }
+  }
+
+  // Switch context behavior setting methods
+  Future<void> setSwitchContextWithoutInterruption(bool value) async {
+    _switchContextWithoutInterruption = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('switch_context_without_interruption', value);
+    notifyListeners();
   }
 
     /// Reorders the queue and updates the audio handler and current index accordingly.
@@ -168,6 +180,15 @@ class CurrentSongProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint("Error loading playback speed from storage: $e");
+    }
+  }
+
+  Future<void> _loadSwitchContextSettingFromStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _switchContextWithoutInterruption = prefs.getBool('switch_context_without_interruption') ?? true;
+    } catch (e) {
+      debugPrint("Error loading switch context setting from storage: $e");
     }
   }
 
@@ -282,6 +303,7 @@ class CurrentSongProvider with ChangeNotifier {
     _loadCurrentSongFromStorage(); // Load last playing song and queue
     _listenToAudioHandler();
     _loadPlaybackSpeedFromStorage(); // Load saved playback speed
+    _loadSwitchContextSettingFromStorage(); // Load switch context setting
     
     // Set up download notification action callback and AudioHandler
     _downloadNotificationService.setNotificationActionCallback(handleDownloadNotificationAction);
@@ -2477,6 +2499,74 @@ class CurrentSongProvider with ChangeNotifier {
     if (wasShuffling) {
       _isShuffling = true;
       notifyListeners();
+    }
+  }
+
+  /// Switches the queue context while keeping the current song and position.
+  /// This is useful when clicking on the same song in a different playlist/album.
+  Future<void> switchContext(List<Song> newContext) async {
+    // Find the current song in the new context
+    if (_currentSongFromAppLogic == null) return;
+    
+    int newIndex = newContext.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+    if (newIndex == -1) return; // Current song not found in new context
+    
+    // If switch context without interruption is disabled, behave like playWithContext
+    if (!_switchContextWithoutInterruption) {
+      await playWithContext(newContext, _currentSongFromAppLogic!, playImmediately: _isPlaying);
+      return;
+    }
+    
+    // Save current position and playback state
+    final currentPosition = _currentPosition;
+    final wasPlaying = _isPlaying;
+    
+    // Update the queue context
+    _queue = List<Song>.from(newContext);
+    _unshuffledQueue = List<Song>.from(newContext);
+    _currentIndexInAppQueue = newIndex;
+    
+    // Update the current song reference to the one from the new context
+    _currentSongFromAppLogic = _queue[newIndex];
+    
+    // Update the audio handler queue
+    await _updateAudioHandlerQueue();
+    await _audioHandler.skipToQueueItem(newIndex);
+    
+    // Restore position if we were playing
+    if (wasPlaying && currentPosition > Duration.zero) {
+      await _audioHandler.seek(currentPosition);
+    }
+    
+    notifyListeners();
+    _saveCurrentSongToStorage();
+    
+    // Persist the new unshuffled queue to storage
+    final wasShuffling = _isShuffling;
+    if (wasShuffling) {
+      _isShuffling = false;
+      notifyListeners();
+    }
+    final prefs = await SharedPreferences.getInstance();
+    List<String> unshuffledQueueJson = _unshuffledQueue.map((song) => jsonEncode(song.toJson())).toList();
+    await prefs.setStringList('current_unshuffled_queue_v2', unshuffledQueueJson);
+    if (wasShuffling) {
+      _isShuffling = true;
+      notifyListeners();
+    }
+  }
+
+  /// Smart play method that automatically chooses between playWithContext and switchContext.
+  /// If the clicked song is the same as the currently playing song, it switches context.
+  /// Otherwise, it plays the new song with the new context.
+  Future<void> smartPlayWithContext(List<Song> context, Song song, {bool playImmediately = true}) async {
+    // Check if the clicked song is the same as the currently playing song
+    if (_currentSongFromAppLogic != null && _currentSongFromAppLogic!.id == song.id) {
+      // Same song, switch context
+      await switchContext(context);
+    } else {
+      // Different song, play with new context
+      await playWithContext(context, song, playImmediately: playImmediately);
     }
   }
 }

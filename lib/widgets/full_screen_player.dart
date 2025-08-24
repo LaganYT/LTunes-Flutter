@@ -134,7 +134,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                       children: [
                         Text(
                           'Up Next',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold) ?? const TextStyle(fontWeight: FontWeight.bold, fontSize: 22.0),
                         ),
                         if (queue.isNotEmpty)
                           TextButton(
@@ -227,7 +227,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               ),
                               onTap: () async {
                                 final isPlaying = currentSongProvider.isPlaying;
-                                await currentSongProvider.playWithContext(queue, song, playImmediately: isPlaying);
+                                await currentSongProvider.smartPlayWithContext(queue, song, playImmediately: isPlaying);
                                 if (mounted) setState(() {}); // Update queue UI immediately
                                 // Do not close the queue after selecting a song
                                 // if (mounted) Navigator.pop(context);
@@ -1584,9 +1584,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.9),
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.5),
-                    _dominantColor.withValues(alpha: _backgroundAnimation.value * 0.3),
+                    _dominantColor.withValues(alpha: (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.9),
+                    _dominantColor.withValues(alpha: (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.5),
+                    _dominantColor.withValues(alpha: (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.3),
                   ],
                 ),
               ),
@@ -1618,7 +1618,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                         key: ValueKey('lyrics_empty'),
                                         child: Text(
                                           _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
-                                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                                          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
                                           textAlign: TextAlign.center,
                                         ),
                                       )
@@ -1689,7 +1689,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             child: Text(
                               currentSong.title,
                               key: ValueKey<String>('title_${currentSong.id}'),
-                              style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                              style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface) ?? TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface, fontSize: 24.0),
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -1701,7 +1701,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             child: Text(
                               isRadio ? (currentSong.artist.isNotEmpty ? currentSong.artist : "Live Radio") : (currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist'),
                               key: ValueKey<String>('artist_${currentSong.id}'),
-                              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
                               textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1928,7 +1928,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       return Center(
         child: Text(
           "No lyrics available.", 
-          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+          style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
         ),
       );
     }
@@ -1983,25 +1983,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       
                       if (isCurrent) {
                         // Current line animations
-                        scale = 1.0 + (0.1 * _lyricHighlightAnimation.value);
-                        opacity = 0.7 + (0.3 * _lyricHighlightAnimation.value);
+                        scale = 1.0 + (0.1 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
+                        opacity = 0.7 + (0.3 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
                         textColor = Color.lerp(
                           colorScheme.onSurface.withValues(alpha: 0.7),
                           colorScheme.secondary,
                           _lyricHighlightAnimation.value,
                         )!;
                         fontWeight = FontWeight.bold;
-                        fontSize = 20.0 + (2.0 * _lyricHighlightAnimation.value);
+                        fontSize = 20.0 + (2.0 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
                       } else if (wasCurrent) {
                         // Previously current line - fade out effect
-                        opacity = 1.0 - (0.2 * _lyricTransitionAnimation.value);
+                        opacity = 1.0 - (0.2 * (_lyricTransitionAnimation.value.clamp(0.0, 1.0)));
                         textColor = Color.lerp(
                           colorScheme.secondary,
                           colorScheme.onSurface.withValues(alpha: 0.4),
                           _lyricTransitionAnimation.value,
                         )!;
                         fontWeight = FontWeight.normal;
-                        fontSize = 22.0 - (2.0 * _lyricTransitionAnimation.value);
+                        fontSize = 22.0 - (2.0 * (_lyricTransitionAnimation.value.clamp(0.0, 1.0)));
                       } else if (_areLyricsSynced && _currentLyricIndex >= 0 && index < _currentLyricIndex) {
                         // All previous lyrics - decreased opacity and lighter color
                         opacity = 0.6;
@@ -2024,7 +2024,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       
                       // Apply line-specific animation
                       if (lineAnimation != null) {
-                        scale *= (0.95 + (0.05 * lineAnimation.value));
+                        scale *= (0.95 + (0.05 * (lineAnimation.value.clamp(0.0, 1.0))));
                       }
                       
                       return Transform.scale(
@@ -2037,6 +2037,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                               line.text,
                               textAlign: TextAlign.center,
                               style: textTheme.titleLarge?.copyWith(
+                                color: textColor,
+                                fontWeight: fontWeight,
+                                fontSize: fontSize,
+                              ) ?? TextStyle(
                                 color: textColor,
                                 fontWeight: fontWeight,
                                 fontSize: fontSize,

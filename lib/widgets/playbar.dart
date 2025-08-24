@@ -82,8 +82,10 @@ class PlaybarState extends State<Playbar> {
       _updateArtProvider(currentSong);
     }
     
-    // Add listener for song changes
-    _currentSongProvider?.addListener(_onSongChanged);
+    // Add listener for song changes (only if not already added)
+    if (_currentSongProvider != null && mounted) {
+      _currentSongProvider!.addListener(_onSongChanged);
+    }
   }
 
   @override
@@ -138,14 +140,19 @@ class PlaybarState extends State<Playbar> {
   }
 
   Future<void> _updateArtProvider(Song song) async {
+    if (!mounted) return;
     setState(() { _artLoading = true; });
+    
     final artUrl = song.albumArtUrl;
     if (_artProviderCache.containsKey(song.id)) {
       _currentArtProvider = _artProviderCache[song.id];
       _currentArtId = song.id;
-      setState(() { _artLoading = false; });
+      if (mounted) {
+        setState(() { _artLoading = false; });
+      }
       return;
     }
+    
     if (artUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(artUrl);
     } else {
@@ -156,9 +163,13 @@ class PlaybarState extends State<Playbar> {
         _currentArtProvider = const AssetImage('assets/placeholder.png');
       }
     }
+    
     _artProviderCache[song.id] = _currentArtProvider!;
     _currentArtId = song.id;
-    setState(() { _artLoading = false; });
+    
+    if (mounted) {
+      setState(() { _artLoading = false; });
+    }
   }
 
   void playUrl(String url) {

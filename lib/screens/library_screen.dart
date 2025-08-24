@@ -847,13 +847,13 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             IconButton(
               icon: const Icon(Icons.play_arrow, size: 28),
               onPressed: () async {
-                await currentSongProvider.playWithContext([song], song);
+                await currentSongProvider.smartPlayWithContext([song], song);
               },
             ),
           ],
         ),
         onTap: () async {
-          await currentSongProvider.playWithContext([song], song);
+          await currentSongProvider.smartPlayWithContext([song], song);
         },
         onLongPress: () {
           Navigator.push(
@@ -1019,7 +1019,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               audioUrl: station.streamUrl,
               extras: {'isRadio': true, 'streamUrl': station.streamUrl},
             );
-            await currentSongProvider.playWithContext([radioSong], radioSong);
+            await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
           },
         ),
         onTap: () async {
@@ -1031,7 +1031,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             audioUrl: station.streamUrl,
             extras: {'isRadio': true, 'streamUrl': station.streamUrl},
           );
-          await currentSongProvider.playWithContext([radioSong], radioSong);
+          await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
         },
       ),
     );
@@ -2089,7 +2089,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                         // The queue will be set to ALL completed downloaded songs,
                         // respecting the current order of the Downloads tab (load order).
                         final provider = Provider.of<CurrentSongProvider>(context, listen: false);
-                        await provider.playWithContext(completedSongs, songObj);
+                        await provider.smartPlayWithContext(completedSongs, songObj);
                       },
                     );
                   },

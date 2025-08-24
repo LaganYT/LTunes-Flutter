@@ -435,14 +435,14 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           IconButton(
             icon: const Icon(Icons.play_arrow),
             onPressed: () async {
-              await currentSongProvider.playWithContext([song], song);
+              await currentSongProvider.smartPlayWithContext([song], song);
               widget.onResultTap?.call();
             },
           ),
         ],
       ),
       onTap: () async {
-        await currentSongProvider.playWithContext([song], song);
+        await currentSongProvider.smartPlayWithContext([song], song);
         widget.onResultTap?.call();
       },
       onLongPress: () {
@@ -623,7 +623,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
             audioUrl: station.streamUrl,
             extras: {'isRadio': true, 'streamUrl': station.streamUrl},
           );
-          await currentSongProvider.playWithContext([radioSong], radioSong);
+          await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
           widget.onResultTap?.call();
         },
       ),
@@ -636,7 +636,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           audioUrl: station.streamUrl,
           extras: {'isRadio': true, 'streamUrl': station.streamUrl},
         );
-        await currentSongProvider.playWithContext([radioSong], radioSong);
+        await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
         widget.onResultTap?.call();
       },
     );

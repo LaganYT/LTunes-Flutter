@@ -100,6 +100,28 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   String? _currentArtKey;
   bool _artLoading = false;
 
+  // Helper function to safely create TextStyle with valid fontSize
+  TextStyle _safeTextStyle(TextStyle? baseStyle, {
+    Color? color,
+    FontWeight? fontWeight,
+    double? fallbackFontSize,
+  }) {
+    // Check if base style has valid fontSize
+    if (baseStyle != null && baseStyle.fontSize != null && baseStyle.fontSize!.isFinite) {
+      return baseStyle.copyWith(
+        color: color,
+        fontWeight: fontWeight,
+      );
+    }
+    
+    // Use fallback with safe fontSize
+    return TextStyle(
+      color: color,
+      fontWeight: fontWeight,
+      fontSize: fallbackFontSize ?? 16.0,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -782,7 +804,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                                 size: 28,
                                 color: colorScheme.onPrimary,
                               ), 
-                        label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+                        label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: _safeTextStyle(textTheme.labelLarge, color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fallbackFontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -797,7 +819,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                                   if (isCurrentSongInProvider) {
                                     currentSongProvider.resumeSong();
                                   } else {
-                                    await currentSongProvider.playWithContext([widget.song], widget.song);
+                                    await currentSongProvider.smartPlayWithContext([widget.song], widget.song);
                                   }
                                 }
                               },
@@ -837,7 +859,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                             height: 56, // Fixed height for consistency
                             child: FilledButton.tonalIcon(
                               icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
-                              label: Text('Delete', style: textTheme.labelLarge?.copyWith(color: colorScheme.onErrorContainer, fontSize: 16)),
+                              label: Text('Delete', style: _safeTextStyle(textTheme.labelLarge, color: colorScheme.onErrorContainer, fallbackFontSize: 16)),
                               style: FilledButton.styleFrom(
                                 backgroundColor: colorScheme.errorContainer,
                                 foregroundColor: colorScheme.onErrorContainer,
