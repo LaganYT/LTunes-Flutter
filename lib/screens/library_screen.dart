@@ -26,7 +26,7 @@ import 'songs_list_screen.dart';
 import 'liked_songs_screen.dart'; // new import
 import 'song_detail_screen.dart';
 import 'dart:async';
-import '../widgets/unified_search_widget.dart';
+import '../widgets/library_search_widget.dart';
 import 'package:http/http.dart' as http; // Added import for http
 
 // Place this at the top level, outside any class
@@ -579,8 +579,13 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
           ),
         ),
       );
+      
+      // Extract all songs from search results to use as playlist context
+      final searchResultSongs = songMatches.map((match) => match['song'] as Song).toList();
+      
       results.addAll(songMatches.map((match) => _buildSongSearchTile(
         match['song'] as Song,
+        searchContext: searchResultSongs,
         matchesTitle: match['matchesTitle'] as bool,
         matchesArtist: match['matchesArtist'] as bool,
         matchesAlbum: match['matchesAlbum'] as bool,
@@ -712,6 +717,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
   Widget _buildSongSearchTile(
     Song song, {
+    List<Song>? searchContext,
     bool matchesTitle = false,
     bool matchesArtist = false,
     bool matchesAlbum = false,
@@ -847,13 +853,23 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             IconButton(
               icon: const Icon(Icons.play_arrow, size: 28),
               onPressed: () async {
-                await currentSongProvider.smartPlayWithContext([song], song);
+                // Use search context if available, otherwise just play the single song
+                if (searchContext != null && searchContext.length > 1) {
+                  await currentSongProvider.smartPlayWithContext(searchContext, song);
+                } else {
+                  await currentSongProvider.smartPlayWithContext([song], song);
+                }
               },
             ),
           ],
         ),
         onTap: () async {
-          await currentSongProvider.smartPlayWithContext([song], song);
+          // Use search context if available, otherwise just play the single song
+          if (searchContext != null && searchContext.length > 1) {
+            await currentSongProvider.smartPlayWithContext(searchContext, song);
+          } else {
+            await currentSongProvider.smartPlayWithContext([song], song);
+          }
         },
         onLongPress: () {
           Navigator.push(
