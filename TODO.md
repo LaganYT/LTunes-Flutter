@@ -24,7 +24,6 @@
 
 ## Onboarding & Updates
 - Add an onboarding screen (happens only the first time you open the app)
-- Add mandatory update feature where if the update.json says mandatory: true the app fetches for updates , even if thats turned off, and prompts them without a way to close it.
 
 ## Development & Infrastructure
 - Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
