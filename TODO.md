@@ -1,7 +1,7 @@
 # TODO
 
 ## Audio & Playback Features
-- Try adding podcast support
+- Podcasts
 - Audiobooks
 - Work on ios audio session configuration, its still a little broken
 
@@ -20,3 +20,13 @@
 
 - Before the artist name on a song show an explicit marker and a downloaded marker
 - For the selected song show the same indicator how the queue does
+
+For unsynced lyrics show the color as the highlighted color
+
+Have it, for synced lyrics, only show the darker color for previous lyrics not the one before the last one, just all of the current previous lyrics
+
+Change the lyric fetching system to: fetch lyrics if synced lyrics are not present locally, if synced are then dont fetch, if plain are present fetch and replace with synced if available, if not then change nothing, if no lyrics are saved then fetch and save result.
+
+Add mandatory update feature where if the update.json says mandatory: true the app fetches for updates , even if thats turned off, and prompts them without a way to close it.
+
+Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
