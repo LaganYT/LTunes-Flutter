@@ -2073,8 +2073,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         )!;
                         fontWeight = FontWeight.bold;
                         fontSize = 20.0 + (2.0 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
-                      } else if (wasCurrent) {
-                        // Previously current line - fade out effect
+                      } else if (wasCurrent && _lyricTransitionAnimation.value < 1.0) {
+                        // Previously current line - fade out effect (only during animation)
                         opacity = 1.0 - (0.2 * (_lyricTransitionAnimation.value.clamp(0.0, 1.0)));
                         textColor = Color.lerp(
                           colorScheme.secondary,

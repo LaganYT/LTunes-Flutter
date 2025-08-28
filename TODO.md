@@ -11,7 +11,6 @@
 - Add those dots from better lyrics on Spotify whenever there is a break in lyrics
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
 - For unsynced lyrics show the color as the highlighted color
-- Have it, for synced lyrics, only show the darker color for previous lyrics not the one before the last one, just all of the current previous lyrics
 - Change the lyric fetching system to: fetch lyrics if synced lyrics are not present locally, if synced are then dont fetch, if plain are present fetch and replace with synced if available, if not then change nothing, if no lyrics are saved then fetch and save result.
 
 ## Artist & Album Features
