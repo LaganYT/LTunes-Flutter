@@ -2304,12 +2304,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                         fontWeight = FontWeight.normal;
                         fontSize = 20.0;
                       } else {
-                        // Default appearance for unsynced lyrics or edge cases
-                        opacity = 0.7;
-                        textColor =
-                            colorScheme.onSurface.withValues(alpha: 0.8);
-                        fontWeight = FontWeight.normal;
-                        fontSize = 20.0;
+                        scale = 1.0;
+                        opacity = 1.0;
+                        textColor = Color.lerp(
+                          colorScheme.onSurface.withValues(alpha: 0.7),
+                          colorScheme.secondary,
+                          1.0,
+                        )!;
+                        fontWeight = FontWeight.bold;
+                        fontSize = 22.0;
                       }
 
                       // Apply line-specific animation
