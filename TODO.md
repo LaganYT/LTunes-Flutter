@@ -11,7 +11,6 @@
 - Allow users to add/edit lyrics for their local songs and display them during playback.
 - Any time there are breaks (empty lines) in synced lyrics add a break with 3 dots that are like loading dots, each dot should fill up slowly 1 by 1 distributing the time of the gap in the lyrics evenly between each dot
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
-- For unsynced lyrics show the color as the highlighted color
 
 ## Artist & Album Features
 
