@@ -1036,35 +1036,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     }
   }
 
-  // void _processLyricsForSong(Song? song) { // Replaced by _loadAndProcessLyrics & _processLyricsForSongData
-  //   List<LyricLine> tempParsedLyrics = [];
-  //   bool tempAreLyricsSynced = false;
-
-  //   if (song?.syncedLyrics != null && song!.syncedLyrics!.isNotEmpty) {
-  //     tempParsedLyrics = _parseSyncedLyrics(song.syncedLyrics!);
-  //     if (tempParsedLyrics.isNotEmpty) {
-  //       tempAreLyricsSynced = true;
-  //     }
-  //   }
-
-  //   // If synced lyrics parsing failed or synced lyrics were not available, try plain lyrics
-  //   if (!tempAreLyricsSynced && song?.plainLyrics != null && song!.plainLyrics!.isNotEmpty) {
-  //     tempParsedLyrics = _parsePlainLyrics(song.plainLyrics!);
-  //     // tempAreLyricsSynced remains false for plain lyrics
-  //   }
-
-  //   if (mounted) {
-  //     setState(() {
-  //       _parsedLyrics = tempParsedLyrics;
-  //       _currentLyricIndex = -1; // Reset for new lyrics
-  //       _areLyricsSynced = tempAreLyricsSynced;
-  //       if (_parsedLyrics.isEmpty) {
-  //         _showLyrics = false; // Automatically hide lyrics view if no lyrics are available
-  //       }
-  //     });
-  //   }
-  // }
-
   List<LyricLine> _parseSyncedLyrics(String lrcContent) {
     final List<LyricLine> lines = [];
     final RegExp lrcLineRegex = RegExp(r"\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)");
@@ -1100,7 +1071,35 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       }
     }
     lines.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    return lines;
+
+    // Add loading dots at the beginning if there's a gap before the first lyric
+    return _addBeginningLoadingDots(lines);
+  }
+
+  List<LyricLine> _addBeginningLoadingDots(List<LyricLine> originalLines) {
+    if (originalLines.isEmpty) return originalLines;
+
+    final List<LyricLine> linesWithBeginningDots = [];
+
+    // Check if the first lyric starts after 00:00:00
+    final firstLine = originalLines.first;
+    if (firstLine.timestamp > Duration.zero) {
+      // Add loading dots at 00:00:00
+      linesWithBeginningDots.add(LyricLine(
+        timestamp: Duration.zero,
+        text: "...",
+        type: LyricLineType.loadingDots,
+      ));
+      debugPrint(
+          'Adding beginning loading dots at 00:00:00 - gap until first lyric at ${firstLine.timestamp.inMilliseconds}ms');
+    }
+
+    // Add all original lines
+    linesWithBeginningDots.addAll(originalLines);
+
+    // Sort to ensure proper chronological order
+    linesWithBeginningDots.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return linesWithBeginningDots;
   }
 
   Widget _buildLoadingDots(Color textColor, double fontSize, int lineIndex) {
