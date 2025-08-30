@@ -484,9 +484,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   late Animation<double> _lyricTransitionAnimation;
   late Animation<double> _lyricHighlightAnimation;
 
-  // Loading dots animation controllers
-  late AnimationController _loadingDotsController;
-  late Animation<double> _loadingDotsAnimation;
+  // Loading dots animation controllers - one for each loading dots line
+  final Map<int, AnimationController> _loadingDotsControllers = {};
+  final Map<int, Animation<double>> _loadingDotsAnimations = {};
 
   // Track previous lyric index for smooth transitions
   int _previousLyricIndex = -1;
@@ -597,15 +597,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       curve: Curves.easeOut,
     );
 
-    // Initialize loading dots animation controller
-    _loadingDotsController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _loadingDotsAnimation = CurvedAnimation(
-      parent: _loadingDotsController,
-      curve: Curves.easeInOut,
-    );
+    // Loading dots controllers will be created on-demand for each loading dots line
 
     _currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
@@ -1111,11 +1103,29 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     return lines;
   }
 
-  Widget _buildLoadingDots(Color textColor, double fontSize) {
+  Widget _buildLoadingDots(Color textColor, double fontSize, int lineIndex) {
+    // Get the animation controller for this specific line
+    final controller = _loadingDotsControllers[lineIndex];
+    final animation = _loadingDotsAnimations[lineIndex];
+
+    if (controller == null || animation == null) {
+      // If no animation controller exists, show dots in default state
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildDot(textColor, fontSize, 0.3, 0.5, 0),
+          const SizedBox(width: 4),
+          _buildDot(textColor, fontSize, 0.3, 0.5, 1),
+          const SizedBox(width: 4),
+          _buildDot(textColor, fontSize, 0.3, 0.5, 2),
+        ],
+      );
+    }
+
     return AnimatedBuilder(
-      animation: _loadingDotsAnimation,
+      animation: animation,
       builder: (context, child) {
-        final animationValue = _loadingDotsAnimation.value;
+        final animationValue = animation.value;
 
         // Calculate which dots should be visible based on animation progress
         // Each dot gets exactly 1/3 of the total animation time
@@ -1205,18 +1215,30 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     );
   }
 
-  void _startLoadingDotsAnimation() {
-    if (!_loadingDotsController.isAnimating) {
+  void _startLoadingDotsAnimation(int lineIndex) {
+    // Create animation controller for this specific line if it doesn't exist
+    if (!_loadingDotsControllers.containsKey(lineIndex)) {
+      _loadingDotsControllers[lineIndex] = AnimationController(
+        duration: const Duration(milliseconds: 1500),
+        vsync: this,
+      );
+      _loadingDotsAnimations[lineIndex] = CurvedAnimation(
+        parent: _loadingDotsControllers[lineIndex]!,
+        curve: Curves.easeInOut,
+      );
+    }
+
+    final controller = _loadingDotsControllers[lineIndex]!;
+    if (!controller.isAnimating) {
       // Calculate the duration based on the time from blank timestamp to next lyric or song end
-      final currentIndex = _currentLyricIndex;
-      if (currentIndex >= 0 && currentIndex < _parsedLyrics.length) {
-        final currentLine = _parsedLyrics[currentIndex];
+      if (lineIndex >= 0 && lineIndex < _parsedLyrics.length) {
+        final currentLine = _parsedLyrics[lineIndex];
 
         // Find the duration until the next lyric line or song end
         Duration timeUntilNext = const Duration(milliseconds: 1500); // Default
 
-        if (currentIndex < _parsedLyrics.length - 1) {
-          final nextLine = _parsedLyrics[currentIndex + 1];
+        if (lineIndex < _parsedLyrics.length - 1) {
+          final nextLine = _parsedLyrics[lineIndex + 1];
           timeUntilNext = nextLine.timestamp - currentLine.timestamp;
         } else {
           // This is the last lyric line - calculate duration to song end
@@ -1235,18 +1257,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         );
 
         debugPrint(
-            'Starting loading dots animation with duration: ${animationDuration.inMilliseconds}ms (time until next: ${timeUntilNext.inMilliseconds}ms) - each dot gets ${(animationDuration.inMilliseconds / 3).round()}ms');
-        _loadingDotsController.duration = animationDuration;
+            'Starting loading dots animation for line $lineIndex with duration: ${animationDuration.inMilliseconds}ms (time until next: ${timeUntilNext.inMilliseconds}ms) - each dot gets ${(animationDuration.inMilliseconds / 3).round()}ms');
+        controller.duration = animationDuration;
       }
 
-      _loadingDotsController.repeat();
+      controller.repeat();
     }
   }
 
-  void _stopLoadingDotsAnimation() {
-    if (_loadingDotsController.isAnimating) {
-      _loadingDotsController.stop();
-      _loadingDotsController.reset();
+  void _stopLoadingDotsAnimation(int lineIndex) {
+    final controller = _loadingDotsControllers[lineIndex];
+    if (controller != null && controller.isAnimating) {
+      controller.stop();
+      controller.reset();
     }
   }
 
@@ -1342,7 +1365,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     // Dispose lyrics animation controllers
     _lyricTransitionController.dispose();
     _lyricHighlightController.dispose();
-    _loadingDotsController.dispose();
+
+    // Dispose loading dots controllers
+    for (final controller in _loadingDotsControllers.values) {
+      controller.dispose();
+    }
+    _loadingDotsControllers.clear();
+    _loadingDotsAnimations.clear();
 
     // Dispose individual lyric line controllers
     for (final controller in _lyricLineControllers.values) {
@@ -1478,9 +1507,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       // Handle loading dots animation
       if (newIndex != -1 &&
           _parsedLyrics[newIndex].type == LyricLineType.loadingDots) {
-        _startLoadingDotsAnimation();
+        _startLoadingDotsAnimation(newIndex);
       } else {
-        _stopLoadingDotsAnimation();
+        // Stop animation for the previous loading dots line if it exists
+        if (_previousLyricIndex != -1 &&
+            _previousLyricIndex < _parsedLyrics.length &&
+            _parsedLyrics[_previousLyricIndex].type ==
+                LyricLineType.loadingDots) {
+          _stopLoadingDotsAnimation(_previousLyricIndex);
+        }
       }
 
       // Trigger lyric transition animations
@@ -2528,7 +2563,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             padding: const EdgeInsets.symmetric(
                                 vertical: 8.0, horizontal: 16.0),
                             child: line.type == LyricLineType.loadingDots
-                                ? _buildLoadingDots(textColor, fontSize)
+                                ? _buildLoadingDots(textColor, fontSize, index)
                                 : Text(
                                     line.text,
                                     textAlign: TextAlign.center,
