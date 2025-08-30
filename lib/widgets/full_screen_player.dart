@@ -31,8 +31,18 @@ import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 class LyricLine {
   final Duration timestamp;
   final String text;
+  final LyricLineType type;
 
-  LyricLine({required this.timestamp, required this.text});
+  LyricLine({
+    required this.timestamp,
+    required this.text,
+    this.type = LyricLineType.normal,
+  });
+}
+
+enum LyricLineType {
+  normal,
+  loadingDots,
 }
 
 class _QueueBottomSheetContent extends StatefulWidget {
@@ -66,10 +76,11 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
         _artPathCache[song.id] = '';
       }
     }
-    if (mounted)
+    if (mounted) {
       setState(() {
         _loading = false;
       });
+    }
   }
 
   bool _isIndexVisible(int index) {
@@ -266,9 +277,10 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                 await currentSongProvider.smartPlayWithContext(
                                     queue, song,
                                     playImmediately: isPlaying);
-                                if (mounted)
+                                if (mounted) {
                                   setState(
                                       () {}); // Update queue UI immediately
+                                }
                                 // Do not close the queue after selecting a song
                                 // if (mounted) Navigator.pop(context);
                               },
@@ -472,6 +484,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   late Animation<double> _lyricTransitionAnimation;
   late Animation<double> _lyricHighlightAnimation;
 
+  // Loading dots animation controllers
+  late AnimationController _loadingDotsController;
+  late Animation<double> _loadingDotsAnimation;
+
   // Track previous lyric index for smooth transitions
   int _previousLyricIndex = -1;
   final Map<int, AnimationController> _lyricLineControllers = {};
@@ -581,6 +597,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       curve: Curves.easeOut,
     );
 
+    // Initialize loading dots animation controller
+    _loadingDotsController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _loadingDotsAnimation = CurvedAnimation(
+      parent: _loadingDotsController,
+      curve: Curves.easeInOut,
+    );
+
     _currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
@@ -658,10 +684,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (playbarArtProvider != null && playbarArtId == song.id) {
       _currentArtProvider = playbarArtProvider;
       _currentArtId = song.id;
-      if (mounted)
+      if (mounted) {
         setState(() {
           _artLoading = false;
         });
+      }
       return;
     }
 
@@ -669,10 +696,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (song.albumArtUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
       _currentArtId = song.id;
-      if (mounted)
+      if (mounted) {
         setState(() {
           _artLoading = false;
         });
+      }
     } else {
       // For local files, resolve the path asynchronously
       _resolveLocalArtPath(song.albumArtUrl).then((path) {
@@ -1057,7 +1085,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         final seconds = int.parse(matches.group(2)!);
         final milliseconds = int.parse(matches.group(3)!);
         final text = matches.group(4)!.trim();
-        if (text.isNotEmpty) {
+
+        // Check if this is a blank timestamp (timestamp with no text or just whitespace)
+        if (text.isEmpty) {
+          // This is a blank timestamp - add loading dots
+          lines.add(LyricLine(
+            timestamp: Duration(
+                minutes: minutes, seconds: seconds, milliseconds: milliseconds),
+            text: "...",
+            type: LyricLineType.loadingDots,
+          ));
+          debugPrint(
+              'Found blank timestamp at $minutes:$seconds.$milliseconds - adding loading dots');
+        } else {
+          // This is a normal lyric line
           lines.add(LyricLine(
             timestamp: Duration(
                 minutes: minutes, seconds: seconds, milliseconds: milliseconds),
@@ -1068,6 +1109,145 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     }
     lines.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return lines;
+  }
+
+  Widget _buildLoadingDots(Color textColor, double fontSize) {
+    return AnimatedBuilder(
+      animation: _loadingDotsAnimation,
+      builder: (context, child) {
+        final animationValue = _loadingDotsAnimation.value;
+
+        // Calculate which dots should be visible based on animation progress
+        // Each dot gets exactly 1/3 of the total animation time
+        final dot1Opacity =
+            _calculateDotOpacity(animationValue, 0.0, 1.0 / 3.0);
+        final dot2Opacity =
+            _calculateDotOpacity(animationValue, 1.0 / 3.0, 2.0 / 3.0);
+        final dot3Opacity =
+            _calculateDotOpacity(animationValue, 2.0 / 3.0, 1.0);
+
+        final dot1Scale = _calculateDotScale(animationValue, 0.0, 1.0 / 3.0);
+        final dot2Scale =
+            _calculateDotScale(animationValue, 1.0 / 3.0, 2.0 / 3.0);
+        final dot3Scale = _calculateDotScale(animationValue, 2.0 / 3.0, 1.0);
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildDot(textColor, fontSize, dot1Opacity, dot1Scale, 0),
+            const SizedBox(width: 4),
+            _buildDot(textColor, fontSize, dot2Opacity, dot2Scale, 1),
+            const SizedBox(width: 4),
+            _buildDot(textColor, fontSize, dot3Opacity, dot3Scale, 2),
+          ],
+        );
+      },
+    );
+  }
+
+  double _calculateDotOpacity(double animationValue, double start, double end) {
+    // Create a smooth transition for each dot
+    if (animationValue < start) return 0.3; // Start at 30% opacity
+
+    // Calculate progress within this dot's time window
+    final progress = (animationValue - start) / (end - start);
+
+    // Once a dot is activated, keep it filled in (don't fade out)
+    if (animationValue >= end) return 1.0;
+
+    // Use a smooth curve: start at 0.3, peak at 1.0, then stay at 1.0
+    if (progress < 0.5) {
+      // Fade in: 0.3 to 1.0
+      return 0.3 + (0.7 * (progress * 2)); // Linear fade from 0.3 to 1.0
+    } else {
+      // Stay at 1.0 once filled
+      return 1.0;
+    }
+  }
+
+  double _calculateDotScale(double animationValue, double start, double end) {
+    // Create a growing effect for each dot
+    if (animationValue < start) return 0.5; // Start at 50% size
+
+    // Calculate progress within this dot's time window
+    final progress = (animationValue - start) / (end - start);
+
+    // Once a dot is activated, keep it at full size
+    if (animationValue >= end) return 1.25;
+
+    // Use a smooth curve: start at 0.5, peak at 1.25, then stay at 1.25
+    if (progress < 0.5) {
+      // Grow: 0.5 to 1.25
+      return 0.5 + (0.75 * (progress * 2)); // Linear grow from 0.5 to 1.25
+    } else {
+      // Stay at 1.25 once fully grown
+      return 1.25;
+    }
+  }
+
+  Widget _buildDot(Color textColor, double fontSize, double opacity,
+      double scale, int dotIndex) {
+    return AnimatedOpacity(
+      opacity: opacity,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: Transform.scale(
+        scale: scale,
+        child: Text(
+          "•",
+          style: TextStyle(
+            color: textColor,
+            fontSize: fontSize * 1.5,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startLoadingDotsAnimation() {
+    if (!_loadingDotsController.isAnimating) {
+      // Calculate the duration based on the time from blank timestamp to next lyric or song end
+      final currentIndex = _currentLyricIndex;
+      if (currentIndex >= 0 && currentIndex < _parsedLyrics.length) {
+        final currentLine = _parsedLyrics[currentIndex];
+
+        // Find the duration until the next lyric line or song end
+        Duration timeUntilNext = const Duration(milliseconds: 1500); // Default
+
+        if (currentIndex < _parsedLyrics.length - 1) {
+          final nextLine = _parsedLyrics[currentIndex + 1];
+          timeUntilNext = nextLine.timestamp - currentLine.timestamp;
+        } else {
+          // This is the last lyric line - calculate duration to song end
+          final currentSongProvider =
+              Provider.of<CurrentSongProvider>(context, listen: false);
+          final songDuration =
+              currentSongProvider.totalDuration ?? Duration.zero;
+          if (songDuration > currentLine.timestamp) {
+            timeUntilNext = songDuration - currentLine.timestamp;
+          }
+        }
+
+        // Set animation duration to the full time until next lyric or song end
+        final animationDuration = Duration(
+          milliseconds: timeUntilNext.inMilliseconds,
+        );
+
+        debugPrint(
+            'Starting loading dots animation with duration: ${animationDuration.inMilliseconds}ms (time until next: ${timeUntilNext.inMilliseconds}ms) - each dot gets ${(animationDuration.inMilliseconds / 3).round()}ms');
+        _loadingDotsController.duration = animationDuration;
+      }
+
+      _loadingDotsController.repeat();
+    }
+  }
+
+  void _stopLoadingDotsAnimation() {
+    if (_loadingDotsController.isAnimating) {
+      _loadingDotsController.stop();
+      _loadingDotsController.reset();
+    }
   }
 
   List<LyricLine> _parsePlainLyrics(String plainContent) {
@@ -1135,10 +1315,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
             .toColor();
 
         _paletteCache[song.id] = adjustedColor;
-        if (mounted)
+        if (mounted) {
           setState(() {
             _dominantColor = adjustedColor;
           });
+        }
       } catch (_) {}
     });
   }
@@ -1161,6 +1342,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     // Dispose lyrics animation controllers
     _lyricTransitionController.dispose();
     _lyricHighlightController.dispose();
+    _loadingDotsController.dispose();
 
     // Dispose individual lyric line controllers
     for (final controller in _lyricLineControllers.values) {
@@ -1292,6 +1474,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       setState(() {
         _currentLyricIndex = newIndex;
       });
+
+      // Handle loading dots animation
+      if (newIndex != -1 &&
+          _parsedLyrics[newIndex].type == LyricLineType.loadingDots) {
+        _startLoadingDotsAnimation();
+      } else {
+        _stopLoadingDotsAnimation();
+      }
 
       // Trigger lyric transition animations
       if (newIndex != -1) {
@@ -1770,8 +1960,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             : GestureDetector(
                                 key: const ValueKey('album_art'),
                                 onHorizontalDragEnd: (details) {
-                                  if (details.primaryVelocity == null)
+                                  if (details.primaryVelocity == null) {
                                     return; // Should not happen
+                                  }
 
                                   // Swipe Left (finger moves from right to left) -> Next Song
                                   if (details.primaryVelocity! < -200) {
@@ -2303,7 +2494,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             colorScheme.onSurface.withValues(alpha: 0.8);
                         fontWeight = FontWeight.normal;
                         fontSize = 20.0;
-                      } else {
+                      } else if (!_areLyricsSynced &&
+                          _parsedLyrics.isNotEmpty) {
                         scale = 1.0;
                         opacity = 1.0;
                         textColor = Color.lerp(
@@ -2313,6 +2505,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                         )!;
                         fontWeight = FontWeight.bold;
                         fontSize = 22.0;
+                      } else {
+                        // Default appearance for unsynced lyrics or edge cases
+                        opacity = 0.7;
+                        textColor =
+                            colorScheme.onSurface.withValues(alpha: 0.8);
+                        fontWeight = FontWeight.normal;
+                        fontSize = 20.0;
                       }
 
                       // Apply line-specific animation
@@ -2328,20 +2527,22 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                                 vertical: 8.0, horizontal: 16.0),
-                            child: Text(
-                              line.text,
-                              textAlign: TextAlign.center,
-                              style: textTheme.titleLarge?.copyWith(
-                                    color: textColor,
-                                    fontWeight: fontWeight,
-                                    fontSize: fontSize,
-                                  ) ??
-                                  TextStyle(
-                                    color: textColor,
-                                    fontWeight: fontWeight,
-                                    fontSize: fontSize,
+                            child: line.type == LyricLineType.loadingDots
+                                ? _buildLoadingDots(textColor, fontSize)
+                                : Text(
+                                    line.text,
+                                    textAlign: TextAlign.center,
+                                    style: textTheme.titleLarge?.copyWith(
+                                          color: textColor,
+                                          fontWeight: fontWeight,
+                                          fontSize: fontSize,
+                                        ) ??
+                                        TextStyle(
+                                          color: textColor,
+                                          fontWeight: fontWeight,
+                                          fontSize: fontSize,
+                                        ),
                                   ),
-                            ),
                           ),
                         ),
                       );
