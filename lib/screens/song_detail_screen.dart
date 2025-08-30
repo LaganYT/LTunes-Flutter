@@ -15,6 +15,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import '../services/api_service.dart';
+import '../services/lyrics_service.dart';
 import 'album_screen.dart';
 import 'lyrics_screen.dart';
 import 'artist_screen.dart'; // Import artist screen
@@ -36,11 +37,13 @@ Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   }
 }
 
-Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+Widget robustArtwork(String artUrl,
+    {double? width, double? height, BoxFit fit = BoxFit.cover}) {
   return FutureBuilder<ImageProvider>(
     future: getRobustArtworkProvider(artUrl),
     builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+      if (snapshot.connectionState == ConnectionState.done &&
+          snapshot.hasData) {
         return Image(
           image: snapshot.data!,
           width: width,
@@ -50,7 +53,8 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
             width: width,
             height: height,
             color: Colors.grey[700],
-            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+            child: Icon(Icons.music_note,
+                size: (width ?? 48) * 0.6, color: Colors.white70),
           ),
         );
       }
@@ -58,7 +62,8 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
         width: width,
         height: height,
         color: Colors.grey[700],
-        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+        child: Icon(Icons.music_note,
+            size: (width ?? 48) * 0.6, color: Colors.white70),
       );
     },
   );
@@ -82,7 +87,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   bool _isLoadingAlbum = false; // For View Album button
   bool _isLoadingLyrics = false;
   String? _lyrics;
-  
+
   // Add preloading variables
   Album? _preloadedAlbum;
   LyricsData? _preloadedLyrics;
@@ -101,19 +106,22 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   bool _artLoading = false;
 
   // Helper function to safely create TextStyle with valid fontSize
-  TextStyle _safeTextStyle(TextStyle? baseStyle, {
+  TextStyle _safeTextStyle(
+    TextStyle? baseStyle, {
     Color? color,
     FontWeight? fontWeight,
     double? fallbackFontSize,
   }) {
     // Check if base style has valid fontSize
-    if (baseStyle != null && baseStyle.fontSize != null && baseStyle.fontSize!.isFinite) {
+    if (baseStyle != null &&
+        baseStyle.fontSize != null &&
+        baseStyle.fontSize!.isFinite) {
       return baseStyle.copyWith(
         color: color,
         fontWeight: fontWeight,
       );
     }
-    
+
     // Use fallback with safe fontSize
     return TextStyle(
       color: color,
@@ -127,7 +135,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     super.initState();
     // Listen to download progress changes for the specific song
     Provider.of<CurrentSongProvider>(context, listen: false).addListener(() {
-      final currentSong = Provider.of<CurrentSongProvider>(context, listen: false).currentSong;
+      final currentSong =
+          Provider.of<CurrentSongProvider>(context, listen: false).currentSong;
       // Check if the current song in the provider is the same as the one in this widget
       if (currentSong?.id == widget.song.id && mounted) {
         setState(() {
@@ -148,9 +157,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
   Future<void> _updateArtProvider(String artUrl) async {
     if (mounted) {
-      setState(() { _artLoading = true; });
+      setState(() {
+        _artLoading = true;
+      });
     }
-    
+
     if (artUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(artUrl);
     } else if (artUrl.isNotEmpty) {
@@ -159,7 +170,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
         final directory = await getApplicationDocumentsDirectory();
         final fileName = p.basename(artUrl);
         final fullPath = p.join(directory.path, fileName);
-        
+
         if (await File(fullPath).exists()) {
           _currentArtProvider = FileImage(File(fullPath));
           debugPrint('Song detail: Found local album art: $fullPath');
@@ -174,9 +185,12 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     } else {
       _currentArtProvider = null;
     }
-    
+
     _currentArtKey = artUrl;
-    if (mounted) setState(() { _artLoading = false; });
+    if (mounted)
+      setState(() {
+        _artLoading = false;
+      });
   }
 
   @override
@@ -190,7 +204,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   @override
   void dispose() {
     // Remove listener on dispose
-    Provider.of<CurrentSongProvider>(context, listen: false).removeListener(() {});
+    Provider.of<CurrentSongProvider>(context, listen: false)
+        .removeListener(() {});
     super.dispose();
   }
 
@@ -209,7 +224,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
   void _downloadSong() {
     // No longer async, just triggers the provider's background download
-    Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(widget.song);
+    Provider.of<CurrentSongProvider>(context, listen: false)
+        .queueSongForDownload(widget.song);
     // Optionally, show a snackbar that download has started
     // scaffoldMessengerKey.currentState?.showSnackBar(
     //   SnackBar(content: Text('Starting download for ${widget.song.title}...')),
@@ -243,10 +259,12 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     // Capture context and song for use in async operations, checking mounted status.
     if (!mounted) return;
     final currentContext = context; // Capture context
-    final songToDelete = widget.song; // Use a local variable for the song being deleted.
+    final songToDelete =
+        widget.song; // Use a local variable for the song being deleted.
 
     try {
-      if (songToDelete.localFilePath != null && songToDelete.localFilePath!.isNotEmpty) {
+      if (songToDelete.localFilePath != null &&
+          songToDelete.localFilePath!.isNotEmpty) {
         final directory = await getApplicationDocumentsDirectory();
         final fullPath = p.join(directory.path, songToDelete.localFilePath!);
         final file = File(fullPath);
@@ -257,9 +275,10 @@ class SongDetailScreenState extends State<SongDetailScreen> {
           debugPrint("File not found for deletion: $fullPath");
         }
       }
-      
+
       // Create the updated song object reflecting its new state.
-      final updatedSong = songToDelete.copyWith(isDownloaded: false, localFilePath: null);
+      final updatedSong =
+          songToDelete.copyWith(isDownloaded: false, localFilePath: null);
 
       // Persist the updated metadata.
       await _saveSongMetadata(updatedSong);
@@ -273,7 +292,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
         await AlbumManagerService().updateSongInAlbums(updatedSong);
 
         // Notify CurrentSongProvider
-        Provider.of<CurrentSongProvider>(currentContext, listen: false).updateSongDetails(updatedSong);
+        Provider.of<CurrentSongProvider>(currentContext, listen: false)
+            .updateSongDetails(updatedSong);
 
         // Update local state if the widget is still mounted.
         if (mounted && currentContext.mounted) {
@@ -284,14 +304,17 @@ class SongDetailScreenState extends State<SongDetailScreen> {
             // For immediate feedback, you might update a local copy or rely on provider.
           });
           ScaffoldMessenger.of(currentContext).showSnackBar(
-            SnackBar(content: Text('"${updatedSong.title}" deleted from downloads.')),
+            SnackBar(
+                content:
+                    Text('"${updatedSong.title}" deleted from downloads.')),
           );
         }
       }
     } catch (e) {
       _errorHandler.logError(e, context: 'deleteSong');
       if (mounted && currentContext.mounted) {
-        _errorHandler.showErrorSnackBar(currentContext, e, errorContext: 'deleting song');
+        _errorHandler.showErrorSnackBar(currentContext, e,
+            errorContext: 'deleting song');
       }
     }
   }
@@ -299,12 +322,15 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _saveSongMetadata(Song song) async {
     final prefs = await SharedPreferences.getInstance();
     // Ensure all relevant fields are in toJson() and saved
-    final songData = jsonEncode(song.toJson()); 
-    await prefs.setString('song_${song.id}', songData); // Use song.id for unique key
+    final songData = jsonEncode(song.toJson());
+    await prefs.setString(
+        'song_${song.id}', songData); // Use song.id for unique key
   }
 
   Future<void> _preloadAlbumData() async {
-    if (widget.song.album == null || widget.song.album!.isEmpty || widget.song.artist.isEmpty) {
+    if (widget.song.album == null ||
+        widget.song.album!.isEmpty ||
+        widget.song.artist.isEmpty) {
       return;
     }
 
@@ -316,8 +342,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final albumDetails = await apiService.getAlbum(widget.song.album!, widget.song.artist);
-      
+      final albumDetails =
+          await apiService.getAlbum(widget.song.album!, widget.song.artist);
+
       if (mounted && albumDetails != null) {
         setState(() {
           _preloadedAlbum = albumDetails;
@@ -347,13 +374,15 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     }
 
     try {
-      final apiService = ApiService();
-      final lyricsData = await apiService.fetchLyrics(widget.song.artist, widget.song.title);
-      
+      final lyricsService = LyricsService();
+      final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+      final lyricsData =
+          await lyricsService.fetchLyricsIfNeeded(widget.song, provider);
+
       if (mounted && lyricsData != null) {
         setState(() {
           _preloadedLyrics = lyricsData;
-          _lyrics = lyricsData.plainLyrics;
+          _lyrics = lyricsData.displayLyrics;
         });
       }
     } catch (e) {
@@ -370,12 +399,15 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _preloadArtistData() async {
     if (widget.song.artist.isEmpty) return;
 
-    if (mounted) setState(() { _isPreloadingArtist = true; });
+    if (mounted)
+      setState(() {
+        _isPreloadingArtist = true;
+      });
 
     try {
       final apiService = ApiService();
       final artistData = await apiService.getArtistById(widget.song.artist);
-      
+
       if (mounted) {
         final artistInfo = artistData['info'] as Map<String, dynamic>;
         final tracks = (artistData['tracks'] as List).map((raw) {
@@ -387,9 +419,10 @@ class SongDetailScreenState extends State<SongDetailScreen> {
             artistInfo['ART_NAME']?.toString() ?? '',
           );
         }).toList();
-        
+
         // Get artist albums using the actual artist ID
-        final actualArtistId = artistInfo['ART_ID']?.toString() ?? widget.song.artistId;
+        final actualArtistId =
+            artistInfo['ART_ID']?.toString() ?? widget.song.artistId;
         List<Album>? albums;
         try {
           albums = await apiService.getArtistAlbums(actualArtistId);
@@ -397,7 +430,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
           // Albums loading failed, continue without them
           albums = [];
         }
-        
+
         if (mounted) {
           setState(() {
             _preloadedArtistInfo = artistInfo;
@@ -410,15 +443,20 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       _errorHandler.logError(e, context: 'preloadArtistData');
     } finally {
       if (mounted) {
-        setState(() { _isPreloadingArtist = false; });
+        setState(() {
+          _isPreloadingArtist = false;
+        });
       }
     }
   }
 
   Future<void> _viewAlbum(BuildContext context) async {
-    if (widget.song.album == null || widget.song.album!.isEmpty || widget.song.artist.isEmpty) {
+    if (widget.song.album == null ||
+        widget.song.album!.isEmpty ||
+        widget.song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Album information is not available for this song.')),
+        const SnackBar(
+            content: Text('Album information is not available for this song.')),
       );
       return;
     }
@@ -442,7 +480,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final albumDetails = await apiService.getAlbum(widget.song.album!, widget.song.artist);
+      final albumDetails =
+          await apiService.getAlbum(widget.song.album!, widget.song.artist);
 
       if (mounted) {
         if (albumDetails != null) {
@@ -454,7 +493,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not find details for album: "${widget.song.album}".')),
+            SnackBar(
+                content: Text(
+                    'Could not find details for album: "${widget.song.album}".')),
           );
         }
       }
@@ -477,7 +518,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _fetchAndShowLyrics(BuildContext context) async {
     if (widget.song.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Song ID is missing, cannot fetch lyrics.')),
+        const SnackBar(
+            content: Text('Song ID is missing, cannot fetch lyrics.')),
       );
       return;
     }
@@ -507,10 +549,13 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final lyricsData = await apiService.fetchLyrics(widget.song.artist, widget.song.title);
+      final lyricsData =
+          await apiService.fetchLyrics(widget.song.artist, widget.song.title);
 
       if (mounted) {
-        if (lyricsData != null) {
+        if (lyricsData != null &&
+            lyricsData.plainLyrics != null &&
+            lyricsData.plainLyrics!.isNotEmpty) {
           _lyrics = lyricsData.plainLyrics;
           Navigator.push(
             context,
@@ -548,13 +593,16 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _loadLikedSongIds() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('liked_songs') ?? [];
-    final ids = raw.map((s) {
-      try {
-        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
-      } catch (_) {
-        return null;
-      }
-    }).whereType<String>().toSet();
+    final ids = raw
+        .map((s) {
+          try {
+            return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<String>()
+        .toSet();
     if (mounted) {
       setState(() {
         _likedSongIds = ids;
@@ -583,7 +631,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       _likedSongIds.add(song.id);
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+        final provider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
         provider.queueSongForDownload(song);
       }
     }
@@ -605,9 +654,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     try {
       final albumManager = AlbumManagerService();
       await albumManager.addSavedAlbum(_preloadedAlbum!);
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Album "${_preloadedAlbum!.title}" saved to library')),
+        SnackBar(
+            content:
+                Text('Album "${_preloadedAlbum!.title}" saved to library')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -619,14 +670,19 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _viewArtist(BuildContext context) async {
     if (widget.song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Artist information is not available for this song.')),
+        const SnackBar(
+            content:
+                Text('Artist information is not available for this song.')),
       );
       return;
     }
 
     // Use preloaded data if available
-    if (_preloadedArtistInfo != null && _preloadedArtistTracks != null && _preloadedArtistAlbums != null) {
-      final actualArtistId = _preloadedArtistInfo!['ART_ID']?.toString() ?? widget.song.artistId;
+    if (_preloadedArtistInfo != null &&
+        _preloadedArtistTracks != null &&
+        _preloadedArtistAlbums != null) {
+      final actualArtistId =
+          _preloadedArtistInfo!['ART_ID']?.toString() ?? widget.song.artistId;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -644,8 +700,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       // Use artistId if available, otherwise use artist name
-      final artistQuery = widget.song.artistId.isNotEmpty 
-          ? widget.song.artistId 
+      final artistQuery = widget.song.artistId.isNotEmpty
+          ? widget.song.artistId
           : widget.song.artist;
 
       Navigator.push(
@@ -666,11 +722,16 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context); // Listen to changes
-    final bool isCurrentSongInProvider = currentSongProvider.currentSong?.id == widget.song.id;
-    final bool isPlayingThisSong = isCurrentSongInProvider && currentSongProvider.isPlaying;
-    final bool isLoadingThisSong = isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
-    final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context); // Listen to changes
+    final bool isCurrentSongInProvider =
+        currentSongProvider.currentSong?.id == widget.song.id;
+    final bool isPlayingThisSong =
+        isCurrentSongInProvider && currentSongProvider.isPlaying;
+    final bool isLoadingThisSong =
+        isCurrentSongInProvider && currentSongProvider.isLoadingAudio;
+    final bool isRadioPlayingGlobal =
+        currentSongProvider.isCurrentlyPlayingRadio;
 
     // ignore: unused_local_variable
     final Song songForDisplay; // Use a different variable for clarity
@@ -679,7 +740,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     } else {
       songForDisplay = widget.song;
     }
-    
+
     // Determine the song instance whose download status should be displayed.
     // Prioritize the one from CurrentSongProvider if it's the same song.
     final Song songForDownloadStatus;
@@ -703,7 +764,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
           actions: [
             IconButton(
               icon: _likedSongIds.contains(widget.song.id)
-                  ? Icon(Icons.favorite, color: Theme.of(context).colorScheme.secondary)
+                  ? Icon(Icons.favorite,
+                      color: Theme.of(context).colorScheme.secondary)
                   : const Icon(Icons.favorite_border),
               onPressed: () => _toggleLike(widget.song),
             ),
@@ -720,33 +782,35 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: _currentArtProvider != null
-                    ? Image(
-                        key: ValueKey(_currentArtKey),
-                        image: _currentArtProvider!,
-                        width: 300,
-                        height: 300,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          debugPrint('Song detail: Image error: $error');
-                          return Container(
-                            width: 300,
-                            height: 300,
-                            color: Colors.grey[700],
-                            child: const Icon(Icons.music_note, size: 150, color: Colors.white70),
-                          );
-                        },
-                      )
-                    : Container(
-                        width: 300,
-                        height: 300,
-                        color: Colors.grey[700],
-                        child: const Icon(Icons.music_note, size: 150, color: Colors.white70),
-                        key: ValueKey('song_detail_art_none'),
-                      ),
+                      ? Image(
+                          key: ValueKey(_currentArtKey),
+                          image: _currentArtProvider!,
+                          width: 300,
+                          height: 300,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint('Song detail: Image error: $error');
+                            return Container(
+                              width: 300,
+                              height: 300,
+                              color: Colors.grey[700],
+                              child: const Icon(Icons.music_note,
+                                  size: 150, color: Colors.white70),
+                            );
+                          },
+                        )
+                      : Container(
+                          width: 300,
+                          height: 300,
+                          color: Colors.grey[700],
+                          child: const Icon(Icons.music_note,
+                              size: 150, color: Colors.white70),
+                          key: ValueKey('song_detail_art_none'),
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Song Title and Artist Name
               Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -771,17 +835,17 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                     child: Text(
                       widget.song.artist,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.secondary,
-                        decoration: TextDecoration.underline,
-                      ),
+                            color: Theme.of(context).colorScheme.secondary,
+                            decoration: TextDecoration.underline,
+                          ),
                       textAlign: TextAlign.center,
                     ),
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Play/Pause and Download/Delete Buttons (moved above info sections)
               Row(
                 children: [
@@ -795,20 +859,28 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      colorScheme.onPrimary),
                                   strokeWidth: 2,
                                 ),
                               )
                             : Icon(
-                                isPlayingThisSong ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                isPlayingThisSong
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
                                 size: 28,
                                 color: colorScheme.onPrimary,
-                              ), 
-                        label: Text(isPlayingThisSong ? 'Pause' : 'Play', style: _safeTextStyle(textTheme.labelLarge, color: colorScheme.onPrimary, fontWeight: FontWeight.bold, fallbackFontSize: 16)),
+                              ),
+                        label: Text(isPlayingThisSong ? 'Pause' : 'Play',
+                            style: _safeTextStyle(textTheme.labelLarge,
+                                color: colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                                fallbackFontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: isLoadingThisSong
                             ? null
@@ -819,7 +891,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                                   if (isCurrentSongInProvider) {
                                     currentSongProvider.resumeSong();
                                   } else {
-                                    await currentSongProvider.smartPlayWithContext([widget.song], widget.song);
+                                    await currentSongProvider
+                                        .smartPlayWithContext(
+                                            [widget.song], widget.song);
                                   }
                                 }
                               },
@@ -833,38 +907,52 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                     child: Column(
                       children: [
                         if (currentSongProvider.isDownloadingSong &&
-                            currentSongProvider.downloadProgress.containsKey(songForDownloadStatus.id) &&
-                            (currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) < 1.0) ...[
+                            currentSongProvider.downloadProgress
+                                .containsKey(songForDownloadStatus.id) &&
+                            (currentSongProvider.downloadProgress[
+                                        songForDownloadStatus.id] ??
+                                    0.0) <
+                                1.0) ...[
                           SizedBox(
                             height: 56, // Fixed height for consistency
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 LinearProgressIndicator(
-                                  value: currentSongProvider.downloadProgress[songForDownloadStatus.id],
-                                  color: colorScheme.secondary
-                                ),
+                                    value: currentSongProvider.downloadProgress[
+                                        songForDownloadStatus.id],
+                                    color: colorScheme.secondary),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Downloading... ${((currentSongProvider.downloadProgress[songForDownloadStatus.id] ?? 0.0) * 100).toStringAsFixed(0)}%',
-                                  style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                                  style: textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant),
                                 ),
                               ],
                             ),
                           ),
-                        ] else if ((songForDownloadStatus.isDownloaded && songForDownloadStatus.localFilePath != null) ||
-                                   (currentSongProvider.downloadProgress[songForDownloadStatus.id] == 1.0)) ...[
+                        ] else if ((songForDownloadStatus.isDownloaded &&
+                                songForDownloadStatus.localFilePath != null) ||
+                            (currentSongProvider.downloadProgress[
+                                    songForDownloadStatus.id] ==
+                                1.0)) ...[
                           SizedBox(
                             width: double.infinity,
                             height: 56, // Fixed height for consistency
                             child: FilledButton.tonalIcon(
-                              icon: Icon(Icons.delete_outline_rounded, color: colorScheme.onErrorContainer),
-                              label: Text('Delete', style: _safeTextStyle(textTheme.labelLarge, color: colorScheme.onErrorContainer, fallbackFontSize: 16)),
+                              icon: Icon(Icons.delete_outline_rounded,
+                                  color: colorScheme.onErrorContainer),
+                              label: Text('Delete',
+                                  style: _safeTextStyle(textTheme.labelLarge,
+                                      color: colorScheme.onErrorContainer,
+                                      fallbackFontSize: 16)),
                               style: FilledButton.styleFrom(
                                 backgroundColor: colorScheme.errorContainer,
                                 foregroundColor: colorScheme.onErrorContainer,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: _deleteSong,
                             ),
@@ -875,12 +963,17 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                             height: 56, // Fixed height for consistency
                             child: FilledButton.tonalIcon(
                               icon: const Icon(Icons.download_rounded),
-                              label: Text('Download', style: textTheme.labelLarge?.copyWith(fontSize: 16)),
-                               style: FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              label: Text('Download',
+                                  style: textTheme.labelLarge
+                                      ?.copyWith(fontSize: 16)),
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
                               ),
-                              onPressed: isRadioPlayingGlobal ? null : _downloadSong,
+                              onPressed:
+                                  isRadioPlayingGlobal ? null : _downloadSong,
                             ),
                           ),
                         ],
@@ -901,33 +994,35 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                       child: ElevatedButton.icon(
                         icon: Icon(
                           Icons.playlist_add_rounded,
-                          color: isRadioPlayingGlobal 
-                              ? colorScheme.onSurface.withValues(alpha: 0.38) 
+                          color: isRadioPlayingGlobal
+                              ? colorScheme.onSurface.withValues(alpha: 0.38)
                               : colorScheme.onSecondary,
                         ),
                         label: Text(
                           'Add to Playlist',
                           style: TextStyle(
-                            color: isRadioPlayingGlobal 
-                                ? colorScheme.onSurface.withValues(alpha: 0.38) 
+                            color: isRadioPlayingGlobal
+                                ? colorScheme.onSurface.withValues(alpha: 0.38)
                                 : colorScheme.onSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        onPressed: isRadioPlayingGlobal 
-                            ? null 
-                            : () => _showAddToPlaylistDialog(context, widget.song),
+                        onPressed: isRadioPlayingGlobal
+                            ? null
+                            : () =>
+                                _showAddToPlaylistDialog(context, widget.song),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.secondary,
                           foregroundColor: colorScheme.onSecondary,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  
+
                   // Add to Queue Button
                   Expanded(
                     child: SizedBox(
@@ -935,15 +1030,15 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                       child: ElevatedButton.icon(
                         icon: Icon(
                           Icons.queue_music,
-                          color: isRadioPlayingGlobal 
-                              ? colorScheme.onSurface.withValues(alpha: 0.38) 
+                          color: isRadioPlayingGlobal
+                              ? colorScheme.onSurface.withValues(alpha: 0.38)
                               : colorScheme.onTertiary,
                         ),
                         label: Text(
                           'Add to Queue',
                           style: TextStyle(
-                            color: isRadioPlayingGlobal 
-                                ? colorScheme.onSurface.withValues(alpha: 0.38) 
+                            color: isRadioPlayingGlobal
+                                ? colorScheme.onSurface.withValues(alpha: 0.38)
                                 : colorScheme.onTertiary,
                             fontWeight: FontWeight.w500,
                           ),
@@ -951,17 +1046,22 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                         onPressed: isRadioPlayingGlobal
                             ? null
                             : () {
-                                final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                                final currentSongProvider =
+                                    Provider.of<CurrentSongProvider>(context,
+                                        listen: false);
                                 currentSongProvider.addToQueue(widget.song);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${widget.song.title} added to queue')),
+                                  SnackBar(
+                                      content: Text(
+                                          '${widget.song.title} added to queue')),
                                 );
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.tertiary,
                           foregroundColor: colorScheme.onTertiary,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
@@ -975,9 +1075,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  color: colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                  border: Border.all(
+                      color: colorScheme.outline.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -990,38 +1092,43 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    
+
                     // Album Information
-                    if (widget.song.album != null && widget.song.album!.isNotEmpty) ...[
+                    if (widget.song.album != null &&
+                        widget.song.album!.isNotEmpty) ...[
                       _buildInfoRow('Album', widget.song.album!),
                       const SizedBox(height: 8),
                     ],
-                    
+
                     // Release Date
-                    if (widget.song.releaseDate != null && widget.song.releaseDate!.isNotEmpty) ...[
+                    if (widget.song.releaseDate != null &&
+                        widget.song.releaseDate!.isNotEmpty) ...[
                       _buildInfoRow('Released', widget.song.releaseDate!),
                       const SizedBox(height: 8),
                     ],
-                    
+
                     // Duration
                     if (widget.song.duration != null) ...[
-                      _buildInfoRow('Duration', _formatDuration(widget.song.duration!)),
+                      _buildInfoRow(
+                          'Duration', _formatDuration(widget.song.duration!)),
                     ],
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 16),
 
               // Lyrics Preview Section (if available)
-              if (_preloadedLyrics != null && _preloadedLyrics!.plainLyrics != null) ...[
+              if (_preloadedLyrics != null &&
+                  _preloadedLyrics!.plainLyrics != null) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colorScheme.tertiaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                    border: Border.all(
+                        color: colorScheme.outline.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,7 +1147,6 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      
                       Text(
                         _preloadedLyrics!.plainLyrics!.length > 200
                             ? '${_preloadedLyrics!.plainLyrics!.substring(0, 200)}...'
@@ -1050,7 +1156,6 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                           height: 1.4,
                         ),
                       ),
-                      
                       if (_preloadedLyrics!.plainLyrics!.length > 200) ...[
                         const SizedBox(height: 8),
                         GestureDetector(
@@ -1077,9 +1182,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                    color:
+                        colorScheme.secondaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                    border: Border.all(
+                        color: colorScheme.outline.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1098,7 +1205,6 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      
                       if (_preloadedAlbum!.tracks.isNotEmpty) ...[
                         Text(
                           '${_preloadedAlbum!.tracks.length} tracks',
@@ -1107,40 +1213,43 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        
+
                         // Show first few tracks
-                        ...(_preloadedAlbum!.tracks.take(3).map((track) => 
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.music_note,
-                                  size: 16,
-                                  color: track.title == widget.song.title 
-                                      ? colorScheme.primary 
-                                      : colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    track.title,
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: track.title == widget.song.title 
-                                          ? colorScheme.primary 
+                        ...(_preloadedAlbum!.tracks.take(3).map(
+                              (track) => Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.music_note,
+                                      size: 16,
+                                      color: track.title == widget.song.title
+                                          ? colorScheme.primary
                                           : colorScheme.onSurfaceVariant,
-                                      fontWeight: track.title == widget.song.title 
-                                          ? FontWeight.bold 
-                                          : FontWeight.normal,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        track.title,
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: track.title ==
+                                                  widget.song.title
+                                              ? colorScheme.primary
+                                              : colorScheme.onSurfaceVariant,
+                                          fontWeight:
+                                              track.title == widget.song.title
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        )),
-                        
+                              ),
+                            )),
+
                         if (_preloadedAlbum!.tracks.length > 3) ...[
                           const SizedBox(height: 4),
                           Text(
@@ -1151,7 +1260,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                             ),
                           ),
                         ],
-                        
+
                         const SizedBox(height: 12),
                         GestureDetector(
                           onTap: () => _viewAlbum(context),
@@ -1179,7 +1288,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                    border: Border.all(
+                        color: colorScheme.outline.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1198,7 +1308,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      
+
                       // Artist stats
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1206,14 +1316,18 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                           _buildArtistStatItem(
                             context,
                             'Fans',
-                            _formatNumber(_preloadedArtistInfo!['NB_FAN'] as int? ?? 0),
+                            _formatNumber(
+                                _preloadedArtistInfo!['NB_FAN'] as int? ?? 0),
                             Icons.favorite,
                             colorScheme,
                           ),
                           _buildArtistStatItem(
                             context,
                             'Albums',
-                            (_preloadedArtistAlbums?.length ?? _preloadedArtistInfo!['NB_ALBUM'] as int? ?? 0).toString(),
+                            (_preloadedArtistAlbums?.length ??
+                                    _preloadedArtistInfo!['NB_ALBUM'] as int? ??
+                                    0)
+                                .toString(),
                             Icons.album,
                             colorScheme,
                           ),
@@ -1226,8 +1340,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                           ),
                         ],
                       ),
-                      
-                      if (_preloadedArtistTracks != null && _preloadedArtistTracks!.isNotEmpty) ...[
+
+                      if (_preloadedArtistTracks != null &&
+                          _preloadedArtistTracks!.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Text(
                           'Popular Tracks',
@@ -1237,40 +1352,43 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        
+
                         // Show first few tracks
-                        ...(_preloadedArtistTracks!.take(3).map((track) => 
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.music_note,
-                                  size: 16,
-                                  color: track.title == widget.song.title 
-                                      ? colorScheme.primary 
-                                      : colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    track.title,
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: track.title == widget.song.title 
-                                          ? colorScheme.primary 
+                        ...(_preloadedArtistTracks!.take(3).map(
+                              (track) => Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.music_note,
+                                      size: 16,
+                                      color: track.title == widget.song.title
+                                          ? colorScheme.primary
                                           : colorScheme.onSurfaceVariant,
-                                      fontWeight: track.title == widget.song.title 
-                                          ? FontWeight.bold 
-                                          : FontWeight.normal,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        track.title,
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: track.title ==
+                                                  widget.song.title
+                                              ? colorScheme.primary
+                                              : colorScheme.onSurfaceVariant,
+                                          fontWeight:
+                                              track.title == widget.song.title
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        )),
-                        
+                              ),
+                            )),
+
                         if (_preloadedArtistTracks!.length > 3) ...[
                           const SizedBox(height: 4),
                           Text(
@@ -1281,7 +1399,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                             ),
                           ),
                         ],
-                        
+
                         const SizedBox(height: 12),
                         GestureDetector(
                           onTap: () => _viewArtist(context),
@@ -1317,7 +1435,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   // Helper method to build info rows
-  Widget _buildInfoRow(String label, String value, {IconData? icon, Color? iconColor}) {
+  Widget _buildInfoRow(String label, String value,
+      {IconData? icon, Color? iconColor}) {
     return Row(
       children: [
         if (icon != null) ...[
@@ -1331,16 +1450,16 @@ class SongDetailScreenState extends State<SongDetailScreen> {
         Text(
           '$label: ',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
         ),
         Expanded(
           child: Text(
             value,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -1367,7 +1486,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   // Helper method to build artist stat items
-  Widget _buildArtistStatItem(BuildContext context, String label, String value, IconData icon, ColorScheme colorScheme) {
+  Widget _buildArtistStatItem(BuildContext context, String label, String value,
+      IconData icon, ColorScheme colorScheme) {
     return Column(
       children: [
         Icon(
@@ -1379,15 +1499,15 @@ class SongDetailScreenState extends State<SongDetailScreen> {
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.primary,
-          ),
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
         ),
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
+                color: colorScheme.onSurfaceVariant,
+              ),
         ),
       ],
     );
@@ -1415,7 +1535,8 @@ class AddToPlaylistDialog extends StatefulWidget {
 class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   List<Playlist> _allPlaylists = [];
   List<Playlist> _filteredPlaylists = [];
-  final PlaylistManagerService _playlistManagerService = PlaylistManagerService();
+  final PlaylistManagerService _playlistManagerService =
+      PlaylistManagerService();
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -1432,8 +1553,10 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   }
 
   Future<void> _loadAndPreparePlaylists() async {
-    await _playlistManagerService.ensurePlaylistsLoaded(); // Ensure playlists are loaded
-    if (mounted) { // Check mounted after await
+    await _playlistManagerService
+        .ensurePlaylistsLoaded(); // Ensure playlists are loaded
+    if (mounted) {
+      // Check mounted after await
       setState(() {
         _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists);
         _filteredPlaylists = List<Playlist>.from(_allPlaylists);
@@ -1469,24 +1592,32 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   }
 
   Widget _buildPlaylistArt(Playlist playlist, BuildContext context) {
-    String? artUrl = playlist.songs.isNotEmpty ? playlist.songs.first.albumArtUrl : null;
-    Widget placeholder = Icon(Icons.music_note, size: 24, color: Theme.of(context).colorScheme.onSurfaceVariant);
+    String? artUrl =
+        playlist.songs.isNotEmpty ? playlist.songs.first.albumArtUrl : null;
+    Widget placeholder = Icon(Icons.music_note,
+        size: 24, color: Theme.of(context).colorScheme.onSurfaceVariant);
 
     if (artUrl != null && artUrl.isNotEmpty) {
       if (artUrl.startsWith('http')) {
         return Image.network(
           artUrl,
-          width: 48, height: 48, fit: BoxFit.cover,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => placeholder,
         );
       } else {
         return FutureBuilder<String>(
           future: _resolveLocalArtPathForDialog(artUrl),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+            if (snapshot.connectionState == ConnectionState.done &&
+                snapshot.hasData &&
+                snapshot.data!.isNotEmpty) {
               return Image.file(
                 File(snapshot.data!),
-                width: 48, height: 48, fit: BoxFit.cover,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => placeholder,
               );
             }
@@ -1498,15 +1629,17 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     return placeholder;
   }
 
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Center(child: Text('Add to playlist')),
-      contentPadding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 0), // Adjust padding
+      contentPadding:
+          const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 0), // Adjust padding
       content: SizedBox(
-        width: double.maxFinite, // Make dialog content take full available width
-        height: MediaQuery.of(context).size.height * 0.6, // Set a max height for the content
+        width:
+            double.maxFinite, // Make dialog content take full available width
+        height: MediaQuery.of(context).size.height *
+            0.6, // Set a max height for the content
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1523,9 +1656,12 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                 ),
                 onPressed: () {
                   // Navigator.of(context).pop(); // Don't close AddToPlaylistDialog
-                  _showCreatePlaylistDialog(context); // Show create playlist dialog directly
+                  _showCreatePlaylistDialog(
+                      context); // Show create playlist dialog directly
                 },
-                child: const Text('New playlist', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text('New playlist',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 16),
@@ -1538,14 +1674,22 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                       controller: _searchController,
                       decoration: InputDecoration(
                         hintText: 'Find playlist',
-                        prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withValues(alpha: 0.7)),
+                        prefixIcon: Icon(Icons.search,
+                            color: Theme.of(context)
+                                .iconTheme
+                                .color
+                                ?.withValues(alpha: 0.7)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24.0),
                           borderSide: BorderSide.none,
                         ),
                         filled: true,
-                        fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                        fillColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.5),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 0, horizontal: 16),
                       ),
                     ),
                   ),
@@ -1557,8 +1701,12 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
               child: _filteredPlaylists.isEmpty
                   ? Center(
                       child: Text(
-                        _searchController.text.isNotEmpty ? 'No playlists found.' : 'No playlists available.',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        _searchController.text.isNotEmpty
+                            ? 'No playlists found.'
+                            : 'No playlists available.',
+                        style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     )
                   : ListView.builder(
@@ -1578,17 +1726,21 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                           title: Text(playlist.name),
                           subtitle: Text('${playlist.songs.length} songs'),
                           onTap: () {
-                            if (!playlist.songs.any((s) => s.id == widget.song.id)) {
-                              _playlistManagerService.addSongToPlaylist(playlist, widget.song);
+                            if (!playlist.songs
+                                .any((s) => s.id == widget.song.id)) {
+                              _playlistManagerService.addSongToPlaylist(
+                                  playlist, widget.song);
                               // _playlistManagerService.savePlaylists(); // savePlaylists is called within addSongToPlaylist
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Added to ${playlist.name}')),
+                                SnackBar(
+                                    content: Text('Added to ${playlist.name}')),
                               );
                             } else {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Song already in playlist')),
+                                const SnackBar(
+                                    content: Text('Song already in playlist')),
                               );
                             }
                           },
@@ -1613,8 +1765,10 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   void _showCreatePlaylistDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext dialogContext) { // Renamed inner context for clarity
-        final TextEditingController playlistNameController = TextEditingController();
+      builder: (BuildContext dialogContext) {
+        // Renamed inner context for clarity
+        final TextEditingController playlistNameController =
+            TextEditingController();
         return AlertDialog(
           title: const Text('Create Playlist'),
           content: TextField(
@@ -1633,21 +1787,29 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
               onPressed: () {
                 final playlistName = playlistNameController.text.trim();
                 if (playlistName.isNotEmpty) {
-                  final newPlaylist = Playlist(id: DateTime.now().millisecondsSinceEpoch.toString(), name: playlistName, songs: []);
+                  final newPlaylist = Playlist(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      name: playlistName,
+                      songs: []);
                   _playlistManagerService.addPlaylist(newPlaylist);
                   if (mounted) {
-                    setState(() { 
-                       _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists); // Refresh the master list
-                       // Re-apply filter based on the new _allPlaylists and existing search term
-                       final searchQuery = _searchController.text.toLowerCase();
-                       _filteredPlaylists = _allPlaylists.where((playlist) {
-                         return playlist.name.toLowerCase().contains(searchQuery);
-                       }).toList();
-                       // No need to re-sort as sorting is removed
+                    setState(() {
+                      _allPlaylists = List<Playlist>.from(
+                          _playlistManagerService
+                              .playlists); // Refresh the master list
+                      // Re-apply filter based on the new _allPlaylists and existing search term
+                      final searchQuery = _searchController.text.toLowerCase();
+                      _filteredPlaylists = _allPlaylists.where((playlist) {
+                        return playlist.name
+                            .toLowerCase()
+                            .contains(searchQuery);
+                      }).toList();
+                      // No need to re-sort as sorting is removed
                     });
                   }
                 }
-                Navigator.of(dialogContext).pop(); // Use dialogContext to pop CreatePlaylistDialog
+                Navigator.of(dialogContext)
+                    .pop(); // Use dialogContext to pop CreatePlaylistDialog
               },
             ),
           ],

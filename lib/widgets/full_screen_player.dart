@@ -11,7 +11,8 @@ import 'dart:async'; // For StreamSubscription and Timer
 import 'package:shared_preferences/shared_preferences.dart'; // For SharedPreferences
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
-import '../services/api_service.dart'; 
+import '../services/api_service.dart';
+import '../services/lyrics_service.dart';
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
 import 'dart:math' as math; // Added for min/max in lyrics scroll
@@ -36,7 +37,8 @@ class LyricLine {
 
 class _QueueBottomSheetContent extends StatefulWidget {
   @override
-  State<_QueueBottomSheetContent> createState() => _QueueBottomSheetContentState();
+  State<_QueueBottomSheetContent> createState() =>
+      _QueueBottomSheetContentState();
 }
 
 class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
@@ -64,13 +66,17 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
         _artPathCache[song.id] = '';
       }
     }
-    if (mounted) setState(() { _loading = false; });
+    if (mounted)
+      setState(() {
+        _loading = false;
+      });
   }
 
   bool _isIndexVisible(int index) {
     if (!_scrollController.hasClients) return false;
     final double minVisible = _scrollController.offset;
-    final double maxVisible = _scrollController.offset + (_scrollController.position.viewportDimension);
+    final double maxVisible = _scrollController.offset +
+        (_scrollController.position.viewportDimension);
     final double itemTop = index * itemHeight;
     final double itemBottom = itemTop + itemHeight;
     return itemBottom > minVisible && itemTop < maxVisible;
@@ -135,7 +141,12 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                       children: [
                         Text(
                           'Up Next',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold) ?? const TextStyle(fontWeight: FontWeight.bold, fontSize: 22.0),
+                          style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.bold) ??
+                              const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 22.0),
                         ),
                         if (queue.isNotEmpty)
                           TextButton(
@@ -144,13 +155,15 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               if (mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Queue cleared')),
+                                  const SnackBar(
+                                      content: Text('Queue cleared')),
                                 );
                               }
                             },
                             child: Text(
                               'Clear Queue',
-                              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                              style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary),
                             ),
                           ),
                       ],
@@ -168,27 +181,38 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                   else
                     Expanded(
                       child: ReorderableListView.builder(
-                        key: ValueKey(queue.map((s) => s.id).join(',')), // Force rebuild when queue order changes
+                        key: ValueKey(queue.map((s) => s.id).join(
+                            ',')), // Force rebuild when queue order changes
                         buildDefaultDragHandles: false,
                         scrollController: _scrollController,
                         itemCount: queue.length,
                         itemBuilder: (BuildContext context, int index) {
                           final song = queue[index];
-                          final bool isCurrentlyPlaying = song.id == currentSong?.id;
+                          final bool isCurrentlyPlaying =
+                              song.id == currentSong?.id;
                           final String artPath = _artPathCache[song.id] ?? '';
                           Widget imageWidget;
                           if (song.albumArtUrl.startsWith('http')) {
                             imageWidget = Image.network(
-                              song.albumArtUrl, width: 40, height: 40, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                              song.albumArtUrl,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.music_note, size: 40),
                             );
                           } else if (artPath.isNotEmpty) {
                             imageWidget = Image.file(
-                              File(artPath), width: 40, height: 40, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                              File(artPath),
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.music_note, size: 40),
                             );
                           } else {
-                            imageWidget = const Icon(Icons.music_note, size: 40);
+                            imageWidget =
+                                const Icon(Icons.music_note, size: 40);
                           }
                           return SizedBox(
                             key: ValueKey(song.id),
@@ -203,12 +227,18 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontWeight: isCurrentlyPlaying ? FontWeight.bold : FontWeight.normal,
-                                  color: isCurrentlyPlaying ? colorScheme.primary : colorScheme.onSurface,
+                                  fontWeight: isCurrentlyPlaying
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isCurrentlyPlaying
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurface,
                                 ),
                               ),
                               subtitle: Text(
-                                song.artist.isNotEmpty ? song.artist : "Unknown Artist",
+                                song.artist.isNotEmpty
+                                    ? song.artist
+                                    : "Unknown Artist",
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -216,20 +246,29 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (isCurrentlyPlaying)
-                                    AnimatedEqualizerIcon(isPlaying: currentSongProvider.isPlaying, color: colorScheme.primary),
+                                    AnimatedEqualizerIcon(
+                                        isPlaying:
+                                            currentSongProvider.isPlaying,
+                                        color: colorScheme.primary),
                                   ReorderableDragStartListener(
                                     index: index,
                                     child: Padding(
                                       padding: const EdgeInsets.only(left: 8.0),
-                                      child: Icon(Icons.drag_handle, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+                                      child: Icon(Icons.drag_handle,
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.5)),
                                     ),
                                   ),
                                 ],
                               ),
                               onTap: () async {
                                 final isPlaying = currentSongProvider.isPlaying;
-                                await currentSongProvider.smartPlayWithContext(queue, song, playImmediately: isPlaying);
-                                if (mounted) setState(() {}); // Update queue UI immediately
+                                await currentSongProvider.smartPlayWithContext(
+                                    queue, song,
+                                    playImmediately: isPlaying);
+                                if (mounted)
+                                  setState(
+                                      () {}); // Update queue UI immediately
                                 // Do not close the queue after selecting a song
                                 // if (mounted) Navigator.pop(context);
                               },
@@ -238,7 +277,8 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                         },
                         onReorder: (int oldIndex, int newIndex) async {
                           if (newIndex > oldIndex) newIndex -= 1;
-                          await currentSongProvider.reorderQueue(oldIndex, newIndex);
+                          await currentSongProvider.reorderQueue(
+                              oldIndex, newIndex);
                           // Remove manual setState - let the provider's notifyListeners() handle UI updates
                         },
                       ),
@@ -257,13 +297,15 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
 class AnimatedEqualizerIcon extends StatefulWidget {
   final bool isPlaying;
   final Color color;
-  const AnimatedEqualizerIcon({super.key, required this.isPlaying, required this.color});
+  const AnimatedEqualizerIcon(
+      {super.key, required this.isPlaying, required this.color});
 
   @override
   State<AnimatedEqualizerIcon> createState() => _AnimatedEqualizerIconState();
 }
 
-class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with SingleTickerProviderStateMixin {
+class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   static const int barCount = 3;
   static const double baseHeight = 10;
@@ -282,7 +324,9 @@ class _AnimatedEqualizerIconState extends State<AnimatedEqualizerIcon> with Sing
 
   void _updateAnimation() {
     final animationService = AnimationService.instance;
-    if (widget.isPlaying && animationService.isAnimationEnabled(AnimationType.equalizerAnimations)) {
+    if (widget.isPlaying &&
+        animationService
+            .isAnimationEnabled(AnimationType.equalizerAnimations)) {
       _controller.repeat();
     } else {
       _controller.stop();
@@ -365,8 +409,10 @@ class FullScreenPlayer extends StatefulWidget {
   State<FullScreenPlayer> createState() => _FullScreenPlayerState();
 }
 
-class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProviderStateMixin {
-  double _slideOffsetX = 0.0; // To control slide direction, 0.0 means no slide (fade in art)
+class _FullScreenPlayerState extends State<FullScreenPlayer>
+    with TickerProviderStateMixin {
+  double _slideOffsetX =
+      0.0; // To control slide direction, 0.0 means no slide (fade in art)
   String? _previousSongId;
   double _verticalDragAccumulator = 0.0; // For swipe down to close gesture
 
@@ -375,7 +421,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   late AnimationController _albumArtSlideController;
   late Animation<Offset> _albumArtSlideAnimation;
-  
+
   // New animation controllers for enhanced opening animation
   late AnimationController _scaleController;
   late AnimationController _slideController;
@@ -396,12 +442,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   bool _showLyrics = false;
   List<LyricLine> _parsedLyrics = [];
   int _currentLyricIndex = -1;
-  bool _areLyricsSynced = false; 
+  bool _areLyricsSynced = false;
   bool _lyricsLoading = false;
   bool _lyricsFetchedForCurrentSong = false;
 
   final ItemScrollController _lyricsScrollController = ItemScrollController();
-  final ItemPositionsListener _lyricsPositionsListener = ItemPositionsListener.create();
+  final ItemPositionsListener _lyricsPositionsListener =
+      ItemPositionsListener.create();
 
   bool _isLiked = false;
   Future<String>? _localArtPathFuture;
@@ -424,11 +471,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   late AnimationController _lyricHighlightController;
   late Animation<double> _lyricTransitionAnimation;
   late Animation<double> _lyricHighlightAnimation;
-  
+
   // Track previous lyric index for smooth transitions
   int _previousLyricIndex = -1;
   final Map<int, AnimationController> _lyricLineControllers = {};
-  
+
   // Debounce timer for lyrics toggle button to prevent spam
   Timer? _lyricsToggleDebounceTimer;
 
@@ -466,7 +513,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
+
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 700),
       vsync: this,
@@ -534,9 +581,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       curve: Curves.easeOut,
     );
 
-    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     _previousSongId = _currentSongProvider.currentSong?.id;
-    
+
     // Initialize sleep timer service
     if (!_sleepTimerService.isInitialized) {
       _sleepTimerService.initialize(_currentSongProvider);
@@ -548,14 +596,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       onTimerExpired: () {
         if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sleep timer expired. Playback stopped.')),
+            const SnackBar(
+                content: Text('Sleep timer expired. Playback stopped.')),
           );
         }
       },
     );
 
     if (_currentSongProvider.currentSong != null) {
-      _localArtPathFuture = _resolveLocalArtPath(_currentSongProvider.currentSong!.albumArtUrl);
+      _localArtPathFuture =
+          _resolveLocalArtPath(_currentSongProvider.currentSong!.albumArtUrl);
     }
 
     // Initial lyrics state reset (lyrics will be loaded on demand or if _showLyrics is true)
@@ -569,7 +619,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         }
       });
     }
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _updatePalette(_currentSongProvider.currentSong);
@@ -578,14 +628,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     _currentSongProvider.addListener(_onSongChanged);
     _loadLikeState(); // load initial like state
-    
+
     final song = _currentSongProvider.currentSong;
     if (song != null) {
       // Try to use playbar's artwork immediately if available
       final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
       final playbarArtId = PlaybarState.getCurrentArtworkId();
-      
-      if (playbarArtProvider != null && playbarArtId == song.id && !PlaybarState.isArtworkLoading()) {
+
+      if (playbarArtProvider != null &&
+          playbarArtId == song.id &&
+          !PlaybarState.isArtworkLoading()) {
         _currentArtProvider = playbarArtProvider;
         _currentArtId = song.id;
         _artLoading = false;
@@ -595,27 +647,32 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _updateArtProvider(song);
       }
     }
-
   }
 
   void _updateArtProvider(Song song) {
     // Try to get the artwork from the playbar first
     final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
     final playbarArtId = PlaybarState.getCurrentArtworkId();
-    
+
     // If the playbar has the same artwork loaded, use it
     if (playbarArtProvider != null && playbarArtId == song.id) {
       _currentArtProvider = playbarArtProvider;
       _currentArtId = song.id;
-      if (mounted) setState(() { _artLoading = false; });
+      if (mounted)
+        setState(() {
+          _artLoading = false;
+        });
       return;
     }
-    
+
     // Otherwise, load the artwork asynchronously
     if (song.albumArtUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
       _currentArtId = song.id;
-      if (mounted) setState(() { _artLoading = false; });
+      if (mounted)
+        setState(() {
+          _artLoading = false;
+        });
     } else {
       // For local files, resolve the path asynchronously
       _resolveLocalArtPath(song.albumArtUrl).then((path) {
@@ -626,25 +683,29 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
             _currentArtProvider = null;
           }
           _currentArtId = song.id;
-          setState(() { _artLoading = false; });
+          setState(() {
+            _artLoading = false;
+          });
         }
       });
     }
   }
 
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     _currentSongProvider.addListener(_onSongChanged);
     final song = _currentSongProvider.currentSong;
     if (song != null) {
       // Try to use playbar's artwork immediately if available
       final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
       final playbarArtId = PlaybarState.getCurrentArtworkId();
-      
-      if (playbarArtProvider != null && playbarArtId == song.id && !PlaybarState.isArtworkLoading()) {
+
+      if (playbarArtProvider != null &&
+          playbarArtId == song.id &&
+          !PlaybarState.isArtworkLoading()) {
         _currentArtProvider = playbarArtProvider;
         _currentArtId = song.id;
         _artLoading = false;
@@ -666,13 +727,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _lyricsFetchedForCurrentSong = false;
         _lyricsLoading = false;
         // _showLyrics remains as is, or reset if desired:
-        // _showLyrics = false; 
+        // _showLyrics = false;
       });
-      
+
       // Reset animation controllers
       _lyricTransitionController.reset();
       _lyricHighlightController.reset();
-      
+
       // Dispose and clear individual lyric line controllers
       for (final controller in _lyricLineControllers.values) {
         controller.dispose();
@@ -684,8 +745,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // Enhanced opening animation method
   void _startOpeningAnimation() {
     final animationService = AnimationService.instance;
-    
-    if (!animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
+
+    if (!animationService
+        .isAnimationEnabled(AnimationType.songChangeAnimations)) {
       // Skip animations if disabled
       _backgroundController.value = 1.0;
       _scaleController.value = 1.0;
@@ -694,13 +756,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _textFadeController.value = 1.0;
       return;
     }
-    
+
     // Start all animations immediately for smooth opening
     _backgroundController.forward();
     _scaleController.forward();
     _slideController.forward();
     _rotationController.forward();
-    
+
     // Stagger the text fade animation with shorter delay for smoother feel
     Future.delayed(const Duration(milliseconds: 150), () {
       if (mounted) {
@@ -712,8 +774,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // Enhanced song change animation method
   void _startSongChangeAnimation(double slideOffsetX) {
     final animationService = AnimationService.instance;
-    
-    if (!animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
+
+    if (!animationService
+        .isAnimationEnabled(AnimationType.songChangeAnimations)) {
       // Skip animations if disabled
       _backgroundController.value = 1.0;
       _scaleController.value = 1.0;
@@ -722,15 +785,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       _textFadeController.value = 1.0;
       return;
     }
-    
+
     // Reset and start background animation immediately
     _backgroundController.reset();
     _backgroundController.forward();
-    
+
     // Reset and start scale animation
     _scaleController.reset();
     _scaleController.forward();
-    
+
     // Reset and start slide animation with horizontal direction
     _slideController.reset();
     _slideAnimation = Tween<Offset>(
@@ -741,11 +804,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       curve: Curves.easeOutQuart,
     ));
     _slideController.forward();
-    
+
     // Reset and start rotation animation
     _rotationController.reset();
     _rotationController.forward();
-    
+
     // Reset and start text fade animation with shorter delay for smoother feel
     _textFadeController.reset();
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -773,12 +836,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
       if (newSong != null) {
         _localArtPathFuture = _resolveLocalArtPath(newSong.albumArtUrl);
-        
+
         // Try to use playbar's artwork immediately if available
         final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
         final playbarArtId = PlaybarState.getCurrentArtworkId();
-        
-        if (playbarArtProvider != null && playbarArtId == newSong.id && !PlaybarState.isArtworkLoading()) {
+
+        if (playbarArtProvider != null &&
+            playbarArtId == newSong.id &&
+            !PlaybarState.isArtworkLoading()) {
           _currentArtProvider = playbarArtProvider;
           _currentArtId = newSong.id;
           _artLoading = false;
@@ -830,16 +895,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
     debugPrint("Auto-fetching lyrics for downloaded song: ${song.title}");
     try {
-      LyricsData? lyricsData = await _apiService.fetchLyrics(song.artist, song.title);
+      final lyricsService = LyricsService();
+      LyricsData? lyricsData =
+          await lyricsService.fetchLyricsIfNeeded(song, _currentSongProvider);
 
       // Check again if still mounted, song is current, and lyrics were actually found.
       if (mounted &&
           _currentSongProvider.currentSong?.id == song.id &&
           lyricsData != null &&
-          (lyricsData.syncedLyrics?.isNotEmpty == true || lyricsData.plainLyrics?.isNotEmpty == true)) {
-        
-        // Assumes CurrentSongProvider.updateSongLyrics updates the song, persists, and notifies.
-        await _currentSongProvider.updateSongLyrics(song.id, lyricsData);
+          (lyricsData.syncedLyrics?.isNotEmpty == true ||
+              lyricsData.plainLyrics?.isNotEmpty == true)) {
         debugPrint("Lyrics auto-downloaded and saved for ${song.title}");
 
         // If lyrics view is active for this song, refresh it.
@@ -847,11 +912,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         // Calling _loadAndProcessLyrics ensures the view updates with new local lyrics.
         if (_showLyrics) {
           final potentiallyUpdatedSong = _currentSongProvider.currentSong;
-          if (potentiallyUpdatedSong != null && potentiallyUpdatedSong.id == song.id) {
-             _loadAndProcessLyrics(potentiallyUpdatedSong);
+          if (potentiallyUpdatedSong != null &&
+              potentiallyUpdatedSong.id == song.id) {
+            _loadAndProcessLyrics(potentiallyUpdatedSong);
           }
         }
-      } else if (lyricsData == null || (lyricsData.syncedLyrics?.isEmpty ?? true) && (lyricsData.plainLyrics?.isEmpty ?? true)) {
+      } else if (lyricsData == null ||
+          (lyricsData.syncedLyrics?.isEmpty ?? true) &&
+              (lyricsData.plainLyrics?.isEmpty ?? true)) {
         debugPrint("No lyrics found (auto-fetch) for ${song.title}");
       }
     } catch (e) {
@@ -863,68 +931,33 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     if (!mounted) return;
     setState(() {
       _lyricsLoading = true;
-      _parsedLyrics = []; 
+      _parsedLyrics = [];
       _currentLyricIndex = -1;
       _areLyricsSynced = false;
       // _lyricsFetchedForCurrentSong is reset in _resetLyricsState.
       // It will be set to true in the finally block or if local lyrics are found.
     });
 
-    // Check for local lyrics first
-    // currentSong should be the latest instance from the provider if a rebuild occurred.
-    if ((currentSong.syncedLyrics != null && currentSong.syncedLyrics!.isNotEmpty) ||
-        (currentSong.plainLyrics != null && currentSong.plainLyrics!.isNotEmpty)) {
-      debugPrint("Using local lyrics for ${currentSong.title}");
-      final localLyricsData = LyricsData(
-        plainLyrics: currentSong.plainLyrics,
-        syncedLyrics: currentSong.syncedLyrics,
-      );
-      _processLyricsForSongData(localLyricsData);
-      if (mounted) {
-        setState(() {
-          _lyricsLoading = false;
-          _lyricsFetchedForCurrentSong = true;
-        });
-        
-        // If lyrics are being shown and we have a current lyric index, scroll to it
-        if (_showLyrics && _currentLyricIndex >= 0) {
-          Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted) {
-              _scrollToCurrentLyricIfNeeded();
-            }
-          });
-        }
-      }
-      return;
-    }
-
-    // If no local lyrics, fetch from API
-    debugPrint("Fetching lyrics from API for ${currentSong.title}");
+    // Use the new lyrics service for smart fetching
+    debugPrint("Loading lyrics for ${currentSong.title}");
+    final lyricsService = LyricsService();
     LyricsData? lyricsData;
+
     try {
-      lyricsData = await _apiService.fetchLyrics(currentSong.artist, currentSong.title);
-      
-      // If lyrics were fetched from API, are not empty, and the song is downloaded, save them.
-      if (lyricsData != null &&
-          (lyricsData.syncedLyrics?.isNotEmpty == true || lyricsData.plainLyrics?.isNotEmpty == true) &&
-          currentSong.isDownloaded) {
-        
-        debugPrint("Lyrics fetched via API for downloaded song ${currentSong.title}. Saving them.");
-        // Assumes CurrentSongProvider.updateSongLyrics updates the song, persists, and notifies.
-        await _currentSongProvider.updateSongLyrics(currentSong.id, lyricsData);
-      }
-      
+      lyricsData = await lyricsService.fetchLyricsIfNeeded(
+          currentSong, _currentSongProvider);
       _processLyricsForSongData(lyricsData);
     } catch (e) {
-            debugPrint("Error loading lyrics in FullScreenPlayer: $e");
-      _processLyricsForSongData(null); // Process with null to clear lyrics and show "not available"
+      debugPrint("Error loading lyrics in FullScreenPlayer: $e");
+      _processLyricsForSongData(
+          null); // Process with null to clear lyrics and show "not available"
     } finally {
       if (mounted) {
         setState(() {
           _lyricsLoading = false;
           _lyricsFetchedForCurrentSong = true;
         });
-        
+
         // If lyrics are being shown and we have a current lyric index, scroll to it
         if (_showLyrics && _currentLyricIndex >= 0) {
           Future.delayed(const Duration(milliseconds: 200), () {
@@ -941,14 +974,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     List<LyricLine> tempParsedLyrics = [];
     bool tempAreLyricsSynced = false;
 
-    if (lyricsData?.syncedLyrics != null && lyricsData!.syncedLyrics!.isNotEmpty) {
+    if (lyricsData?.syncedLyrics != null &&
+        lyricsData!.syncedLyrics!.isNotEmpty) {
       tempParsedLyrics = _parseSyncedLyrics(lyricsData.syncedLyrics!);
       if (tempParsedLyrics.isNotEmpty) {
         tempAreLyricsSynced = true;
       }
     }
 
-    if (!tempAreLyricsSynced && lyricsData?.plainLyrics != null && lyricsData!.plainLyrics!.isNotEmpty) {
+    if (!tempAreLyricsSynced &&
+        lyricsData?.plainLyrics != null &&
+        lyricsData!.plainLyrics!.isNotEmpty) {
       tempParsedLyrics = _parsePlainLyrics(lyricsData.plainLyrics!);
     }
 
@@ -958,15 +994,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         _areLyricsSynced = tempAreLyricsSynced;
         // Clamp _currentLyricIndex to -1 or valid range
         if (_currentLyricIndex >= _parsedLyrics.length) {
-          _currentLyricIndex = _parsedLyrics.isEmpty ? -1 : _parsedLyrics.length - 1;
+          _currentLyricIndex =
+              _parsedLyrics.isEmpty ? -1 : _parsedLyrics.length - 1;
         }
         if (_currentLyricIndex < -1) _currentLyricIndex = -1;
       });
-      
+
       // Trigger entrance animation for new lyrics
       if (tempParsedLyrics.isNotEmpty) {
         _triggerLyricsEntranceAnimation();
-        
+
         // If lyrics are being shown, scroll to current lyric after a short delay
         if (_showLyrics) {
           Future.delayed(const Duration(milliseconds: 300), () {
@@ -978,7 +1015,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       }
     }
   }
-
 
   // void _processLyricsForSong(Song? song) { // Replaced by _loadAndProcessLyrics & _processLyricsForSongData
   //   List<LyricLine> tempParsedLyrics = [];
@@ -1023,7 +1059,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         final text = matches.group(4)!.trim();
         if (text.isNotEmpty) {
           lines.add(LyricLine(
-            timestamp: Duration(minutes: minutes, seconds: seconds, milliseconds: milliseconds),
+            timestamp: Duration(
+                minutes: minutes, seconds: seconds, milliseconds: milliseconds),
             text: text,
           ));
         }
@@ -1056,7 +1093,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       }
       return;
     }
-    
+
     if (song.albumArtUrl.isEmpty) {
       // Set a default color when no album art is available
       if (mounted) {
@@ -1084,19 +1121,24 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       }
       try {
         final palette = await PaletteGenerator.fromImageProvider(provider);
-        final baseColor = palette.dominantColor?.color ?? Theme.of(context).colorScheme.surface;
+        final baseColor = palette.dominantColor?.color ??
+            Theme.of(context).colorScheme.surface;
         final hsl = HSLColor.fromColor(baseColor);
         final Brightness currentBrightness = Theme.of(context).brightness;
         final bool isDarkMode = currentBrightness == Brightness.dark;
-        
+
         // Make the color more vibrant and noticeable
         final adjustedColor = hsl
-            .withSaturation((hsl.saturation * 1.2).clamp(0.0, 1.0)) // Increase saturation
+            .withSaturation(
+                (hsl.saturation * 1.2).clamp(0.0, 1.0)) // Increase saturation
             .withLightness(isDarkMode ? 0.15 : 0.85) // Slightly more contrast
             .toColor();
-            
+
         _paletteCache[song.id] = adjustedColor;
-        if (mounted) setState(() { _dominantColor = adjustedColor; });
+        if (mounted)
+          setState(() {
+            _dominantColor = adjustedColor;
+          });
       } catch (_) {}
     });
   }
@@ -1105,7 +1147,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   void dispose() {
     WakelockPlus.disable(); // Allow sleep when player is closed
     _currentSongProvider.removeListener(_onSongChanged);
-    
+
     // Clear sleep timer callbacks
     _sleepTimerService.clearCallbacks();
 
@@ -1115,20 +1157,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     _slideController.dispose();
     _backgroundController.dispose();
     _rotationController.dispose();
-    
+
     // Dispose lyrics animation controllers
     _lyricTransitionController.dispose();
     _lyricHighlightController.dispose();
-    
+
     // Dispose individual lyric line controllers
     for (final controller in _lyricLineControllers.values) {
       controller.dispose();
     }
     _lyricLineControllers.clear();
-    
+
     // Cancel palette debounce timer if active
     _paletteDebounce?.cancel();
-    
+
     // Cancel lyrics toggle debounce timer if active
     _lyricsToggleDebounceTimer?.cancel();
     super.dispose();
@@ -1137,7 +1179,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   Future<void> _downloadCurrentSong(Song song) async {
     // Use the CurrentSongProvider to handle the download
     if (mounted && context.mounted) {
-      Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+      Provider.of<CurrentSongProvider>(context, listen: false)
+          .queueSongForDownload(song);
 
       // Show a snackbar indicating the download has started
       // You might want to check if the song is already downloading via provider state
@@ -1182,7 +1225,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   void _showQueueBottomSheet(BuildContext context) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     final queue = currentSongProvider.queue;
     final currentSong = currentSongProvider.currentSong;
     final int currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
@@ -1213,13 +1257,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // ignore: unused_element
   void _updateCurrentLyricIndex(Duration currentPosition) {
-    if (!_areLyricsSynced || _parsedLyrics.isEmpty) { 
-      if (_currentLyricIndex != -1 && _areLyricsSynced) { // Reset if they were synced but now aren't or are empty
-         if (mounted) {
-            setState(() {
-              _currentLyricIndex = -1;
-            });
-         }
+    if (!_areLyricsSynced || _parsedLyrics.isEmpty) {
+      if (_currentLyricIndex != -1 && _areLyricsSynced) {
+        // Reset if they were synced but now aren't or are empty
+        if (mounted) {
+          setState(() {
+            _currentLyricIndex = -1;
+          });
+        }
       }
       return;
     }
@@ -1243,16 +1288,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     if (newIndex != _currentLyricIndex) {
       // Store previous index for animation transitions
       _previousLyricIndex = _currentLyricIndex;
-      
+
       setState(() {
         _currentLyricIndex = newIndex;
       });
-      
+
       // Trigger lyric transition animations
       if (newIndex != -1) {
         _triggerLyricTransitionAnimation(newIndex);
       }
-      
+
       if (newIndex != -1 && _lyricsScrollController.isAttached) {
         // Do not auto-scroll for the first 3 lines
         if (newIndex >= 3) {
@@ -1270,18 +1315,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // Trigger entrance animation when lyrics are first loaded
   void _triggerLyricsEntranceAnimation() {
     final animationService = AnimationService.instance;
-    
+
     if (!animationService.isAnimationEnabled(AnimationType.lyricsAnimations)) {
       // Skip animations if disabled
       _lyricTransitionController.value = 1.0;
       _lyricHighlightController.value = 1.0;
       return;
     }
-    
+
     // Reset animation controllers
     _lyricTransitionController.reset();
     _lyricHighlightController.reset();
-    
+
     // Start a subtle entrance animation
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
@@ -1292,7 +1337,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
 
   // Helper method to scroll to current lyric if conditions are met
   void _scrollToCurrentLyricIfNeeded() {
-    if (_showLyrics && _currentLyricIndex >= 0 && _lyricsScrollController.isAttached) {
+    if (_showLyrics &&
+        _currentLyricIndex >= 0 &&
+        _lyricsScrollController.isAttached) {
       // Do not auto-scroll for the first 3 lines
       if (_currentLyricIndex >= 3) {
         _lyricsScrollController.scrollTo(
@@ -1308,7 +1355,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   // Trigger animations when lyric index changes
   void _triggerLyricTransitionAnimation(int newIndex) {
     final animationService = AnimationService.instance;
-    
+
     if (!animationService.isAnimationEnabled(AnimationType.lyricsAnimations)) {
       // Skip animations if disabled
       _lyricTransitionController.value = 1.0;
@@ -1318,15 +1365,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       }
       return;
     }
-    
+
     // Reset and start the main transition animation
     _lyricTransitionController.reset();
     _lyricTransitionController.forward();
-    
+
     // Reset and start the highlight animation
     _lyricHighlightController.reset();
     _lyricHighlightController.forward();
-    
+
     // Create or update individual lyric line controllers
     if (!_lyricLineControllers.containsKey(newIndex)) {
       _lyricLineControllers[newIndex] = AnimationController(
@@ -1334,7 +1381,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         vsync: this,
       );
     }
-    
+
     // Start the individual line animation
     _lyricLineControllers[newIndex]!.reset();
     _lyricLineControllers[newIndex]!.forward();
@@ -1344,9 +1391,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   void _onSeekStart() {
     setState(() => _isSeeking = true);
   }
+
   void _onSeekChange(double value) {
     setState(() => _sliderValue = value);
   }
+
   Future<void> _onSeekEnd(double value) async {
     setState(() {
       _isSeeking = false;
@@ -1360,13 +1409,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     final liked = prefs.getStringList('liked_songs') ?? [];
     final id = _currentSongProvider.currentSong?.id;
     setState(() {
-      _isLiked = id != null && liked.any((s) {
-        try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == id;
-        } catch (_) {
-          return false;
-        }
-      });
+      _isLiked = id != null &&
+          liked.any((s) {
+            try {
+              return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id ==
+                  id;
+            } catch (_) {
+              return false;
+            }
+          });
     });
   }
 
@@ -1379,7 +1430,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       // unlike: just remove from liked list
       list.removeWhere((s) {
         try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id == song.id;
+          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id ==
+              song.id;
         } catch (_) {
           return false;
         }
@@ -1389,7 +1441,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       list.add(jsonStr);
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL && mounted && context.mounted) {
-        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .queueSongForDownload(song);
       }
     }
     await prefs.setStringList('liked_songs', list);
@@ -1440,13 +1493,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           onPressed: () => Navigator.of(context).pop(),
           tooltip: 'Close Player',
         ),
-        title: isRadio 
+        title: isRadio
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Playing From Radio', style: TextStyle(fontSize: 12)),
+                  const Text('Playing From Radio',
+                      style: TextStyle(fontSize: 12)),
                   if (currentSongProvider.stationName != null)
-                    Text(currentSongProvider.stationName!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(currentSongProvider.stationName!,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
               )
             : null,
@@ -1541,7 +1597,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             const Text('Cancel Sleep Timer'),
                             Text(
                               'Ends at ${_sleepTimerService.getEndTimeString()}',
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
                             ),
                           ],
                         ),
@@ -1553,27 +1610,30 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           ),
         ],
       ),
-      body: GestureDetector( 
+      body: GestureDetector(
         onVerticalDragUpdate: (details) {
           // Accumulate drag distance when dragging downwards
           if (details.delta.dy > 0) {
             _verticalDragAccumulator += details.delta.dy;
           } else if (details.delta.dy < 0) {
             // If dragging back upwards, reduce accumulator, but not below zero
-            _verticalDragAccumulator = (_verticalDragAccumulator + details.delta.dy).clamp(0.0, double.infinity);
+            _verticalDragAccumulator =
+                (_verticalDragAccumulator + details.delta.dy)
+                    .clamp(0.0, double.infinity);
           }
         },
         onVerticalDragEnd: (details) {
           final double screenHeight = MediaQuery.of(context).size.height;
           // Threshold for closing: drag > 20% of screen height with sufficient velocity
-          if (_verticalDragAccumulator > screenHeight * 0.2 && (details.primaryVelocity ?? 0) > 250) {
+          if (_verticalDragAccumulator > screenHeight * 0.2 &&
+              (details.primaryVelocity ?? 0) > 250) {
             Navigator.of(context).pop();
           }
           _verticalDragAccumulator = 0.0; // Reset accumulator
         },
         // Setting behavior to opaque to ensure it participates in hit testing across its area
         // and doesn't let touches pass through to widgets below if it's layered.
-                behavior: HitTestBehavior.opaque,
+        behavior: HitTestBehavior.opaque,
         child: AnimatedBuilder(
           animation: _backgroundController,
           builder: (context, child) {
@@ -1585,14 +1645,22 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    _dominantColor.withValues(alpha: (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.9),
-                    _dominantColor.withValues(alpha: (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.5),
-                    _dominantColor.withValues(alpha: (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.3),
+                    _dominantColor.withValues(
+                        alpha:
+                            (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.9),
+                    _dominantColor.withValues(
+                        alpha:
+                            (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.5),
+                    _dominantColor.withValues(
+                        alpha:
+                            (_backgroundAnimation.value.clamp(0.0, 1.0)) * 0.3),
                   ],
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0) + EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0) +
+                    EdgeInsets.only(
+                        top: MediaQuery.of(context).padding.top + 16.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
@@ -1601,7 +1669,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                       flex: 7,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
-                        transitionBuilder: (Widget child, Animation<double> animation) {
+                        transitionBuilder:
+                            (Widget child, Animation<double> animation) {
                           return FadeTransition(
                             opacity: animation,
                             child: child,
@@ -1618,67 +1687,104 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                     : Center(
                                         key: ValueKey('lyrics_empty'),
                                         child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              _lyricsFetchedForCurrentSong ? "No lyrics available." : "Loading lyrics...",
-                                              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
+                                              _lyricsFetchedForCurrentSong
+                                                  ? "No lyrics available."
+                                                  : "Loading lyrics...",
+                                              style: textTheme.titleMedium
+                                                      ?.copyWith(
+                                                          color: colorScheme
+                                                              .onSurface
+                                                              .withValues(
+                                                                  alpha:
+                                                                      0.7)) ??
+                                                  TextStyle(
+                                                      color: colorScheme
+                                                          .onSurface
+                                                          .withValues(
+                                                              alpha: 0.7),
+                                                      fontSize: 16.0),
                                               textAlign: TextAlign.center,
                                             ),
-                                                                                         if (_lyricsFetchedForCurrentSong) ...[
-                                               const SizedBox(height: 8),
-                                               Text(
-                                                 'Want to add lyrics to our database?',
-                                                 style: textTheme.bodyMedium?.copyWith(
-                                                   color: colorScheme.onSurface.withValues(alpha: 0.7),
-                                                 ) ?? TextStyle(
-                                                   color: colorScheme.onSurface.withValues(alpha: 0.7),
-                                                   fontSize: 14.0,
-                                                 ),
-                                                 textAlign: TextAlign.center,
-                                               ),
-                                               const SizedBox(height: 4),
-                                               GestureDetector(
-                                                 onTap: () async {
-                                                   const url = 'https://lrclibplusplus.vercel.app/publish';
-                                                   try {
-                                                     await launchUrl(Uri.parse(url));
-                                                   } catch (e) {
-                                                     debugPrint('Error launching URL: $e');
-                                                   }
-                                                 },
-                                                 child: Text(
-                                                   'Click here',
-                                                   style: textTheme.bodyMedium?.copyWith(
-                                                     color: colorScheme.primary,
-                                                     decoration: TextDecoration.underline,
-                                                   ) ?? TextStyle(
-                                                     color: colorScheme.primary,
-                                                     decoration: TextDecoration.underline,
-                                                     fontSize: 14.0,
-                                                   ),
-                                                   textAlign: TextAlign.center,
-                                                 ),
-                                               ),
-                                             ],
+                                            if (_lyricsFetchedForCurrentSong) ...[
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Want to add lyrics to our database?',
+                                                style: textTheme.bodyMedium
+                                                        ?.copyWith(
+                                                      color: colorScheme
+                                                          .onSurface
+                                                          .withValues(
+                                                              alpha: 0.7),
+                                                    ) ??
+                                                    TextStyle(
+                                                      color: colorScheme
+                                                          .onSurface
+                                                          .withValues(
+                                                              alpha: 0.7),
+                                                      fontSize: 14.0,
+                                                    ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              GestureDetector(
+                                                onTap: () async {
+                                                  const url =
+                                                      'https://lrclibplusplus.vercel.app/publish';
+                                                  try {
+                                                    await launchUrl(
+                                                        Uri.parse(url));
+                                                  } catch (e) {
+                                                    debugPrint(
+                                                        'Error launching URL: $e');
+                                                  }
+                                                },
+                                                child: Text(
+                                                  'Click here',
+                                                  style: textTheme.bodyMedium
+                                                          ?.copyWith(
+                                                        color:
+                                                            colorScheme.primary,
+                                                        decoration:
+                                                            TextDecoration
+                                                                .underline,
+                                                      ) ??
+                                                      TextStyle(
+                                                        color:
+                                                            colorScheme.primary,
+                                                        decoration:
+                                                            TextDecoration
+                                                                .underline,
+                                                        fontSize: 14.0,
+                                                      ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            ],
                                           ],
                                         ),
-                                      )
-                                  )
-                              )
+                                      )))
                             : GestureDetector(
                                 key: const ValueKey('album_art'),
                                 onHorizontalDragEnd: (details) {
-                                  if (details.primaryVelocity == null) return; // Should not happen
+                                  if (details.primaryVelocity == null)
+                                    return; // Should not happen
 
                                   // Swipe Left (finger moves from right to left) -> Next Song
-                                  if (details.primaryVelocity! < -200) { // Negative velocity for left swipe
-                                    _slideOffsetX = 1.0; // New art slides in from right
+                                  if (details.primaryVelocity! < -200) {
+                                    // Negative velocity for left swipe
+                                    _slideOffsetX =
+                                        1.0; // New art slides in from right
                                     currentSongProvider.playNext();
                                   }
                                   // Swipe Right (finger moves from left to right) -> Previous Song
-                                  else if (details.primaryVelocity! > 200) { // Positive velocity for right swipe
-                                    _slideOffsetX = -1.0; // New art slides in from left
+                                  else if (details.primaryVelocity! > 200) {
+                                    // Positive velocity for right swipe
+                                    _slideOffsetX =
+                                        -1.0; // New art slides in from left
                                     currentSongProvider.playPrevious();
                                   }
                                 },
@@ -1688,7 +1794,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                   child: AspectRatio(
                                     aspectRatio: 1,
                                     child: AnimatedBuilder(
-                                      animation: Listenable.merge([_scaleController, _slideController, _rotationController]),
+                                      animation: Listenable.merge([
+                                        _scaleController,
+                                        _slideController,
+                                        _rotationController
+                                      ]),
                                       builder: (context, child) {
                                         return Transform.scale(
                                           scale: _scaleAnimation.value,
@@ -1697,13 +1807,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                             child: SlideTransition(
                                               position: _slideAnimation,
                                               child: Hero(
-                                                tag: 'current-song-art-${currentSong.id}',
+                                                tag:
+                                                    'current-song-art-${currentSong.id}',
                                                 child: Material(
                                                   elevation: 12.0,
-                                                  borderRadius: BorderRadius.circular(16.0),
-                                                  shadowColor: Colors.black.withValues(alpha: 0.5),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          16.0),
+                                                  shadowColor: Colors.black
+                                                      .withValues(alpha: 0.5),
                                                   child: ClipRRect(
-                                                    borderRadius: BorderRadius.circular(16.0),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            16.0),
                                                     child: albumArtWidget,
                                                   ),
                                                 ),
@@ -1731,7 +1847,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             child: Text(
                               currentSong.title,
                               key: ValueKey<String>('title_${currentSong.id}'),
-                              style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface) ?? TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface, fontSize: 24.0),
+                              style: textTheme.headlineSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface) ??
+                                  TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
+                                      fontSize: 24.0),
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -1741,9 +1863,21 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           FadeTransition(
                             opacity: _textFadeAnimation,
                             child: Text(
-                              isRadio ? (currentSong.artist.isNotEmpty ? currentSong.artist : "Live Radio") : (currentSong.artist.isNotEmpty ? currentSong.artist : 'Unknown Artist'),
+                              isRadio
+                                  ? (currentSong.artist.isNotEmpty
+                                      ? currentSong.artist
+                                      : "Live Radio")
+                                  : (currentSong.artist.isNotEmpty
+                                      ? currentSong.artist
+                                      : 'Unknown Artist'),
                               key: ValueKey<String>('artist_${currentSong.id}'),
-                              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
+                              style: textTheme.titleMedium?.copyWith(
+                                      color: colorScheme.onSurface
+                                          .withValues(alpha: 0.7)) ??
+                                  TextStyle(
+                                      color: colorScheme.onSurface
+                                          .withValues(alpha: 0.7),
+                                      fontSize: 16.0),
                               textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1763,74 +1897,94 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                             // Download button
                             if (currentSong.isDownloaded)
                               IconButton(
-                                icon: const Icon(Icons.check_circle_outline_rounded),
+                                icon: const Icon(
+                                    Icons.check_circle_outline_rounded),
                                 tooltip: 'Downloaded',
-                                onPressed: null, // Disabled as it's already downloaded
+                                onPressed:
+                                    null, // Disabled as it's already downloaded
                                 iconSize: 26.0,
                                 color: colorScheme.secondary,
                               )
                             else
                               IconButton(
                                 icon: const Icon(Icons.download_rounded),
-                                onPressed: () => _downloadCurrentSong(currentSong),
+                                onPressed: () =>
+                                    _downloadCurrentSong(currentSong),
                                 tooltip: 'Download Song',
                                 iconSize: 26.0,
-                                color: colorScheme.onSurface.withValues(alpha: 0.7),
+                                color: colorScheme.onSurface
+                                    .withValues(alpha: 0.7),
                               ),
                             // Add to Playlist
                             IconButton(
                               icon: const Icon(Icons.playlist_add_rounded),
-                              onPressed: () => _showAddToPlaylistDialog(context, currentSong),
+                              onPressed: () => _showAddToPlaylistDialog(
+                                  context, currentSong),
                               tooltip: 'Add to Playlist',
                               iconSize: 26.0,
-                              color: colorScheme.onSurface.withValues(alpha: 0.7),
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
                             // Like button
                             IconButton(
-                              icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border),
+                              icon: Icon(_isLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border),
                               onPressed: _toggleLike,
                               tooltip: _isLiked ? 'Unlike' : 'Like',
                               iconSize: 26.0,
-                              color: _isLiked ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
+                              color: _isLiked
+                                  ? colorScheme.secondary
+                                  : colorScheme.onSurface
+                                      .withValues(alpha: 0.7),
                             ),
                             // Lyrics toggle
                             IconButton(
-                              icon: Icon(_showLyrics ? Icons.music_note_rounded : Icons.lyrics_outlined),
+                              icon: Icon(_showLyrics
+                                  ? Icons.music_note_rounded
+                                  : Icons.lyrics_outlined),
                               onPressed: () {
                                 // Debounce to prevent spam
-                                if (_lyricsToggleDebounceTimer?.isActive == true) {
+                                if (_lyricsToggleDebounceTimer?.isActive ==
+                                    true) {
                                   return;
                                 }
-                                
+
                                 final song = _currentSongProvider.currentSong;
                                 if (song == null) return;
-                                
+
                                 bool newShowLyricsState = !_showLyrics;
-                                if (newShowLyricsState && !_lyricsFetchedForCurrentSong) {
+                                if (newShowLyricsState &&
+                                    !_lyricsFetchedForCurrentSong) {
                                   _loadAndProcessLyrics(song);
                                 }
-                                
+
                                 setState(() {
                                   _showLyrics = newShowLyricsState;
                                 });
-                                
+
                                 // If showing lyrics, scroll to current lyric after a short delay
-                                if (newShowLyricsState && _currentLyricIndex >= 0) {
-                                  Future.delayed(const Duration(milliseconds: 100), () {
+                                if (newShowLyricsState &&
+                                    _currentLyricIndex >= 0) {
+                                  Future.delayed(
+                                      const Duration(milliseconds: 100), () {
                                     if (mounted) {
                                       _scrollToCurrentLyricIfNeeded();
                                     }
                                   });
                                 }
-                                
+
                                 // Set debounce timer to prevent rapid toggling
-                                _lyricsToggleDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+                                _lyricsToggleDebounceTimer = Timer(
+                                    const Duration(milliseconds: 300), () {
                                   _lyricsToggleDebounceTimer = null;
                                 });
                               },
                               iconSize: 26.0,
-                              tooltip: _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
-                              color: colorScheme.onSurface.withValues(alpha: 0.7),
+                              tooltip:
+                                  _showLyrics ? 'Hide Lyrics' : 'Show Lyrics',
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
                             // Queue
                             IconButton(
@@ -1838,9 +1992,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                               onPressed: () => _showQueueBottomSheet(context),
                               tooltip: 'Show Queue',
                               iconSize: 26.0,
-                              color: colorScheme.onSurface.withValues(alpha: 0.7),
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
-
                           ],
                         ),
                       ),
@@ -1859,54 +2013,70 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           Consumer<CurrentSongProvider>(
                             builder: (context, provider, _) => IconButton(
                               icon: Icon(
-                                provider.isShuffling ? Icons.shuffle : Icons.shuffle_outlined,
-                                color: provider.isShuffling ? colorScheme.secondary : colorScheme.onSurface.withValues(alpha: 0.7),
+                                provider.isShuffling
+                                    ? Icons.shuffle
+                                    : Icons.shuffle_outlined,
+                                color: provider.isShuffling
+                                    ? colorScheme.secondary
+                                    : colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
                               ),
                               iconSize: 26,
                               onPressed: () => provider.toggleShuffle(),
-                              tooltip: provider.isShuffling ? 'Shuffle On' : 'Shuffle Off',
+                              tooltip: provider.isShuffling
+                                  ? 'Shuffle On'
+                                  : 'Shuffle Off',
                             ),
                           ),
                         if (!isRadio)
                           IconButton(
-                           icon: const Icon(Icons.skip_previous_rounded),
-                           iconSize: 42,
-                           color: colorScheme.onSurface,
-                           onPressed: () {
-                             _slideOffsetX = -1.0;
-                             currentSongProvider.playPrevious();
-                           },
-                           tooltip: 'Previous Song',
-                         ),
+                            icon: const Icon(Icons.skip_previous_rounded),
+                            iconSize: 42,
+                            color: colorScheme.onSurface,
+                            onPressed: () {
+                              _slideOffsetX = -1.0;
+                              currentSongProvider.playPrevious();
+                            },
+                            tooltip: 'Previous Song',
+                          ),
                         Container(
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: colorScheme.secondary,
-                            boxShadow: [
-                              BoxShadow(
-                                color: colorScheme.secondary.withValues(alpha: 0.4),
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              )
-                            ]
-                          ),
+                              shape: BoxShape.circle,
+                              color: colorScheme.secondary,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.secondary
+                                      .withValues(alpha: 0.4),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                )
+                              ]),
                           child: Consumer<CurrentSongProvider>(
                             builder: (context, provider, _) {
                               final isLoading = provider.isLoadingAudio;
                               final isPlaying = provider.isPlaying;
                               return IconButton(
                                 icon: isLoading
-                                    ? SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 2.5, color: colorScheme.onSecondary))
-                                    : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                                    ? SizedBox(
+                                        width: 48,
+                                        height: 48,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: colorScheme.onSecondary))
+                                    : Icon(isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded),
                                 iconSize: 48,
                                 color: colorScheme.onSecondary,
-                                onPressed: isLoading ? null : () {
-                                  if (isPlaying) {
-                                    provider.pauseSong();
-                                  } else {
-                                    provider.resumeSong();
-                                  }
-                                },
+                                onPressed: isLoading
+                                    ? null
+                                    : () {
+                                        if (isPlaying) {
+                                          provider.pauseSong();
+                                        } else {
+                                          provider.resumeSong();
+                                        }
+                                      },
                                 tooltip: isPlaying ? 'Pause' : 'Play',
                               );
                             },
@@ -1914,15 +2084,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         ),
                         if (!isRadio)
                           IconButton(
-                           icon: const Icon(Icons.skip_next_rounded),
-                           iconSize: 42,
-                           color: colorScheme.onSurface,
-                           onPressed: () {
-                             _slideOffsetX = 1.0;
-                             currentSongProvider.playNext();
-                           },
-                           tooltip: 'Next Song',
-                         ),
+                            icon: const Icon(Icons.skip_next_rounded),
+                            iconSize: 42,
+                            color: colorScheme.onSurface,
+                            onPressed: () {
+                              _slideOffsetX = 1.0;
+                              currentSongProvider.playNext();
+                            },
+                            tooltip: 'Next Song',
+                          ),
                         if (!isRadio)
                           Consumer<CurrentSongProvider>(
                             builder: (context, provider, _) => IconButton(
@@ -1934,7 +2104,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                                         : Icons.repeat_one,
                                 color: provider.loopMode != LoopMode.none
                                     ? colorScheme.secondary
-                                    : colorScheme.onSurface.withValues(alpha: 0.7),
+                                    : colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
                               ),
                               iconSize: 26,
                               onPressed: () => provider.toggleLoop(),
@@ -1947,7 +2118,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                           ),
                       ],
                     ),
-                    SizedBox(height: MediaQuery.of(context).padding.bottom + 16), // For bottom padding
+                    SizedBox(
+                        height: MediaQuery.of(context).padding.bottom +
+                            16), // For bottom padding
                   ],
                 ),
               ),
@@ -1961,7 +2134,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   Widget _buildLyricsView(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false); // Get provider instance
+    final currentSongProvider = Provider.of<CurrentSongProvider>(context,
+        listen: false); // Get provider instance
 
     // This specific check for _parsedLyrics.isEmpty is now handled in the main build method's conditional display.
     // If _buildLyricsView is called, it means _parsedLyrics is not empty (or loading is finished).
@@ -1972,18 +2146,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              "No lyrics available.", 
-              style: textTheme.titleMedium?.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.7)) ?? TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 16.0),
+              "No lyrics available.",
+              style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.7)) ??
+                  TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
+                      fontSize: 16.0),
               textAlign: TextAlign.center,
             ),
             Text(
               'Want to add lyrics to our database?',
               style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurface.withValues(alpha: 0.7),
-              ) ?? TextStyle(
-                color: colorScheme.onSurface.withValues(alpha: 0.7),
-                fontSize: 14.0,
-              ),
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  ) ??
+                  TextStyle(
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontSize: 14.0,
+                  ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 4),
@@ -1999,13 +2178,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               child: Text(
                 'Click here',
                 style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                ) ?? TextStyle(
-                  color: colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                  fontSize: 14.0,
-                ),
+                      color: colorScheme.primary,
+                      decoration: TextDecoration.underline,
+                    ) ??
+                    TextStyle(
+                      color: colorScheme.primary,
+                      decoration: TextDecoration.underline,
+                      fontSize: 14.0,
+                    ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -2028,12 +2208,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           return const SizedBox.shrink();
         }
         final line = _parsedLyrics[index];
-        final bool isCurrent = _areLyricsSynced && index == _currentLyricIndex; // Highlight only if synced
-        final bool wasCurrent = _areLyricsSynced && index == _previousLyricIndex; // Was previously current
-        
+        final bool isCurrent = _areLyricsSynced &&
+            index == _currentLyricIndex; // Highlight only if synced
+        final bool wasCurrent = _areLyricsSynced &&
+            index == _previousLyricIndex; // Was previously current
+
         return GestureDetector(
           onTap: () {
-            if (_areLyricsSynced && currentSongProvider.currentSong != null && !currentSongProvider.isCurrentlyPlayingRadio) {
+            if (_areLyricsSynced &&
+                currentSongProvider.currentSong != null &&
+                !currentSongProvider.isCurrentlyPlayingRadio) {
               currentSongProvider.seek(line.timestamp);
             }
           },
@@ -2045,87 +2229,115 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 builder: (context, child) {
                   // Get individual line animation if it exists
                   final lineController = _lyricLineControllers[index];
-                  final lineAnimation = lineController != null 
+                  final lineAnimation = lineController != null
                       ? CurvedAnimation(
                           parent: lineController,
                           curve: Curves.easeOutBack,
                         )
                       : null;
-                  
+
                   return AnimatedBuilder(
-                    animation: lineAnimation ?? const AlwaysStoppedAnimation(1.0),
+                    animation:
+                        lineAnimation ?? const AlwaysStoppedAnimation(1.0),
                     builder: (context, child) {
                       // Calculate animation values
                       double scale = 1.0;
                       double opacity = 1.0;
-                      Color textColor = colorScheme.onSurface.withValues(alpha: 0.6);
+                      Color textColor =
+                          colorScheme.onSurface.withValues(alpha: 0.6);
                       FontWeight fontWeight = FontWeight.normal;
                       double fontSize = 20.0;
-                      
+
                       if (isCurrent) {
                         // Current line animations
-                        scale = 1.0 + (0.1 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
-                        opacity = 0.7 + (0.3 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
+                        scale = 1.0 +
+                            (0.1 *
+                                (_lyricHighlightAnimation.value
+                                    .clamp(0.0, 1.0)));
+                        opacity = 0.7 +
+                            (0.3 *
+                                (_lyricHighlightAnimation.value
+                                    .clamp(0.0, 1.0)));
                         textColor = Color.lerp(
                           colorScheme.onSurface.withValues(alpha: 0.7),
                           colorScheme.secondary,
                           _lyricHighlightAnimation.value,
                         )!;
                         fontWeight = FontWeight.bold;
-                        fontSize = 20.0 + (2.0 * (_lyricHighlightAnimation.value.clamp(0.0, 1.0)));
-                      } else if (wasCurrent && _lyricTransitionAnimation.value < 1.0) {
+                        fontSize = 20.0 +
+                            (2.0 *
+                                (_lyricHighlightAnimation.value
+                                    .clamp(0.0, 1.0)));
+                      } else if (wasCurrent &&
+                          _lyricTransitionAnimation.value < 1.0) {
                         // Previously current line - fade out effect (only during animation)
-                        opacity = 1.0 - (0.2 * (_lyricTransitionAnimation.value.clamp(0.0, 1.0)));
+                        opacity = 1.0 -
+                            (0.2 *
+                                (_lyricTransitionAnimation.value
+                                    .clamp(0.0, 1.0)));
                         textColor = Color.lerp(
                           colorScheme.secondary,
                           colorScheme.onSurface.withValues(alpha: 0.4),
                           _lyricTransitionAnimation.value,
                         )!;
                         fontWeight = FontWeight.normal;
-                        fontSize = 22.0 - (2.0 * (_lyricTransitionAnimation.value.clamp(0.0, 1.0)));
-                      } else if (_areLyricsSynced && _currentLyricIndex >= 0 && index < _currentLyricIndex) {
+                        fontSize = 22.0 -
+                            (2.0 *
+                                (_lyricTransitionAnimation.value
+                                    .clamp(0.0, 1.0)));
+                      } else if (_areLyricsSynced &&
+                          _currentLyricIndex >= 0 &&
+                          index < _currentLyricIndex) {
                         // All previous lyrics - decreased opacity and lighter color
                         opacity = 0.6;
-                        textColor = colorScheme.onSurface.withValues(alpha: 0.5);
+                        textColor =
+                            colorScheme.onSurface.withValues(alpha: 0.5);
                         fontWeight = FontWeight.normal;
                         fontSize = 20.0;
-                      } else if (_areLyricsSynced && _currentLyricIndex >= 0 && index > _currentLyricIndex) {
+                      } else if (_areLyricsSynced &&
+                          _currentLyricIndex >= 0 &&
+                          index > _currentLyricIndex) {
                         // Future lyrics - normal appearance
                         opacity = 0.7;
-                        textColor = colorScheme.onSurface.withValues(alpha: 0.8);
+                        textColor =
+                            colorScheme.onSurface.withValues(alpha: 0.8);
                         fontWeight = FontWeight.normal;
                         fontSize = 20.0;
                       } else {
                         // Default appearance for unsynced lyrics or edge cases
                         opacity = 0.7;
-                        textColor = colorScheme.onSurface.withValues(alpha: 0.8);
+                        textColor =
+                            colorScheme.onSurface.withValues(alpha: 0.8);
                         fontWeight = FontWeight.normal;
                         fontSize = 20.0;
                       }
-                      
+
                       // Apply line-specific animation
                       if (lineAnimation != null) {
-                        scale *= (0.95 + (0.05 * (lineAnimation.value.clamp(0.0, 1.0))));
+                        scale *= (0.95 +
+                            (0.05 * (lineAnimation.value.clamp(0.0, 1.0))));
                       }
-                      
+
                       return Transform.scale(
                         scale: scale,
                         child: Opacity(
                           opacity: opacity,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 8.0, horizontal: 16.0),
                             child: Text(
                               line.text,
                               textAlign: TextAlign.center,
                               style: textTheme.titleLarge?.copyWith(
-                                color: textColor,
-                                fontWeight: fontWeight,
-                                fontSize: fontSize,
-                              ) ?? TextStyle(
-                                color: textColor,
-                                fontWeight: fontWeight,
-                                fontSize: fontSize,
-                              ),
+                                    color: textColor,
+                                    fontWeight: fontWeight,
+                                    fontSize: fontSize,
+                                  ) ??
+                                  TextStyle(
+                                    color: textColor,
+                                    fontWeight: fontWeight,
+                                    fontSize: fontSize,
+                                  ),
                             ),
                           ),
                         ),
@@ -2145,27 +2357,31 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     // Check if we can get artwork from playbar immediately
     final playbarArtProvider = PlaybarState.getCurrentArtworkProvider();
     final playbarArtId = PlaybarState.getCurrentArtworkId();
-    
+
     // If playbar has the same artwork and it's not loading, use it immediately
-    if (playbarArtProvider != null && playbarArtId == currentSong.id && !PlaybarState.isArtworkLoading()) {
+    if (playbarArtProvider != null &&
+        playbarArtId == currentSong.id &&
+        !PlaybarState.isArtworkLoading()) {
       return Image(
         key: ValueKey('art_${currentSong.id}'),
         image: playbarArtProvider,
         fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+        errorBuilder: (context, error, stackTrace) =>
+            _placeholderArt(context, isRadio),
       );
     }
-    
+
     // If we have a current art provider, use it
     if (_currentArtProvider != null) {
       return Image(
         key: ValueKey('art_${currentSong.id}'),
         image: _currentArtProvider!,
         fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => _placeholderArt(context, isRadio),
+        errorBuilder: (context, error, stackTrace) =>
+            _placeholderArt(context, isRadio),
       );
     }
-    
+
     // If artwork is loading, show a subtle loading state
     if (_artLoading) {
       return AnimatedSwitcher(
@@ -2175,8 +2391,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.3),
+                Theme.of(context)
+                    .colorScheme
+                    .secondaryContainer
+                    .withValues(alpha: 0.3),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -2189,7 +2411,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.6),
+                  Theme.of(context)
+                      .colorScheme
+                      .onPrimaryContainer
+                      .withValues(alpha: 0.6),
                 ),
               ),
             ),
@@ -2197,7 +2422,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         ),
       );
     }
-    
+
     // Fallback to placeholder
     return _placeholderArt(context, isRadio);
   }
@@ -2207,8 +2432,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
-            Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.7),
+            Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.7),
+            Theme.of(context)
+                .colorScheme
+                .secondaryContainer
+                .withValues(alpha: 0.7),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -2218,29 +2449,34 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
         child: Icon(
           isRadio ? Icons.radio_rounded : Icons.music_note_rounded,
           size: 100,
-          color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+          color: Theme.of(context)
+              .colorScheme
+              .onPrimaryContainer
+              .withValues(alpha: 0.8),
         ),
       ),
     );
   }
 
-    void _showPlaybackSpeedDialog(BuildContext context) async {
+  void _showPlaybackSpeedDialog(BuildContext context) async {
     // Disable on iOS
     if (Platform.isIOS) return;
-    
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     // Load custom speed presets
     final prefs = await SharedPreferences.getInstance();
-    final customSpeedPresetsJson = prefs.getStringList('customSpeedPresets') ?? [];
+    final customSpeedPresetsJson =
+        prefs.getStringList('customSpeedPresets') ?? [];
     final customSpeedPresets = customSpeedPresetsJson
         .map((e) => double.tryParse(e) ?? 1.0)
         .where((e) => e >= 0.25 && e <= 3.0)
         .toList();
-    
+
     if (!mounted) return;
-    
+
     // Combine built-in and custom presets, then sort them
     final allSpeeds = <double>[
       0.8, // Daycore
@@ -2249,14 +2485,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
       ...customSpeedPresets,
     ];
     allSpeeds.sort();
-    
+
     // Create a map to store labels for built-in speeds
     final speedLabels = <double, String>{
       0.8: '0.8x (Daycore)',
       1.0: '1.0x (Normal)',
       1.2: '1.2x (Nightcore)',
     };
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -2276,8 +2512,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                 ),
               ),
               ...allSpeeds.map((speed) {
-                final label = speedLabels[speed] ?? '${speed.toStringAsFixed(2)}x';
-                return _buildSpeedOption(context, speed, label, currentSongProvider, colorScheme);
+                final label =
+                    speedLabels[speed] ?? '${speed.toStringAsFixed(2)}x';
+                return _buildSpeedOption(
+                    context, speed, label, currentSongProvider, colorScheme);
               }),
             ],
           ),
@@ -2292,9 +2530,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     );
   }
 
-  Widget _buildSpeedOption(BuildContext context, double speed, String label, CurrentSongProvider provider, ColorScheme colorScheme) {
+  Widget _buildSpeedOption(BuildContext context, double speed, String label,
+      CurrentSongProvider provider, ColorScheme colorScheme) {
     final isSelected = provider.playbackSpeed == speed;
-    
+
     return ListTile(
       title: Text(
         label,
@@ -2303,7 +2542,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           color: isSelected ? colorScheme.primary : colorScheme.onSurface,
         ),
       ),
-      trailing: isSelected ? Icon(Icons.check, color: colorScheme.primary) : null,
+      trailing:
+          isSelected ? Icon(Icons.check, color: colorScheme.primary) : null,
       onTap: () {
         provider.setPlaybackSpeed(speed);
         Navigator.of(context).pop();
@@ -2321,7 +2561,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   }
 
   // 4. Extracted seek bar widget
-  Widget _buildSeekBar(CurrentSongProvider currentSongProvider, bool isRadio, TextTheme textTheme) {
+  Widget _buildSeekBar(CurrentSongProvider currentSongProvider, bool isRadio,
+      TextTheme textTheme) {
     return SeekBar(
       currentSongProvider: currentSongProvider,
       isRadio: isRadio,
@@ -2342,27 +2583,28 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     try {
       final albumManager = AlbumManagerService();
       final savedAlbums = albumManager.savedAlbums;
-      
+
       // First check if the album is saved in the album manager
       for (final savedAlbum in savedAlbums) {
         if (savedAlbum.title.toLowerCase() == albumTitle.toLowerCase() &&
             savedAlbum.artistName.toLowerCase() == artistName.toLowerCase()) {
-          
           // Check if all tracks in this album are downloaded
           bool allTracksDownloaded = true;
           for (final track in savedAlbum.tracks) {
-            if (!track.isDownloaded || track.localFilePath == null || track.localFilePath!.isEmpty) {
+            if (!track.isDownloaded ||
+                track.localFilePath == null ||
+                track.localFilePath!.isEmpty) {
               allTracksDownloaded = false;
               break;
             }
           }
-          
+
           if (allTracksDownloaded) {
             return savedAlbum;
           }
         }
       }
-      
+
       return null;
     } catch (e) {
       debugPrint('Error checking for offline album: $e');
@@ -2373,7 +2615,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   Future<void> _viewAlbum(BuildContext context, Song song) async {
     if (song.album == null || song.album!.isEmpty || song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Album information is not available for this song.')),
+        const SnackBar(
+            content: Text('Album information is not available for this song.')),
       );
       return;
     }
@@ -2416,7 +2659,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not find details for album: "${song.album}".')),
+            SnackBar(
+                content:
+                    Text('Could not find details for album: "${song.album}".')),
           );
         }
       }
@@ -2434,16 +2679,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
   Future<void> _viewArtist(BuildContext context, Song song) async {
     if (song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Artist information is not available for this song.')),
+        const SnackBar(
+            content:
+                Text('Artist information is not available for this song.')),
       );
       return;
     }
 
     try {
       // Use artistId if available, otherwise use artist name
-      final artistQuery = song.artistId.isNotEmpty 
-          ? song.artistId 
-          : song.artist;
+      final artistQuery =
+          song.artistId.isNotEmpty ? song.artistId : song.artist;
 
       Navigator.push(
         context,
@@ -2468,7 +2714,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
     final List<int> presetMinutes = [15, 30, 60];
     int? selectedMinutes = _sleepTimerService.sleepTimerMinutes;
     final TextEditingController customController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -2510,8 +2756,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer> with TickerProvider
                         ),
                       ],
                     ),
-                    value: selectedMinutes != null && !presetMinutes.contains(selectedMinutes!) ? selectedMinutes! : -1,
-                    groupValue: selectedMinutes != null && !presetMinutes.contains(selectedMinutes!) ? selectedMinutes! : -1,
+                    value: selectedMinutes != null &&
+                            !presetMinutes.contains(selectedMinutes!)
+                        ? selectedMinutes!
+                        : -1,
+                    groupValue: selectedMinutes != null &&
+                            !presetMinutes.contains(selectedMinutes!)
+                        ? selectedMinutes!
+                        : -1,
                     onChanged: (_) {},
                   ),
                 ],
@@ -2571,16 +2823,19 @@ class SeekBar extends StatelessWidget {
     return Column(
       children: [
         StreamBuilder<Duration>(
-          stream: currentSongProvider.positionStream, // Ensure this is a stable stream
+          stream: currentSongProvider
+              .positionStream, // Ensure this is a stable stream
           builder: (context, snapshot) {
             var position = snapshot.data ?? Duration.zero;
-            if (position == Duration.zero && currentSongProvider.currentPosition != Duration.zero) {
+            if (position == Duration.zero &&
+                currentSongProvider.currentPosition != Duration.zero) {
               position = currentSongProvider.currentPosition;
             }
             if (isRadio) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32.0),
-                child: Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold)),
+                child:
+                    Text("LIVE", style: TextStyle(fontWeight: FontWeight.bold)),
               );
             }
             final duration = currentSongProvider.totalDuration ?? Duration.zero;
@@ -2593,10 +2848,10 @@ class SeekBar extends StatelessWidget {
             final double maxValue = duration.inMilliseconds.toDouble() > 0
                 ? duration.inMilliseconds.toDouble()
                 : 1.0;
-            final double clampedValue = position.inMilliseconds
-                .toDouble()
-                .clamp(0.0, maxValue);
-            final double sliderVal = isSeeking ? (sliderValue ?? clampedValue) : clampedValue;
+            final double clampedValue =
+                position.inMilliseconds.toDouble().clamp(0.0, maxValue);
+            final double sliderVal =
+                isSeeking ? (sliderValue ?? clampedValue) : clampedValue;
             return Column(
               children: [
                 Slider(
@@ -2612,8 +2867,12 @@ class SeekBar extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(formatDuration(Duration(milliseconds: sliderVal.round())), style: textTheme.bodySmall),
-                      Text(formatDuration(duration), style: textTheme.bodySmall),
+                      Text(
+                          formatDuration(
+                              Duration(milliseconds: sliderVal.round())),
+                          style: textTheme.bodySmall),
+                      Text(formatDuration(duration),
+                          style: textTheme.bodySmall),
                     ],
                   ),
                 ),

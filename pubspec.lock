@@ -643,10 +643,10 @@ packages:
     dependency: "direct main"
     description:
       name: resumable_downloader
-      sha256: c24bdc64148b34c6d5d249fefce07f1b132d683703f8079835df95921b6300b8
+      sha256: edb68d0c19d286b070d6e001e416909e88e57077efaa48dacaa254075d8079a2
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.33"
+    version: "0.0.35"
   rxdart:
     dependency: transitive
     description:
