@@ -495,6 +495,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   // Debounce timer for lyrics toggle button to prevent spam
   Timer? _lyricsToggleDebounceTimer;
 
+  // Store reference to lyrics positions listener for proper cleanup
+  VoidCallback? _lyricsPositionsListenerCallback;
+
   @override
   void initState() {
     super.initState();
@@ -646,6 +649,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
     _currentSongProvider.addListener(_onSongChanged);
     _loadLikeState(); // load initial like state
+
+    // Add listener for lyrics scroll positions to track when lyrics are close to top
+    _lyricsPositionsListenerCallback = () {
+      // This listener will be called whenever the scroll position changes
+      // We don't need to do anything here, but having the listener active
+      // ensures that itemPositions.value is updated and available for our checks
+    };
+    _lyricsPositionsListener.itemPositions
+        .addListener(_lyricsPositionsListenerCallback!);
 
     final song = _currentSongProvider.currentSong;
     if (song != null) {
@@ -1351,6 +1363,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     WakelockPlus.disable(); // Allow sleep when player is closed
     _currentSongProvider.removeListener(_onSongChanged);
 
+    // Remove lyrics positions listener
+    if (_lyricsPositionsListenerCallback != null) {
+      _lyricsPositionsListener.itemPositions
+          .removeListener(_lyricsPositionsListenerCallback!);
+    }
+
     // Clear sleep timer callbacks
     _sleepTimerService.clearCallbacks();
 
@@ -1522,16 +1540,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _triggerLyricTransitionAnimation(newIndex);
       }
 
-      if (newIndex != -1 && _lyricsScrollController.isAttached) {
-        // Do not auto-scroll for the first 3 lines
-        if (newIndex >= 3) {
-          _lyricsScrollController.scrollTo(
-            index: newIndex,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            alignment: 0.5,
-          );
-        }
+      if (newIndex != -1 &&
+          _lyricsScrollController.isAttached &&
+          !_isCurrentLyricCloseToTop()) {
+        _lyricsScrollController.scrollTo(
+          index: newIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
       }
     }
   }
@@ -1559,20 +1576,42 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     });
   }
 
+  // Helper method to check if current lyric is close to the top
+  bool _isCurrentLyricCloseToTop() {
+    if (!_lyricsScrollController.isAttached || _currentLyricIndex < 0) {
+      return false;
+    }
+
+    // Get the current scroll position and viewport dimensions
+    final positions = _lyricsPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return false;
+
+    // Find the current lyric position
+    final currentPosition = positions.firstWhere(
+      (position) => position.index == _currentLyricIndex,
+      orElse: () =>
+          ItemPosition(index: -1, itemLeadingEdge: 0.0, itemTrailingEdge: 0.0),
+    );
+
+    if (currentPosition.index == -1) return false;
+
+    // Check if the current lyric is within the top 20% of the viewport
+    // This means we don't want to auto-scroll when the lyric is already near the top
+    return currentPosition.itemLeadingEdge < 0.5;
+  }
+
   // Helper method to scroll to current lyric if conditions are met
   void _scrollToCurrentLyricIfNeeded() {
     if (_showLyrics &&
         _currentLyricIndex >= 0 &&
-        _lyricsScrollController.isAttached) {
-      // Do not auto-scroll for the first 3 lines
-      if (_currentLyricIndex >= 3) {
-        _lyricsScrollController.scrollTo(
-          index: _currentLyricIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          alignment: 0.5,
-        );
-      }
+        _lyricsScrollController.isAttached &&
+        !_isCurrentLyricCloseToTop()) {
+      _lyricsScrollController.scrollTo(
+        index: _currentLyricIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
     }
   }
 

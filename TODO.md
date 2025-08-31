@@ -30,5 +30,5 @@
 - Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
 
 
-- Change scroll type of lyrics section (i want it the same scroll thing as settings)
 - Work on perfecting the api so that the song choices are always accurate
+- Only have the dots animate when the song is playing, pause them when the song is paused
