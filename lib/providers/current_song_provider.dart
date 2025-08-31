@@ -1280,7 +1280,16 @@ class CurrentSongProvider with ChangeNotifier {
     });
 
     _positionSubscription = AudioService.position.listen((position) {
+      // Enhanced position stream handling for better foreground sync
+      final oldPosition = _currentPosition;
       _currentPosition = position;
+
+      // Debug log for significant position changes (helpful for foreground sync debugging)
+      if ((position - oldPosition).abs() > const Duration(seconds: 2)) {
+        debugPrint(
+            "CurrentSongProvider: Significant position update from ${oldPosition.inSeconds}s to ${position.inSeconds}s");
+      }
+
       notifyListeners();
     });
   }
@@ -1419,35 +1428,95 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> handleAppForeground() async {
     debugPrint(
-        "CurrentSongProvider: App foregrounded, checking for stuck states");
+        "CurrentSongProvider: App foregrounded, syncing position and checking states");
 
-    // Force position sync when app comes to foreground
-    // Do this for both playing and paused states to ensure accurate position display
-    await _audioHandler.customAction('forcePositionSync', {});
+    // Enhanced position synchronization for foreground transition
+    try {
+      // Wait for audio handler to complete its foreground processing
+      await Future.delayed(const Duration(milliseconds: 200));
 
-    // Wait a bit for the audio handler to update, then sync our position
-    final currentPlayerPosition =
-        (_audioHandler as AudioPlayerHandler).currentPosition;
+      // Force position sync when app comes to foreground
+      await _audioHandler.customAction('forcePositionSync', {});
 
-    // Update our position regardless of playing state for better accuracy
-    _currentPosition = currentPlayerPosition;
-    notifyListeners();
+      // Get the current position from audio handler after sync
+      final currentPlayerPosition =
+          (_audioHandler as AudioPlayerHandler).currentPosition;
+      final wasPlayingBefore = _isPlaying;
 
-    if (_isLoadingAudio) {
-      await Future.delayed(const Duration(seconds: 3));
+      debugPrint(
+          "CurrentSongProvider: Syncing position from ${_currentPosition.inSeconds}s to ${currentPlayerPosition.inSeconds}s");
 
-      if (_isLoadingAudio) {
+      // Be smart about position updates - don't immediately trust 0 if we were at a different position
+      Duration positionToUse = currentPlayerPosition;
+      if (currentPlayerPosition == Duration.zero &&
+          _currentPosition > Duration.zero &&
+          _isPlaying) {
         debugPrint(
-            "CurrentSongProvider: Still loading after 3 seconds, attempting recovery");
-        final success =
-            await _audioHandler.customAction('recoverFromStuckState', {});
-        if (success == true) {
+            "CurrentSongProvider: Audio handler returned 0 position but we were at ${_currentPosition.inSeconds}s and playing - keeping current position for now");
+        positionToUse = _currentPosition;
+      } else {
+        // Update our position
+        _currentPosition = currentPlayerPosition;
+      }
+
+      // Update playing state from audio handler
+      final audioHandlerState = _audioHandler.playbackState.value;
+      _isPlaying = audioHandlerState.playing;
+
+      // Log the sync for debugging
+      if (wasPlayingBefore != _isPlaying) {
+        debugPrint(
+            "CurrentSongProvider: Playing state also synced from $wasPlayingBefore to $_isPlaying");
+      }
+
+      notifyListeners();
+
+      // Additional position verification after audio handler stabilizes
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        final verifyPosition =
+            (_audioHandler as AudioPlayerHandler).currentPosition;
+        // More aggressive correction for position sync issues
+        if (verifyPosition > Duration.zero &&
+            (verifyPosition - _currentPosition).abs() >
+                const Duration(seconds: 1)) {
           debugPrint(
-              "CurrentSongProvider: Recovery from stuck state successful");
-        } else {
-          debugPrint("CurrentSongProvider: Recovery from stuck state failed");
+              "CurrentSongProvider: Position drift detected, re-syncing from ${_currentPosition.inSeconds}s to ${verifyPosition.inSeconds}s");
+          _currentPosition = verifyPosition;
+          notifyListeners();
+        } else if (_currentPosition == Duration.zero &&
+            verifyPosition > Duration.zero &&
+            _isPlaying) {
+          debugPrint(
+              "CurrentSongProvider: Correcting stuck 0 position to ${verifyPosition.inSeconds}s");
+          _currentPosition = verifyPosition;
+          notifyListeners();
+        }
+      });
+
+      // Handle stuck loading states
+      if (_isLoadingAudio) {
+        await Future.delayed(const Duration(seconds: 3));
+
+        if (_isLoadingAudio) {
+          debugPrint(
+              "CurrentSongProvider: Still loading after 3 seconds, attempting recovery");
+          final success =
+              await _audioHandler.customAction('recoverFromStuckState', {});
+          if (success == true) {
+            debugPrint(
+                "CurrentSongProvider: Recovery from stuck state successful");
+          } else {
+            debugPrint("CurrentSongProvider: Recovery from stuck state failed");
+          }
         }
       }
+    } catch (e) {
+      debugPrint("CurrentSongProvider: Error during foreground sync: $e");
+      // Fall back to basic position sync if something goes wrong
+      final fallbackPosition =
+          (_audioHandler as AudioPlayerHandler).currentPosition;
+      _currentPosition = fallbackPosition;
+      notifyListeners();
     }
   }
 

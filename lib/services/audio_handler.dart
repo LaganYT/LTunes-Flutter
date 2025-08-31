@@ -386,6 +386,11 @@ class AudioPlayerHandler extends BaseAudioHandler
         _justResetForLoop = false;
       }
 
+      // Track the last known position for foreground sync fallback
+      if (position > Duration.zero) {
+        _lastKnownPosition = position;
+      }
+
       // Always emit the actual position from the audio player
       playbackState.add(playbackState.value.copyWith(updatePosition: position));
 
@@ -816,10 +821,86 @@ class AudioPlayerHandler extends BaseAudioHandler
       await _ensureAudioSessionActive();
     }
 
-    // Force position update when app comes to foreground
-    final currentPosition = _audioPlayer.position;
-    playbackState
-        .add(playbackState.value.copyWith(updatePosition: currentPosition));
+    // Enhanced position sync when app comes to foreground
+    // The audio player often reports 0 immediately after foreground, so we need to be smart about this
+
+    final isPlaying = _audioPlayer.playing;
+    final processingState = _audioPlayer.processingState;
+
+    // Get multiple position readings to find the stable one
+    Duration? stablePosition;
+    final lastKnownPos = _lastKnownPosition ?? Duration.zero;
+
+    // Try multiple readings with delays to find stable position
+    for (int attempt = 0; attempt < 5; attempt++) {
+      await Future.delayed(Duration(milliseconds: 100 + (attempt * 100)));
+      final currentPos = _audioPlayer.position;
+
+      debugPrint(
+          "AudioHandler: Foreground position attempt ${attempt + 1}: ${currentPos.inSeconds}s");
+
+      // If position is 0 but we were previously at a different position and still playing,
+      // this is likely an incorrect reading - keep trying
+      if (currentPos == Duration.zero &&
+          lastKnownPos > Duration.zero &&
+          isPlaying &&
+          attempt < 4) {
+        continue;
+      }
+
+      // If we get a reasonable position (not 0 or close to last known), use it
+      if (currentPos > Duration.zero || !isPlaying) {
+        stablePosition = currentPos;
+        break;
+      }
+
+      // On final attempt, use whatever we get
+      if (attempt == 4) {
+        stablePosition = currentPos;
+      }
+    }
+
+    // Fall back to last known position if all readings were 0 and we were playing
+    if (stablePosition == Duration.zero &&
+        lastKnownPos > Duration.zero &&
+        isPlaying) {
+      debugPrint(
+          "AudioHandler: All position readings were 0, using last known position: ${lastKnownPos.inSeconds}s");
+      stablePosition = lastKnownPos;
+    }
+
+    final finalPosition = stablePosition ?? Duration.zero;
+    _lastKnownPosition = finalPosition;
+
+    debugPrint(
+        "AudioHandler: App foregrounded - Final Position: ${finalPosition.inSeconds}s, Playing: $isPlaying, State: $processingState");
+
+    // Force comprehensive playback state update with stable position
+    playbackState.add(playbackState.value.copyWith(
+      updatePosition: finalPosition,
+      playing: isPlaying,
+      processingState: {
+            ProcessingState.idle: AudioProcessingState.idle,
+            ProcessingState.loading: AudioProcessingState.loading,
+            ProcessingState.buffering: AudioProcessingState.buffering,
+            ProcessingState.ready: AudioProcessingState.ready,
+            ProcessingState.completed: AudioProcessingState.completed,
+          }[processingState] ??
+          AudioProcessingState.idle,
+    ));
+
+    // Final verification after everything stabilizes
+    Future.delayed(const Duration(milliseconds: 1000), () async {
+      final verifyPosition = _audioPlayer.position;
+      if (verifyPosition > Duration.zero &&
+          (verifyPosition - finalPosition).abs() > const Duration(seconds: 2)) {
+        debugPrint(
+            "AudioHandler: Final position verification - updating from ${finalPosition.inSeconds}s to ${verifyPosition.inSeconds}s");
+        _lastKnownPosition = verifyPosition;
+        playbackState
+            .add(playbackState.value.copyWith(updatePosition: verifyPosition));
+      }
+    });
   }
 
   Future<void> handleAppBackground() async {
@@ -950,10 +1031,38 @@ class AudioPlayerHandler extends BaseAudioHandler
         break;
 
       case 'forcePositionSync':
-        // Always sync position regardless of playing state
+        // Enhanced position sync - always sync position regardless of playing state
         final currentPosition = _audioPlayer.position;
-        playbackState
-            .add(playbackState.value.copyWith(updatePosition: currentPosition));
+        final isPlaying = _audioPlayer.playing;
+        final processingState = _audioPlayer.processingState;
+
+        debugPrint(
+            "AudioHandler: Force position sync - Position: ${currentPosition.inSeconds}s, Playing: $isPlaying");
+
+        // Use smart position logic - if we get 0 but have a last known position and are playing, use the last known
+        Duration positionToSync = currentPosition;
+        if (currentPosition == Duration.zero &&
+            _lastKnownPosition != null &&
+            _lastKnownPosition! > Duration.zero &&
+            isPlaying) {
+          debugPrint(
+              "AudioHandler: Using last known position ${_lastKnownPosition!.inSeconds}s instead of 0");
+          positionToSync = _lastKnownPosition!;
+        }
+
+        // Comprehensive state update to ensure UI reflects current audio state
+        playbackState.add(playbackState.value.copyWith(
+          updatePosition: positionToSync,
+          playing: isPlaying,
+          processingState: {
+                ProcessingState.idle: AudioProcessingState.idle,
+                ProcessingState.loading: AudioProcessingState.loading,
+                ProcessingState.buffering: AudioProcessingState.buffering,
+                ProcessingState.ready: AudioProcessingState.ready,
+                ProcessingState.completed: AudioProcessingState.completed,
+              }[processingState] ??
+              AudioProcessingState.idle,
+        ));
         break;
 
       case 'streamingSeek':
