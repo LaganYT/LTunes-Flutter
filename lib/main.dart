@@ -7,7 +7,7 @@ import 'widgets/playbar.dart';
 import 'providers/current_song_provider.dart';
 import 'services/api_service.dart'; // Import ApiService
 import 'services/error_handler_service.dart'; // Import ErrorHandlerService
-import 'models/update_info.dart';   // Import UpdateInfo
+import 'models/update_info.dart'; // Import UpdateInfo
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
 import 'package:audio_service/audio_service.dart'; // Import audio_service
@@ -26,14 +26,15 @@ import 'package:flutter/services.dart'; // For MethodChannel
 late AudioHandler _audioHandler;
 
 // Global navigator key for navigation from notifications
-final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> globalNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Required for audio_service
-  
+
   // Initialize download notification service
   await DownloadNotificationService().initialize();
-  
+
   _audioHandler = await AudioService.init(
     builder: () => AudioPlayerHandler(),
     config: const AudioServiceConfig(
@@ -74,9 +75,15 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (context) => CurrentSongProvider(_audioHandler),
         ),
-        ChangeNotifierProvider(create: (context) => PlaylistManagerService()), // Assuming this was already here or needed
-        ChangeNotifierProvider(create: (context) => AlbumManagerService()), // Add AlbumManagerService
-        ChangeNotifierProvider(create: (context) => AnimationService.instance), // Add AnimationService
+        ChangeNotifierProvider(
+            create: (context) =>
+                PlaylistManagerService()), // Assuming this was already here or needed
+        ChangeNotifierProvider(
+            create: (context) =>
+                AlbumManagerService()), // Add AlbumManagerService
+        ChangeNotifierProvider(
+            create: (context) =>
+                AnimationService.instance), // Add AnimationService
       ],
       child: const LTunesApp(),
     ),
@@ -99,7 +106,6 @@ class LTunesApp extends StatelessWidget {
               themeMode: themeProvider.themeMode,
               navigatorKey: globalNavigatorKey,
               home: const TabView(),
-
             );
           },
         );
@@ -142,12 +148,13 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   void _startBackgroundContinuityTimer() {
     if (!Platform.isIOS) return;
-    
+
     // Cancel existing timer if any
     _backgroundContinuityTimer?.cancel();
-    
+
     // Start a timer that periodically ensures background playback continuity
-    _backgroundContinuityTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+    _backgroundContinuityTimer =
+        Timer.periodic(const Duration(seconds: 15), (timer) {
       _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
     });
   }
@@ -160,14 +167,15 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     // Enhanced app lifecycle handling for iOS background playback
     switch (state) {
       case AppLifecycleState.resumed:
         // App is coming back to foreground, ensure audio session is active
         _audioHandler.customAction('handleAppForeground', {});
         // Also check for stuck loading states in the CurrentSongProvider
-        Provider.of<CurrentSongProvider>(context, listen: false).handleAppForeground();
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .handleAppForeground();
         _stopBackgroundContinuityTimer();
         break;
       case AppLifecycleState.paused:
@@ -188,9 +196,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         _startBackgroundContinuityTimer();
         break;
     }
-    
+
     debugPrint("App lifecycle state changed to: $state");
-    
+
     // Additional iOS-specific handling for background playback
     if (Platform.isIOS) {
       switch (state) {
@@ -200,15 +208,16 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
           // For iOS, ensure background playback is immediately configured
           // This helps prevent audio session from being deactivated
           _audioHandler.customAction('ensureBackgroundPlayback', {});
-          
+
           // Add a single session activation check after 5 seconds
           Future.delayed(const Duration(seconds: 5), () {
             _audioHandler.customAction('forceSessionActivation', {});
           });
-          
+
           // Add background playback continuity check after 30 seconds
           Future.delayed(const Duration(seconds: 30), () {
-            _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+            _audioHandler
+                .customAction('ensureBackgroundPlaybackContinuity', {});
           });
 
           break;
@@ -243,7 +252,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   Future<void> _checkForUpdates(String currentAppVersion) async {
     final apiService = ApiService();
     final errorHandler = ErrorHandlerService();
-    
+
     try {
       final updateInfo = await apiService.checkForUpdate(currentAppVersion);
       if (updateInfo != null && mounted) {
@@ -253,8 +262,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         } else {
           // For non-mandatory updates, check if auto update checking is enabled
           final prefs = await SharedPreferences.getInstance();
-          final autoCheckForUpdates = prefs.getBool('autoCheckForUpdates') ?? true;
-          
+          final autoCheckForUpdates =
+              prefs.getBool('autoCheckForUpdates') ?? true;
+
           // If auto check is disabled, don't proceed for non-mandatory updates
           if (autoCheckForUpdates) {
             _showUpdateDialog(updateInfo);
@@ -269,7 +279,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async gap
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async gap
     showDialog(
       context: context,
       barrierDismissible: false, // User must interact with the dialog
@@ -294,7 +305,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                 } else {
                   // Use captured scaffoldMessenger instead of context after async
                   scaffoldMessenger.showSnackBar(
-                    SnackBar(content: Text('Could not launch ${updateInfo.url}')),
+                    SnackBar(
+                        content: Text('Could not launch ${updateInfo.url}')),
                   );
                 }
               },
@@ -307,8 +319,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   Future<void> _showMandatoryUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async gap
-    
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async gap
+
     // Show a non-dismissible dialog for mandatory updates
     showDialog(
       context: context,
@@ -387,16 +400,20 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                       ),
                       child: const Text(
                         'Update Now',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       onPressed: () async {
                         final Uri url = Uri.parse(updateInfo.url);
                         if (await canLaunchUrl(url)) {
-                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                          await launchUrl(url,
+                              mode: LaunchMode.externalApplication);
                         } else {
                           // Use captured scaffoldMessenger instead of context after async
                           scaffoldMessenger.showSnackBar(
-                            SnackBar(content: Text('Could not launch ${updateInfo.url}')),
+                            SnackBar(
+                                content:
+                                    Text('Could not launch ${updateInfo.url}')),
                           );
                         }
                       },
@@ -437,7 +454,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             child: Playbar(),
           ),
           BottomNavigationBar(
-            type: BottomNavigationBarType.fixed, // Ensure icons and labels align properly
+            type: BottomNavigationBarType
+                .fixed, // Ensure icons and labels align properly
             items: const <BottomNavigationBarItem>[
               BottomNavigationBarItem(
                 icon: Icon(Icons.search, size: 28),
@@ -448,19 +466,23 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                 label: 'Library',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.settings, size: 28), // Keep settings at the end
+                icon:
+                    Icon(Icons.settings, size: 28), // Keep settings at the end
                 label: 'Settings',
               ),
             ],
             currentIndex: _selectedIndex,
-            selectedItemColor: Theme.of(context).colorScheme.primary, // Use theme's primary color
-            unselectedItemColor: Colors.grey, // Add unselected color for better contrast
+            selectedItemColor: Theme.of(context)
+                .colorScheme
+                .primary, // Use theme's primary color
+            unselectedItemColor:
+                Colors.grey, // Add unselected color for better contrast
             onTap: _onItemTapped,
-            showUnselectedLabels: true, // Ensure labels are visible for all items
+            showUnselectedLabels:
+                true, // Ensure labels are visible for all items
           ),
         ],
       ),
     );
   }
 }
-
