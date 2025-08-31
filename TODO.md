@@ -19,8 +19,7 @@
 
 ## UI & Display Features
 
-- Before the artist name on a song show an explicit marker and a downloaded marker
-- For the selected song show the same indicator how the queue does
+- Before the artist name on a song show an explicit marker and a downloaded marker on the song lists
 
 ## Onboarding & Updates
 
