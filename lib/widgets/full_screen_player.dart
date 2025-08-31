@@ -426,6 +426,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   double _slideOffsetX =
       0.0; // To control slide direction, 0.0 means no slide (fade in art)
   String? _previousSongId;
+  bool _previousIsPlaying =
+      false; // Track previous playing state for dots animation
   double _verticalDragAccumulator = 0.0; // For swipe down to close gesture
 
   late AnimationController _textFadeController;
@@ -729,6 +731,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     _currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
     _currentSongProvider.addListener(_onSongChanged);
+
+    // Initialize playing state tracking
+    _previousIsPlaying = _currentSongProvider.isPlaying;
     final song = _currentSongProvider.currentSong;
     if (song != null) {
       // Try to use playbar's artwork immediately if available
@@ -915,6 +920,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       }
       _loadLikeState();
     }
+
+    // Check if playing state changed and update dots animation accordingly
+    final currentIsPlaying = _currentSongProvider.isPlaying;
+    if (currentIsPlaying != _previousIsPlaying) {
+      _updateLoadingDotsAnimationState();
+      _previousIsPlaying = currentIsPlaying;
+    }
   }
 
   // New method to fetch and save lyrics for a downloaded song
@@ -1096,14 +1108,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     // Check if the first lyric starts after 00:00:00
     final firstLine = originalLines.first;
     if (firstLine.timestamp > Duration.zero) {
-      // Add loading dots at 00:00:00
-      linesWithBeginningDots.add(LyricLine(
-        timestamp: Duration.zero,
-        text: "...",
-        type: LyricLineType.loadingDots,
-      ));
-      debugPrint(
-          'Adding beginning loading dots at 00:00:00 - gap until first lyric at ${firstLine.timestamp.inMilliseconds}ms');
+      // Only add loading dots if the first lyric doesn't appear within the first 1.5 seconds
+      if (firstLine.timestamp.inMilliseconds > 1500) {
+        // Add loading dots at 00:00:00
+        linesWithBeginningDots.add(LyricLine(
+          timestamp: Duration.zero,
+          text: "...",
+          type: LyricLineType.loadingDots,
+        ));
+        debugPrint(
+            'Adding beginning loading dots at 00:00:00 - gap until first lyric at ${firstLine.timestamp.inMilliseconds}ms');
+      } else {
+        debugPrint(
+            'Skipping beginning loading dots: first lyric appears at ${firstLine.timestamp.inMilliseconds}ms (within 1.5 seconds)');
+      }
     }
 
     // Add all original lines
@@ -1227,6 +1245,25 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   }
 
   void _startLoadingDotsAnimation(int lineIndex) {
+    // Check if the song is currently playing
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    if (!currentSongProvider.isPlaying) {
+      // Don't start animation if song is not playing
+      return;
+    }
+
+    // Check if this is the first lyric line and if it appears within the first 1.5 seconds
+    if (lineIndex == 0 && _parsedLyrics.isNotEmpty) {
+      final firstLyricTimestamp = _parsedLyrics[0].timestamp;
+      if (firstLyricTimestamp.inMilliseconds <= 1500) {
+        // Skip dots animation if first lyric appears within 1.5 seconds
+        debugPrint(
+            'Skipping dots animation: first lyric appears at ${firstLyricTimestamp.inMilliseconds}ms (within 1.5 seconds)');
+        return;
+      }
+    }
+
     // Create animation controller for this specific line if it doesn't exist
     if (!_loadingDotsControllers.containsKey(lineIndex)) {
       _loadingDotsControllers[lineIndex] = AnimationController(
@@ -1253,8 +1290,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           timeUntilNext = nextLine.timestamp - currentLine.timestamp;
         } else {
           // This is the last lyric line - calculate duration to song end
-          final currentSongProvider =
-              Provider.of<CurrentSongProvider>(context, listen: false);
           final songDuration =
               currentSongProvider.totalDuration ?? Duration.zero;
           if (songDuration > currentLine.timestamp) {
@@ -1281,6 +1316,38 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (controller != null && controller.isAnimating) {
       controller.stop();
       controller.reset();
+    }
+  }
+
+  void _pauseLoadingDotsAnimation(int lineIndex) {
+    final controller = _loadingDotsControllers[lineIndex];
+    if (controller != null && controller.isAnimating) {
+      controller.stop();
+    }
+  }
+
+  void _resumeLoadingDotsAnimation(int lineIndex) {
+    final controller = _loadingDotsControllers[lineIndex];
+    if (controller != null && !controller.isAnimating) {
+      controller.repeat();
+    }
+  }
+
+  void _updateLoadingDotsAnimationState() {
+    // Check if we have a current loading dots line
+    if (_currentLyricIndex != -1 &&
+        _currentLyricIndex < _parsedLyrics.length &&
+        _parsedLyrics[_currentLyricIndex].type == LyricLineType.loadingDots) {
+      final currentSongProvider =
+          Provider.of<CurrentSongProvider>(context, listen: false);
+
+      if (currentSongProvider.isPlaying) {
+        // Resume animation if song is playing
+        _resumeLoadingDotsAnimation(_currentLyricIndex);
+      } else {
+        // Pause animation if song is paused
+        _pauseLoadingDotsAnimation(_currentLyricIndex);
+      }
     }
   }
 
