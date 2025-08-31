@@ -31,5 +31,4 @@
 
 
 - Change scroll type of lyrics section (i want it the same scroll thing as settings)
-- Dont wait on the loading of artwork to play a song, it should start as soon as possible and just keep loading the artwork and show it when it is loaded
 - Work on perfecting the api so that the song choices are always accurate
