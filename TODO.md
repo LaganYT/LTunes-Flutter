@@ -5,6 +5,7 @@
 - Podcasts
 - Audiobooks
 - Work on ios audio session configuration, its still a little broken
+- Work on perfecting the api so that the song choices are always accurate
 
 ## Lyrics Features
 
@@ -28,7 +29,3 @@
 ## Development & Infrastructure
 
 - Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
-
-
-- Work on perfecting the api so that the song choices are always accurate
-- Only have the dots animate when the song is playing, pause them when the song is paused
