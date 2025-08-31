@@ -2800,11 +2800,11 @@ class CurrentSongProvider with ChangeNotifier {
   /// Switches the queue context while keeping the current song and position.
   /// This is useful when clicking on the same song in a different playlist/album.
   Future<void> switchContext(List<Song> newContext) async {
-    // Find the current song in the new context
+    // Find the current song in the new context by matching name, artist, and album cover
     if (_currentSongFromAppLogic == null) return;
 
-    int newIndex =
-        newContext.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+    int newIndex = newContext
+        .indexWhere((s) => _areSongsEquivalent(s, _currentSongFromAppLogic!));
     if (newIndex == -1) return; // Current song not found in new context
 
     // If switch context without interruption is disabled, behave like playWithContext
@@ -2855,15 +2855,22 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+  /// Helper method to check if two songs have the same name, artist, and album cover
+  bool _areSongsEquivalent(Song song1, Song song2) {
+    return song1.title.toLowerCase().trim() ==
+            song2.title.toLowerCase().trim() &&
+        song1.artist.toLowerCase().trim() == song2.artist.toLowerCase().trim();
+  }
+
   /// Smart play method that automatically chooses between playWithContext and switchContext.
-  /// If the clicked song is the same as the currently playing song, it switches context.
+  /// If the clicked song has the same name, artist, and album cover as the currently playing song, it switches context.
   /// Otherwise, it plays the new song with the new context.
   Future<void> smartPlayWithContext(List<Song> context, Song song,
       {bool playImmediately = true}) async {
-    // Check if the clicked song is the same as the currently playing song
+    // Check if the clicked song has the same name, artist, and album cover as the currently playing song
     if (_currentSongFromAppLogic != null &&
-        _currentSongFromAppLogic!.id == song.id) {
-      // Same song, switch context
+        _areSongsEquivalent(_currentSongFromAppLogic!, song)) {
+      // Same song (by name, artist, and album cover), switch context
       await switchContext(context);
     } else {
       // Different song, play with new context
@@ -2871,4 +2878,3 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 }
-
