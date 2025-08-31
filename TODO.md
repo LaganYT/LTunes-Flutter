@@ -4,7 +4,6 @@
 
 - Podcasts
 - Audiobooks
-- Work on ios audio session configuration, its still a little broken
 - Work on perfecting the api so that the song choices are always accurate
 
 ## Lyrics Features
