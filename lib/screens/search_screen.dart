@@ -580,7 +580,6 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         setState(() {
           _isLoadingStations = false;
         });
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'searching stations');
       }
     }
   }

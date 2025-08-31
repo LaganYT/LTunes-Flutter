@@ -68,6 +68,9 @@ class AudioPlayerHandler extends BaseAudioHandler
   static const int _maxConsecutiveErrors = 3;
   Timer? _errorRecoveryTimer;
 
+  // Track loop reset state
+  bool _justResetForLoop = false;
+
   AudioPlayerHandler() {
     _initializeAudioSession();
     _notifyAudioHandlerAboutPlaybackEvents();
@@ -83,6 +86,8 @@ class AudioPlayerHandler extends BaseAudioHandler
       playbackState.add(playbackState.value.copyWith(playing: false));
     }
   }
+
+  Duration get currentPosition => _audioPlayer.position;
 
   Future<void> _initializeAudioSession() async {
     if (_audioSessionConfigured) return;
@@ -361,25 +366,46 @@ class AudioPlayerHandler extends BaseAudioHandler
     });
 
     _audioPlayer.positionStream.listen((position) async {
-      Duration positionToEmit = position;
+      // Check if this is a streaming URL (not local file)
+      final currentItem = mediaItem.value;
+      final isStreaming = currentItem?.extras?['isLocal'] != true;
 
-      if (position == Duration.zero &&
+      // For streaming URLs, be more careful about position updates
+      if (isStreaming &&
+          position == Duration.zero &&
           _audioPlayer.playing &&
-          _lastKnownPosition != null &&
-          _lastKnownPosition! > Duration.zero) {
-        positionToEmit = _lastKnownPosition!;
-      } else if (position > Duration.zero) {
-        _lastKnownPosition = position;
+          !_justResetForLoop) {
+        // Don't emit zero position for streaming URLs while playing
+        // This prevents the seekbar from jumping to 0
+        // EXCEPT when we just reset for a loop
+        return;
       }
 
-      playbackState
-          .add(playbackState.value.copyWith(updatePosition: positionToEmit));
+      // Reset the loop flag after processing the position update
+      if (_justResetForLoop && position == Duration.zero) {
+        _justResetForLoop = false;
+      }
+
+      // Always emit the actual position from the audio player
+      playbackState.add(playbackState.value.copyWith(updatePosition: position));
+
+      // Check if position exceeds duration and restart if so
+      if (currentItem != null &&
+          currentItem.duration != null &&
+          position > currentItem.duration! &&
+          _audioPlayer.playing) {
+        debugPrint(
+            "Position ${position.inSeconds}s exceeds duration ${currentItem.duration!.inSeconds}s, restarting song");
+        await _audioPlayer.seek(Duration.zero);
+        playbackState
+            .add(playbackState.value.copyWith(updatePosition: Duration.zero));
+        return;
+      }
 
       // Handle song completion
       if (position > Duration.zero &&
           _audioPlayer.playing &&
           _audioPlayer.processingState == ProcessingState.ready) {
-        final currentItem = mediaItem.value;
         if (currentItem != null && currentItem.duration != null) {
           final duration = currentItem.duration!;
           final timeRemaining = duration - position;
@@ -578,12 +604,32 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> seek(Duration position) async {
     try {
       await _audioPlayer.seek(position);
-      _lastKnownPosition = position;
-      playbackState.add(playbackState.value.copyWith(updatePosition: position));
+
+      // For streaming URLs, wait a bit for the position to stabilize
+      if (_audioPlayer.processingState == ProcessingState.ready) {
+        // Force immediate position update after seek
+        playbackState
+            .add(playbackState.value.copyWith(updatePosition: position));
+
+        // Wait a short time and then verify the position
+        await Future.delayed(const Duration(milliseconds: 100));
+        final actualPosition = _audioPlayer.position;
+
+        // If the position is significantly different from what we expected,
+        // update with the actual position
+        if ((actualPosition - position).abs() > const Duration(seconds: 1)) {
+          playbackState.add(
+              playbackState.value.copyWith(updatePosition: actualPosition));
+        }
+      } else {
+        // For non-streaming, just update immediately
+        playbackState
+            .add(playbackState.value.copyWith(updatePosition: position));
+      }
     } catch (e) {
       debugPrint("Error during seek operation: $e");
+      // If seek fails, get the actual position and update
       final currentPosition = _audioPlayer.position;
-      _lastKnownPosition = currentPosition;
       playbackState
           .add(playbackState.value.copyWith(updatePosition: currentPosition));
     }
@@ -769,6 +815,11 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (_isIOS && _audioSession != null && _audioPlayer.playing) {
       await _ensureAudioSessionActive();
     }
+
+    // Force position update when app comes to foreground
+    final currentPosition = _audioPlayer.position;
+    playbackState
+        .add(playbackState.value.copyWith(updatePosition: currentPosition));
   }
 
   Future<void> handleAppBackground() async {
@@ -789,8 +840,17 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
         await _ensureAudioSessionActive();
         await _prepareToPlay(_currentIndex);
+        // Reset position to 0 when looping a single song
+        _justResetForLoop = true; // Set flag before seeking
+        await _audioPlayer.seek(Duration.zero);
+        // Force position update to 0 for UI
+        playbackState.add(playbackState.value.copyWith(
+          updatePosition: Duration.zero,
+          playing: true,
+        ));
         await _audioPlayer.play();
         await _syncMetadata();
+        return;
       }
     } else {
       await skipToNext();
@@ -887,6 +947,21 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       case 'handleAppForeground':
         await handleAppForeground();
+        break;
+
+      case 'forcePositionSync':
+        // Always sync position regardless of playing state
+        final currentPosition = _audioPlayer.position;
+        playbackState
+            .add(playbackState.value.copyWith(updatePosition: currentPosition));
+        break;
+
+      case 'streamingSeek':
+        final positionMillis = extras?['position'] as int?;
+        if (positionMillis != null) {
+          final position = Duration(milliseconds: positionMillis);
+          await seek(position);
+        }
         break;
 
       case 'handleAppBackground':

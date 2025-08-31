@@ -345,7 +345,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       final albumDetails =
           await apiService.getAlbum(widget.song.album!, widget.song.artist);
 
-      if (mounted && albumDetails != null) {
+      if (!mounted) return; // Early return if widget is disposed
+
+      if (albumDetails != null) {
         setState(() {
           _preloadedAlbum = albumDetails;
           _cachedAlbumId = albumDetails.id; // Cache the album ID
@@ -379,7 +381,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       final lyricsData =
           await lyricsService.fetchLyricsIfNeeded(widget.song, provider);
 
-      if (mounted && lyricsData != null) {
+      if (!mounted) return; // Early return if widget is disposed
+
+      if (lyricsData != null) {
         setState(() {
           _preloadedLyrics = lyricsData;
           _lyrics = lyricsData.displayLyrics;
@@ -399,45 +403,46 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _preloadArtistData() async {
     if (widget.song.artist.isEmpty) return;
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _isPreloadingArtist = true;
       });
+    }
 
     try {
       final apiService = ApiService();
       final artistData = await apiService.getArtistById(widget.song.artist);
 
+      if (!mounted) return; // Early return if widget is disposed
+
+      final artistInfo = artistData['info'] as Map<String, dynamic>;
+      final tracks = (artistData['tracks'] as List).map((raw) {
+        return Song.fromAlbumTrackJson(
+          raw as Map<String, dynamic>,
+          raw['ALB_TITLE']?.toString() ?? '',
+          raw['ALB_PICTURE']?.toString() ?? '',
+          '',
+          artistInfo['ART_NAME']?.toString() ?? '',
+        );
+      }).toList();
+
+      // Get artist albums using the actual artist ID
+      final actualArtistId =
+          artistInfo['ART_ID']?.toString() ?? widget.song.artistId;
+      List<Album>? albums;
+      try {
+        albums = await apiService.getArtistAlbums(actualArtistId);
+      } catch (e) {
+        // Albums loading failed, continue without them
+        albums = [];
+      }
+
       if (mounted) {
-        final artistInfo = artistData['info'] as Map<String, dynamic>;
-        final tracks = (artistData['tracks'] as List).map((raw) {
-          return Song.fromAlbumTrackJson(
-            raw as Map<String, dynamic>,
-            raw['ALB_TITLE']?.toString() ?? '',
-            raw['ALB_PICTURE']?.toString() ?? '',
-            '',
-            artistInfo['ART_NAME']?.toString() ?? '',
-          );
-        }).toList();
-
-        // Get artist albums using the actual artist ID
-        final actualArtistId =
-            artistInfo['ART_ID']?.toString() ?? widget.song.artistId;
-        List<Album>? albums;
-        try {
-          albums = await apiService.getArtistAlbums(actualArtistId);
-        } catch (e) {
-          // Albums loading failed, continue without them
-          albums = [];
-        }
-
-        if (mounted) {
-          setState(() {
-            _preloadedArtistInfo = artistInfo;
-            _preloadedArtistTracks = tracks;
-            _preloadedArtistAlbums = albums;
-          });
-        }
+        setState(() {
+          _preloadedArtistInfo = artistInfo;
+          _preloadedArtistTracks = tracks;
+          _preloadedArtistAlbums = albums;
+        });
       }
     } catch (e) {
       _errorHandler.logError(e, context: 'preloadArtistData');
