@@ -58,6 +58,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
   final ScrollController _scrollController = ScrollController();
   String? _lastSongId; // Track last song ID for scroll logic
   bool _hasAutoScrolled = false; // Only scroll on first open
+  bool _isReordering = false; // Prevent auto-scroll during reordering
 
   @override
   void initState() {
@@ -94,7 +95,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
   }
 
   void _maybeScrollToCurrentSong(List<Song> queue, Song? currentSong) {
-    if (_hasAutoScrolled) return;
+    if (_hasAutoScrolled || _isReordering) return;
     final currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
     if (currentIndex != -1 && _scrollController.hasClients) {
       final offset = (currentIndex * itemHeight) - 100.0;
@@ -137,27 +138,48 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
           builder: (_, controller) {
             return Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
+                color: colorScheme.surface,
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
+                  // Handle bar
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.onSurface.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 8.0, 16.0),
+                    padding: const EdgeInsets.fromLTRB(20.0, 8.0, 16.0, 16.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           'Up Next',
-                          style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.bold) ??
-                              const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 22.0),
+                          style: textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ) ??
+                              TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 20.0,
+                                color: colorScheme.onSurface,
+                              ),
                         ),
                         if (queue.isNotEmpty)
                           TextButton(
@@ -166,34 +188,59 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               if (mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Queue cleared')),
+                                  SnackBar(
+                                    content: const Text('Queue cleared'),
+                                    backgroundColor: colorScheme.inverseSurface,
+                                  ),
                                 );
                               }
                             },
-                            child: Text(
+                            style: TextButton.styleFrom(
+                              foregroundColor: colorScheme.primary,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                            ),
+                            child: const Text(
                               'Clear Queue',
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary),
+                              style: TextStyle(fontWeight: FontWeight.w500),
                             ),
                           ),
                       ],
                     ),
                   ),
                   if (queue.isEmpty)
-                    const Expanded(
+                    Expanded(
                       child: Center(
-                        child: Text(
-                          'Queue is empty.',
-                          style: TextStyle(fontSize: 18),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.queue_music,
+                              size: 64,
+                              color: colorScheme.onSurface.withOpacity(0.4),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Your queue is empty',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.7),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Songs you play next will appear here',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     )
                   else
                     Expanded(
                       child: ReorderableListView.builder(
-                        key: ValueKey(queue.map((s) => s.id).join(
-                            ',')), // Force rebuild when queue order changes
                         buildDefaultDragHandles: false,
                         scrollController: _scrollController,
                         itemCount: queue.length,
@@ -206,90 +253,45 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                           if (song.albumArtUrl.startsWith('http')) {
                             imageWidget = Image.network(
                               song.albumArtUrl,
-                              width: 40,
-                              height: 40,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.music_note, size: 40),
+                              errorBuilder: (_, __, ___) => Container(
+                                color: colorScheme.surface.withOpacity(0.3),
+                                child: Icon(
+                                  Icons.music_note,
+                                  size: 24,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
                             );
                           } else if (artPath.isNotEmpty) {
                             imageWidget = Image.file(
                               File(artPath),
-                              width: 40,
-                              height: 40,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.music_note, size: 40),
+                              errorBuilder: (_, __, ___) => Container(
+                                color: colorScheme.surface.withOpacity(0.3),
+                                child: Icon(
+                                  Icons.music_note,
+                                  size: 24,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
                             );
                           } else {
-                            imageWidget =
-                                const Icon(Icons.music_note, size: 40);
+                            imageWidget = Container(
+                              color: colorScheme.surface.withOpacity(0.3),
+                              child: Icon(
+                                Icons.music_note,
+                                size: 24,
+                                color: colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                            );
                           }
-                          return SizedBox(
+                          return Container(
                             key: ValueKey(song.id),
                             height: itemHeight,
-                            child: ListTile(
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: imageWidget,
-                              ),
-                              title: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    song.baseTitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontWeight: isCurrentlyPlaying
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: isCurrentlyPlaying
-                                          ? colorScheme.primary
-                                          : colorScheme.onSurface,
-                                    ),
-                                  ),
-                                  if (song.versionTags.isNotEmpty)
-                                    Text(
-                                      song.versionTags,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: isCurrentlyPlaying
-                                            ? colorScheme.primary
-                                                .withOpacity(0.8)
-                                            : colorScheme.onSurface
-                                                .withOpacity(0.6),
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              subtitle: Text(
-                                song.artist.isNotEmpty
-                                    ? song.artist
-                                    : "Unknown Artist",
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isCurrentlyPlaying)
-                                    AnimatedEqualizerIcon(
-                                        isPlaying:
-                                            currentSongProvider.isPlaying,
-                                        color: colorScheme.primary),
-                                  ReorderableDragStartListener(
-                                    index: index,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(left: 8.0),
-                                      child: Icon(Icons.drag_handle,
-                                          color: colorScheme.onSurface
-                                              .withValues(alpha: 0.5)),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: InkWell(
                               onTap: () async {
                                 final isPlaying = currentSongProvider.isPlaying;
                                 await currentSongProvider.smartPlayWithContext(
@@ -302,14 +304,139 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                 // Do not close the queue after selecting a song
                                 // if (mounted) Navigator.pop(context);
                               },
+                              child: Row(
+                                children: [
+                                  // Album art
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: imageWidget,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+
+                                  // Song info
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                song.baseTitle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontWeight: isCurrentlyPlaying
+                                                      ? FontWeight.w600
+                                                      : FontWeight.w500,
+                                                  fontSize: 14,
+                                                  color: isCurrentlyPlaying
+                                                      ? colorScheme.primary
+                                                      : colorScheme.onSurface,
+                                                ),
+                                              ),
+                                            ),
+                                            if (song
+                                                .versionTags.isNotEmpty) ...[
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                song.versionTags,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: isCurrentlyPlaying
+                                                      ? colorScheme.primary
+                                                          .withOpacity(0.8)
+                                                      : colorScheme.onSurface
+                                                          .withOpacity(0.6),
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          song.artist.isNotEmpty
+                                              ? song.artist
+                                              : "Unknown Artist",
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isCurrentlyPlaying
+                                                ? colorScheme.primary
+                                                    .withOpacity(0.9)
+                                                : colorScheme.onSurface
+                                                    .withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Trailing icons
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isCurrentlyPlaying) ...[
+                                        AnimatedEqualizerIcon(
+                                          isPlaying:
+                                              currentSongProvider.isPlaying,
+                                          color: colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      ReorderableDragStartListener(
+                                        index: index,
+                                        child: Icon(
+                                          Icons.drag_handle,
+                                          color: colorScheme.onSurface
+                                              .withOpacity(0.5),
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
                         onReorder: (int oldIndex, int newIndex) async {
                           if (newIndex > oldIndex) newIndex -= 1;
+
+                          // Prevent auto-scrolling during reordering
+                          setState(() {
+                            _isReordering = true;
+                          });
+
+                          // Store current scroll position before reordering
+                          final currentScrollOffset =
+                              _scrollController.hasClients
+                                  ? _scrollController.offset
+                                  : 0.0;
+
                           await currentSongProvider.reorderQueue(
                               oldIndex, newIndex);
-                          // Remove manual setState - let the provider's notifyListeners() handle UI updates
+
+                          // Restore scroll position and allow auto-scrolling again
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              if (_scrollController.hasClients) {
+                                _scrollController.jumpTo(currentScrollOffset);
+                              }
+                              setState(() {
+                                _isReordering = false;
+                              });
+                            }
+                          });
                         },
                       ),
                     ),
@@ -477,10 +604,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   bool _areLyricsSynced = false;
   bool _lyricsLoading = false;
   bool _lyricsFetchedForCurrentSong = false;
+  bool _lyricsChanging = false; // Track when lyrics are being reset/changed
 
   final ItemScrollController _lyricsScrollController = ItemScrollController();
   final ItemPositionsListener _lyricsPositionsListener =
       ItemPositionsListener.create();
+  bool _isLyricsWidgetAttached =
+      false; // Track if ScrollablePositionedList is properly attached
 
   bool _isLiked = false;
   Future<String>? _localArtPathFuture;
@@ -775,6 +905,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   void _resetLyricsState() {
     if (mounted) {
       setState(() {
+        _lyricsChanging = true; // Mark that lyrics are being changed
+        _isLyricsWidgetAttached = false; // Reset attachment state
         _parsedLyrics = [];
         _currentLyricIndex = -1;
         _previousLyricIndex = -1; // Reset previous index
@@ -794,7 +926,87 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         controller.dispose();
       }
       _lyricLineControllers.clear();
+
+      // Reset the changing flag after a longer delay to ensure UI has fully transitioned
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) {
+          setState(() {
+            _lyricsChanging = false;
+          });
+        }
+      });
     }
+  }
+
+  // Helper method to safely check if scroll operations are possible
+  bool _canPerformScrollOperation() {
+    return mounted &&
+        !_lyricsChanging &&
+        !_lyricsLoading && // Don't scroll during loading state
+        _isLyricsWidgetAttached &&
+        _lyricsScrollController.isAttached &&
+        _parsedLyrics.isNotEmpty &&
+        _showLyrics; // Only scroll when lyrics view is actually shown
+  }
+
+  // Safe wrapper for all scroll operations
+  void _safeScrollOperation(VoidCallback operation, String operationName) {
+    if (!_canPerformScrollOperation()) {
+      debugPrint(
+          "Cannot perform scroll operation '$operationName': widget not ready");
+      return;
+    }
+
+    // Additional check: ensure we're actually showing the scrollable lyrics view
+    if (_lyricsLoading || _parsedLyrics.isEmpty) {
+      debugPrint(
+          "Skipping scroll operation '$operationName': not showing scrollable lyrics");
+      return;
+    }
+
+    try {
+      operation();
+    } catch (e) {
+      debugPrint("Error during scroll operation '$operationName': $e");
+      // For critical errors like _scrollableListState == null, mark widget as not attached
+      if (e.toString().contains('_scrollableListState') ||
+          e.toString().contains('null') ||
+          e.toString().contains('Failed assertion')) {
+        _isLyricsWidgetAttached = false;
+        debugPrint(
+            "Marking lyrics widget as not attached due to state error: $e");
+
+        // Reset to stable state after error
+        if (mounted) {
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              setState(() {
+                _lyricsChanging = true;
+              });
+              Future.delayed(const Duration(milliseconds: 50), () {
+                if (mounted) {
+                  setState(() {
+                    _lyricsChanging = false;
+                  });
+                }
+              });
+            }
+          });
+        }
+      }
+    }
+  }
+
+  void _resetScrollPosition() {
+    // Wait for lyrics state to stabilize before resetting scroll position
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (_canPerformScrollOperation() &&
+          _currentSongProvider.currentSong?.id == _previousSongId) {
+        _safeScrollOperation(() {
+          _lyricsScrollController.jumpTo(index: 0);
+        }, "reset scroll position");
+      }
+    });
   }
 
   // Enhanced opening animation method
@@ -926,9 +1138,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _loadAndProcessLyrics(newSong);
       }
 
-      if (_lyricsScrollController.isAttached) {
-        _lyricsScrollController.jumpTo(index: 0);
-      }
+      // Safely reset scroll position after lyrics state is stable
+      _resetScrollPosition();
 
       if (mounted) {
         setState(() {
@@ -1003,6 +1214,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
   Future<void> _loadAndProcessLyrics(Song currentSong) async {
     if (!mounted) return;
+
+    // Store the song ID to validate this is still the current song after async operations
+    final String songIdForLyrics = currentSong.id;
+
     setState(() {
       _lyricsLoading = true;
       _parsedLyrics = [];
@@ -1020,13 +1235,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     try {
       lyricsData = await lyricsService.fetchLyricsIfNeeded(
           currentSong, _currentSongProvider);
-      _processLyricsForSongData(lyricsData);
+
+      // Validate that this song is still the current song before processing lyrics
+      if (mounted && _currentSongProvider.currentSong?.id == songIdForLyrics) {
+        _processLyricsForSongData(lyricsData, songIdForLyrics);
+      } else {
+        debugPrint(
+            "Song changed during lyrics fetch for ${currentSong.title}, skipping lyrics processing");
+      }
     } catch (e) {
       debugPrint("Error loading lyrics in FullScreenPlayer: $e");
-      _processLyricsForSongData(
-          null); // Process with null to clear lyrics and show "not available"
+      // Only process error state if this is still the current song
+      if (mounted && _currentSongProvider.currentSong?.id == songIdForLyrics) {
+        _processLyricsForSongData(null,
+            songIdForLyrics); // Process with null to clear lyrics and show "not available"
+      }
     } finally {
-      if (mounted) {
+      if (mounted && _currentSongProvider.currentSong?.id == songIdForLyrics) {
         setState(() {
           _lyricsLoading = false;
           _lyricsFetchedForCurrentSong = true;
@@ -1035,7 +1260,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         // If lyrics are being shown and we have a current lyric index, scroll to it
         if (_showLyrics && _currentLyricIndex >= 0) {
           Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted) {
+            if (mounted &&
+                _currentSongProvider.currentSong?.id == songIdForLyrics) {
               _scrollToCurrentLyricIfNeeded();
             }
           });
@@ -1044,7 +1270,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     }
   }
 
-  void _processLyricsForSongData(LyricsData? lyricsData) {
+  void _processLyricsForSongData(
+      LyricsData? lyricsData, String songIdForLyrics) {
+    // Validate that this is still the current song before processing
+    if (!mounted || _currentSongProvider.currentSong?.id != songIdForLyrics) {
+      debugPrint(
+          "Song changed during lyrics processing, skipping for song ID: $songIdForLyrics");
+      return;
+    }
+
     List<LyricLine> tempParsedLyrics = [];
     bool tempAreLyricsSynced = false;
 
@@ -1062,8 +1296,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       tempParsedLyrics = _parsePlainLyrics(lyricsData.plainLyrics!);
     }
 
-    if (mounted) {
+    // Double-check that the song is still current before updating state
+    if (mounted && _currentSongProvider.currentSong?.id == songIdForLyrics) {
       setState(() {
+        _lyricsChanging = true; // Mark lyrics as changing during update
         _parsedLyrics = tempParsedLyrics;
         _areLyricsSynced = tempAreLyricsSynced;
         // Clamp _currentLyricIndex to -1 or valid range
@@ -1074,6 +1310,26 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         if (_currentLyricIndex < -1) _currentLyricIndex = -1;
       });
 
+      // Reset the changing flag after the UI has updated
+      Future.delayed(const Duration(milliseconds: 75), () {
+        if (mounted &&
+            _currentSongProvider.currentSong?.id == songIdForLyrics) {
+          setState(() {
+            _lyricsChanging = false;
+          });
+
+          // Allow attachment to be detected after lyrics are processed
+          Future.delayed(const Duration(milliseconds: 125), () {
+            if (mounted &&
+                _currentSongProvider.currentSong?.id == songIdForLyrics &&
+                _parsedLyrics.isNotEmpty) {
+              // Don't force attachment here, let the PostFrameCallback handle it
+              debugPrint("Lyrics processed and ready for attachment detection");
+            }
+          });
+        }
+      });
+
       // Trigger entrance animation for new lyrics
       if (tempParsedLyrics.isNotEmpty) {
         _triggerLyricsEntranceAnimation();
@@ -1081,7 +1337,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         // If lyrics are being shown, scroll to current lyric after a short delay
         if (_showLyrics) {
           Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
+            if (mounted &&
+                _currentSongProvider.currentSong?.id == songIdForLyrics) {
               _scrollToCurrentLyricIfNeeded();
             }
           });
@@ -1538,6 +1795,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
   @override
   void dispose() {
+    // Mark lyrics widget as not attached during disposal
+    _isLyricsWidgetAttached = false;
+
     WakelockPlus.disable(); // Allow sleep when player is closed
     _currentSongProvider.removeListener(_onSongChanged);
 
@@ -1719,15 +1979,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _triggerLyricTransitionAnimation(newIndex);
       }
 
-      if (newIndex != -1 &&
-          _lyricsScrollController.isAttached &&
-          !_isCurrentLyricCloseToTop()) {
-        _lyricsScrollController.scrollTo(
-          index: newIndex,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          alignment: 0.5,
-        );
+      if (newIndex != -1 && !_isCurrentLyricCloseToTop()) {
+        _safeScrollOperation(() {
+          _lyricsScrollController.scrollTo(
+            index: newIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: 0.5,
+          );
+        }, "auto-scroll to lyric $newIndex");
       }
     }
   }
@@ -1783,14 +2043,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   void _scrollToCurrentLyricIfNeeded() {
     if (_showLyrics &&
         _currentLyricIndex >= 0 &&
-        _lyricsScrollController.isAttached &&
         !_isCurrentLyricCloseToTop()) {
-      _lyricsScrollController.scrollTo(
-        index: _currentLyricIndex,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.5,
-      );
+      _safeScrollOperation(() {
+        _lyricsScrollController.scrollTo(
+          index: _currentLyricIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      }, "scroll to current lyric");
     }
   }
 
@@ -2638,6 +2899,21 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     }
 
     const int bottomPaddingLines = 3;
+
+    // Mark the widget as attached after the next frame, but only if we have lyrics
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          !_isLyricsWidgetAttached &&
+          _parsedLyrics.isNotEmpty &&
+          !_lyricsLoading &&
+          !_lyricsChanging) {
+        setState(() {
+          _isLyricsWidgetAttached = true;
+        });
+        debugPrint("Lyrics widget marked as attached");
+      }
+    });
+
     return ScrollablePositionedList.builder(
       itemCount: _parsedLyrics.length + bottomPaddingLines,
       itemScrollController: _lyricsScrollController,

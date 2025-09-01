@@ -8,7 +8,6 @@
 ## Lyrics Features
 - Allow users to add/edit lyrics for their local songs and display them during playback.
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
-- When you are on a song make sure its showing the right lyrics (full screen player)
 
 ## Artist & Album Features
 - Add: allow following an artist to save them to your library, this should replace the old artists page in the library, when clicking an artist from your library's saved artists have it load the artist page with an option to show "saved songs by -artist name-"
