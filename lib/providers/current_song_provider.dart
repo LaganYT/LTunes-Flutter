@@ -410,7 +410,9 @@ class CurrentSongProvider with ChangeNotifier {
       _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
     }
 
-    await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
+    await _audioHandler.setShuffleMode(newShuffleState
+        ? AudioServiceShuffleMode.all
+        : AudioServiceShuffleMode.none);
 
     notifyListeners();
     await _saveCurrentSongToStorage();
