@@ -1144,7 +1144,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
     // Ensure animation controller exists for this line if it doesn't
     if (controller == null || animation == null) {
-
       _loadingDotsControllers[lineIndex] = AnimationController(
         duration: const Duration(milliseconds: 1500),
         vsync: this,
@@ -1158,8 +1157,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       final currentSongProvider =
           Provider.of<CurrentSongProvider>(context, listen: false);
       if (currentSongProvider.isPlaying && _currentLyricIndex == lineIndex) {
-
-
         // Calculate duration for this animation
         if (lineIndex >= 0 && lineIndex < _parsedLyrics.length) {
           final currentLine = _parsedLyrics[lineIndex];
@@ -1193,7 +1190,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
               Duration(milliseconds: timeUntilNext.inMilliseconds);
           _loadingDotsControllers[lineIndex]!.duration = animationDuration;
           _loadingDotsControllers[lineIndex]!.repeat();
-
         }
       }
 
@@ -1396,7 +1392,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         controller.duration = animationDuration;
       }
 
-
       controller.repeat();
     }
   }
@@ -1427,13 +1422,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     final currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
 
-
-
     // Check if we have a current loading dots line
     if (_currentLyricIndex != -1 &&
         _currentLyricIndex < _parsedLyrics.length &&
         _parsedLyrics[_currentLyricIndex].type == LyricLineType.loadingDots) {
-
       if (currentSongProvider.isPlaying) {
         // Resume animation if song is playing
         _resumeLoadingDotsAnimation(_currentLyricIndex);
@@ -1693,7 +1685,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       if (newIndex != -1 &&
           newIndex < _parsedLyrics.length &&
           _parsedLyrics[newIndex].type == LyricLineType.loadingDots) {
-
         _startLoadingDotsAnimation(newIndex);
       } else {
         // Stop animation for the previous loading dots line if it exists
