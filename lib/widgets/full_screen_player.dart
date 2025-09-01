@@ -605,6 +605,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   bool _lyricsLoading = false;
   bool _lyricsFetchedForCurrentSong = false;
   bool _lyricsChanging = false; // Track when lyrics are being reset/changed
+  String?
+      _lastLyricsType; // Track the last lyrics type (synced/plain) to detect changes
 
   final ItemScrollController _lyricsScrollController = ItemScrollController();
   final ItemPositionsListener _lyricsPositionsListener =
@@ -915,6 +917,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _areLyricsSynced = false;
         _lyricsFetchedForCurrentSong = false;
         _lyricsLoading = false;
+        _lastLyricsType = null; // Reset lyrics type tracking
         // _showLyrics remains as is, or reset if desired:
         // _showLyrics = false;
       });
@@ -938,7 +941,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       _loadingDotsAnimations.clear();
 
       // Reset the changing flag after a longer delay to ensure UI has fully transitioned
-      Future.delayed(const Duration(milliseconds: 200), () {
+      Future.delayed(const Duration(milliseconds: 250), () {
         if (mounted) {
           setState(() {
             _lyricsChanging = false;
@@ -958,7 +961,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _parsedLyrics.isNotEmpty &&
         _showLyrics && // Only scroll when lyrics view is actually shown
         _currentSongProvider.currentSong !=
-            null; // Ensure we have a current song
+            null && // Ensure we have a current song
+        _lastLyricsType !=
+            null; // Ensure lyrics type is set (prevents operations during type transitions)
   }
 
   // Safe wrapper for all scroll operations
@@ -1122,6 +1127,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         setState(() {
           _lyricsChanging = true;
           _isLyricsWidgetAttached = false;
+          _lastLyricsType = null; // Reset lyrics type to force complete rebuild
         });
       }
       double effectiveSlideOffsetX = _slideOffsetX;
@@ -1341,12 +1347,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       tempParsedLyrics = _parsePlainLyrics(lyricsData.plainLyrics!);
     }
 
+    // Detect if lyrics type has changed (synced vs plain)
+    final String newLyricsType = tempAreLyricsSynced ? 'synced' : 'plain';
+    final bool lyricsTypeChanged =
+        _lastLyricsType != null && _lastLyricsType != newLyricsType;
+
     // Double-check that the song is still current before updating state
     if (mounted && _currentSongProvider.currentSong?.id == songIdForLyrics) {
       setState(() {
         _lyricsChanging = true; // Mark lyrics as changing during update
         _parsedLyrics = tempParsedLyrics;
         _areLyricsSynced = tempAreLyricsSynced;
+        _lastLyricsType = newLyricsType; // Update lyrics type tracking
         // Clamp _currentLyricIndex to -1 or valid range
         if (_currentLyricIndex >= _parsedLyrics.length) {
           _currentLyricIndex =
@@ -1355,8 +1367,11 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         if (_currentLyricIndex < -1) _currentLyricIndex = -1;
       });
 
+      // If lyrics type changed, force a longer delay to ensure complete widget rebuild
+      final int delayMs = lyricsTypeChanged ? 150 : 75;
+
       // Reset the changing flag after the UI has updated
-      Future.delayed(const Duration(milliseconds: 75), () {
+      Future.delayed(Duration(milliseconds: delayMs), () {
         if (mounted &&
             _currentSongProvider.currentSong?.id == songIdForLyrics) {
           setState(() {
@@ -1364,7 +1379,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           });
 
           // Allow attachment to be detected after lyrics are processed
-          Future.delayed(const Duration(milliseconds: 125), () {
+          Future.delayed(const Duration(milliseconds: 150), () {
             if (mounted &&
                 _currentSongProvider.currentSong?.id == songIdForLyrics &&
                 _parsedLyrics.isNotEmpty) {
@@ -1381,7 +1396,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
         // If lyrics are being shown, scroll to current lyric after a short delay
         if (_showLyrics) {
-          Future.delayed(const Duration(milliseconds: 300), () {
+          Future.delayed(const Duration(milliseconds: 350), () {
             if (mounted &&
                 _currentSongProvider.currentSong?.id == songIdForLyrics) {
               _scrollToCurrentLyricIfNeeded();
@@ -2956,15 +2971,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           _parsedLyrics.isNotEmpty &&
           !_lyricsLoading &&
           !_lyricsChanging &&
-          _currentSongProvider.currentSong != null) {
+          _currentSongProvider.currentSong != null &&
+          _lastLyricsType != null) {
         // Add a small delay to ensure the widget is fully stable before marking as attached
-        Future.delayed(const Duration(milliseconds: 100), () {
+        Future.delayed(const Duration(milliseconds: 150), () {
           if (mounted &&
               !_isLyricsWidgetAttached &&
               _parsedLyrics.isNotEmpty &&
               !_lyricsLoading &&
               !_lyricsChanging &&
-              _currentSongProvider.currentSong != null) {
+              _currentSongProvider.currentSong != null &&
+              _lastLyricsType != null) {
             setState(() {
               _isLyricsWidgetAttached = true;
             });
@@ -2983,7 +3000,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
     return ScrollablePositionedList.builder(
       key: ValueKey(
-          'lyrics_${_currentSongProvider.currentSong?.id ?? "no_song"}'),
+          'lyrics_${_currentSongProvider.currentSong?.id ?? "no_song"}_${_areLyricsSynced ? "synced" : "plain"}'),
       itemCount: _parsedLyrics.length + bottomPaddingLines,
       itemScrollController: _lyricsScrollController,
       itemPositionsListener: _lyricsPositionsListener,
