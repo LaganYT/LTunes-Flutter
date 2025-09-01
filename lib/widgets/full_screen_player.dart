@@ -926,6 +926,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (currentIsPlaying != _previousIsPlaying) {
       _updateLoadingDotsAnimationState();
       _previousIsPlaying = currentIsPlaying;
+
+      // Additional check: if song just started playing and position is at/near beginning,
+      // ensure loading dots animation starts immediately
+      if (currentIsPlaying && !_previousIsPlaying) {
+        final currentPosition = _currentSongProvider.currentPosition;
+        if ((currentPosition.inMilliseconds <=
+                500) && // Within first 500ms or null
+            _parsedLyrics.isNotEmpty &&
+            _parsedLyrics[0].type == LyricLineType.loadingDots) {
+          _startLoadingDotsAnimation(0);
+        }
+      }
     }
   }
 
@@ -1082,8 +1094,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
             text: "...",
             type: LyricLineType.loadingDots,
           ));
-          debugPrint(
-              'Found blank timestamp at $minutes:$seconds.$milliseconds - adding loading dots');
         } else {
           // This is a normal lyric line
           lines.add(LyricLine(
@@ -1116,12 +1126,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           text: "...",
           type: LyricLineType.loadingDots,
         ));
-        debugPrint(
-            'Adding beginning loading dots at 00:00:00 - gap until first lyric at ${firstLine.timestamp.inMilliseconds}ms');
-      } else {
-        debugPrint(
-            'Skipping beginning loading dots: first lyric appears at ${firstLine.timestamp.inMilliseconds}ms (within 1.5 seconds)');
-      }
+      } else {}
     }
 
     // Add all original lines
@@ -1137,17 +1142,95 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     final controller = _loadingDotsControllers[lineIndex];
     final animation = _loadingDotsAnimations[lineIndex];
 
+    // Ensure animation controller exists for this line if it doesn't
     if (controller == null || animation == null) {
-      // If no animation controller exists, show dots in default state
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildDot(textColor, fontSize, 0.3, 0.5, 0),
-          const SizedBox(width: 4),
-          _buildDot(textColor, fontSize, 0.3, 0.5, 1),
-          const SizedBox(width: 4),
-          _buildDot(textColor, fontSize, 0.3, 0.5, 2),
-        ],
+
+      _loadingDotsControllers[lineIndex] = AnimationController(
+        duration: const Duration(milliseconds: 1500),
+        vsync: this,
+      );
+      _loadingDotsAnimations[lineIndex] = CurvedAnimation(
+        parent: _loadingDotsControllers[lineIndex]!,
+        curve: Curves.easeInOut,
+      );
+
+      // Start animation if this is the current line and song is playing
+      final currentSongProvider =
+          Provider.of<CurrentSongProvider>(context, listen: false);
+      if (currentSongProvider.isPlaying && _currentLyricIndex == lineIndex) {
+
+
+        // Calculate duration for this animation
+        if (lineIndex >= 0 && lineIndex < _parsedLyrics.length) {
+          final currentLine = _parsedLyrics[lineIndex];
+          Duration timeUntilNext =
+              const Duration(milliseconds: 1500); // Default
+
+          // Special handling for first loading dots (at 00:00:00)
+          if (lineIndex == 0 &&
+              currentLine.type == LyricLineType.loadingDots &&
+              currentLine.timestamp == Duration.zero) {
+            // Find the first actual lyric (not loading dots)
+            for (int i = 1; i < _parsedLyrics.length; i++) {
+              if (_parsedLyrics[i].type != LyricLineType.loadingDots) {
+                timeUntilNext = _parsedLyrics[i].timestamp;
+
+                break;
+              }
+            }
+          } else if (lineIndex < _parsedLyrics.length - 1) {
+            final nextLine = _parsedLyrics[lineIndex + 1];
+            timeUntilNext = nextLine.timestamp - currentLine.timestamp;
+          } else {
+            final songDuration =
+                currentSongProvider.totalDuration ?? Duration.zero;
+            if (songDuration > currentLine.timestamp) {
+              timeUntilNext = songDuration - currentLine.timestamp;
+            }
+          }
+
+          final animationDuration =
+              Duration(milliseconds: timeUntilNext.inMilliseconds);
+          _loadingDotsControllers[lineIndex]!.duration = animationDuration;
+          _loadingDotsControllers[lineIndex]!.repeat();
+
+        }
+      }
+
+      // Use the newly created controllers
+      final newController = _loadingDotsControllers[lineIndex]!;
+      final newAnimation = _loadingDotsAnimations[lineIndex]!;
+
+      // Use the newly created controllers with proper animation
+      return AnimatedBuilder(
+        animation: newAnimation,
+        builder: (context, child) {
+          final animationValue = newAnimation.value;
+
+          // Calculate which dots should be visible based on animation progress
+          final dot1Opacity =
+              _calculateDotOpacity(animationValue, 0.0, 1.0 / 3.0);
+          final dot2Opacity =
+              _calculateDotOpacity(animationValue, 1.0 / 3.0, 2.0 / 3.0);
+          final dot3Opacity =
+              _calculateDotOpacity(animationValue, 2.0 / 3.0, 1.0);
+
+          final dot1Scale = _calculateDotScale(animationValue, 0.0, 1.0 / 3.0);
+          final dot2Scale =
+              _calculateDotScale(animationValue, 1.0 / 3.0, 2.0 / 3.0);
+          final dot3Scale = _calculateDotScale(animationValue, 2.0 / 3.0, 1.0);
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildDot(textColor, fontSize, dot1Opacity, dot1Scale, 0),
+              const SizedBox(width: 4),
+              _buildDot(textColor, fontSize, dot2Opacity, dot2Scale, 1),
+              const SizedBox(width: 4),
+              _buildDot(textColor, fontSize, dot3Opacity, dot3Scale, 2),
+            ],
+          );
+        },
       );
     }
 
@@ -1250,30 +1333,26 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         Provider.of<CurrentSongProvider>(context, listen: false);
     if (!currentSongProvider.isPlaying) {
       // Don't start animation if song is not playing
+
       return;
     }
 
-    // Check if this is the first lyric line and if it appears within the first 1.5 seconds
+    // Check if this is the first line and if it's a regular lyric (not loading dots)
+    // that appears within the first 1.5 seconds
     if (lineIndex == 0 && _parsedLyrics.isNotEmpty) {
-      final firstLyricTimestamp = _parsedLyrics[0].timestamp;
-      if (firstLyricTimestamp.inMilliseconds <= 1500) {
-        // Skip dots animation if first lyric appears within 1.5 seconds
-        debugPrint(
-            'Skipping dots animation: first lyric appears at ${firstLyricTimestamp.inMilliseconds}ms (within 1.5 seconds)');
+      final firstLine = _parsedLyrics[0];
+      if (firstLine.type != LyricLineType.loadingDots &&
+          firstLine.timestamp.inMilliseconds <= 1500) {
+        // Skip animation if first lyric (not loading dots) appears within 1.5 seconds
+
         return;
       }
     }
 
-    // Create animation controller for this specific line if it doesn't exist
+    // Animation controller should now be created in _buildLoadingDots
+    // This method just configures and starts existing controllers
     if (!_loadingDotsControllers.containsKey(lineIndex)) {
-      _loadingDotsControllers[lineIndex] = AnimationController(
-        duration: const Duration(milliseconds: 1500),
-        vsync: this,
-      );
-      _loadingDotsAnimations[lineIndex] = CurvedAnimation(
-        parent: _loadingDotsControllers[lineIndex]!,
-        curve: Curves.easeInOut,
-      );
+      return;
     }
 
     final controller = _loadingDotsControllers[lineIndex]!;
@@ -1285,7 +1364,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         // Find the duration until the next lyric line or song end
         Duration timeUntilNext = const Duration(milliseconds: 1500); // Default
 
-        if (lineIndex < _parsedLyrics.length - 1) {
+        // Special handling for first loading dots (at 00:00:00)
+        if (lineIndex == 0 &&
+            currentLine.type == LyricLineType.loadingDots &&
+            currentLine.timestamp == Duration.zero) {
+          // Find the first actual lyric (not loading dots)
+          for (int i = 1; i < _parsedLyrics.length; i++) {
+            if (_parsedLyrics[i].type != LyricLineType.loadingDots) {
+              timeUntilNext = _parsedLyrics[i].timestamp;
+
+              break;
+            }
+          }
+        } else if (lineIndex < _parsedLyrics.length - 1) {
           final nextLine = _parsedLyrics[lineIndex + 1];
           timeUntilNext = nextLine.timestamp - currentLine.timestamp;
         } else {
@@ -1302,10 +1393,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           milliseconds: timeUntilNext.inMilliseconds,
         );
 
-        debugPrint(
-            'Starting loading dots animation for line $lineIndex with duration: ${animationDuration.inMilliseconds}ms (time until next: ${timeUntilNext.inMilliseconds}ms) - each dot gets ${(animationDuration.inMilliseconds / 3).round()}ms');
         controller.duration = animationDuration;
       }
+
 
       controller.repeat();
     }
@@ -1334,12 +1424,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   }
 
   void _updateLoadingDotsAnimationState() {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
+
+
     // Check if we have a current loading dots line
     if (_currentLyricIndex != -1 &&
         _currentLyricIndex < _parsedLyrics.length &&
         _parsedLyrics[_currentLyricIndex].type == LyricLineType.loadingDots) {
-      final currentSongProvider =
-          Provider.of<CurrentSongProvider>(context, listen: false);
 
       if (currentSongProvider.isPlaying) {
         // Resume animation if song is playing
@@ -1348,6 +1441,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         // Pause animation if song is paused
         _pauseLoadingDotsAnimation(_currentLyricIndex);
       }
+    } else if (currentSongProvider.isPlaying &&
+        _parsedLyrics.isNotEmpty &&
+        _parsedLyrics[0].type == LyricLineType.loadingDots &&
+        (_currentLyricIndex == -1 || _currentLyricIndex == 0)) {
+      // Special case: Song just started playing and first line is loading dots
+      // but _currentLyricIndex might not be set yet or is at the first position
+
+      _startLoadingDotsAnimation(0);
     }
   }
 
@@ -1590,7 +1691,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
       // Handle loading dots animation
       if (newIndex != -1 &&
+          newIndex < _parsedLyrics.length &&
           _parsedLyrics[newIndex].type == LyricLineType.loadingDots) {
+
         _startLoadingDotsAnimation(newIndex);
       } else {
         // Stop animation for the previous loading dots line if it exists

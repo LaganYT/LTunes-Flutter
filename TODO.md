@@ -29,9 +29,7 @@
 - Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
 
 Edit the display logic to allow (acoustic, live versions) also edit the audio fetching to allow the same.
-Fix the dots not animating at the start of the song
 Add a button by updates called “Known issues” that displays the issues i have logged in issues.json at the same url as updates.json
 When you are on a song make sure its showing the right lyrics (full screen player)
-When opening the lyrics have them fade in, not bounce in
 Fix the download system on the full screen player so it doesn’t need the download button to be pressed for it to know if the song is downloaded
 Fix the lyric service only finding plain lyrics
