@@ -611,6 +611,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       ItemPositionsListener.create();
   bool _isLyricsWidgetAttached =
       false; // Track if ScrollablePositionedList is properly attached
+  final bool _lyricsWidgetError =
+      false; // Track if there was an error with the lyrics widget
 
   bool _isLiked = false;
   Future<String>? _localArtPathFuture;
@@ -927,8 +929,16 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       }
       _lyricLineControllers.clear();
 
+      // Clear loading dots controllers to prevent state conflicts
+      for (final controller in _loadingDotsControllers.values) {
+        controller.stop();
+        controller.reset();
+      }
+      _loadingDotsControllers.clear();
+      _loadingDotsAnimations.clear();
+
       // Reset the changing flag after a longer delay to ensure UI has fully transitioned
-      Future.delayed(const Duration(milliseconds: 150), () {
+      Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted) {
           setState(() {
             _lyricsChanging = false;
@@ -946,7 +956,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _isLyricsWidgetAttached &&
         _lyricsScrollController.isAttached &&
         _parsedLyrics.isNotEmpty &&
-        _showLyrics; // Only scroll when lyrics view is actually shown
+        _showLyrics && // Only scroll when lyrics view is actually shown
+        _currentSongProvider.currentSong !=
+            null; // Ensure we have a current song
   }
 
   // Safe wrapper for all scroll operations
@@ -964,44 +976,55 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       return;
     }
 
-    try {
-      operation();
-    } catch (e) {
-      debugPrint("Error during scroll operation '$operationName': $e");
-      // For critical errors like _scrollableListState == null, mark widget as not attached
-      if (e.toString().contains('_scrollableListState') ||
-          e.toString().contains('null') ||
-          e.toString().contains('Failed assertion')) {
-        _isLyricsWidgetAttached = false;
+    // Add a small delay to ensure the widget is fully stable before performing scroll operations
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (!mounted || _lyricsChanging || _lyricsLoading) {
         debugPrint(
-            "Marking lyrics widget as not attached due to state error: $e");
+            "Skipping delayed scroll operation '$operationName': widget not stable");
+        return;
+      }
 
-        // Reset to stable state after error
-        if (mounted) {
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) {
-              setState(() {
-                _lyricsChanging = true;
-              });
-              Future.delayed(const Duration(milliseconds: 50), () {
-                if (mounted) {
-                  setState(() {
-                    _lyricsChanging = false;
-                  });
-                }
-              });
-            }
-          });
+      try {
+        operation();
+      } catch (e) {
+        debugPrint("Error during scroll operation '$operationName': $e");
+        // For critical errors like _scrollableListState == null, mark widget as not attached
+        if (e.toString().contains('_scrollableListState') ||
+            e.toString().contains('null') ||
+            e.toString().contains('Failed assertion')) {
+          _isLyricsWidgetAttached = false;
+          debugPrint(
+              "Marking lyrics widget as not attached due to state error: $e");
+
+          // Reset to stable state after error
+          if (mounted) {
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted) {
+                setState(() {
+                  _lyricsChanging = true;
+                });
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    setState(() {
+                      _lyricsChanging = false;
+                    });
+                  }
+                });
+              }
+            });
+          }
         }
       }
-    }
+    });
   }
 
   void _resetScrollPosition() {
     // Wait for lyrics state to stabilize before resetting scroll position
-    Future.delayed(const Duration(milliseconds: 200), () {
+    Future.delayed(const Duration(milliseconds: 300), () {
       if (_canPerformScrollOperation() &&
-          _currentSongProvider.currentSong?.id == _previousSongId) {
+          _currentSongProvider.currentSong?.id == _previousSongId &&
+          !_lyricsChanging &&
+          !_lyricsLoading) {
         _safeScrollOperation(() {
           _lyricsScrollController.jumpTo(index: 0);
         }, "reset scroll position");
@@ -1094,6 +1117,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
     // Only update if the song ID actually changed
     if (newSongId != _previousSongId) {
+      // Immediately mark lyrics as changing to prevent scroll operations during transition
+      if (mounted) {
+        setState(() {
+          _lyricsChanging = true;
+          _isLyricsWidgetAttached = false;
+        });
+      }
       double effectiveSlideOffsetX = _slideOffsetX;
       if (_previousSongId == null && newSongId != null) {
         effectiveSlideOffsetX = 0.3;
@@ -1126,7 +1156,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       _startSongChangeAnimation(effectiveSlideOffsetX);
 
       if (mounted) _updatePalette(newSong);
-      _resetLyricsState();
+
+      // Add a small delay before resetting lyrics state to ensure UI stability
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          _resetLyricsState();
+        }
+      });
 
       final provider = Provider.of<CurrentSongProvider>(context, listen: false);
       final currentSong = provider.currentSong;
@@ -1135,11 +1171,20 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       }
 
       if (_showLyrics && newSong != null) {
-        _loadAndProcessLyrics(newSong);
+        // Add a small delay to prevent rapid loading during fast song changes
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted && _currentSongProvider.currentSong?.id == newSong.id) {
+            _loadAndProcessLyrics(newSong);
+          }
+        });
       }
 
       // Safely reset scroll position after lyrics state is stable
-      _resetScrollPosition();
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _currentSongProvider.currentSong?.id == newSong?.id) {
+          _resetScrollPosition();
+        }
+      });
 
       if (mounted) {
         setState(() {
@@ -2380,7 +2425,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                           );
                         },
                         child: _showLyrics
-                            ? (_lyricsLoading
+                            ? (_lyricsLoading || _lyricsChanging
                                 ? const Center(
                                     key: ValueKey('lyrics_loading'),
                                     child: CircularProgressIndicator(),
@@ -2841,58 +2886,62 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     final currentSongProvider = Provider.of<CurrentSongProvider>(context,
         listen: false); // Get provider instance
 
-    // This specific check for _parsedLyrics.isEmpty is now handled in the main build method's conditional display.
-    // If _buildLyricsView is called, it means _parsedLyrics is not empty (or loading is finished).
-    // However, keeping a fallback here is safe.
-    if (_parsedLyrics.isEmpty) {
+    // Prevent building the ScrollablePositionedList during unstable states
+    if (_lyricsChanging || _lyricsLoading || _parsedLyrics.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              "No lyrics available.",
-              style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.7)) ??
-                  TextStyle(
-                      color: colorScheme.onSurface.withValues(alpha: 0.7),
-                      fontSize: 16.0),
-              textAlign: TextAlign.center,
-            ),
-            Text(
-              'Want to add lyrics to our database?',
-              style: textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
-                  ) ??
-                  TextStyle(
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontSize: 14.0,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            GestureDetector(
-              onTap: () async {
-                const url = 'https://lrclibplusplus.vercel.app/publish';
-                try {
-                  await launchUrl(Uri.parse(url));
-                } catch (e) {
-                  debugPrint('Error launching URL: $e');
-                }
-              },
-              child: Text(
-                'Click here',
+            if (_lyricsLoading)
+              const CircularProgressIndicator()
+            else
+              Text(
+                "No lyrics available.",
+                style: textTheme.titleMedium?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.7)) ??
+                    TextStyle(
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
+                        fontSize: 16.0),
+                textAlign: TextAlign.center,
+              ),
+            if (!_lyricsLoading) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Want to add lyrics to our database?',
                 style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.primary,
-                      decoration: TextDecoration.underline,
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ) ??
                     TextStyle(
-                      color: colorScheme.primary,
-                      decoration: TextDecoration.underline,
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                       fontSize: 14.0,
                     ),
                 textAlign: TextAlign.center,
               ),
-            ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () async {
+                  const url = 'https://lrclibplusplus.vercel.app/publish';
+                  try {
+                    await launchUrl(Uri.parse(url));
+                  } catch (e) {
+                    debugPrint('Error launching URL: $e');
+                  }
+                },
+                child: Text(
+                  'Click here',
+                  style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ) ??
+                      TextStyle(
+                        color: colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                        fontSize: 14.0,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -2906,15 +2955,35 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           !_isLyricsWidgetAttached &&
           _parsedLyrics.isNotEmpty &&
           !_lyricsLoading &&
-          !_lyricsChanging) {
-        setState(() {
-          _isLyricsWidgetAttached = true;
+          !_lyricsChanging &&
+          _currentSongProvider.currentSong != null) {
+        // Add a small delay to ensure the widget is fully stable before marking as attached
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted &&
+              !_isLyricsWidgetAttached &&
+              _parsedLyrics.isNotEmpty &&
+              !_lyricsLoading &&
+              !_lyricsChanging &&
+              _currentSongProvider.currentSong != null) {
+            setState(() {
+              _isLyricsWidgetAttached = true;
+            });
+            debugPrint("Lyrics widget marked as attached");
+          }
         });
-        debugPrint("Lyrics widget marked as attached");
       }
     });
 
+    // Only build ScrollablePositionedList when widget is fully stable
+    if (!_isLyricsWidgetAttached || _lyricsChanging || _lyricsLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
     return ScrollablePositionedList.builder(
+      key: ValueKey(
+          'lyrics_${_currentSongProvider.currentSong?.id ?? "no_song"}'),
       itemCount: _parsedLyrics.length + bottomPaddingLines,
       itemScrollController: _lyricsScrollController,
       itemPositionsListener: _lyricsPositionsListener,
