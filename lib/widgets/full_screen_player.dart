@@ -1172,8 +1172,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
       final provider = Provider.of<CurrentSongProvider>(context, listen: false);
       final currentSong = provider.currentSong;
-      if (currentSong != null && currentSong.isDownloaded) {
-        provider.updateMissingMetadata(currentSong);
+      if (currentSong != null) {
+        // Check download status for all songs, not just those marked as downloaded
+        // This ensures the UI reflects the actual download state
+        provider.queueSongForDownload(currentSong);
+
+        // Also update missing metadata for downloaded songs
+        // Use provider's download state to determine if song is actually downloaded
+        final downloadProgress = provider.downloadProgress[currentSong.id];
+        final isActuallyDownloaded =
+            downloadProgress == 1.0 || currentSong.isDownloaded;
+        if (isActuallyDownloaded) {
+          provider.updateMissingMetadata(currentSong);
+        }
       }
 
       if (_showLyrics && newSong != null) {
@@ -1905,12 +1916,30 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   Future<void> _downloadCurrentSong(Song song) async {
     // Use the CurrentSongProvider to handle the download
     if (mounted && context.mounted) {
-      Provider.of<CurrentSongProvider>(context, listen: false)
-          .queueSongForDownload(song);
+      final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+
+      // Check if the song is already downloaded or downloading
+      final downloadProgress = provider.downloadProgress[song.id];
+      final isDownloading = provider.activeDownloadTasks.containsKey(song.id);
+      final isDownloaded = downloadProgress == 1.0 || song.isDownloaded;
+
+      if (isDownloaded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${song.title}" is already downloaded')),
+        );
+        return;
+      }
+
+      if (isDownloading) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${song.title}" is already downloading...')),
+        );
+        return;
+      }
+
+      provider.queueSongForDownload(song);
 
       // Show a snackbar indicating the download has started
-      // You might want to check if the song is already downloading via provider state
-      // to avoid redundant messages, but downloadSongInBackground itself has checks.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Download started for "${song.title}"...')),
       );
@@ -2659,26 +2688,55 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             // Download button
-                            if (currentSong.isDownloaded)
-                              IconButton(
-                                icon: const Icon(
-                                    Icons.check_circle_outline_rounded),
-                                tooltip: 'Downloaded',
-                                onPressed:
-                                    null, // Disabled as it's already downloaded
-                                iconSize: 26.0,
-                                color: colorScheme.secondary,
-                              )
-                            else
-                              IconButton(
-                                icon: const Icon(Icons.download_rounded),
-                                onPressed: () =>
-                                    _downloadCurrentSong(currentSong),
-                                tooltip: 'Download Song',
-                                iconSize: 26.0,
-                                color: colorScheme.onSurface
-                                    .withValues(alpha: 0.7),
-                              ),
+                            Consumer<CurrentSongProvider>(
+                              builder: (context, provider, _) {
+                                final downloadProgress =
+                                    provider.downloadProgress[currentSong.id];
+                                final isDownloading = provider
+                                    .activeDownloadTasks
+                                    .containsKey(currentSong.id);
+                                final isDownloaded = downloadProgress == 1.0 ||
+                                    currentSong.isDownloaded;
+
+                                if (isDownloaded) {
+                                  return IconButton(
+                                    icon: const Icon(
+                                        Icons.check_circle_outline_rounded),
+                                    tooltip: 'Downloaded',
+                                    onPressed:
+                                        null, // Disabled as it's already downloaded
+                                    iconSize: 26.0,
+                                    color: colorScheme.secondary,
+                                  );
+                                } else if (isDownloading) {
+                                  return IconButton(
+                                    icon: SizedBox(
+                                      width: 26.0,
+                                      height: 26.0,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.0,
+                                        value: downloadProgress,
+                                        color: colorScheme.primary,
+                                      ),
+                                    ),
+                                    onPressed:
+                                        null, // Disabled while downloading
+                                    tooltip: 'Downloading...',
+                                    iconSize: 26.0,
+                                  );
+                                } else {
+                                  return IconButton(
+                                    icon: const Icon(Icons.download_rounded),
+                                    onPressed: () =>
+                                        _downloadCurrentSong(currentSong),
+                                    tooltip: 'Download Song',
+                                    iconSize: 26.0,
+                                    color: colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
+                                  );
+                                }
+                              },
+                            ),
                             // Add to Playlist
                             IconButton(
                               icon: const Icon(Icons.playlist_add_rounded),

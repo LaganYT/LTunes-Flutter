@@ -22,4 +22,3 @@
 
 ## Development & Infrastructure
 - Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
-- Fix the download system on the full screen player so it doesn’t need the download button to be pressed for it to know if the song is downloaded
