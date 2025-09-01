@@ -810,12 +810,26 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
         title: Row(
           children: [
             Expanded(
-              child: Text(
-                song.title,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.baseTitle,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (song.versionTags.isNotEmpty)
+                    Text(
+                      song.versionTags,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                ],
               ),
             ),
             if (matchesLyrics)
@@ -2263,8 +2277,22 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                                   ))
                             : const Icon(Icons.music_note, size: 40),
                       ),
-                      title: Text(songObj.title,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(songObj.baseTitle,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          if (songObj.versionTags.isNotEmpty)
+                            Text(
+                              songObj.versionTags,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Theme.of(context).colorScheme.primary,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
+                      ),
                       subtitle: Text(
                           songObj.artist.isNotEmpty
                               ? songObj.artist

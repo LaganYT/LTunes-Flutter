@@ -33,11 +33,13 @@ Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   }
 }
 
-Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+Widget robustArtwork(String artUrl,
+    {double? width, double? height, BoxFit fit = BoxFit.cover}) {
   return FutureBuilder<ImageProvider>(
     future: getRobustArtworkProvider(artUrl),
     builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+      if (snapshot.connectionState == ConnectionState.done &&
+          snapshot.hasData) {
         return Image(
           image: snapshot.data!,
           width: width,
@@ -47,7 +49,8 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
             width: width,
             height: height,
             color: Colors.grey[700],
-            child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+            child: Icon(Icons.music_note,
+                size: (width ?? 48) * 0.6, color: Colors.white70),
           ),
         );
       }
@@ -55,7 +58,8 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
         width: width,
         height: height,
         color: Colors.grey[700],
-        child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+        child: Icon(Icons.music_note,
+            size: (width ?? 48) * 0.6, color: Colors.white70),
       );
     },
   );
@@ -129,7 +133,7 @@ class ImportJobManager extends ChangeNotifier {
 class PlaylistsScreenState extends State<PlaylistsScreen> {
   final _manager = PlaylistManagerService();
   List<Playlist> _playlists = [];
-  
+
   // Cache Future objects to prevent art flashing
   final Map<String, Future<String>> _localArtFutureCache = {};
 
@@ -175,7 +179,10 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       if (arts.length == 1) {
         return robustArtwork(arts.first, width: size);
       }
-      final grid = arts.take(4).map((url) => robustArtwork(url, width: size / 2)).toList();
+      final grid = arts
+          .take(4)
+          .map((url) => robustArtwork(url, width: size / 2))
+          .toList();
       return GridView.count(
         crossAxisCount: 2,
         mainAxisSpacing: 1,
@@ -213,13 +220,20 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.hourglass_top, size: 48, color: Colors.white),
+                                const Icon(Icons.hourglass_top,
+                                    size: 48, color: Colors.white),
                                 const SizedBox(height: 8),
-                                const Text('Importing...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                const Text('Importing...',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold)),
                                 if (job.totalRows > 0)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8.0),
-                                    child: Text('${job.matchedCount} / ${job.totalRows}', style: const TextStyle(color: Colors.white)),
+                                    child: Text(
+                                        '${job.matchedCount} / ${job.totalRows}',
+                                        style: const TextStyle(
+                                            color: Colors.white)),
                                   ),
                               ],
                             ),
@@ -228,50 +242,60 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(job.playlistName ?? 'Importing...', textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text('Importing...', textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.orange[700], fontSize: 12)),
+                    Text(job.playlistName ?? 'Importing...',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Importing...',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(color: Colors.orange[700], fontSize: 12)),
                   ],
                 ),
               ),
             );
           }
           playlistCards.addAll(_playlists.map((p) => GestureDetector(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => PlaylistDetailScreen(playlist: p)),
-            ),
-            onLongPress: () => _showPlaylistOptions(p),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                AspectRatio(
-                  aspectRatio: 1.0,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      color: Colors.grey[800],
-                      child: _playlistThumbnail(p),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => PlaylistDetailScreen(playlist: p)),
+                ),
+                onLongPress: () => _showPlaylistOptions(p),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 1.0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          color: Colors.grey[800],
+                          child: _playlistThumbnail(p),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 6),
+                    Text(
+                      p.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${p.songs.length} songs',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  p.name,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  '${p.songs.length} songs',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-              ],
-            ),
-          )));
+              )));
           return Scaffold(
             appBar: AppBar(
               title: const Text('Playlists'),
@@ -285,7 +309,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(48.0),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 8.0),
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: 'Search playlists...',
@@ -296,12 +321,21 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                       ),
                       filled: true,
                       fillColor: Theme.of(context).colorScheme.surface,
-                      hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                      hintStyle: TextStyle(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.7)),
                     ),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface),
                     onChanged: (query) {
                       setState(() {
-                        _playlists = _manager.playlists.where((playlist) => playlist.name.toLowerCase().contains(query.toLowerCase())).toList();
+                        _playlists = _manager.playlists
+                            .where((playlist) => playlist.name
+                                .toLowerCase()
+                                .contains(query.toLowerCase()))
+                            .toList();
                       });
                     },
                   ),
@@ -347,8 +381,12 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           decoration: const InputDecoration(hintText: 'Playlist Name'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, nameCtrl.text.trim()), child: const Text('Create')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, nameCtrl.text.trim()),
+              child: const Text('Create')),
         ],
       ),
     );
@@ -385,8 +423,10 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
-              title: Text('Delete Playlist', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              leading: Icon(Icons.delete,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text('Delete Playlist',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onTap: () {
                 Navigator.pop(context);
                 _deletePlaylist(playlist);
@@ -410,8 +450,12 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           decoration: const InputDecoration(hintText: 'Playlist Name'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, nameCtrl.text.trim()), child: const Text('Save')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, nameCtrl.text.trim()),
+              child: const Text('Save')),
         ],
       ),
     );
@@ -425,12 +469,16 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Playlist'),
-        content: Text('Are you sure you want to delete "${playlist.name}"? This cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete "${playlist.name}"? This cannot be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text('Delete',
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
@@ -442,12 +490,15 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
   }
 
   void _addPlaylistToQueue(Playlist playlist) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     for (final song in playlist.songs) {
       currentSongProvider.addToQueue(song);
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Added ${playlist.songs.length} songs from "${playlist.name}" to queue')),
+      SnackBar(
+          content: Text(
+              'Added ${playlist.songs.length} songs from "${playlist.name}" to queue')),
     );
   }
 
@@ -462,7 +513,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     job.notifyParent = notifyParent;
     ImportJobManager().update();
     debugPrint('Starting XLSX import...');
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx']);
+    final result = await FilePicker.platform
+        .pickFiles(type: FileType.custom, allowedExtensions: ['xlsx']);
     debugPrint('File picker result: $result');
     if (result == null || result.files.isEmpty) {
       debugPrint('No file selected or file picker returned empty.');
@@ -470,7 +522,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       ImportJobManager().removeJob(job);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No file selected or file picker returned empty.')),
+          const SnackBar(
+              content: Text('No file selected or file picker returned empty.')),
         );
       }
       ImportJobManager().update();
@@ -504,12 +557,16 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       if (sheet.maxRows == 0) throw Exception('No data found in XLSX');
 
       // Assume first row is header: id, name, artist, album
-      final header = sheet.row(0).map((cell) => cell?.value.toString().toLowerCase() ?? '').toList();
+      final header = sheet
+          .row(0)
+          .map((cell) => cell?.value.toString().toLowerCase() ?? '')
+          .toList();
       debugPrint('Parsed header: $header');
       final nameIdx = header.indexOf('name');
       final artistIdx = header.indexOf('artist');
       final albumIdx = header.indexOf('album');
-      debugPrint('Header indices: name=$nameIdx, artist=$artistIdx, album=$albumIdx');
+      debugPrint(
+          'Header indices: name=$nameIdx, artist=$artistIdx, album=$albumIdx');
       if ([nameIdx, artistIdx, albumIdx].contains(-1)) {
         debugPrint('Missing required columns.');
         throw Exception('Missing required columns (name, artist, album)');
@@ -522,7 +579,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
         final title = row[nameIdx]?.value.toString() ?? '';
         final artist = row[artistIdx]?.value.toString() ?? '';
         final album = row[albumIdx]?.value.toString() ?? '';
-        
+
         if (title.isNotEmpty && (artist.isNotEmpty || album.isNotEmpty)) {
           songEntries.add(SongEntry(
             title: title,
@@ -548,14 +605,17 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(height: 16),
-                Text('Processing ${job.matchedCount} / ${job.totalRows} entries'),
+                Text(
+                    'Processing ${job.matchedCount} / ${job.totalRows} entries'),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Checkbox(
                       value: job.autoSkipUnmatched,
                       onChanged: (val) {
-                        setState(() { job.autoSkipUnmatched = val ?? false; });
+                        setState(() {
+                          job.autoSkipUnmatched = val ?? false;
+                        });
                       },
                     ),
                     const Text('Auto Skip Unmatched'),
@@ -566,7 +626,9 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  setState(() { job.cancel = true; });
+                  setState(() {
+                    job.cancel = true;
+                  });
                   Navigator.of(context).pop();
                 },
                 child: const Text('Cancel Import'),
@@ -593,7 +655,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       // Process songs in batches for better performance
       final List<Song> matchedSongs = [];
       final prefs = await SharedPreferences.getInstance();
-      final int batchSize = prefs.getInt('maxConcurrentPlaylistMatches') ?? 5; // Get from settings
+      final int batchSize = prefs.getInt('maxConcurrentPlaylistMatches') ??
+          5; // Get from settings
       final apiService = ApiService();
 
       for (int i = 0; i < songEntries.length; i += batchSize) {
@@ -602,14 +665,17 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           break;
         }
 
-        final endIndex = (i + batchSize < songEntries.length) ? i + batchSize : songEntries.length;
+        final endIndex = (i + batchSize < songEntries.length)
+            ? i + batchSize
+            : songEntries.length;
         final batch = songEntries.sublist(i, endIndex);
-        
-        debugPrint('Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} songs');
+
+        debugPrint(
+            'Processing batch ${(i ~/ batchSize) + 1}: ${batch.length} songs');
 
         // Process batch concurrently
         final batchResults = await _processSongBatch(batch, apiService, job);
-        
+
         // Handle user selections for unmatched songs
         for (final result in batchResults) {
           if (result.matchedSong != null) {
@@ -619,10 +685,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           } else if (!job.autoSkipUnmatched && mounted) {
             // Show user selection dialog for unmatched songs
             final userSelected = await _showSongSearchPopup(
-              result.entry.title, 
-              result.entry.artist,
-              missingFields: result.entry.artist.isEmpty
-            );
+                result.entry.title, result.entry.artist,
+                missingFields: result.entry.artist.isEmpty);
             if (userSelected != null) {
               matchedSongs.add(userSelected);
               job.matchedCount = matchedSongs.length;
@@ -643,7 +707,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             barrierDismissible: false,
             builder: (context) => AlertDialog(
               title: const Text('Import Cancelled'),
-              content: const Text('Do you want to keep the songs that were already matched as a playlist, or discard them?'),
+              content: const Text(
+                  'Do you want to keep the songs that were already matched as a playlist, or discard them?'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, 'discard'),
@@ -661,7 +726,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           } else if (action == 'discard') {
             if (mounted && context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Playlist import cancelled and discarded.')),
+                const SnackBar(
+                    content: Text('Playlist import cancelled and discarded.')),
               );
             }
           }
@@ -683,7 +749,6 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
 
       await _createPlaylistFromMatchedSongs(matchedSongs);
       await WakelockPlus.disable();
-
     } catch (e, stack) {
       debugPrint('Failed to import playlist: $e\n$stack');
       if (mounted && context.mounted) {
@@ -696,12 +761,9 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
   }
 
   Future<List<BatchResult>> _processSongBatch(
-    List<SongEntry> batch, 
-    ApiService apiService, 
-    ImportJob job
-  ) async {
+      List<SongEntry> batch, ApiService apiService, ImportJob job) async {
     final List<BatchResult> results = [];
-    
+
     // Create futures for concurrent API calls
     final List<Future<BatchResult>> futures = batch.map((entry) async {
       return await _searchAndMatchSong(entry, apiService);
@@ -710,11 +772,12 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     // Wait for all API calls to complete
     final batchResults = await Future.wait(futures);
     results.addAll(batchResults);
-    
+
     return results;
   }
 
-  Future<BatchResult> _searchAndMatchSong(SongEntry entry, ApiService apiService) async {
+  Future<BatchResult> _searchAndMatchSong(
+      SongEntry entry, ApiService apiService) async {
     try {
       String searchQuery;
       List<Song> searchResults = [];
@@ -735,12 +798,19 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       }
 
       try {
-        searchResults = await apiService.fetchSongs(searchQuery);
+        // Use version-aware search if we have artist and title
+        if (entry.artist.isNotEmpty) {
+          searchResults = await apiService.fetchSongsVersionAware(
+              entry.artist, entry.title);
+        } else {
+          searchResults = await apiService.fetchSongs(searchQuery);
+        }
       } catch (e) {
         final errorStr = e.toString();
         if (errorStr.contains('Status Code: 500')) {
           debugPrint('Skipping "${entry.title}" due to 500 error.');
-          return BatchResult(entry: entry, matchedSong: null, error: '500 error');
+          return BatchResult(
+              entry: entry, matchedSong: null, error: '500 error');
         } else {
           rethrow;
         }
@@ -748,34 +818,37 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
 
       // Try exact match first
       Song? bestMatch = _findExactMatch(searchResults, entry);
-      
+
       // If no exact match, try with stripped title/artist
       if (bestMatch == null && entry.artist.isNotEmpty) {
         final strippedTitle = _stripFeaturing(entry.title);
         final strippedArtist = _truncateArtistAtComma(entry.artist);
-        
+
         if (strippedTitle != entry.title || strippedArtist != entry.artist) {
           try {
             final strippedQuery = '$strippedTitle $strippedArtist';
             searchResults = await apiService.fetchSongs(strippedQuery);
-            bestMatch = _findExactMatch(searchResults, SongEntry(
-              title: strippedTitle,
-              artist: strippedArtist,
-              album: entry.album,
-              originalIndex: entry.originalIndex,
-            ));
+            bestMatch = _findExactMatch(
+                searchResults,
+                SongEntry(
+                  title: strippedTitle,
+                  artist: strippedArtist,
+                  album: entry.album,
+                  originalIndex: entry.originalIndex,
+                ));
           } catch (e) {
             final errorStr = e.toString();
             if (errorStr.contains('Status Code: 500')) {
-              debugPrint('Skipping stripped search for "${entry.title}" due to 500 error.');
-              return BatchResult(entry: entry, matchedSong: null, error: '500 error');
+              debugPrint(
+                  'Skipping stripped search for "${entry.title}" due to 500 error.');
+              return BatchResult(
+                  entry: entry, matchedSong: null, error: '500 error');
             }
           }
         }
       }
 
       return BatchResult(entry: entry, matchedSong: bestMatch, error: null);
-
     } catch (e) {
       debugPrint('Error processing song "${entry.title}": $e');
       return BatchResult(entry: entry, matchedSong: null, error: e.toString());
@@ -785,7 +858,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
   Song? _findExactMatch(List<Song> searchResults, SongEntry entry) {
     for (final result in searchResults) {
       if (result.title.toLowerCase() == entry.title.toLowerCase() &&
-          (entry.artist.isEmpty || result.artist.toLowerCase() == entry.artist.toLowerCase())) {
+          (entry.artist.isEmpty ||
+              result.artist.toLowerCase() == entry.artist.toLowerCase())) {
         return result;
       }
     }
@@ -805,12 +879,17 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, nameCtrl.text.trim()), child: const Text('OK')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () =>
+                  Navigator.pop(dialogContext, nameCtrl.text.trim()),
+              child: const Text('OK')),
         ],
       ),
     );
-    
+
     if (playlistName == null || playlistName.isEmpty) {
       debugPrint('No playlist name entered.');
       return;
@@ -821,23 +900,28 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       name: playlistName,
       songs: matchedSongs,
     );
-    
+
     debugPrint('Created playlist: ${playlist.toJson()}');
     await _manager.addPlaylist(playlist);
     await _manager.savePlaylists();
-    debugPrint('Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
+    debugPrint(
+        'Playlist added and saved. Current playlists: ${_manager.playlists.map((p) => p.name).toList()}');
     _reload();
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Playlist import completed: ${matchedSongs.length} songs matched.')),
+        SnackBar(
+            content: Text(
+                'Playlist import completed: ${matchedSongs.length} songs matched.')),
       );
     }
     ImportJobManager().update();
   }
 
-  Future<Song?> _showSongSearchPopup(String localTitle, String localArtist, {bool missingFields = false}) async {
-    final TextEditingController searchController = TextEditingController(text: '$localTitle $localArtist');
+  Future<Song?> _showSongSearchPopup(String localTitle, String localArtist,
+      {bool missingFields = false}) async {
+    final TextEditingController searchController =
+        TextEditingController(text: '$localTitle $localArtist');
     List<Song> searchResults = [];
     bool isSearching = false;
     Song? selectedSong;
@@ -861,13 +945,15 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Text(
                           'Song title or artist is missing. Please search for the correct song.',
-                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              color: Colors.red, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                       ),
                     Text(
                       'Local: "$localTitle" by $localArtist',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -878,18 +964,25 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                       ),
                       onSubmitted: (value) async {
                         if (value.trim().isNotEmpty) {
-                          setState(() { isSearching = true; });
+                          setState(() {
+                            isSearching = true;
+                          });
                           try {
-                            final results = await apiService.fetchSongs(value.trim());
+                            final results =
+                                await apiService.fetchSongs(value.trim());
                             setState(() {
                               searchResults = results;
                               isSearching = false;
                             });
                           } catch (e) {
-                            setState(() { isSearching = false; });
+                            setState(() {
+                              isSearching = false;
+                            });
                             if (mounted && context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Search error: $e'), backgroundColor: Colors.red),
+                                SnackBar(
+                                    content: Text('Search error: $e'),
+                                    backgroundColor: Colors.red),
                               );
                             }
                           }
@@ -946,13 +1039,16 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Import Playlist from XLSX'),
         content: const Text(
-          'This feature allows you to import a playlist from an XLSX file (such as one exported from FreeYourMusic).\n\n'
-          'For each row, the app will use the song name and artist to search for the best match in the online database, and build a playlist from the matched songs.\n\n'
-          'Songs that cannot be matched will prompt the user to find a match. You will be able to name the imported playlist after the import completes.'
-        ),
+            'This feature allows you to import a playlist from an XLSX file (such as one exported from FreeYourMusic).\n\n'
+            'For each row, the app will use the song name and artist to search for the best match in the online database, and build a playlist from the matched songs.\n\n'
+            'Songs that cannot be matched will prompt the user to find a match. You will be able to name the imported playlist after the import completes.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continue')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Continue')),
         ],
       ),
     );
@@ -985,7 +1081,9 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                   Checkbox(
                     value: job.autoSkipUnmatched,
                     onChanged: (val) {
-                      setState(() { job.autoSkipUnmatched = val ?? false; });
+                      setState(() {
+                        job.autoSkipUnmatched = val ?? false;
+                      });
                       job.notifyParent?.call();
                     },
                   ),
@@ -997,7 +1095,9 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                setState(() { job.cancel = true; });
+                setState(() {
+                  job.cancel = true;
+                });
                 job.notifyParent?.call();
                 Navigator.of(context).pop();
               },
@@ -1017,7 +1117,10 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
 
   String _stripFeaturing(String title) {
     // Remove (feat. ...), (ft. ...), (with ...), case-insensitive
-    return title.replaceAll(RegExp(r'\s*\((feat\.|ft\.|with)[^)]*\)', caseSensitive: false), '').trim();
+    return title
+        .replaceAll(
+            RegExp(r'\s*\((feat\.|ft\.|with)[^)]*\)', caseSensitive: false), '')
+        .trim();
   }
 
   String _truncateArtistAtComma(String artist) {

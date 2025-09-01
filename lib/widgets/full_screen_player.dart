@@ -233,18 +233,36 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                 borderRadius: BorderRadius.circular(4),
                                 child: imageWidget,
                               ),
-                              title: Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontWeight: isCurrentlyPlaying
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  color: isCurrentlyPlaying
-                                      ? colorScheme.primary
-                                      : colorScheme.onSurface,
-                                ),
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.baseTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: isCurrentlyPlaying
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isCurrentlyPlaying
+                                          ? colorScheme.primary
+                                          : colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  if (song.versionTags.isNotEmpty)
+                                    Text(
+                                      song.versionTags,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isCurrentlyPlaying
+                                            ? colorScheme.primary
+                                                .withOpacity(0.8)
+                                            : colorScheme.onSurface
+                                                .withOpacity(0.6),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
                               ),
                               subtitle: Text(
                                 song.artist.isNotEmpty

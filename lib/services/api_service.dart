@@ -7,24 +7,27 @@ import '../models/update_info.dart'; // Import the new model
 import '../models/album.dart'; // Import the new Album model
 import '../models/lyrics_data.dart'; // Import LyricsData
 import 'error_handler_service.dart';
+import 'version_service.dart'; // Import VersionService
 import 'dart:async';
 
 // Performance: Cache entry with TTL
 class _CacheEntry<T> {
   final T data;
   final DateTime timestamp;
-  
+
   _CacheEntry(this.data, this.timestamp);
-  
-  bool get isExpired => DateTime.now().difference(timestamp) > const Duration(minutes: 15);
-  bool get isAlbumExpired => DateTime.now().difference(timestamp) > const Duration(hours: 1);
+
+  bool get isExpired =>
+      DateTime.now().difference(timestamp) > const Duration(minutes: 15);
+  bool get isAlbumExpired =>
+      DateTime.now().difference(timestamp) > const Duration(hours: 1);
 }
 
 // Performance: Pending request queue
 class _PendingRequest {
   final String url;
   final Completer<http.Response> completer;
-  
+
   _PendingRequest(this.url, this.completer);
 }
 
@@ -40,22 +43,22 @@ class ApiService {
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
   static const String baseUrl = 'https://ltn-api.vercel.app/api/';
-  static const String updateUrl = 'https://ltn-api.vercel.app/updates/update.json';
+  static const String updateUrl =
+      'https://ltn-api.vercel.app/updates/update.json';
 
   // Performance: Enhanced caching with TTL
   final Map<String, _CacheEntry<List<Song>>> _songCache = {};
   final Map<String, _CacheEntry<List<dynamic>>> _radioStationCache = {};
   final Map<String, _CacheEntry<String>> _audioUrlCache = {};
   final Map<String, _CacheEntry<Album>> _albumDetailCache = {};
-  
+
   // Performance: HTTP client with connection pooling
   static final http.Client _httpClient = http.Client();
-  
+
   // Performance: Request debouncing
   final Map<String, Timer> _debounceTimers = {};
   static const Duration _debounceDelay = Duration(milliseconds: 300);
 
-  
   // Performance: Concurrent request limiting
   static const int _maxConcurrentRequests = 5;
   int _activeRequests = 0;
@@ -69,13 +72,13 @@ class ApiService {
       _pendingRequests.add(_PendingRequest(url, completer));
       return completer.future;
     }
-    
+
     _activeRequests++;
-    
+
     int retries = 0;
     const int maxRetries = 3;
     const Duration retryDelay = Duration(milliseconds: 500);
-    
+
     try {
       while (true) {
         final response = await _httpClient.get(Uri.parse(url)).timeout(
@@ -93,7 +96,8 @@ class ApiService {
           await Future.delayed(retryDelay * retries); // Exponential backoff
           continue;
         } else {
-          throw Exception('Failed to load data from $url, Status Code: ${response.statusCode}');
+          throw Exception(
+              'Failed to load data from $url, Status Code: ${response.statusCode}');
         }
       }
     } catch (e) {
@@ -103,10 +107,11 @@ class ApiService {
       _processPendingRequests();
     }
   }
-  
+
   // Performance: Process pending requests
   void _processPendingRequests() {
-    if (_pendingRequests.isNotEmpty && _activeRequests < _maxConcurrentRequests) {
+    if (_pendingRequests.isNotEmpty &&
+        _activeRequests < _maxConcurrentRequests) {
       final request = _pendingRequests.removeFirst();
       _get(request.url).then(request.completer.complete).catchError((error) {
         request.completer.completeError(error);
@@ -119,18 +124,18 @@ class ApiService {
   // Performance: Debounced search
   Future<List<Song>> _debouncedFetchSongs(String query) async {
     final String cacheKey = query.isEmpty ? "__topCharts__" : query;
-    
+
     // Check cache first
     final cached = _songCache[cacheKey];
     if (cached != null && !cached.isExpired) {
       return cached.data;
     }
-    
+
     // Cancel existing timer for this query
     _debounceTimers[cacheKey]?.cancel();
-    
+
     final completer = Completer<List<Song>>();
-    
+
     _debounceTimers[cacheKey] = Timer(_debounceDelay, () async {
       try {
         final songs = await _fetchSongsInternal(query);
@@ -139,14 +144,14 @@ class ApiService {
         completer.completeError(e);
       }
     });
-    
+
     return completer.future;
   }
-  
+
   // Performance: Internal fetch method
   Future<List<Song>> _fetchSongsInternal(String query) async {
     final String cacheKey = query.isEmpty ? "__topCharts__" : query;
-    
+
     final Uri url;
     if (query.isNotEmpty) {
       url = Uri.parse('${baseUrl}search/?query=${Uri.encodeComponent(query)}');
@@ -162,7 +167,9 @@ class ApiService {
       if (query.isNotEmpty) {
         items = data;
       } else {
-        if (data is Map && data.containsKey('tracks') && data['tracks'] is List) {
+        if (data is Map &&
+            data.containsKey('tracks') &&
+            data['tracks'] is List) {
           items = data['tracks'];
         } else if (data is List) {
           items = data;
@@ -172,10 +179,10 @@ class ApiService {
       }
 
       final songs = items.map<Song>((json) => Song.fromJson(json)).toList();
-      
+
       // Performance: Cache with TTL
       _songCache[cacheKey] = _CacheEntry(songs, DateTime.now());
-      
+
       return songs;
     } catch (e) {
       rethrow;
@@ -203,16 +210,16 @@ class ApiService {
     if (cached != null && !cached.isAlbumExpired) {
       return cached.data;
     }
-    
+
     final url = '${baseUrl}album/$albumId';
     try {
       final response = await _get(url);
       Map<String, dynamic> data = jsonDecode(response.body);
       final album = Album.fromJson(data);
-      
+
       // Performance: Cache with longer TTL for albums
       _albumDetailCache[albumId] = _CacheEntry(album, DateTime.now());
-      
+
       return album;
     } catch (e) {
       _errorHandler.logError(e, context: 'fetchAlbumDetailsById');
@@ -234,7 +241,7 @@ class ApiService {
       final url = '${baseUrl}search/albums?query=${Uri.encodeComponent(query)}';
       final response = await _get(url);
       final data = jsonDecode(response.body) as List<dynamic>;
-      
+
       return data.map((albumJson) {
         return Album.fromJson(albumJson as Map<String, dynamic>);
       }).toList();
@@ -247,10 +254,11 @@ class ApiService {
   // Search artists by query
   Future<List<Map<String, dynamic>>> searchArtists(String query) async {
     try {
-      final url = '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
+      final url =
+          '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
       final response = await _get(url);
       final data = jsonDecode(response.body) as List<dynamic>;
-      
+
       return data.map((artistJson) {
         return artistJson as Map<String, dynamic>;
       }).toList();
@@ -265,6 +273,53 @@ class ApiService {
     return _debouncedFetchSongs(query);
   }
 
+  /// Version-aware song search that tries multiple query variations
+  Future<List<Song>> fetchSongsVersionAware(String artist, String title) async {
+    final searchQueries =
+        VersionService.createAlternativeSearchQueries(artist, title);
+    final allResults = <Song>[];
+    final seenIds = <String>{};
+
+    // Try each search query and collect unique results
+    for (final query in searchQueries) {
+      try {
+        final results = await fetchSongs(query);
+        for (final song in results) {
+          if (!seenIds.contains(song.id)) {
+            seenIds.add(song.id);
+            allResults.add(song);
+          }
+        }
+
+        // If we found good matches with the first query, we can stop early
+        if (allResults.isNotEmpty && query == searchQueries.first) {
+          // Check if we found a version-aware match
+          final hasVersionMatch = allResults.any((song) =>
+              VersionService.calculateVersionAwareSimilarity(
+                  song.title, title) >
+              0.8);
+          if (hasVersionMatch) {
+            break;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error in version-aware search with query "$query": $e');
+        continue;
+      }
+    }
+
+    // Sort results by version-aware similarity
+    allResults.sort((a, b) {
+      final similarityA =
+          VersionService.calculateVersionAwareSimilarity(a.title, title);
+      final similarityB =
+          VersionService.calculateVersionAwareSimilarity(b.title, title);
+      return similarityB.compareTo(similarityA);
+    });
+
+    return allResults;
+  }
+
   Future<String> downloadSong(String url, String fileName) async {
     return url;
   }
@@ -275,30 +330,70 @@ class ApiService {
     if (cached != null && !cached.isExpired) {
       return cached.data;
     }
-    
-    final Uri url = Uri.parse(
-        '${baseUrl}audio/?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}');
-    try {
-      final response = await _get(url.toString());
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data != null && data['audioURL'] != null) {
-          final audioUrl = data['audioURL'] as String;
-          
-          // Performance: Cache audio URLs
-          _audioUrlCache[cacheKey] = _CacheEntry(audioUrl, DateTime.now());
-          
-          return audioUrl;
+
+    // Try version-aware search queries for better matching
+    final searchQueries =
+        VersionService.createAlternativeSearchQueries(artist, musicName);
+
+    String? audioUrl;
+
+    // Try each search query until we find a match
+    for (final query in searchQueries) {
+      final parts = query.trim().split(' ');
+      if (parts.length < 2) continue;
+
+      // Extract potential artist and music name from query
+      final queryArtist = parts.last; // Assume artist is last
+      final queryMusicName =
+          parts.take(parts.length - 1).join(' '); // Rest is music name
+
+      final Uri url = Uri.parse(
+          '${baseUrl}audio/?artist=${Uri.encodeComponent(queryArtist)}&musicName=${Uri.encodeComponent(queryMusicName)}');
+
+      try {
+        final response = await _get(url.toString());
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data != null && data['audioURL'] != null) {
+            audioUrl = data['audioURL'] as String;
+            break; // Found a match, stop searching
+          }
         }
+      } catch (e) {
+        // Log error but continue trying other queries
+        debugPrint('Error fetching audio with query "$query": $e');
+        continue;
       }
-      return null;
-    } catch (e) {
-      _errorHandler.logError(e, context: 'fetchAudioUrl');
-      return null;
     }
+
+    // If version-aware search didn't work, try the original approach as fallback
+    if (audioUrl == null) {
+      final Uri fallbackUrl = Uri.parse(
+          '${baseUrl}audio/?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}');
+      try {
+        final response = await _get(fallbackUrl.toString());
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data != null && data['audioURL'] != null) {
+            audioUrl = data['audioURL'] as String;
+          }
+        }
+      } catch (e) {
+        _errorHandler.logError(e, context: 'fetchAudioUrl');
+      }
+    }
+
+    if (audioUrl != null) {
+      // Performance: Cache audio URLs
+      _audioUrlCache[cacheKey] = _CacheEntry(audioUrl, DateTime.now());
+      return audioUrl;
+    }
+
+    return null;
   }
 
-  Future<List<dynamic>> fetchStationsByCountry(String country, {String name = ''}) async {
+  Future<List<dynamic>> fetchStationsByCountry(String country,
+      {String name = ''}) async {
     final String cacheKey = "${country}_$name";
     final cached = _radioStationCache[cacheKey];
     if (cached != null && !cached.isExpired) {
@@ -308,28 +403,32 @@ class ApiService {
     final queryParams = <String, String>{};
     if (country.isNotEmpty) queryParams['country'] = country;
     if (name.isNotEmpty) queryParams['name'] = name;
-    
-    final url = Uri.https('ltn-api.vercel.app', '/api/radio', queryParams.isEmpty ? null : queryParams);
-    
+
+    final url = Uri.https('ltn-api.vercel.app', '/api/radio',
+        queryParams.isEmpty ? null : queryParams);
+
     try {
       final response = await _get(url.toString());
       if (response.statusCode == 200) {
         try {
           final stations = json.decode(response.body) as List<dynamic>;
-          
+
           // Performance: Cache radio stations
           _radioStationCache[cacheKey] = _CacheEntry(stations, DateTime.now());
-          
+
           return stations;
         } catch (e) {
-          throw Exception('Error decoding JSON: $e\nResponse body: ${response.body}');
+          throw Exception(
+              'Error decoding JSON: $e\nResponse body: ${response.body}');
         }
       } else if (response.statusCode == 404) {
         final emptyStations = <dynamic>[];
-        _radioStationCache[cacheKey] = _CacheEntry(emptyStations, DateTime.now());
+        _radioStationCache[cacheKey] =
+            _CacheEntry(emptyStations, DateTime.now());
         return emptyStations;
       } else {
-        throw Exception('Failed to load radio stations. Status code: ${response.statusCode}');
+        throw Exception(
+            'Failed to load radio stations. Status code: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Error fetching radio stations: $e');
@@ -355,7 +454,7 @@ class ApiService {
     _radioStationCache.clear();
     _audioUrlCache.clear();
     _albumDetailCache.clear();
-    
+
     // Cancel all debounce timers
     for (final timer in _debounceTimers.values) {
       timer.cancel();
@@ -427,11 +526,12 @@ class ApiService {
   }
 
   Future<LyricsData?> fetchLyrics(String artist, String musicName) async {
-    final url = '${baseUrl}lyrics?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}';
+    final url =
+        '${baseUrl}lyrics?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}';
     try {
-      final response = await _get(url); 
+      final response = await _get(url);
       final data = jsonDecode(response.body);
-      
+
       if (data != null && data['lyrics'] != null && data['lyrics'] is Map) {
         final lyricsMap = data['lyrics'] as Map<String, dynamic>;
         return LyricsData(
@@ -439,13 +539,13 @@ class ApiService {
           syncedLyrics: lyricsMap['syncedLyrics'] as String?,
         );
       }
-      return null; 
+      return null;
     } catch (e) {
       _errorHandler.logError(e, context: 'fetchLyrics');
       if (e.toString().contains('404')) {
-        return null; 
+        return null;
       }
-      rethrow; 
+      rethrow;
     }
   }
 
@@ -455,9 +555,11 @@ class ApiService {
       if (RegExp(r'^\d+$').hasMatch(query)) {
         artistId = query;
       } else {
-        final searchUrl = '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
+        final searchUrl =
+            '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
         final searchResp = await _get(searchUrl);
-        final List<dynamic> results = jsonDecode(searchResp.body) as List<dynamic>;
+        final List<dynamic> results =
+            jsonDecode(searchResp.body) as List<dynamic>;
         if (results.isEmpty) {
           throw Exception('No artists found for query: "$query"');
         }
@@ -478,12 +580,12 @@ class ApiService {
   Future<List<Album>> getArtistAlbums(String artistId) async {
     try {
       final response = await _get('${baseUrl}artist/$artistId/albums');
-      
+
       final data = json.decode(response.body);
-      
+
       // Handle different possible response structures
       List<dynamic> albumList = [];
-      
+
       if (data is List) {
         // If the response is directly an array of albums
         albumList = data;
@@ -498,11 +600,10 @@ class ApiService {
           return [Album.fromJson(data)];
         }
       }
-      
+
       return albumList
           .map((albumData) => Album.fromJson(albumData as Map<String, dynamic>))
           .toList();
-          
     } catch (e) {
       _errorHandler.logError(e, context: 'getArtistAlbums');
       return [];

@@ -1,9 +1,12 @@
+import '../services/version_service.dart';
+
 class Song {
   final String title;
-  final String id; 
+  final String id;
   final String artist;
   final String artistId;
-  final String albumArtUrl; // Can be network URL or local filename (relative to docs dir)
+  final String
+      albumArtUrl; // Can be network URL or local filename (relative to docs dir)
   final String? album;
   final String? releaseDate;
   final String audioUrl; // Ensure non-nullable, default to empty
@@ -11,7 +14,8 @@ class Song {
 
   // Add these fields
   bool isDownloaded;
-  String? localFilePath; // Stores filename only (relative to docs dir) if downloaded
+  String?
+      localFilePath; // Stores filename only (relative to docs dir) if downloaded
   bool get isLocal => !albumArtUrl.startsWith('http');
   final Map<String, dynamic>? extras; // Added extras field
   final bool isImported; // New field for imported songs
@@ -61,7 +65,7 @@ class Song {
     String? releaseDate,
     String? audioUrl,
     bool? isDownloaded,
-    String? localFilePath,           // <— parameter stays nullable
+    String? localFilePath, // <— parameter stays nullable
     Map<String, dynamic>? extras, // Added extras to copyWith
     Duration? duration, // Added duration to copyWith
     bool? isDownloading,
@@ -76,13 +80,15 @@ class Song {
       title: title ?? this.title,
       id: id ?? this.id, // Keep original ID unless explicitly overridden
       artist: artist ?? this.artist,
-      artistId: artistId ?? this.artistId, // Updated to use provided or existing artistId
+      artistId: artistId ??
+          this.artistId, // Updated to use provided or existing artistId
       albumArtUrl: albumArtUrl ?? this.albumArtUrl, // Handled by consumers
       album: album ?? this.album,
       releaseDate: releaseDate ?? this.releaseDate,
       audioUrl: audioUrl ?? this.audioUrl,
       isDownloaded: isDownloaded ?? this.isDownloaded,
-      localFilePath: localFilePath ?? this.localFilePath,  // <— preserve existing path
+      localFilePath:
+          localFilePath ?? this.localFilePath, // <— preserve existing path
       extras: extras ?? this.extras, // Added extras logic
       duration: duration ?? this.duration, // Added duration logic
       isDownloading: isDownloading ?? this.isDownloading,
@@ -91,7 +97,8 @@ class Song {
       plainLyrics: plainLyrics ?? this.plainLyrics,
       syncedLyrics: syncedLyrics ?? this.syncedLyrics,
       playCount: playCount ?? this.playCount, // New field
-      isCustomMetadata: isCustomMetadata ?? this.isCustomMetadata, // Add to copyWith logic
+      isCustomMetadata:
+          isCustomMetadata ?? this.isCustomMetadata, // Add to copyWith logic
     );
   }
 
@@ -114,13 +121,14 @@ class Song {
     try {
       // Use helpers for safer parsing
       final title = _asString(json['title'] ?? json['name'], 'Unknown Title');
-      final id = _asString(json['id'], DateTime.now().millisecondsSinceEpoch.toString());
+      final id = _asString(
+          json['id'], DateTime.now().millisecondsSinceEpoch.toString());
 
       String artist = _asString(json['artist']);
       String artistIdFromJson = _asString(json['artistId']); // Parse artistId
       String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
       String audioUrl = _asString(json['audioUrl']);
-      
+
       String? albumName;
       String? releaseDate = _asNullableString(json['releaseDate']);
 
@@ -133,7 +141,9 @@ class Song {
         durationMsAsInt = int.tryParse(durationMsValue);
       }
       // If durationMsValue is null or not int/String, durationMsAsInt remains null.
-      final Duration? parsedDuration = durationMsAsInt != null ? Duration(milliseconds: durationMsAsInt) : null;
+      final Duration? parsedDuration = durationMsAsInt != null
+          ? Duration(milliseconds: durationMsAsInt)
+          : null;
 
       // isDownloading and downloadProgress are typically transient state,
       // so they are not usually part of fromJson.
@@ -155,7 +165,8 @@ class Song {
       final albumField = json['album'];
       if (albumField is Map) {
         albumName = _asNullableString(albumField['name']);
-        releaseDate = _asNullableString(albumField['release_date']) ?? releaseDate;
+        releaseDate =
+            _asNullableString(albumField['release_date']) ?? releaseDate;
         if (albumArtUrlFromJson.isEmpty && albumField.containsKey('images')) {
           final images = albumField['images'] as List?;
           if (images != null && images.isNotEmpty) {
@@ -163,27 +174,33 @@ class Song {
             albumArtUrlFromJson = _asString(firstImageMap?['url']);
           }
         }
-      } else { // albumField is not a Map (could be String, null, or other type to convert)
+      } else {
+        // albumField is not a Map (could be String, null, or other type to convert)
         albumName = _asNullableString(albumField);
       }
 
-      final bool isImported = json['isImported'] as bool? ?? false; // Parse isImported
+      final bool isImported =
+          json['isImported'] as bool? ?? false; // Parse isImported
       final String? plainLyrics = _asNullableString(json['plainLyrics']);
       final String? syncedLyrics = _asNullableString(json['syncedLyrics']);
       final int playCount = json['playCount'] as int? ?? 0; // Parse playCount
-      final bool isCustomMetadata = json['isCustomMetadata'] as bool? ?? false; // Parse isCustomMetadata
+      final bool isCustomMetadata =
+          json['isCustomMetadata'] as bool? ?? false; // Parse isCustomMetadata
 
       return Song(
         title: title,
         id: id,
         artist: artist,
         artistId: artistIdFromJson, // Assign parsed artistId
-        albumArtUrl: albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
+        albumArtUrl:
+            albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
         releaseDate: releaseDate, // releaseDate is already String?
         audioUrl: audioUrl,
-        isDownloaded: json['isDownloaded'] as bool? ?? false, // Assuming isDownloaded is boolean
-        localFilePath: _asNullableString(json['localFilePath']), // Store as is; migration/usage logic handles interpretation
+        isDownloaded: json['isDownloaded'] as bool? ??
+            false, // Assuming isDownloaded is boolean
+        localFilePath: _asNullableString(json[
+            'localFilePath']), // Store as is; migration/usage logic handles interpretation
         extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
         duration: parsedDuration, // Assign parsed duration
         isImported: isImported, // Assign parsed isImported
@@ -195,22 +212,23 @@ class Song {
       );
     } catch (e) {
       // For debugging purposes, it can be helpful to print the problematic JSON.
-      // print('Error parsing song from JSON: $json. Error: $e'); 
+      // print('Error parsing song from JSON: $json. Error: $e');
       throw FormatException('Invalid song JSON format: $e. Source JSON: $json');
     }
   }
 
   factory Song.fromAlbumTrackJson(
-    Map<String, dynamic> trackJson,
-    String albumTitle,
-    String albumArtPictureId, 
-    String albumReleaseDate,
-    String albumArtistName
-  ) {
-    final String songId = trackJson['SNG_ID']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+      Map<String, dynamic> trackJson,
+      String albumTitle,
+      String albumArtPictureId,
+      String albumReleaseDate,
+      String albumArtistName) {
+    final String songId = trackJson['SNG_ID']?.toString() ??
+        DateTime.now().millisecondsSinceEpoch.toString();
     final String title = trackJson['SNG_TITLE']?.toString() ?? 'Unknown Track';
     final String artist = trackJson['ART_NAME']?.toString() ?? albumArtistName;
-    final String artistId = trackJson['ART_ID']?.toString() ?? ''; // Parse ART_ID for artistId
+    final String artistId =
+        trackJson['ART_ID']?.toString() ?? ''; // Parse ART_ID for artistId
 
     final String durationStr = trackJson['DURATION']?.toString() ?? '0';
     final int seconds = int.tryParse(durationStr) ?? 0;
@@ -254,14 +272,17 @@ class Song {
         'id': id, // Ensure ID is saved
         'artist': artist,
         'artistId': artistId, // Serialize artistId
-        'albumArtUrl': albumArtUrl, // Will save filename if correctly set by app logic
+        'albumArtUrl':
+            albumArtUrl, // Will save filename if correctly set by app logic
         'album': album,
         'releaseDate': releaseDate,
         'audioUrl': audioUrl,
         'isDownloaded': isDownloaded,
-        'localFilePath': localFilePath, // Will save filename if correctly set by app logic
+        'localFilePath':
+            localFilePath, // Will save filename if correctly set by app logic
         'extras': extras, // Added extras to JSON
-        'duration_ms': duration?.inMilliseconds, // Serialize duration to milliseconds
+        'duration_ms':
+            duration?.inMilliseconds, // Serialize duration to milliseconds
         'isImported': isImported, // Serialize isImported
         'plainLyrics': plainLyrics,
         'syncedLyrics': syncedLyrics,
@@ -284,4 +305,36 @@ class Song {
     // Simulate fetching the URL (replace with actual API call if needed)
     return audioUrl.isNotEmpty ? audioUrl : '';
   }
+
+  // Version-aware title methods
+
+  /// Get the display title with properly formatted version information
+  String get displayTitle => VersionService.getDisplayTitle(title);
+
+  /// Get the base title without version information
+  String get baseTitle => VersionService.getBaseTitle(title);
+
+  /// Get all versions from the title
+  List<String> get versions => VersionService.getVersions(title);
+
+  /// Check if this is an acoustic version
+  bool get isAcoustic => VersionService.hasAcousticVersion(title);
+
+  /// Check if this is a live version
+  bool get isLive => VersionService.hasLiveVersion(title);
+
+  /// Get formatted version tags for display
+  String get versionTags {
+    final versionList = versions;
+    if (versionList.isEmpty) return '';
+    return versionList.map((v) => '($v)').join(' ');
+  }
+
+  /// Create search-optimized queries for this song
+  List<String> get searchQueries =>
+      VersionService.createAlternativeSearchQueries(artist, title);
+
+  /// Primary search query for this song
+  String get primarySearchQuery =>
+      VersionService.createSearchQuery(artist, title);
 }

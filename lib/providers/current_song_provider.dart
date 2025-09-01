@@ -1704,7 +1704,7 @@ class CurrentSongProvider with ChangeNotifier {
               '[downloadAlbumArt] Local art file missing, attempting to fetch from network for ${song.title} by ${song.artist}');
           final apiService = ApiService();
           final searchResults =
-              await apiService.fetchSongs('$song.title $song.artist');
+              await apiService.fetchSongsVersionAware(song.artist, song.title);
           Song? exactMatch;
           for (final result in searchResults) {
             if (result.title.toLowerCase() == song.title.toLowerCase() &&

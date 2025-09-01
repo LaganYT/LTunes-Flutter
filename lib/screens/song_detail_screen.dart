@@ -828,12 +828,33 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Flexible(
-                        child: Text(
-                          widget.song.title,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
+                        child: Column(
+                          children: [
+                            Text(
+                              widget.song.baseTitle,
+                              style: Theme.of(context).textTheme.headlineSmall,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                            ),
+                            if (widget.song.versionTags.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  widget.song.versionTags,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ],
