@@ -11,6 +11,7 @@ import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import '../services/auto_fetch_service.dart';
 import '../services/unified_search_service.dart';
+import '../services/liked_songs_service.dart';
 import 'playlist_detail_screen.dart'; // Import for navigation
 import 'album_screen.dart'; // Import AlbumScreen for navigation
 import 'package:file_picker/file_picker.dart';
@@ -39,22 +40,22 @@ final http.Client _imageHttpClient = http.Client();
 
 Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
-  
+
   // Check if we already have a cached result
   if (_stationIconCache.containsKey(stationId)) {
     return _stationIconCache[stationId]!;
   }
-  
+
   // Check if we already have a future for this station
   if (_stationIconFutures.containsKey(stationId)) {
     final result = await _stationIconFutures[stationId]!;
     return result;
   }
-  
+
   // Create a new future for this station
   final future = _cacheStationIconInternal(imageUrl, stationId);
   _stationIconFutures[stationId] = future;
-  
+
   try {
     final result = await future;
     _stationIconCache[stationId] = result;
@@ -66,7 +67,8 @@ Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   }
 }
 
-Future<String> _cacheStationIconInternal(String imageUrl, String stationId) async {
+Future<String> _cacheStationIconInternal(
+    String imageUrl, String stationId) async {
   try {
     final directory = await getApplicationDocumentsDirectory();
     final fileName = 'stationicon_$stationId.jpg';
@@ -154,12 +156,14 @@ class RadioRecentsManager extends ChangeNotifier {
 
   Future<void> _addStationToRecents(RadioStation station) async {
     final prefs = await SharedPreferences.getInstance();
-    final List<String>? stationsJson = prefs.getStringList('recent_radio_stations');
+    final List<String>? stationsJson =
+        prefs.getStringList('recent_radio_stations');
     List<RadioStation> currentStations = [];
     if (stationsJson != null) {
       try {
         currentStations = stationsJson
-            .map((s) => RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
+            .map((s) =>
+                RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
             .toList();
       } catch (e) {
         debugPrint('Could not parse recent stations: $e');
@@ -186,7 +190,8 @@ class RadioRecentsManager extends ChangeNotifier {
     }
 
     // Save back to SharedPreferences
-    final List<String> updatedStationsJson = currentStations.map((s) => jsonEncode(s.toJson())).toList();
+    final List<String> updatedStationsJson =
+        currentStations.map((s) => jsonEncode(s.toJson())).toList();
     await prefs.setStringList('recent_radio_stations', updatedStationsJson);
     await cleanupCachedStationIcons(currentStations);
     // Notify listeners that the list of recent stations has changed.
@@ -208,7 +213,9 @@ class RadioRecentsManager extends ChangeNotifier {
         streamUrl: audioUrl,
       );
 
-      if (station.id.isNotEmpty && station.name.isNotEmpty && station.streamUrl.isNotEmpty) {
+      if (station.id.isNotEmpty &&
+          station.name.isNotEmpty &&
+          station.streamUrl.isNotEmpty) {
         _addStationToRecents(station);
       }
     }
@@ -216,13 +223,17 @@ class RadioRecentsManager extends ChangeNotifier {
 }
 
 // Helper to clean up unused cached station icons
-Future<void> cleanupCachedStationIcons(List<RadioStation> currentStations) async {
+Future<void> cleanupCachedStationIcons(
+    List<RadioStation> currentStations) async {
   try {
     final directory = await getApplicationDocumentsDirectory();
     final files = directory.listSync();
-    final validFilenames = currentStations.map((s) => 'stationicon_${s.id}.jpg').toSet();
+    final validFilenames =
+        currentStations.map((s) => 'stationicon_${s.id}.jpg').toSet();
     for (final file in files) {
-      if (file is File && file.path.contains('stationicon_') && file.path.endsWith('.jpg')) {
+      if (file is File &&
+          file.path.contains('stationicon_') &&
+          file.path.endsWith('.jpg')) {
         final filename = p.basename(file.path);
         if (!validFilenames.contains(filename)) {
           try {
@@ -250,7 +261,8 @@ class ModernLibraryScreen extends StatefulWidget {
   ModernLibraryScreenState createState() => ModernLibraryScreenState();
 }
 
-class ModernLibraryScreenState extends State<ModernLibraryScreen> with AutomaticKeepAliveClientMixin {
+class ModernLibraryScreenState extends State<ModernLibraryScreen>
+    with AutomaticKeepAliveClientMixin {
   List<Song> _songs = [];
   List<Playlist> _playlists = [];
   List<Album> _savedAlbums = []; // New list for saved albums
@@ -261,7 +273,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   bool isPlaying = false;
   final TextEditingController _playlistNameController = TextEditingController();
   final PlaylistManagerService _playlistManager = PlaylistManagerService();
-  final AlbumManagerService _albumManager = AlbumManagerService(); // Instance of AlbumManagerService
+  final AlbumManagerService _albumManager =
+      AlbumManagerService(); // Instance of AlbumManagerService
   final Uuid _uuid = const Uuid(); // For generating unique IDs
 
   late CurrentSongProvider _currentSongProvider; // To listen for song updates
@@ -280,25 +293,24 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // static const String _albumSortPrefKey = 'albumSortType_v2'; // Removed
   // static const String _songSortPrefKey = 'songSortType_v2'; // Removed
 
-
   // cache local‐art lookup futures by filename
   // ignore: unused_field
   final Map<String, String> _localArtPathCache = {};
-  
+
   // Cache Future objects to prevent art flashing
   final Map<String, Future<String>> _localArtFutureCache = {};
-  
+
   // Performance: Debounced search
   Timer? _searchDebounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 300);
   late VoidCallback _searchListener;
-  
+
   // Performance: Lazy loading
   // static const int _pageSize = 20;
   // int _currentPage = 0;
   // bool _hasMoreItems = true;
   final ScrollController _scrollController = ScrollController();
-  
+
   // Performance: Loading states
   bool _isLoadingSongs = false;
   bool _isLoadingPlaylists = false;
@@ -313,19 +325,21 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     super.initState();
     _searchListener = () => _onSearchChanged(_searchController.text);
     _searchController.addListener(_searchListener);
-    
+
     // Performance: Add scroll listener for lazy loading
     _scrollController.addListener(_onScroll);
-    
+
     // Initial loads
     _loadData();
 
     // Listen to PlaylistManagerService
     // This listener will call _loadPlaylists when playlist data changes.
     _playlistManager.addListener(_onPlaylistChanged);
-    _albumManager.addListener(_onSavedAlbumsChanged); // Listen to AlbumManagerService
-    radioRecentsManager.addListener(_loadRecentStations); // Listen for global changes
-    
+    _albumManager
+        .addListener(_onSavedAlbumsChanged); // Listen to AlbumManagerService
+    radioRecentsManager
+        .addListener(_loadRecentStations); // Listen for global changes
+
     // audioPlayer.onPlayerComplete.listen((event) { // REMOVED
     //   setState(() {
     //     isPlaying = false;
@@ -336,9 +350,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   }
 
   void _loadData() {
-    _loadDownloadedSongs(); 
-    _loadPlaylists();       
-    _loadSavedAlbums();     
+    _loadDownloadedSongs();
+    _loadPlaylists();
+    _loadSavedAlbums();
     _loadRecentStations();
   }
 
@@ -423,21 +437,20 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   //   });
   // }
 
-
   // Performance: Debounced search
   void _onSearchChanged(String value) {
     _searchDebounceTimer?.cancel();
-    
+
     _searchDebounceTimer = Timer(_debounceDelay, () {
       if (!mounted) return;
-      
+
       setState(() {
         _searchQuery = value.toLowerCase();
         // Reset pagination for new search
         // _currentPage = 0;
         // _hasMoreItems = true;
       });
-      
+
       // Scroll to top when search results appear
       if (value.isNotEmpty && _scrollController.hasClients) {
         _scrollController.animateTo(
@@ -453,7 +466,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Setup listener for CurrentSongProvider here as context is available.
-    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     // This listener will call _loadDownloadedSongs when song data changes (e.g., download status).
     _currentSongProvider.addListener(_onSongDataChanged);
     // Initialize the global manager. It will only init once.
@@ -467,7 +481,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     }
   }
 
-  void _onSavedAlbumsChanged() { // New listener method
+  void _onSavedAlbumsChanged() {
+    // New listener method
     if (mounted) {
       _loadSavedAlbums(); // This will call setState after loading
     }
@@ -491,14 +506,16 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     _playlistManager.removeListener(_onPlaylistChanged);
     _albumManager.removeListener(_onSavedAlbumsChanged); // Remove listener
     _currentSongProvider.removeListener(_onSongDataChanged); // Remove listener
-    radioRecentsManager.removeListener(_loadRecentStations); // Clean up listener
+    radioRecentsManager
+        .removeListener(_loadRecentStations); // Clean up listener
     _scrollController.dispose();
     super.dispose();
   }
 
   // Performance: Lazy loading scroll listener
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       _loadMoreItems();
     }
   }
@@ -506,7 +523,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // Performance: Load more items for lazy loading
   void _loadMoreItems() {
     // if (!_hasMoreItems) return;
-    
+
     setState(() {
       // _currentPage++;
       _loadData();
@@ -523,24 +540,28 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // Unified search results builder
   Widget _buildUnifiedSearchResults() {
     final results = <Widget>[];
-    
+
     // Search in songs (including lyrics if enabled)
     final songMatches = _songs.where((song) {
       final matchesTitle = song.title.toLowerCase().contains(_searchQuery);
       final matchesArtist = song.artist.toLowerCase().contains(_searchQuery);
-      final matchesAlbum = song.album != null && song.album!.toLowerCase().contains(_searchQuery);
-      final matchesLyrics = _searchInLyrics && song.plainLyrics != null && 
-                           song.plainLyrics!.toLowerCase().contains(_searchQuery);
-      
+      final matchesAlbum = song.album != null &&
+          song.album!.toLowerCase().contains(_searchQuery);
+      final matchesLyrics = _searchInLyrics &&
+          song.plainLyrics != null &&
+          song.plainLyrics!.toLowerCase().contains(_searchQuery);
+
       return matchesTitle || matchesArtist || matchesAlbum || matchesLyrics;
     }).map((song) {
       // Determine match type for highlighting
       final matchesTitle = song.title.toLowerCase().contains(_searchQuery);
       final matchesArtist = song.artist.toLowerCase().contains(_searchQuery);
-      final matchesAlbum = song.album != null && song.album!.toLowerCase().contains(_searchQuery);
-      final matchesLyrics = _searchInLyrics && song.plainLyrics != null && 
-                           song.plainLyrics!.toLowerCase().contains(_searchQuery);
-      
+      final matchesAlbum = song.album != null &&
+          song.album!.toLowerCase().contains(_searchQuery);
+      final matchesLyrics = _searchInLyrics &&
+          song.plainLyrics != null &&
+          song.plainLyrics!.toLowerCase().contains(_searchQuery);
+
       return {
         'song': song,
         'matchesTitle': matchesTitle,
@@ -549,26 +570,27 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         'matchesLyrics': matchesLyrics,
       };
     }).toList();
-    
+
     // Search in playlists
-    final playlistMatches = _playlists.where((playlist) =>
-      playlist.name.toLowerCase().contains(_searchQuery)
-    ).toList();
-    
+    final playlistMatches = _playlists
+        .where((playlist) => playlist.name.toLowerCase().contains(_searchQuery))
+        .toList();
+
     // Search in albums
-    final albumMatches = _savedAlbums.where((album) =>
-      album.title.toLowerCase().contains(_searchQuery) ||
-      album.artistName.toLowerCase().contains(_searchQuery)
-    ).toList();
-    
+    final albumMatches = _savedAlbums
+        .where((album) =>
+            album.title.toLowerCase().contains(_searchQuery) ||
+            album.artistName.toLowerCase().contains(_searchQuery))
+        .toList();
+
     // Search in radio stations
-    final stationMatches = _recentStations.where((station) =>
-      station.name.toLowerCase().contains(_searchQuery)
-    ).toList();
-    
+    final stationMatches = _recentStations
+        .where((station) => station.name.toLowerCase().contains(_searchQuery))
+        .toList();
+
     // Add filter buttons at the top
     results.add(_buildSearchFilters());
-    
+
     if (_showSongs && songMatches.isNotEmpty) {
       results.add(
         Padding(
@@ -579,20 +601,21 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
           ),
         ),
       );
-      
+
       // Extract all songs from search results to use as playlist context
-      final searchResultSongs = songMatches.map((match) => match['song'] as Song).toList();
-      
+      final searchResultSongs =
+          songMatches.map((match) => match['song'] as Song).toList();
+
       results.addAll(songMatches.map((match) => _buildSongSearchTile(
-        match['song'] as Song,
-        searchContext: searchResultSongs,
-        matchesTitle: match['matchesTitle'] as bool,
-        matchesArtist: match['matchesArtist'] as bool,
-        matchesAlbum: match['matchesAlbum'] as bool,
-        matchesLyrics: match['matchesLyrics'] as bool,
-      )));
+            match['song'] as Song,
+            searchContext: searchResultSongs,
+            matchesTitle: match['matchesTitle'] as bool,
+            matchesArtist: match['matchesArtist'] as bool,
+            matchesAlbum: match['matchesAlbum'] as bool,
+            matchesLyrics: match['matchesLyrics'] as bool,
+          )));
     }
-    
+
     if (_showPlaylists && playlistMatches.isNotEmpty) {
       results.add(
         Padding(
@@ -603,9 +626,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
           ),
         ),
       );
-      results.addAll(playlistMatches.map((playlist) => _buildPlaylistSearchTile(playlist)));
+      results.addAll(playlistMatches
+          .map((playlist) => _buildPlaylistSearchTile(playlist)));
     }
-    
+
     if (_showAlbums && albumMatches.isNotEmpty) {
       results.add(
         Padding(
@@ -618,7 +642,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       );
       results.addAll(albumMatches.map((album) => _buildAlbumSearchTile(album)));
     }
-    
+
     if (_showRadioStations && stationMatches.isNotEmpty) {
       results.add(
         Padding(
@@ -629,9 +653,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
           ),
         ),
       );
-      results.addAll(stationMatches.map((station) => _buildRadioStationSearchTile(station)));
+      results.addAll(stationMatches
+          .map((station) => _buildRadioStationSearchTile(station)));
     }
-    
+
     if (results.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(top: 32.0),
@@ -651,7 +676,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         ),
       );
     }
-    
+
     return ListView(
       controller: _scrollController,
       padding: EdgeInsets.zero,
@@ -701,7 +726,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     );
   }
 
-  Widget _buildFilterChip(String label, bool isSelected, ValueChanged<bool> onChanged) {
+  Widget _buildFilterChip(
+      String label, bool isSelected, ValueChanged<bool> onChanged) {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
@@ -709,7 +735,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
       checkmarkColor: Theme.of(context).colorScheme.primary,
       labelStyle: TextStyle(
-        color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+        color: isSelected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurface,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
     );
@@ -723,26 +751,30 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     bool matchesAlbum = false,
     bool matchesLyrics = false,
   }) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     // Get lyrics context if it matches
     String? lyricsContext;
     if (matchesLyrics && song.plainLyrics != null) {
       final lyrics = song.plainLyrics!;
-      final queryIndex = lyrics.toLowerCase().indexOf(_searchQuery.toLowerCase());
+      final queryIndex =
+          lyrics.toLowerCase().indexOf(_searchQuery.toLowerCase());
       if (queryIndex != -1) {
         final start = (queryIndex - 30).clamp(0, lyrics.length);
-        final end = (queryIndex + _searchQuery.length + 30).clamp(0, lyrics.length);
+        final end =
+            (queryIndex + _searchQuery.length + 30).clamp(0, lyrics.length);
         lyricsContext = lyrics.substring(start, end);
         if (start > 0) lyricsContext = '...$lyricsContext';
         if (end < lyrics.length) lyricsContext = '$lyricsContext...';
       }
     }
-    
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
           child: song.albumArtUrl.isNotEmpty
@@ -752,7 +784,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                       width: 56,
                       height: 56,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 56),
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.music_note, size: 56),
                     )
                   : FutureBuilder<String>(
                       future: _getCachedLocalArtFuture(song.albumArtUrl),
@@ -765,7 +798,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 56),
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.music_note, size: 56),
                           );
                         }
                         return const Icon(Icons.music_note, size: 56);
@@ -778,7 +812,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             Expanded(
               child: Text(
                 song.title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -819,7 +854,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                 song.album!,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -855,7 +891,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               onPressed: () async {
                 // Use search context if available, otherwise just play the single song
                 if (searchContext != null && searchContext.length > 1) {
-                  await currentSongProvider.smartPlayWithContext(searchContext, song);
+                  await currentSongProvider.smartPlayWithContext(
+                      searchContext, song);
                 } else {
                   await currentSongProvider.smartPlayWithContext([song], song);
                 }
@@ -887,7 +924,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         leading: Container(
           width: 56,
           height: 56,
@@ -895,7 +933,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             color: Colors.purple.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8.0),
           ),
-          child: const Icon(Icons.playlist_play, color: Colors.purple, size: 28),
+          child:
+              const Icon(Icons.playlist_play, color: Colors.purple, size: 28),
         ),
         title: Text(
           playlist.name,
@@ -927,7 +966,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
           child: album.effectiveAlbumArtUrl.isNotEmpty
@@ -937,10 +977,12 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                       width: 56,
                       height: 56,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 56),
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.album, size: 56),
                     )
                   : FutureBuilder<String>(
-                      future: _getCachedLocalArtFuture(album.effectiveAlbumArtUrl),
+                      future:
+                          _getCachedLocalArtFuture(album.effectiveAlbumArtUrl),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.done &&
                             snapshot.hasData &&
@@ -950,7 +992,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 56),
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.album, size: 56),
                           );
                         }
                         return const Icon(Icons.album, size: 56);
@@ -999,12 +1042,14 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   }
 
   Widget _buildRadioStationSearchTile(RadioStation station) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
           child: RadioStationIcon(
@@ -1035,7 +1080,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               audioUrl: station.streamUrl,
               extras: {'isRadio': true, 'streamUrl': station.streamUrl},
             );
-            await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
+            await currentSongProvider
+                .smartPlayWithContext([radioSong], radioSong);
           },
         ),
         onTap: () async {
@@ -1047,7 +1093,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             audioUrl: station.streamUrl,
             extras: {'isRadio': true, 'streamUrl': station.streamUrl},
           );
-          await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
+          await currentSongProvider
+              .smartPlayWithContext([radioSong], radioSong);
         },
       ),
     );
@@ -1056,11 +1103,11 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // Performance: Optimized song loading with caching
   Future<void> _loadDownloadedSongs() async {
     if (_isLoadingSongs) return;
-    
+
     setState(() {
       _isLoadingSongs = true;
     });
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final Set<String> keys = prefs.getKeys();
@@ -1073,18 +1120,22 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
           final String? songJson = prefs.getString(key);
           if (songJson != null) {
             try {
-              Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+              Map<String, dynamic> songMap =
+                  jsonDecode(songJson) as Map<String, dynamic>;
               Song song = Song.fromJson(songMap);
               bool metadataUpdated = false;
 
               // Migration and validation for localFilePath
-              if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+              if (song.isDownloaded &&
+                  song.localFilePath != null &&
+                  song.localFilePath!.isNotEmpty) {
                 String fileName = song.localFilePath!;
                 if (song.localFilePath!.contains(Platform.pathSeparator)) {
                   fileName = p.basename(song.localFilePath!);
                 }
-                final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
-                
+                final fullPath =
+                    p.join(appDocDir.path, downloadsSubDir, fileName);
+
                 if (await File(fullPath).exists()) {
                   if (song.localFilePath != fileName) {
                     song = song.copyWith(localFilePath: fileName);
@@ -1092,7 +1143,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                     metadataUpdated = true;
                   }
                 } else {
-                  song = song.copyWith(isDownloaded: false, localFilePath: null);
+                  song =
+                      song.copyWith(isDownloaded: false, localFilePath: null);
                   songMap['isDownloaded'] = false;
                   songMap['localFilePath'] = null;
                   metadataUpdated = true;
@@ -1105,7 +1157,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               }
 
               // Migration and validation for albumArtUrl
-              if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+              if (song.albumArtUrl.isNotEmpty &&
+                  !song.albumArtUrl.startsWith('http')) {
                 String artFileName = song.albumArtUrl;
                 if (song.albumArtUrl.contains(Platform.pathSeparator)) {
                   artFileName = p.basename(song.albumArtUrl);
@@ -1120,24 +1173,28 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                   }
                 }
               }
-              
+
               if (metadataUpdated) {
                 await prefs.setString(key, jsonEncode(songMap));
               }
 
-              if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-                final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
+              if (song.isDownloaded &&
+                  song.localFilePath != null &&
+                  song.localFilePath!.isNotEmpty) {
+                final checkFile = File(p.join(
+                    appDocDir.path, downloadsSubDir, song.localFilePath!));
                 if (await checkFile.exists()) {
                   loadedSongs.add(song);
                 }
               }
             } catch (e) {
-              debugPrint('Error decoding song from SharedPreferences for key $key: $e');
+              debugPrint(
+                  'Error decoding song from SharedPreferences for key $key: $e');
             }
           }
         }
       }
-      
+
       if (mounted) {
         setState(() {
           _songs = loadedSongs;
@@ -1156,11 +1213,11 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
   Future<void> _loadPlaylists() async {
     if (_isLoadingPlaylists) return;
-    
+
     setState(() {
       _isLoadingPlaylists = true;
     });
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -1177,14 +1234,14 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       }
     }
   }
-  
+
   Future<void> _loadSavedAlbums() async {
     if (_isLoadingAlbums) return;
-    
+
     setState(() {
       _isLoadingAlbums = true;
     });
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -1204,18 +1261,20 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
   Future<void> _loadRecentStations() async {
     if (_isLoadingStations) return;
-    
+
     setState(() {
       _isLoadingStations = true;
     });
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      final List<String>? stationsJson = prefs.getStringList('recent_radio_stations');
+      final List<String>? stationsJson =
+          prefs.getStringList('recent_radio_stations');
       if (stationsJson != null) {
         try {
           final stations = stationsJson
-              .map((s) => RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
+              .map((s) =>
+                  RadioStation.fromJson(jsonDecode(s) as Map<String, dynamic>))
               .toList();
           if (mounted) {
             setState(() {
@@ -1224,7 +1283,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             });
           }
         } catch (e) {
-          debugPrint('Could not load recent stations, clearing them. Error: $e');
+          debugPrint(
+              'Could not load recent stations, clearing them. Error: $e');
           await prefs.remove('recent_radio_stations');
           if (mounted) {
             setState(() {
@@ -1253,11 +1313,11 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // Performance: Cached local art path resolution
   Future<String> _getCachedLocalArtPath(String fileName) async {
     if (fileName.isEmpty || fileName.startsWith('http')) return '';
-    
+
     if (_localArtPathCache.containsKey(fileName)) {
       return _localArtPathCache[fileName] ?? '';
     }
-    
+
     try {
       final directory = await getApplicationDocumentsDirectory();
       final fullPath = p.join(directory.path, fileName);
@@ -1279,11 +1339,11 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     if (fileName.isEmpty || fileName.startsWith('http')) {
       return Future.value('');
     }
-    
+
     if (!_localArtFutureCache.containsKey(fileName)) {
       _localArtFutureCache[fileName] = _getCachedLocalArtPath(fileName);
     }
-    
+
     return _localArtFutureCache[fileName]!;
   }
 
@@ -1319,14 +1379,14 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   //   ).toList();
   // }
 
-
   Future<void> _deletePlaylist(BuildContext context, Playlist playlist) async {
     return showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Delete Playlist "${playlist.name}"?'),
-          content: const Text('Are you sure you want to delete this playlist? This action cannot be undone.'),
+          content: const Text(
+              'Are you sure you want to delete this playlist? This action cannot be undone.'),
           actions: [
             TextButton(
               child: const Text('Cancel'),
@@ -1336,14 +1396,18 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             ),
             TextButton(
               child: Text('Delete', style: TextStyle(color: Colors.red[700])),
-              onPressed: () async { // Make async
+              onPressed: () async {
+                // Make async
                 final navigator = Navigator.of(context); // Capture before async
-                final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
-                await _playlistManager.removePlaylist(playlist); // await the operation
+                final scaffoldMessenger =
+                    ScaffoldMessenger.of(context); // Capture before async
+                await _playlistManager
+                    .removePlaylist(playlist); // await the operation
                 // _loadPlaylists(); // No longer needed here, listener will handle it.
                 navigator.pop();
                 scaffoldMessenger.showSnackBar(
-                  SnackBar(content: Text('Playlist "${playlist.name}" deleted.')),
+                  SnackBar(
+                      content: Text('Playlist "${playlist.name}" deleted.')),
                 );
               },
             ),
@@ -1374,7 +1438,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             ),
             TextButton(
               child: const Text('Create'),
-              onPressed: () async { // Make async
+              onPressed: () async {
+                // Make async
                 final playlistName = _playlistNameController.text.trim();
                 if (playlistName.isNotEmpty) {
                   final newPlaylist = Playlist(
@@ -1382,7 +1447,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                     name: playlistName,
                     songs: [],
                   );
-                  await _playlistManager.addPlaylist(newPlaylist); // await the operation
+                  await _playlistManager
+                      .addPlaylist(newPlaylist); // await the operation
                   // _loadPlaylists(); // No longer needed here, listener will handle it.
                 }
                 Navigator.of(context).pop();
@@ -1399,12 +1465,15 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // though their primary use might shift to PlaylistDetailScreen.
   // For now, they are kept as they might be invoked from there or future features.
   // ignore: unused_element
-  Future<void> _addSongsToPlaylistDialog(BuildContext context, Playlist playlist) async {
+  Future<void> _addSongsToPlaylistDialog(
+      BuildContext context, Playlist playlist) async {
     if (_songs.isEmpty) {
-      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+      final scaffoldMessenger =
+          ScaffoldMessenger.of(context); // Capture before async
       if (mounted && context.mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('No downloaded songs available to add.')),
+          const SnackBar(
+              content: Text('No downloaded songs available to add.')),
         );
       }
       return;
@@ -1414,79 +1483,85 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     List<Song> availableSongs = List<Song>.from(_songs);
 
     // Filter out songs already in the playlist
-    availableSongs.removeWhere((s) => playlist.songs.any((ps) => ps.id == s.id));
+    availableSongs
+        .removeWhere((s) => playlist.songs.any((ps) => ps.id == s.id));
 
     if (availableSongs.isEmpty) {
-      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+      final scaffoldMessenger =
+          ScaffoldMessenger.of(context); // Capture before async
       if (mounted && context.mounted) {
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('All downloaded songs are already in "${playlist.name}".')),
+          SnackBar(
+              content: Text(
+                  'All downloaded songs are already in "${playlist.name}".')),
         );
       }
       return;
     }
-    
+
     final List<Song> selectedSongs = await showDialog<List<Song>>(
-      context: context,
-      builder: (BuildContext context) {
-        final List<Song> tempSelectedSongs = [];
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text('Add to "${playlist.name}"'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: availableSongs.length,
-                  itemBuilder: (context, index) {
-                    final song = availableSongs[index];
-                    final isSelected = tempSelectedSongs.contains(song);
-                    return CheckboxListTile(
-                      title: Text(song.title),
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        setStateDialog(() {
-                          if (value == true) {
-                            tempSelectedSongs.add(song);
-                          } else {
-                            tempSelectedSongs.remove(song);
-                          }
-                        });
-                      },
-                    );
-                  },
+          context: context,
+          builder: (BuildContext context) {
+            final List<Song> tempSelectedSongs = [];
+            return StatefulBuilder(builder: (context, setStateDialog) {
+              return AlertDialog(
+                title: Text('Add to "${playlist.name}"'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: availableSongs.length,
+                    itemBuilder: (context, index) {
+                      final song = availableSongs[index];
+                      final isSelected = tempSelectedSongs.contains(song);
+                      return CheckboxListTile(
+                        title: Text(song.title),
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setStateDialog(() {
+                            if (value == true) {
+                              tempSelectedSongs.add(song);
+                            } else {
+                              tempSelectedSongs.remove(song);
+                            }
+                          });
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('Cancel'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                  child: const Text('Add Selected'),
-                  onPressed: () {
-                    Navigator.of(context).pop(tempSelectedSongs);
-                  },
-                ),
-              ],
-            );
-          }
-        );
-      },
-    ) ?? []; // Return empty list if dialog is dismissed
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Cancel'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Add Selected'),
+                    onPressed: () {
+                      Navigator.of(context).pop(tempSelectedSongs);
+                    },
+                  ),
+                ],
+              );
+            });
+          },
+        ) ??
+        []; // Return empty list if dialog is dismissed
 
     if (selectedSongs.isNotEmpty) {
-      final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+      final scaffoldMessenger =
+          ScaffoldMessenger.of(context); // Capture before async
       for (var song in selectedSongs) {
         await _playlistManager.addSongToPlaylist(playlist, song); // await
       }
       // _loadPlaylists(); // No longer needed here, listener will handle it.
       if (mounted && context.mounted) {
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('${selectedSongs.length} song(s) added to "${playlist.name}"')),
+          SnackBar(
+              content: Text(
+                  '${selectedSongs.length} song(s) added to "${playlist.name}"')),
         );
       }
     }
@@ -1495,11 +1570,13 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // ignore: unused_element
   Future<void> _removeSongFromPlaylist(Playlist playlist, Song song) async {
     await _playlistManager.removeSongFromPlaylist(playlist, song); // await
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async
     // _loadPlaylists(); // No longer needed here, listener will handle it.
     if (mounted && context.mounted) {
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Removed "${song.title}" from "${playlist.name}"')),
+        SnackBar(
+            content: Text('Removed "${song.title}" from "${playlist.name}"')),
       );
     }
   }
@@ -1507,13 +1584,15 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   Future<void> _deleteDownloadedSong(Song songToDelete) async {
     // Show confirmation dialog
     final navigator = Navigator.of(context); // Capture before async
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async
     final bool? confirmed = await showDialog<bool>(
       context: navigator.context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Delete "${songToDelete.title}"?'),
-          content: const Text('Are you sure you want to delete this downloaded song? This action cannot be undone.'),
+          content: const Text(
+              'Are you sure you want to delete this downloaded song? This action cannot be undone.'),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
@@ -1539,8 +1618,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
     try {
       // Stop playback if this song is currently playing from local file
-      final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-      final audioHandler = currentSongProvider.audioHandler; // Use public getter
+      final currentSongProvider =
+          Provider.of<CurrentSongProvider>(context, listen: false);
+      final audioHandler =
+          currentSongProvider.audioHandler; // Use public getter
       final currentMediaItem = audioHandler.mediaItem.value;
 
       // ignore: unused_local_variable
@@ -1551,11 +1632,14 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         wasPlayingThisDeletedSong = true;
       }
 
-      if (songToDelete.localFilePath != null && songToDelete.localFilePath!.isNotEmpty) {
+      if (songToDelete.localFilePath != null &&
+          songToDelete.localFilePath!.isNotEmpty) {
         final appDocDir = await getApplicationDocumentsDirectory();
-        const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+        const String downloadsSubDir =
+            'ltunes_downloads'; // Subdirectory used by DownloadManager
         // Correct path for deletion, including the subdirectory
-        final fullPath = p.join(appDocDir.path, downloadsSubDir, songToDelete.localFilePath!);
+        final fullPath = p.join(
+            appDocDir.path, downloadsSubDir, songToDelete.localFilePath!);
         final file = File(fullPath);
         if (await file.exists()) {
           await file.delete();
@@ -1566,14 +1650,19 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       }
 
       // Update metadata
-      final updatedSong = songToDelete.copyWith(isDownloaded: false, localFilePath: null);
+      final updatedSong =
+          songToDelete.copyWith(isDownloaded: false, localFilePath: null);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('song_${updatedSong.id}', jsonEncode(updatedSong.toJson()));
+      await prefs.setString(
+          'song_${updatedSong.id}', jsonEncode(updatedSong.toJson()));
 
       // remove from any playlists that contain it
       for (var playlist in _playlists) {
         await _playlistManager.removeSongFromPlaylist(playlist, updatedSong);
       }
+
+      // Remove from liked songs if it was a local song (since it won't be available after deletion)
+      await LikedSongsService().removeLocalSongFromLiked(songToDelete);
 
       // Update album download status
       await AlbumManagerService().updateSongInAlbums(updatedSong);
@@ -1581,7 +1670,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       // notify provider and refresh
       currentSongProvider.updateSongDetails(updatedSong);
       PlaylistManagerService().updateSongInPlaylists(updatedSong);
-      
+
       // If the deleted song was playing, the audio_handler's queue update (via updateSongDetails)
       // should handle transitioning playback or stopping.
       // If it was playing locally, updateSongDetails will replace the MediaItem with one
@@ -1608,11 +1697,19 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
   // ignore: unused_element
   Future<void> _importSongs() async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom, // Changed from FileType.audio
-        allowedExtensions: ['mp3', 'wav', 'm4a', 'mp4', 'flac', 'opus'], // Added new extensions
+        allowedExtensions: [
+          'mp3',
+          'wav',
+          'm4a',
+          'mp4',
+          'flac',
+          'opus'
+        ], // Added new extensions
         allowMultiple: true,
       );
 
@@ -1620,11 +1717,12 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         final prefs = await SharedPreferences.getInstance();
         Directory appDocDir = await getApplicationDocumentsDirectory();
         const String downloadsSubDir = 'ltunes_downloads';
-        final Directory fullDownloadsDir = Directory(p.join(appDocDir.path, downloadsSubDir));
+        final Directory fullDownloadsDir =
+            Directory(p.join(appDocDir.path, downloadsSubDir));
         if (!await fullDownloadsDir.exists()) {
           await fullDownloadsDir.create(recursive: true);
         }
-        
+
         int importCount = 0;
 
         if (context.mounted) {
@@ -1662,7 +1760,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             // Try to extract metadata for all formats, including M4A and MP4
             try {
               // getImage: true to attempt to load album art
-              metadata = readMetadata(copied, getImage: true); 
+              metadata = readMetadata(copied, getImage: true);
             } catch (e) {
               debugPrint('Error reading metadata for $origName: $e');
               // Proceed with default values if metadata reading fails
@@ -1672,16 +1770,24 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             String albumArtFileName = ''; // Will store just the filename
 
             if (metadata?.pictures.isNotEmpty ?? false) {
-              debugPrint('Found ${metadata!.pictures.length} picture(s) in metadata for $origName');
-              final picture = (metadata.pictures.isNotEmpty) ? metadata.pictures.first : null;
-              if (picture != null && picture.bytes.isNotEmpty && picture.bytes.length > 100) { // Ensure minimum size for valid image
-                debugPrint('Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
+              debugPrint(
+                  'Found ${metadata!.pictures.length} picture(s) in metadata for $origName');
+              final picture = (metadata.pictures.isNotEmpty)
+                  ? metadata.pictures.first
+                  : null;
+              if (picture != null &&
+                  picture.bytes.isNotEmpty &&
+                  picture.bytes.length > 100) {
+                // Ensure minimum size for valid image
+                debugPrint(
+                    'Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
                 // Determine file extension from mime type or default to .jpg
                 String extension = '.jpg'; // Default extension
                 if (picture.mimetype.isNotEmpty) {
                   if (picture.mimetype.endsWith('png')) {
                     extension = '.png';
-                  } else if (picture.mimetype.endsWith('jpeg') || picture.mimetype.endsWith('jpg')) {
+                  } else if (picture.mimetype.endsWith('jpeg') ||
+                      picture.mimetype.endsWith('jpg')) {
                     extension = '.jpg';
                   } else if (picture.mimetype.endsWith('webp')) {
                     extension = '.webp';
@@ -1690,21 +1796,27 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                   }
                 }
                 // Add more formats as needed
-                
-                albumArtFileName = 'albumart_$songId$extension'; // Just the filename
+
+                albumArtFileName =
+                    'albumart_$songId$extension'; // Just the filename
                 // Album art is saved in the root of appDocDir, not the downloadsSubDir
-                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
-                
+                String fullAlbumArtPath =
+                    p.join(appDocDir.path, albumArtFileName);
+
                 try {
                   final albumArtFile = File(fullAlbumArtPath);
                   await albumArtFile.writeAsBytes(picture.bytes);
-                  debugPrint('Successfully saved album art: $fullAlbumArtPath (${picture.bytes.length} bytes)');
-                  
+                  debugPrint(
+                      'Successfully saved album art: $fullAlbumArtPath (${picture.bytes.length} bytes)');
+
                   // Verify the file was created and has content
-                  if (await albumArtFile.exists() && await albumArtFile.length() > 0) {
-                    debugPrint('Album art file verified: ${await albumArtFile.length()} bytes');
+                  if (await albumArtFile.exists() &&
+                      await albumArtFile.length() > 0) {
+                    debugPrint(
+                        'Album art file verified: ${await albumArtFile.length()} bytes');
                   } else {
-                    debugPrint('Warning: Album art file may not have been created properly');
+                    debugPrint(
+                        'Warning: Album art file may not have been created properly');
                     albumArtFileName = ''; // Clear if file creation failed
                   }
                   // albumArtPath = fullAlbumArtFullPath; // No, store filename
@@ -1716,14 +1828,15 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             } else {
               debugPrint('No pictures found in metadata for $origName');
             }
-            
+
             Song newSong = Song(
               id: songId,
               title: metadata?.title ?? p.basenameWithoutExtension(origName),
               artist: metadata?.artist ?? 'Unknown Artist',
               album: metadata?.album,
               albumArtUrl: albumArtFileName, // Store just the filename
-              audioUrl: destPath, // Store full path for initial playback before metadata save
+              audioUrl:
+                  destPath, // Store full path for initial playback before metadata save
               isDownloaded: true, // Mark as downloaded
               localFilePath: newName, // Store just the filename for persistence
               duration: metadata?.duration,
@@ -1731,12 +1844,13 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             );
 
             // Persist song metadata
-            await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
-            
+            await prefs.setString(
+                'song_${newSong.id}', jsonEncode(newSong.toJson()));
+
             // Auto-fetch metadata if enabled
             final autoFetchService = AutoFetchService();
             await autoFetchService.autoFetchMetadataForNewImport(newSong);
-            
+
             importCount++;
           } catch (e) {
             debugPrint('Error processing file $origName: $e');
@@ -1749,25 +1863,26 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
         }
 
         // await _loadDownloadedSongs(); // This will be triggered by _onSongDataChanged if CurrentSongProvider notifies appropriately
-                                // For direct import, if CurrentSongProvider isn't involved in notifying about these new files,
-                                // calling _loadDownloadedSongs() directly or ensuring a notification path is valid.
-                                // The listener _onSongDataChanged should handle updates if songs are managed via CurrentSongProvider.
-                                // If import directly modifies SharedPreferences, then _loadDownloadedSongs() is the correct refresh.
-                                // The listener _onSongDataChanged should ideally be triggered if these new songs are "globally" announced.
-                                // For now, assuming the provider pattern will eventually lead to a notification.
-                                // If not, a direct call to _loadDownloadedSongs() here after the loop would be needed.
-                                // However, the current structure relies on listeners.
+        // For direct import, if CurrentSongProvider isn't involved in notifying about these new files,
+        // calling _loadDownloadedSongs() directly or ensuring a notification path is valid.
+        // The listener _onSongDataChanged should handle updates if songs are managed via CurrentSongProvider.
+        // If import directly modifies SharedPreferences, then _loadDownloadedSongs() is the correct refresh.
+        // The listener _onSongDataChanged should ideally be triggered if these new songs are "globally" announced.
+        // For now, assuming the provider pattern will eventually lead to a notification.
+        // If not, a direct call to _loadDownloadedSongs() here after the loop would be needed.
+        // However, the current structure relies on listeners.
 
         if (context.mounted) {
           scaffoldMessenger.removeCurrentSnackBar();
           scaffoldMessenger.showSnackBar(
-            SnackBar(content: Text('$importCount song(s) imported successfully.')),
+            SnackBar(
+                content: Text('$importCount song(s) imported successfully.')),
           );
         }
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
-            _loadDownloadedSongs(); // This will also trigger sorting // Comment updated, sorting is removed
+          _loadDownloadedSongs(); // This will also trigger sorting // Comment updated, sorting is removed
         }
       } else {
         // User canceled the picker or no files selected
@@ -1792,21 +1907,26 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     List<Playlist> filteredPlaylists = _playlists;
     if (_searchQuery.isNotEmpty) {
       filteredPlaylists = _playlists
-          .where((playlist) =>
-              playlist.name.toLowerCase().contains(_searchQuery))
+          .where(
+              (playlist) => playlist.name.toLowerCase().contains(_searchQuery))
           .toList();
     }
 
-    return Column( // Wrap content in a Column
+    return Column(
+      // Wrap content in a Column
       children: [
-        Expanded( // Make ListView take remaining space
+        Expanded(
+          // Make ListView take remaining space
           child: filteredPlaylists.isEmpty
-              ? Center(child: Text(_searchQuery.isNotEmpty ? 'No playlists found matching "$_searchQuery".' : 'No playlists yet. Create one using the button below!')) // Updated text
+              ? Center(
+                  child: Text(_searchQuery.isNotEmpty
+                      ? 'No playlists found matching "$_searchQuery".'
+                      : 'No playlists yet. Create one using the button below!')) // Updated text
               : ListView.builder(
                   itemCount: filteredPlaylists.length,
                   itemBuilder: (context, index) {
                     final playlist = filteredPlaylists[index];
-                    
+
                     // Logic to determine leading widget based on album art
                     List<String> uniqueAlbumArtUrls = playlist.songs
                         .map((song) => song.albumArtUrl)
@@ -1818,23 +1938,28 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                     const double leadingSize = 56.0;
 
                     if (uniqueAlbumArtUrls.isEmpty) {
-                      leadingWidget = Icon(Icons.playlist_play, size: leadingSize, color: Theme.of(context).colorScheme.primary);
+                      leadingWidget = Icon(Icons.playlist_play,
+                          size: leadingSize,
+                          color: Theme.of(context).colorScheme.primary);
                     } else if (uniqueAlbumArtUrls.length < 4) {
-                      leadingWidget = _buildPlaylistArtWidget(uniqueAlbumArtUrls.first, leadingSize);
+                      leadingWidget = _buildPlaylistArtWidget(
+                          uniqueAlbumArtUrls.first, leadingSize);
                     } else {
                       // Display a 2x2 grid of the first 4 album arts
                       List<Widget> gridImages = uniqueAlbumArtUrls
                           .take(4)
-                          .map((artUrl) => _buildPlaylistArtWidget(artUrl, leadingSize / 2)) // Each image is half the size
+                          .map((artUrl) => _buildPlaylistArtWidget(artUrl,
+                              leadingSize / 2)) // Each image is half the size
                           .toList();
-                      
+
                       leadingWidget = SizedBox(
                         width: leadingSize,
                         height: leadingSize,
                         child: GridView.count(
                           crossAxisCount: 2,
                           shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
+                          physics:
+                              const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
                           mainAxisSpacing: 1, // Optional spacing
                           crossAxisSpacing: 1, // Optional spacing
                           padding: EdgeInsets.zero,
@@ -1844,16 +1969,21 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                     }
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 8.0, vertical: 4.0),
                       child: ListTile(
                         leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8.0), // Match album art clip
+                          borderRadius: BorderRadius.circular(
+                              8.0), // Match album art clip
                           child: leadingWidget,
                         ),
-                        title: Text(playlist.name, style: Theme.of(context).textTheme.titleMedium),
-                        subtitle: Text('${playlist.songs.length} songs', style: Theme.of(context).textTheme.bodySmall),
+                        title: Text(playlist.name,
+                            style: Theme.of(context).textTheme.titleMedium),
+                        subtitle: Text('${playlist.songs.length} songs',
+                            style: Theme.of(context).textTheme.bodySmall),
                         trailing: IconButton(
-                          icon: Icon(Icons.delete_outline, color: Colors.red[700]),
+                          icon: Icon(Icons.delete_outline,
+                              color: Colors.red[700]),
                           tooltip: 'Delete Playlist',
                           onPressed: () {
                             _deletePlaylist(context, playlist);
@@ -1863,7 +1993,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => PlaylistDetailScreen(playlist: playlist),
+                              builder: (context) =>
+                                  PlaylistDetailScreen(playlist: playlist),
                             ),
                           ).then((_) {
                             // Listener _onPlaylistChanged handles refresh
@@ -1879,7 +2010,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   }
 
   // ignore: unused_element
-  Widget _buildSavedAlbumsView() { // New method for "Albums" tab
+  Widget _buildSavedAlbumsView() {
+    // New method for "Albums" tab
     List<Album> filteredAlbums = _savedAlbums;
     if (_searchQuery.isNotEmpty) {
       filteredAlbums = _savedAlbums
@@ -1890,7 +2022,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     }
 
     if (filteredAlbums.isEmpty) {
-      return Center(child: Text(_searchQuery.isNotEmpty ? 'No albums found matching "$_searchQuery".' : 'No saved albums yet. Find albums in Search and save them!'));
+      return Center(
+          child: Text(_searchQuery.isNotEmpty
+              ? 'No albums found matching "$_searchQuery".'
+              : 'No saved albums yet. Find albums in Search and save them!'));
     }
 
     return ListView.builder(
@@ -1898,7 +2033,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
       itemBuilder: (context, index) {
         final album = filteredAlbums[index];
         Widget leadingImage;
-        
+
         // Use the effective album art URL which prioritizes local over network
         final artUrl = album.effectiveAlbumArtUrl;
         if (artUrl.isNotEmpty) {
@@ -1906,7 +2041,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
             // Network image
             leadingImage = Image.network(
               artUrl,
-              width: 56, height: 56, fit: BoxFit.cover,
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
             );
           } else {
@@ -1922,7 +2059,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                     width: 56,
                     height: 56,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.album, size: 40),
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.album, size: 40),
                   );
                 }
                 return const Icon(Icons.album, size: 40);
@@ -1940,10 +2078,18 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               borderRadius: BorderRadius.circular(8.0),
               child: leadingImage,
             ),
-            title: Text(album.title, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(album.artistName, style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: IconButton( // "Unsave" button
-              icon: Icon(Icons.bookmark_remove_outlined, color: Theme.of(context).colorScheme.error),
+            title: Text(album.title,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+            subtitle: Text(album.artistName,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+            trailing: IconButton(
+              // "Unsave" button
+              icon: Icon(Icons.bookmark_remove_outlined,
+                  color: Theme.of(context).colorScheme.error),
               tooltip: 'Unsave Album',
               onPressed: () async {
                 // Show confirmation dialog
@@ -1952,7 +2098,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                   builder: (BuildContext context) {
                     return AlertDialog(
                       title: Text('Unsave "${album.title}"?'),
-                      content: const Text('Are you sure you want to remove this album from your saved albums?'),
+                      content: const Text(
+                          'Are you sure you want to remove this album from your saved albums?'),
                       actions: <Widget>[
                         TextButton(
                           child: const Text('Cancel'),
@@ -1961,7 +2108,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                           },
                         ),
                         TextButton(
-                          child: Text('Unsave', style: TextStyle(color: Colors.red[700])),
+                          child: Text('Unsave',
+                              style: TextStyle(color: Colors.red[700])),
                           onPressed: () {
                             Navigator.of(context).pop(true); // User confirmed
                           },
@@ -1977,8 +2125,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                 }
 
                 await _albumManager.removeSavedAlbum(album.id);
-                final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
-                if (mounted && context.mounted) { // Check if the widget is still in the tree
+                final scaffoldMessenger =
+                    ScaffoldMessenger.of(context); // Capture before async
+                if (mounted && context.mounted) {
+                  // Check if the widget is still in the tree
                   scaffoldMessenger.showSnackBar(
                     SnackBar(content: Text('"${album.title}" unsaved.')),
                   );
@@ -2003,8 +2153,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   // ignore: unused_element
   Widget _buildDownloadedSongsView() {
     // Do not listen here, we'll scope rebuilds to each item
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     // _songs list already contains completed, downloaded songs
     final List<Song> completedSongs = List.from(_songs);
 
@@ -2016,41 +2167,46 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     if (_searchQuery.isNotEmpty) {
       songsToDisplay = completedSongs.where((song) {
         return song.title.toLowerCase().contains(_searchQuery) ||
-               (song.artist.toLowerCase().contains(_searchQuery));
+            (song.artist.toLowerCase().contains(_searchQuery));
       }).toList();
     }
-    
-    return Column( 
+
+    return Column(
       children: [
-        if (hasActiveDownloads) 
-          Consumer<CurrentSongProvider>( 
+        if (hasActiveDownloads)
+          Consumer<CurrentSongProvider>(
             builder: (context, provider, child) {
               final activeCount = provider.activeDownloadTasks.length;
               final queuedCount = provider.songsQueuedForDownload.length;
               final totalDownloadQueueCount = activeCount + queuedCount;
 
-              if (totalDownloadQueueCount == 0) return const SizedBox.shrink(); 
+              if (totalDownloadQueueCount == 0) return const SizedBox.shrink();
 
               return Card(
-                margin: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0), 
+                margin: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0),
                 child: ListTile(
                   leading: const Icon(Icons.downloading),
-                  title: Text('$totalDownloadQueueCount song(s) in download queue...'),
+                  title: Text(
+                      '$totalDownloadQueueCount song(s) in download queue...'),
                   subtitle: const Text('Tap to view queue'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 18),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const DownloadQueueScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const DownloadQueueScreen()),
                     );
                   },
                 ),
               );
             },
           ),
-        Expanded( 
+        Expanded(
           child: songsToDisplay.isEmpty
-              ? Center(child: Text(_searchQuery.isNotEmpty ? 'No songs found matching "$_searchQuery".' : 'No downloaded songs yet.'))
+              ? Center(
+                  child: Text(_searchQuery.isNotEmpty
+                      ? 'No songs found matching "$_searchQuery".'
+                      : 'No downloaded songs yet.'))
               : ListView.builder(
                   itemCount: songsToDisplay.length,
                   itemBuilder: (context, index) {
@@ -2062,50 +2218,74 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(8.0),
                         child: songObj.albumArtUrl.isNotEmpty
-                          ? (songObj.albumArtUrl.startsWith('http')
-                              ? Image.network(
-                                  songObj.albumArtUrl,
-                                  width: 40, height: 40, fit: BoxFit.cover, 
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), 
-                                )
-                              : FutureBuilder<String>(
-                                  future: (() async {
-                                    final dir = await getApplicationDocumentsDirectory();
-                                    String artFileName = songObj.albumArtUrl;
-                                    if (artFileName.contains(Platform.pathSeparator)) {
-                                      artFileName = p.basename(artFileName);
-                                    }
-                                    final fullPath = p.join(dir.path, artFileName);
-                                    if (await File(fullPath).exists()) return fullPath;
-                                    return '';
-                                  })(),
-                                  builder: (context, snap) {
-                                    if (snap.connectionState == ConnectionState.done
-                                        && snap.hasData && snap.data!.isNotEmpty) {
-                                      return Image.file(
-                                        File(snap.data!),
-                                        width: 40, height: 40, fit: BoxFit.cover, 
-                                        errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40), 
-                                      );
-                                    }
-                                    return const Icon(Icons.music_note, size: 40); 
-                                  },
-                                ))
-                          : const Icon(Icons.music_note, size: 40), 
+                            ? (songObj.albumArtUrl.startsWith('http')
+                                ? Image.network(
+                                    songObj.albumArtUrl,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const Icon(Icons.music_note, size: 40),
+                                  )
+                                : FutureBuilder<String>(
+                                    future: (() async {
+                                      final dir =
+                                          await getApplicationDocumentsDirectory();
+                                      String artFileName = songObj.albumArtUrl;
+                                      if (artFileName
+                                          .contains(Platform.pathSeparator)) {
+                                        artFileName = p.basename(artFileName);
+                                      }
+                                      final fullPath =
+                                          p.join(dir.path, artFileName);
+                                      if (await File(fullPath).exists())
+                                        return fullPath;
+                                      return '';
+                                    })(),
+                                    builder: (context, snap) {
+                                      if (snap.connectionState ==
+                                              ConnectionState.done &&
+                                          snap.hasData &&
+                                          snap.data!.isNotEmpty) {
+                                        return Image.file(
+                                          File(snap.data!),
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              const Icon(Icons.music_note,
+                                                  size: 40),
+                                        );
+                                      }
+                                      return const Icon(Icons.music_note,
+                                          size: 40);
+                                    },
+                                  ))
+                            : const Icon(Icons.music_note, size: 40),
                       ),
-                      title: Text(songObj.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(songObj.artist.isNotEmpty ? songObj.artist : "Unknown Artist", maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(songObj.title,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                          songObj.artist.isNotEmpty
+                              ? songObj.artist
+                              : "Unknown Artist",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         tooltip: 'Delete Download',
-                        onPressed: () => _deleteDownloadedSong(songObj), // This line remains the same, but the method now has a dialog
+                        onPressed: () => _deleteDownloadedSong(
+                            songObj), // This line remains the same, but the method now has a dialog
                       ),
                       onTap: () async {
                         // When tapping a completed song, play it.
                         // The queue will be set to ALL completed downloaded songs,
                         // respecting the current order of the Downloads tab (load order).
-                        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
-                        await provider.smartPlayWithContext(completedSongs, songObj);
+                        final provider = Provider.of<CurrentSongProvider>(
+                            context,
+                            listen: false);
+                        await provider.smartPlayWithContext(
+                            completedSongs, songObj);
                       },
                     );
                   },
@@ -2117,8 +2297,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
 
   // Helper widget to build album art for playlists (handles local and network)
   Widget _buildPlaylistArtWidget(String artUrl, double size) {
-    Widget placeholder = Icon(Icons.music_note, size: size * 0.7, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5));
-    
+    Widget placeholder = Icon(Icons.music_note,
+        size: size * 0.7,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5));
+
     return SizedBox(
       width: size,
       height: size,
@@ -2134,7 +2316,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               future: _getCachedLocalArtFuture(artUrl),
               key: ValueKey<String>('playlist_art_$artUrl'),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData &&
+                    snapshot.data!.isNotEmpty) {
                   return Image.file(
                     File(snapshot.data!),
                     width: size,
@@ -2154,7 +2338,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
   Widget build(BuildContext context) {
     super.build(context);
     // pick a small subset of _songs as "recently added"
-    final recentSongs = _songs.length > 10 ? _songs.sublist(_songs.length - 10).reversed.toList() : _songs.reversed.toList();
+    final recentSongs = _songs.length > 10
+        ? _songs.sublist(_songs.length - 10).reversed.toList()
+        : _songs.reversed.toList();
 
     // Playlists are loaded from SharedPreferences; assuming they are in order of addition or have an ID that can be sorted.
     // For simplicity, let's take the last few playlists. If playlists have a creation timestamp, sort by that.
@@ -2162,15 +2348,18 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
     // To get "recent", we might need to sort them if they have a creation date, or just take the last few.
     // For now, let's take the last 5 added. If PlaylistManager stores them in order of addition, this works.
     // Otherwise, Playlist model would need a creationDate field.
-    final recentPlaylists = _playlists.length > 5 ? _playlists.sublist(_playlists.length - 5).reversed.toList() : _playlists.reversed.toList();
+    final recentPlaylists = _playlists.length > 5
+        ? _playlists.sublist(_playlists.length - 5).reversed.toList()
+        : _playlists.reversed.toList();
 
     // Similarly for saved albums, take the last few.
     // AlbumManagerService loads them, assuming order of addition or an ID that implies recency.
-    final recentSavedAlbums = _savedAlbums.length > 5 ? _savedAlbums.sublist(_savedAlbums.length - 5).reversed.toList() : _savedAlbums.reversed.toList();
+    final recentSavedAlbums = _savedAlbums.length > 5
+        ? _savedAlbums.sublist(_savedAlbums.length - 5).reversed.toList()
+        : _savedAlbums.reversed.toList();
 
     // Take all recent stations, assuming they are already ordered by recency.
     final recentStations = _recentStations;
-
 
     return Scaffold(
       appBar: AppBar(
@@ -2186,7 +2375,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search your library...',
-                prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface),
+                prefixIcon: Icon(Icons.search,
+                    color: Theme.of(context).colorScheme.onSurface),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
@@ -2202,443 +2392,498 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen> with Automatic
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.grey[200],
+                fillColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[900]
+                    : Colors.grey[200],
               ),
             ),
           ),
         ),
-     ),
-            body: _searchQuery.isNotEmpty
+      ),
+      body: _searchQuery.isNotEmpty
           ? _buildUnifiedSearchResults()
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-          // main categories
-          ListTile(
-            leading: Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Liked Songs'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const LikedSongsScreen()),
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.playlist_play, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Playlists'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Artists'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ArtistsListScreen()),
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.album, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Albums'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.music_note, color: Theme.of(context).colorScheme.primary),
-            title: const Text('Songs'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SongsScreen()),
-            ),
-          ),
-          Consumer<CurrentSongProvider>(
-            builder: (context, provider, child) {
-              final active = provider.activeDownloadTasks.length;
-              final queued = provider.songsQueuedForDownload.length;
-              final total = active + queued;
-              if (total == 0) return const SizedBox.shrink();
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.downloading),
-                  title: Text('$total song(s) in download queue'),
-                  subtitle: const Text('Tap to view queue'),
-                  trailing: const Icon(Icons.chevron_right, size: 18),
+                // main categories
+                ListTile(
+                  leading: Icon(Icons.favorite,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Liked Songs'),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const DownloadQueueScreen()),
+                    MaterialPageRoute(builder: (_) => const LikedSongsScreen()),
                   ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          // section header
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Jump back in!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // horizontal carousel of recent songs
-          SizedBox(
-            height: 190,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: recentSongs.length,
-              itemBuilder: (context, i) {
-                final song = recentSongs[i];
-                return GestureDetector(
-                  onTap: () {
-                    final prov = Provider.of<CurrentSongProvider>(context, listen: false);
-                    prov.setQueue(recentSongs, initialIndex: i); 
+                ListTile(
+                  leading: Icon(Icons.playlist_play,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Playlists'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.person,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Artists'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ArtistsListScreen()),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.album,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Albums'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.music_note,
+                      color: Theme.of(context).colorScheme.primary),
+                  title: const Text('Songs'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SongsScreen()),
+                  ),
+                ),
+                Consumer<CurrentSongProvider>(
+                  builder: (context, provider, child) {
+                    final active = provider.activeDownloadTasks.length;
+                    final queued = provider.songsQueuedForDownload.length;
+                    final total = active + queued;
+                    if (total == 0) return const SizedBox.shrink();
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.downloading),
+                        title: Text('$total song(s) in download queue'),
+                        subtitle: const Text('Tap to view queue'),
+                        trailing: const Icon(Icons.chevron_right, size: 18),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const DownloadQueueScreen()),
+                        ),
+                      ),
+                    );
                   },
-                  child: Container(
-                    width: 140,
-                    margin: EdgeInsets.only(right: i == recentSongs.length - 1 ? 0 : 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // artwork
-                        SizedBox(
+                ),
+                const SizedBox(height: 24),
+                // section header
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Jump back in!',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // horizontal carousel of recent songs
+                SizedBox(
+                  height: 190,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: recentSongs.length,
+                    itemBuilder: (context, i) {
+                      final song = recentSongs[i];
+                      return GestureDetector(
+                        onTap: () {
+                          final prov = Provider.of<CurrentSongProvider>(context,
+                              listen: false);
+                          prov.setQueue(recentSongs, initialIndex: i);
+                        },
+                        child: Container(
                           width: 140,
-                          height: 140,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: song.albumArtUrl.isNotEmpty
-                                ? (song.albumArtUrl.startsWith('http')
-                                    ? Image.network(song.albumArtUrl, fit: BoxFit.cover)
-                                    : FutureBuilder<String>(
-                                        future: _getCachedLocalArtFuture(song.albumArtUrl),
-                                        key: ValueKey<String>('recent_song_art_${song.id}'),
-                                        builder: (_, snap) => (snap.hasData && snap.data!.isNotEmpty)
-                                            ? Image.file(File(snap.data!), fit: BoxFit.cover)
-                                            : Container(color: Colors.grey[800]),
-                                      ))
-                                : Container(color: Colors.grey[800]),
+                          margin: EdgeInsets.only(
+                              right: i == recentSongs.length - 1 ? 0 : 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // artwork
+                              SizedBox(
+                                width: 140,
+                                height: 140,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: song.albumArtUrl.isNotEmpty
+                                      ? (song.albumArtUrl.startsWith('http')
+                                          ? Image.network(song.albumArtUrl,
+                                              fit: BoxFit.cover)
+                                          : FutureBuilder<String>(
+                                              future: _getCachedLocalArtFuture(
+                                                  song.albumArtUrl),
+                                              key: ValueKey<String>(
+                                                  'recent_song_art_${song.id}'),
+                                              builder: (_, snap) => (snap
+                                                          .hasData &&
+                                                      snap.data!.isNotEmpty)
+                                                  ? Image.file(File(snap.data!),
+                                                      fit: BoxFit.cover)
+                                                  : Container(
+                                                      color: Colors.grey[800]),
+                                            ))
+                                      : Container(color: Colors.grey[800]),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // title & artist
+                              Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyLarge,
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                song.artist.isNotEmpty
+                                    ? song.artist
+                                    : 'Unknown Artist',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        // title & artist
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        Text(
-                          song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Recently Added Playlists Section
+                if (recentPlaylists.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Recently Created Playlists',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
-                );
-              },
-            ),
-          ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 190, // Adjust height as needed
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: recentPlaylists.length,
+                      itemBuilder: (context, i) {
+                        final playlist = recentPlaylists[i];
 
-          const SizedBox(height: 24),
+                        List<String> uniqueAlbumArtUrls = playlist.songs
+                            .map((song) => song.albumArtUrl)
+                            .where((artUrl) => artUrl.isNotEmpty)
+                            .toSet()
+                            .toList();
 
-          // Recently Added Playlists Section
-          if (recentPlaylists.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Recently Created Playlists',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 190, // Adjust height as needed
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: recentPlaylists.length,
-                itemBuilder: (context, i) {
-                  final playlist = recentPlaylists[i];
-                  
-                  List<String> uniqueAlbumArtUrls = playlist.songs
-                      .map((song) => song.albumArtUrl)
-                      .where((artUrl) => artUrl.isNotEmpty)
-                      .toSet()
-                      .toList();
+                        Widget leadingWidget;
+                        const double itemArtSize =
+                            140.0; // Size for the artwork in the carousel
 
-                  Widget leadingWidget;
-                  const double itemArtSize = 140.0; // Size for the artwork in the carousel
+                        if (uniqueAlbumArtUrls.isEmpty) {
+                          leadingWidget = Container(
+                            width: itemArtSize,
+                            height: itemArtSize,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[800],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.playlist_play,
+                                size: itemArtSize * 0.6,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.7)),
+                          );
+                        } else if (uniqueAlbumArtUrls.length < 4) {
+                          leadingWidget = ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: _buildPlaylistArtWidget(
+                                  uniqueAlbumArtUrls.first, itemArtSize));
+                        } else {
+                          List<Widget> gridImages = uniqueAlbumArtUrls
+                              .take(4)
+                              .map((artUrl) => _buildPlaylistArtWidget(
+                                  artUrl, itemArtSize / 2))
+                              .toList();
 
-                  if (uniqueAlbumArtUrls.isEmpty) {
-                    leadingWidget = Container(
-                      width: itemArtSize,
-                      height: itemArtSize,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[800],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.playlist_play, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                    );
-                  } else if (uniqueAlbumArtUrls.length < 4) {
-                    leadingWidget = ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: _buildPlaylistArtWidget(uniqueAlbumArtUrls.first, itemArtSize));
-                  } else {
-                    List<Widget> gridImages = uniqueAlbumArtUrls
-                        .take(4)
-                        .map((artUrl) => _buildPlaylistArtWidget(artUrl, itemArtSize / 2))
-                        .toList();
-                    
-                    leadingWidget = ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: itemArtSize,
-                        height: itemArtSize,
-                        child: GridView.count(
-                          crossAxisCount: 2,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: 1,
-                          crossAxisSpacing: 1,
-                          padding: EdgeInsets.zero,
-                          children: gridImages,
-                        ),
-                      ),
-                    );
-                  }
+                          leadingWidget = ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: itemArtSize,
+                              height: itemArtSize,
+                              child: GridView.count(
+                                crossAxisCount: 2,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                mainAxisSpacing: 1,
+                                crossAxisSpacing: 1,
+                                padding: EdgeInsets.zero,
+                                children: gridImages,
+                              ),
+                            ),
+                          );
+                        }
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PlaylistDetailScreen(playlist: playlist),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 140, // Width of the entire card
-                      margin: EdgeInsets.only(right: i == recentPlaylists.length - 1 ? 0 : 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: itemArtSize, // Fixed height for the art part
-                            child: leadingWidget,
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    PlaylistDetailScreen(playlist: playlist),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 140, // Width of the entire card
+                            margin: EdgeInsets.only(
+                                right:
+                                    i == recentPlaylists.length - 1 ? 0 : 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  height:
+                                      itemArtSize, // Fixed height for the art part
+                                  child: leadingWidget,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  playlist.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  '${playlist.songs.length} songs',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            playlist.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            textAlign: TextAlign.center,
-                          ),
-                          Text(
-                            '${playlist.songs.length} songs',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
 
-          // Recently Saved Albums Section
-          if (recentSavedAlbums.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Recently Saved Albums',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 190, // Adjust height as needed, consistent with other carousels
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: recentSavedAlbums.length,
-                itemBuilder: (context, i) {
-                  final album = recentSavedAlbums[i];
-                  const double itemArtSize = 140.0;
+                // Recently Saved Albums Section
+                if (recentSavedAlbums.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Recently Saved Albums',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height:
+                        190, // Adjust height as needed, consistent with other carousels
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: recentSavedAlbums.length,
+                      itemBuilder: (context, i) {
+                        final album = recentSavedAlbums[i];
+                        const double itemArtSize = 140.0;
 
-                  Widget albumArtWidget;
-                  if (album.fullAlbumArtUrl.isNotEmpty) {
-                    albumArtWidget = Image.network(
-                      album.fullAlbumArtUrl,
-                      width: itemArtSize,
-                      height: itemArtSize,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: itemArtSize,
-                        height: itemArtSize,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[800],
+                        Widget albumArtWidget;
+                        if (album.fullAlbumArtUrl.isNotEmpty) {
+                          albumArtWidget = Image.network(
+                            album.fullAlbumArtUrl,
+                            width: itemArtSize,
+                            height: itemArtSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: itemArtSize,
+                              height: itemArtSize,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.album,
+                                  size: itemArtSize * 0.6,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.7)),
+                            ),
+                          );
+                        } else {
+                          albumArtWidget = Container(
+                            width: itemArtSize,
+                            height: itemArtSize,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[800],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.album,
+                                size: itemArtSize * 0.6,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.7)),
+                          );
+                        }
+
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AlbumScreen(album: album),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 140, // Width of the entire card
+                            margin: EdgeInsets.only(
+                                right:
+                                    i == recentSavedAlbums.length - 1 ? 0 : 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  height:
+                                      itemArtSize, // Fixed height for the art part
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: albumArtWidget,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  album.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  album.artistName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Recently Played Radio Stations Section
+                if (recentStations.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Recently Played Stations',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 190, // Consistent height
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: recentStations.length,
+                      itemBuilder: (context, i) {
+                        final station = recentStations[i];
+                        const double itemArtSize = 140.0;
+
+                        Widget stationArtWidget = RadioStationIcon(
+                          imageUrl: station.imageUrl,
+                          stationId: station.id,
+                          size: itemArtSize,
                           borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                      ),
-                    );
-                  } else {
-                    albumArtWidget = Container(
-                      width: itemArtSize,
-                      height: itemArtSize,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[800],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.album, size: itemArtSize * 0.6, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                    );
-                  }
+                        );
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AlbumScreen(album: album),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 140, // Width of the entire card
-                      margin: EdgeInsets.only(right: i == recentSavedAlbums.length - 1 ? 0 : 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: itemArtSize, // Fixed height for the art part
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: albumArtWidget,
+                        return GestureDetector(
+                          onTap: () {
+                            // When a recent station is tapped, play it.
+                            // The listener _handleRadioStationPlay will automatically move it to the top of recents.
+                            final song = Song(
+                              id: station.id,
+                              title: station.name,
+                              artist:
+                                  'Radio Station', // Marker for our listener
+                              album: 'Live Radio',
+                              albumArtUrl: station.imageUrl,
+                              audioUrl: station.streamUrl,
+                              isDownloaded: false,
+                              localFilePath: null,
+                              duration: null,
+                              isImported: false,
+                            );
+                            Provider.of<CurrentSongProvider>(context,
+                                    listen: false)
+                                .playSong(song);
+                          },
+                          child: Container(
+                            width: 140, // Width of the entire card
+                            margin: EdgeInsets.only(
+                                right: i == recentStations.length - 1 ? 0 : 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  height:
+                                      itemArtSize, // Fixed height for the art part
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: stationArtWidget,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  station.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            album.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            textAlign: TextAlign.center,
-                          ),
-                          Text(
-                            album.artistName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ],
             ),
-            const SizedBox(height: 24),
-          ],
-
-          // Recently Played Radio Stations Section
-          if (recentStations.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Recently Played Stations',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 190, // Consistent height
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: recentStations.length,
-                itemBuilder: (context, i) {
-                  final station = recentStations[i];
-                  const double itemArtSize = 140.0;
-
-                  Widget stationArtWidget = RadioStationIcon(
-                    imageUrl: station.imageUrl,
-                    stationId: station.id,
-                    size: itemArtSize,
-                    borderRadius: BorderRadius.circular(8),
-                  );
-
-                  return GestureDetector(
-                    onTap: () {
-                      // When a recent station is tapped, play it.
-                      // The listener _handleRadioStationPlay will automatically move it to the top of recents.
-                      final song = Song(
-                        id: station.id,
-                        title: station.name,
-                        artist: 'Radio Station', // Marker for our listener
-                        album: 'Live Radio',
-                        albumArtUrl: station.imageUrl,
-                        audioUrl: station.streamUrl,
-                        isDownloaded: false,
-                        localFilePath: null,
-                        duration: null,
-                        isImported: false,
-                      );
-                      Provider.of<CurrentSongProvider>(context, listen: false).playSong(song);
-                    },
-                    child: Container(
-                      width: 140, // Width of the entire card
-                      margin: EdgeInsets.only(right: i == recentStations.length - 1 ? 0 : 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: itemArtSize, // Fixed height for the art part
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: stationArtWidget,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            station.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -2676,7 +2921,8 @@ class _RadioStationIconState extends State<RadioStationIcon> {
   @override
   void didUpdateWidget(RadioStationIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl || oldWidget.stationId != widget.stationId) {
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.stationId != widget.stationId) {
       _loadIcon();
     }
   }
@@ -2696,7 +2942,8 @@ class _RadioStationIconState extends State<RadioStationIcon> {
     });
 
     try {
-      final cachedPath = await cacheStationIcon(widget.imageUrl, widget.stationId);
+      final cachedPath =
+          await cacheStationIcon(widget.imageUrl, widget.stationId);
       if (mounted) {
         setState(() {
           _cachedPath = cachedPath;
@@ -2770,7 +3017,10 @@ class _RadioStationIconState extends State<RadioStationIcon> {
             child: Icon(
               Icons.radio,
               size: widget.size * 0.6,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.7),
             ),
           ),
         ),

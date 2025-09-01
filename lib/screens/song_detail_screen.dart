@@ -9,6 +9,7 @@ import '../models/lyrics_data.dart'; // Add import for Lyrics model
 import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart'; // Add import for AlbumManagerService
 import '../services/error_handler_service.dart';
+import '../services/liked_songs_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -282,6 +283,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
       // Persist the updated metadata.
       await _saveSongMetadata(updatedSong);
+
+      // Remove from liked songs if it was a local song (since it won't be available after deletion)
+      await LikedSongsService().removeLocalSongFromLiked(songToDelete);
 
       // Notify services if the widget is still mounted.
       if (mounted) {

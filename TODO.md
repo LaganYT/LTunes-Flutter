@@ -30,7 +30,6 @@
 
 Edit the display logic to allow (acoustic, live versions) also edit the audio fetching to allow the same.
 Fix the dots not animating at the start of the song
-When you delete a song make sure it gets removed from liked songs if it was a local song
 Add a button by updates called “Known issues” that displays the issues i have logged in issues.json at the same url as updates.json
 When you are on a song make sure its showing the right lyrics (full screen player)
 When opening the lyrics have them fade in, not bounce in

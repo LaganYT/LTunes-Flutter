@@ -12,6 +12,7 @@ import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
 import '../services/auto_fetch_service.dart';
+import '../services/liked_songs_service.dart';
 import '../widgets/playbar.dart';
 import 'song_detail_screen.dart';
 import '../services/album_manager_service.dart'; // Import for AlbumManagerService
@@ -22,7 +23,6 @@ class SongsScreen extends StatefulWidget {
   const SongsScreen({super.key, this.artistFilter});
   @override
   SongsScreenState createState() => SongsScreenState();
-  
 }
 
 class SongsScreenState extends State<SongsScreen> {
@@ -35,88 +35,106 @@ class SongsScreenState extends State<SongsScreen> {
     _refreshSongs(); // Changed from _load()
   }
 
-  Future<void> _refreshSongs() async { // Renamed from _loadDownloadedSongs and modified
+  Future<void> _refreshSongs() async {
+    // Renamed from _loadDownloadedSongs and modified
     final prefs = await SharedPreferences.getInstance();
     final Set<String> keys = prefs.getKeys();
-    final List<Song> allValidSongs = []; // Temporary list for all valid downloaded songs
+    final List<Song> allValidSongs =
+        []; // Temporary list for all valid downloaded songs
     final appDocDir = await getApplicationDocumentsDirectory(); // Get once
-    const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory used by DownloadManager
+    const String downloadsSubDir =
+        'ltunes_downloads'; // Subdirectory used by DownloadManager
 
     for (String key in keys) {
       if (key.startsWith('song_')) {
         final String? songJson = prefs.getString(key);
         if (songJson != null) {
           try {
-            Map<String, dynamic> songMap = jsonDecode(songJson) as Map<String, dynamic>;
+            Map<String, dynamic> songMap =
+                jsonDecode(songJson) as Map<String, dynamic>;
             Song song = Song.fromJson(songMap);
             bool metadataUpdated = false;
 
             // Migration and validation for localFilePath
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+            if (song.isDownloaded &&
+                song.localFilePath != null &&
+                song.localFilePath!.isNotEmpty) {
               String fileName = song.localFilePath!;
-              if (song.localFilePath!.contains(Platform.pathSeparator)) { // It's a full path, needs migration
+              if (song.localFilePath!.contains(Platform.pathSeparator)) {
+                // It's a full path, needs migration
                 fileName = p.basename(song.localFilePath!);
               }
               // Correct path for checking existence, including the subdirectory
-              final fullPath = p.join(appDocDir.path, downloadsSubDir, fileName);
-              
+              final fullPath =
+                  p.join(appDocDir.path, downloadsSubDir, fileName);
+
               if (await File(fullPath).exists()) {
-                if (song.localFilePath != fileName) { // Was a full path, now migrated to just filename
+                if (song.localFilePath != fileName) {
+                  // Was a full path, now migrated to just filename
                   song = song.copyWith(localFilePath: fileName);
                   songMap['localFilePath'] = fileName; // Update map for saving
                   metadataUpdated = true;
                 }
-              } else { // File doesn't exist in the expected subdirectory
+              } else {
+                // File doesn't exist in the expected subdirectory
                 song = song.copyWith(isDownloaded: false, localFilePath: null);
                 songMap['isDownloaded'] = false;
                 songMap['localFilePath'] = null;
                 metadataUpdated = true;
               }
-            } else if (song.isDownloaded) { // Marked downloaded but path is null/empty
-                song = song.copyWith(isDownloaded: false, localFilePath: null);
-                songMap['isDownloaded'] = false;
-                songMap['localFilePath'] = null;
-                metadataUpdated = true;
+            } else if (song.isDownloaded) {
+              // Marked downloaded but path is null/empty
+              song = song.copyWith(isDownloaded: false, localFilePath: null);
+              songMap['isDownloaded'] = false;
+              songMap['localFilePath'] = null;
+              metadataUpdated = true;
             }
 
             // Migration and validation for albumArtUrl (if local and stored in root app docs)
-            if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
-                String artFileName = song.albumArtUrl;
-                if (song.albumArtUrl.contains(Platform.pathSeparator)) { // Full path, needs migration
-                    artFileName = p.basename(song.albumArtUrl);
-                }
-                final fullArtPath = p.join(appDocDir.path, artFileName);
+            if (song.albumArtUrl.isNotEmpty &&
+                !song.albumArtUrl.startsWith('http')) {
+              String artFileName = song.albumArtUrl;
+              if (song.albumArtUrl.contains(Platform.pathSeparator)) {
+                // Full path, needs migration
+                artFileName = p.basename(song.albumArtUrl);
+              }
+              final fullArtPath = p.join(appDocDir.path, artFileName);
 
-                if (await File(fullArtPath).exists()) {
-                    if (song.albumArtUrl != artFileName) {
-                        song = song.copyWith(albumArtUrl: artFileName);
-                        songMap['albumArtUrl'] = artFileName;
-                        metadataUpdated = true;
-                    }
-                } else { // Local album art file missing
-                    // Optionally clear it or use a placeholder indicator.
-                    // For now, we keep the potentially broken filename if it was already a filename.
-                    // If it was a full path and file is missing, it effectively becomes "broken".
-                    // Consider if song = song.copyWith(albumArtUrl: ''); is desired here.
+              if (await File(fullArtPath).exists()) {
+                if (song.albumArtUrl != artFileName) {
+                  song = song.copyWith(albumArtUrl: artFileName);
+                  songMap['albumArtUrl'] = artFileName;
+                  metadataUpdated = true;
                 }
+              } else {
+                // Local album art file missing
+                // Optionally clear it or use a placeholder indicator.
+                // For now, we keep the potentially broken filename if it was already a filename.
+                // If it was a full path and file is missing, it effectively becomes "broken".
+                // Consider if song = song.copyWith(albumArtUrl: ''); is desired here.
+              }
             }
-            
+
             if (metadataUpdated) {
               await prefs.setString(key, jsonEncode(songMap));
             }
 
             // Add to list if downloaded and file exists
-            if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+            if (song.isDownloaded &&
+                song.localFilePath != null &&
+                song.localFilePath!.isNotEmpty) {
               // Re-check after potential modifications if file truly exists with the (potentially migrated) filename
               // in the correct subdirectory
-              final checkFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
-              if (await checkFile.exists()){
-                  allValidSongs.add(song); // Add to the temporary list of all valid songs
+              final checkFile = File(
+                  p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
+              if (await checkFile.exists()) {
+                allValidSongs
+                    .add(song); // Add to the temporary list of all valid songs
               }
             }
-
           } catch (e) {
-            debugPrint('Error decoding song from SharedPreferences for key $key: $e');
+            debugPrint(
+                'Error decoding song from SharedPreferences for key $key: $e');
             // Optionally remove corrupted data: await prefs.remove(key);
           }
         }
@@ -126,11 +144,13 @@ class SongsScreenState extends State<SongsScreen> {
     // Apply artist filter if present
     List<Song> songsToDisplay = allValidSongs;
     if (widget.artistFilter != null) {
-      songsToDisplay = allValidSongs.where((s) => s.artist == widget.artistFilter).toList();
+      songsToDisplay =
+          allValidSongs.where((s) => s.artist == widget.artistFilter).toList();
     }
 
     // Sort songs alphabetically by title
-    songsToDisplay.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    songsToDisplay
+        .sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
     if (mounted) {
       setState(() {
@@ -139,16 +159,20 @@ class SongsScreenState extends State<SongsScreen> {
     }
   }
 
-
   Future<void> _deleteSong(Song s) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Delete "${s.title}"?'),
-        content: const Text('This will remove the downloaded audio file and associated album art if present.'),
+        content: const Text(
+            'This will remove the downloaded audio file and associated album art if present.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -158,17 +182,23 @@ class SongsScreenState extends State<SongsScreen> {
     // This should happen before file deletion and SharedPreferences.remove
     // so that CurrentSongProvider saves its state *without* the song.
     if (mounted && context.mounted) {
-      await Provider.of<CurrentSongProvider>(context, listen: false).processSongLibraryRemoval(s.id);
+      await Provider.of<CurrentSongProvider>(context, listen: false)
+          .processSongLibraryRemoval(s.id);
     }
 
     // Remove song from any playlists. This should modify playlist data.
     await _playlistManager.removeSongFromAllPlaylists(s);
 
-    final dir = await getApplicationDocumentsDirectory(); // Get app documents directory once
+    // Remove from liked songs if it's a local song (since it won't be available after deletion)
+    await LikedSongsService().removeLocalSongFromLiked(s);
+
+    final dir =
+        await getApplicationDocumentsDirectory(); // Get app documents directory once
 
     // 1. Delete the local audio file
     if (s.localFilePath != null && s.localFilePath!.isNotEmpty) {
-      final audioFile = File(p.join(dir.path, 'ltunes_downloads', s.localFilePath!));
+      final audioFile =
+          File(p.join(dir.path, 'ltunes_downloads', s.localFilePath!));
       try {
         if (await audioFile.exists()) {
           await audioFile.delete();
@@ -182,7 +212,8 @@ class SongsScreenState extends State<SongsScreen> {
     // 2. Delete the local album art file
     if (s.albumArtUrl.isNotEmpty && !s.albumArtUrl.startsWith('http')) {
       // Check if any other song uses this cover
-      bool coverIsUsedElsewhere = _songs.any((other) => other.id != s.id && other.albumArtUrl == s.albumArtUrl);
+      bool coverIsUsedElsewhere = _songs.any(
+          (other) => other.id != s.id && other.albumArtUrl == s.albumArtUrl);
       if (!coverIsUsedElsewhere) {
         final albumArtFile = File(p.join(dir.path, s.albumArtUrl));
         try {
@@ -211,22 +242,32 @@ class SongsScreenState extends State<SongsScreen> {
     setState(() => _songs.removeWhere((song) => song.id == s.id));
   }
 
-Future<void> _importSongs() async {
+  Future<void> _importSongs() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom, // Changed from FileType.audio
-        allowedExtensions: ['mp3', 'wav', 'm4a', 'mp4', 'flac', 'opus'], // Added new extensions
+        allowedExtensions: [
+          'mp3',
+          'wav',
+          'm4a',
+          'mp4',
+          'flac',
+          'opus'
+        ], // Added new extensions
         allowMultiple: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
         Directory appDocDir = await getApplicationDocumentsDirectory();
-        const String downloadsSubDir = 'ltunes_downloads'; // Subdirectory for downloads
-        final Directory fullDownloadsDir = Directory(p.join(appDocDir.path, downloadsSubDir));
+        const String downloadsSubDir =
+            'ltunes_downloads'; // Subdirectory for downloads
+        final Directory fullDownloadsDir =
+            Directory(p.join(appDocDir.path, downloadsSubDir));
         if (!await fullDownloadsDir.exists()) {
-          await fullDownloadsDir.create(recursive: true); // Ensure the subdirectory exists
+          await fullDownloadsDir.create(
+              recursive: true); // Ensure the subdirectory exists
         }
-        
+
         final prefs = await SharedPreferences.getInstance();
         int importCount = 0;
 
@@ -243,26 +284,29 @@ Future<void> _importSongs() async {
           String originalPath = file.path!;
           String originalFileName = p.basename(originalPath).toLowerCase();
           debugPrint('Processing file: $originalFileName');
-          
+
           // Create a unique name for the copied file to avoid conflicts
           // Use the original extension from originalFileName for the new file name
-          String baseNameWithoutExt = p.basenameWithoutExtension(originalFileName);
+          String baseNameWithoutExt =
+              p.basenameWithoutExtension(originalFileName);
           String originalExtension = p.extension(originalFileName); // e.g. .mp3
-          String newFileName = '${_uuid.v4()}_$baseNameWithoutExt$originalExtension';
+          String newFileName =
+              '${_uuid.v4()}_$baseNameWithoutExt$originalExtension';
 
           // Corrected path: Copy to the 'ltunes_downloads' subdirectory
-          String copiedFilePath = p.join(fullDownloadsDir.path, newFileName); 
+          String copiedFilePath = p.join(fullDownloadsDir.path, newFileName);
 
           try {
             // Copy the file to the app's documents directory (specifically, the downloads subdirectory)
-            File copiedFile = await File(originalPath).copy(copiedFilePath); // Ensure file is copied
+            File copiedFile = await File(originalPath)
+                .copy(copiedFilePath); // Ensure file is copied
 
             // Extract metadata
             AudioMetadata? metadata;
             // Try to extract metadata for all formats, including M4A and MP4
             try {
               // getImage: true to attempt to load album art
-              metadata = readMetadata(copiedFile, getImage: true); 
+              metadata = readMetadata(copiedFile, getImage: true);
             } catch (e) {
               debugPrint('Error reading metadata for $originalFileName: $e');
               // Proceed with default values if metadata reading fails
@@ -272,16 +316,24 @@ Future<void> _importSongs() async {
             String albumArtFileName = ''; // Will store just the filename
 
             if (metadata?.pictures.isNotEmpty ?? false) {
-              debugPrint('Found ${metadata!.pictures.length} picture(s) in metadata for $originalFileName');
-              final picture = (metadata.pictures.isNotEmpty) ? metadata.pictures.first : null;
-              if (picture != null && picture.bytes.isNotEmpty && picture.bytes.length > 100) { // Ensure minimum size for valid image
-                debugPrint('Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
+              debugPrint(
+                  'Found ${metadata!.pictures.length} picture(s) in metadata for $originalFileName');
+              final picture = (metadata.pictures.isNotEmpty)
+                  ? metadata.pictures.first
+                  : null;
+              if (picture != null &&
+                  picture.bytes.isNotEmpty &&
+                  picture.bytes.length > 100) {
+                // Ensure minimum size for valid image
+                debugPrint(
+                    'Picture mimetype: ${picture.mimetype}, size: ${picture.bytes.length} bytes');
                 // Determine file extension from mime type or default to .jpg
                 String extension = '.jpg'; // Default extension
                 if (picture.mimetype.isNotEmpty) {
                   if (picture.mimetype.endsWith('png')) {
                     extension = '.png';
-                  } else if (picture.mimetype.endsWith('jpeg') || picture.mimetype.endsWith('jpg')) {
+                  } else if (picture.mimetype.endsWith('jpeg') ||
+                      picture.mimetype.endsWith('jpg')) {
                     extension = '.jpg';
                   } else if (picture.mimetype.endsWith('webp')) {
                     extension = '.webp';
@@ -290,53 +342,64 @@ Future<void> _importSongs() async {
                   }
                 }
                 // Add more formats as needed
-                
-                albumArtFileName = 'albumart_$songId$extension'; // Just the filename
+
+                albumArtFileName =
+                    'albumart_$songId$extension'; // Just the filename
                 // Album art is saved in the root of appDocDir, not the downloadsSubDir
-                String fullAlbumArtPath = p.join(appDocDir.path, albumArtFileName); 
-                
+                String fullAlbumArtPath =
+                    p.join(appDocDir.path, albumArtFileName);
+
                 try {
                   final albumArtFile = File(fullAlbumArtPath);
                   await albumArtFile.writeAsBytes(picture.bytes);
-                  debugPrint('Successfully saved album art: $fullAlbumArtPath (${picture.bytes.length} bytes)');
-                  
+                  debugPrint(
+                      'Successfully saved album art: $fullAlbumArtPath (${picture.bytes.length} bytes)');
+
                   // Verify the file was created and has content
-                  if (await albumArtFile.exists() && await albumArtFile.length() > 0) {
-                    debugPrint('Album art file verified: ${await albumArtFile.length()} bytes');
+                  if (await albumArtFile.exists() &&
+                      await albumArtFile.length() > 0) {
+                    debugPrint(
+                        'Album art file verified: ${await albumArtFile.length()} bytes');
                   } else {
-                    debugPrint('Warning: Album art file may not have been created properly');
+                    debugPrint(
+                        'Warning: Album art file may not have been created properly');
                     albumArtFileName = ''; // Clear if file creation failed
                   }
                   // albumArtPath = fullAlbumArtFullPath; // No, store filename
                 } catch (e) {
-                  debugPrint('Error saving album art for $originalFileName: $e');
+                  debugPrint(
+                      'Error saving album art for $originalFileName: $e');
                   albumArtFileName = ''; // Clear if saving failed
                 }
               }
             } else {
               debugPrint('No pictures found in metadata for $originalFileName');
             }
-            
+
             Song newSong = Song(
               id: songId,
-              title: metadata?.title ?? p.basenameWithoutExtension(originalFileName),
+              title: metadata?.title ??
+                  p.basenameWithoutExtension(originalFileName),
               artist: metadata?.artist ?? 'Unknown Artist',
               album: metadata?.album,
               albumArtUrl: albumArtFileName, // Store just the filename
-              audioUrl: copiedFilePath, // Store full path for initial playback before metadata save
+              audioUrl:
+                  copiedFilePath, // Store full path for initial playback before metadata save
               isDownloaded: true, // Mark as downloaded
-              localFilePath: newFileName, // Store just the filename for persistence
+              localFilePath:
+                  newFileName, // Store just the filename for persistence
               duration: metadata?.duration,
               isImported: true, // Mark as imported
             );
 
             // Persist song metadata
-            await prefs.setString('song_${newSong.id}', jsonEncode(newSong.toJson()));
-            
+            await prefs.setString(
+                'song_${newSong.id}', jsonEncode(newSong.toJson()));
+
             // Auto-fetch metadata if enabled
             final autoFetchService = AutoFetchService();
             await autoFetchService.autoFetchMetadataForNewImport(newSong);
-            
+
             importCount++;
           } catch (e) {
             debugPrint('Error processing file $originalFileName: $e');
@@ -351,13 +414,14 @@ Future<void> _importSongs() async {
         if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).removeCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$importCount song(s) imported successfully.')),
+            SnackBar(
+                content: Text('$importCount song(s) imported successfully.')),
           );
         }
         // Manually trigger a reload if the provider pattern doesn't cover this specific import case for notifications.
         // This ensures the UI updates immediately after import.
         if (importCount > 0) {
-            await _refreshSongs(); // Updated to call _refreshSongs
+          await _refreshSongs(); // Updated to call _refreshSongs
         }
       } else {
         // User canceled the picker or no files selected
@@ -381,7 +445,8 @@ Future<void> _importSongs() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.artistFilter == null ? 'Songs' : widget.artistFilter!),
+        title:
+            Text(widget.artistFilter == null ? 'Songs' : widget.artistFilter!),
         actions: [
           if (widget.artistFilter == null)
             IconButton(
@@ -393,7 +458,8 @@ Future<void> _importSongs() async {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48.0),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search songs...',
@@ -404,7 +470,11 @@ Future<void> _importSongs() async {
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                hintStyle: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7)),
               ),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {
@@ -412,7 +482,11 @@ Future<void> _importSongs() async {
                   if (query.isEmpty) {
                     _refreshSongs(); // Refresh the songs list when query is empty
                   } else {
-                    _songs = _songs.where((song) => song.title.toLowerCase().contains(query.toLowerCase())).toList();
+                    _songs = _songs
+                        .where((song) => song.title
+                            .toLowerCase()
+                            .contains(query.toLowerCase()))
+                        .toList();
                   }
                 });
               },
@@ -423,7 +497,8 @@ Future<void> _importSongs() async {
       body: _songs.isEmpty
           ? const Center(child: Text('No songs found.'))
           : ListView.builder(
-              padding: const EdgeInsets.only(bottom: 80), // Add padding for playbar
+              padding:
+                  const EdgeInsets.only(bottom: 80), // Add padding for playbar
               itemCount: _songs.length,
               itemBuilder: (c, i) {
                 final s = _songs[i];
@@ -435,14 +510,18 @@ Future<void> _importSongs() async {
                     children: [
                       SlidableAction(
                         onPressed: (context) {
-                          final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+                          final currentSongProvider =
+                              Provider.of<CurrentSongProvider>(context,
+                                  listen: false);
                           currentSongProvider.addToQueue(s);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${s.title} added to queue')),
+                            SnackBar(
+                                content: Text('${s.title} added to queue')),
                           );
                         },
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimary,
                         icon: Icons.playlist_add,
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -455,8 +534,10 @@ Future<void> _importSongs() async {
                             },
                           );
                         },
-                        backgroundColor: Theme.of(context).colorScheme.secondary,
-                        foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSecondary,
                         icon: Icons.library_add,
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -478,20 +559,28 @@ Future<void> _importSongs() async {
                                 )
                               : FutureBuilder<String>(
                                   future: () async {
-                                    final dir = await getApplicationDocumentsDirectory();
+                                    final dir =
+                                        await getApplicationDocumentsDirectory();
                                     final fname = p.basename(s.albumArtUrl);
                                     final path = p.join(dir.path, fname);
-                                    return await File(path).exists() ? path : '';
+                                    return await File(path).exists()
+                                        ? path
+                                        : '';
                                   }(),
                                   builder: (_, snap) {
-                                    if (snap.connectionState == ConnectionState.done && snap.hasData && snap.data!.isNotEmpty) {
+                                    if (snap.connectionState ==
+                                            ConnectionState.done &&
+                                        snap.hasData &&
+                                        snap.data!.isNotEmpty) {
                                       return Image.file(
                                         File(snap.data!),
                                         width: 40,
                                         height: 40,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return const Icon(Icons.album, size: 40);
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return const Icon(Icons.album,
+                                              size: 40);
                                         },
                                       );
                                     }
@@ -503,14 +592,19 @@ Future<void> _importSongs() async {
                     title: Text(s.title),
                     subtitle: Text(s.artist),
                     onTap: () async {
-                      final prov = Provider.of<CurrentSongProvider>(context, listen: false);
+                      final prov = Provider.of<CurrentSongProvider>(context,
+                          listen: false);
                       final song = _songs[i];
                       // If the song is downloaded, has a network album art URL, and is missing local art, try to download it
-                      bool needsArtDownload = song.isDownloaded && song.albumArtUrl.isNotEmpty && song.albumArtUrl.startsWith('http');
+                      bool needsArtDownload = song.isDownloaded &&
+                          song.albumArtUrl.isNotEmpty &&
+                          song.albumArtUrl.startsWith('http');
                       bool isOnline = true;
                       try {
-                        final result = await InternetAddress.lookup('example.com');
-                        isOnline = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+                        final result =
+                            await InternetAddress.lookup('example.com');
+                        isOnline = result.isNotEmpty &&
+                            result[0].rawAddress.isNotEmpty;
                       } catch (_) {
                         isOnline = false;
                       }
