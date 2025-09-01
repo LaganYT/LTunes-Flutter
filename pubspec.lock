@@ -244,10 +244,10 @@ packages:
     dependency: "direct main"
     description:
       name: file_picker
-      sha256: ef7d2a085c1b1d69d17b6842d0734aad90156de08df6bd3c12496d0bd6ddf8e2
+      sha256: e7e16c9d15c36330b94ca0e2ad8cb61f93cd5282d0158c09805aed13b5452f22
       url: "https://pub.dev"
     source: hosted
-    version: "10.3.1"
+    version: "10.3.2"
   fixnum:
     dependency: transitive
     description:
@@ -260,10 +260,10 @@ packages:
     dependency: "direct main"
     description:
       name: fl_chart
-      sha256: "577aeac8ca414c25333334d7c4bb246775234c0e44b38b10a82b559dd4d764e7"
+      sha256: d3f82f4a38e33ba23d05a08ff304d7d8b22d2a59a5503f20bd802966e915db89
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "1.1.0"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -297,10 +297,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_local_notifications
-      sha256: "20ca0a9c82ce0c855ac62a2e580ab867f3fbea82680a90647f7953832d0850ae"
+      sha256: a9966c850de5e445331b854fa42df96a8020066d67f125a5964cbc6556643f68
       url: "https://pub.dev"
     source: hosted
-    version: "19.4.0"
+    version: "19.4.1"
   flutter_local_notifications_linux:
     dependency: transitive
     description:
@@ -337,10 +337,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_slidable
-      sha256: ab7dbb16f783307c9d7762ede2593ce32c220ba2ba0fd540a3db8e9a3acba71a
+      sha256: e6bd17290cf0d011f9ed66c74d4159b8fe3b3050afedac0f11fab1ba8687e710
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.0"
+    version: "4.0.1"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -627,10 +627,10 @@ packages:
     dependency: "direct main"
     description:
       name: provider
-      sha256: "4abbd070a04e9ddc287673bf5a030c7ca8b685ff70218720abab8b092f53dd84"
+      sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
       url: "https://pub.dev"
     source: hosted
-    version: "6.1.5"
+    version: "6.1.5+1"
   quiver:
     dependency: transitive
     description:
@@ -824,26 +824,26 @@ packages:
     dependency: transitive
     description:
       name: syncfusion_flutter_core
-      sha256: ce02ce65f51db8e29edc9d2225872d927e001bd2b13c2490d176563bbb046fc7
+      sha256: bfd026c0f9822b49ff26fed11cd3334519acb6a6ad4b0c81d9cd18df6af1c4c0
       url: "https://pub.dev"
     source: hosted
-    version: "30.2.5"
+    version: "30.2.7"
   syncfusion_flutter_xlsio:
     dependency: "direct main"
     description:
       name: syncfusion_flutter_xlsio
-      sha256: "9202fa32ff3463621c7d4f5ae700b9be9406eadd683edd5b879a7197aa437660"
+      sha256: d6d34acd4d4e4ca504f110be6076fa5bde2e5a447762f84b613d628a7ffa5b98
       url: "https://pub.dev"
     source: hosted
-    version: "30.2.5"
+    version: "30.2.7"
   syncfusion_officecore:
     dependency: transitive
     description:
       name: syncfusion_officecore
-      sha256: "673b22fa4a36b773aa89dbf8b90395a4ea2cfc9040686296da36f0bc5e9394c8"
+      sha256: b940ba8e4400df7f8d1e80309b558bfa88551396248f015db66b3323a09ff36d
       url: "https://pub.dev"
     source: hosted
-    version: "30.2.5"
+    version: "30.2.7"
   synchronized:
     dependency: transitive
     description:
