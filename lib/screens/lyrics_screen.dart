@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 class LyricsScreen extends StatefulWidget {
   final String songTitle;
@@ -27,7 +28,9 @@ class _LyricsScreenState extends State<LyricsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_showLyrics ? 'Lyrics - ${widget.songTitle}' : 'Album Art - ${widget.songTitle}'),
+        title: Text(_showLyrics
+            ? 'Lyrics - ${widget.songTitle}'
+            : 'Album Art - ${widget.songTitle}'),
       ),
       body: GestureDetector(
         onTap: () {
@@ -42,7 +45,9 @@ class _LyricsScreenState extends State<LyricsScreen> {
           },
           child: _showLyrics
               ? LyricsView(key: const ValueKey('lyrics'), lyrics: widget.lyrics)
-              : AlbumArtView(key: const ValueKey('albumArt'), albumArtUrl: widget.albumArtUrl),
+              : AlbumArtView(
+                  key: const ValueKey('albumArt'),
+                  albumArtUrl: widget.albumArtUrl),
         ),
       ),
     );
@@ -86,16 +91,20 @@ class _AlbumArtViewState extends State<AlbumArtView> {
   }
 
   Future<void> _updateArtProvider(String artUrl) async {
-    setState(() { _artLoading = true; });
-    if (artUrl.startsWith('http')) {
-      _currentArtProvider = CachedNetworkImageProvider(artUrl);
-    } else if (artUrl.isNotEmpty) {
-      _currentArtProvider = FileImage(File(artUrl));
-    } else {
+    setState(() {
+      _artLoading = true;
+    });
+    try {
+      _currentArtProvider = await artworkService.getArtworkProvider(artUrl);
+    } catch (e) {
+      debugPrint('Error loading artwork: $e');
       _currentArtProvider = null;
     }
     _currentArtKey = artUrl;
-    if (mounted) setState(() { _artLoading = false; });
+    if (mounted)
+      setState(() {
+        _artLoading = false;
+      });
   }
 
   @override
@@ -130,13 +139,13 @@ class _AlbumArtViewState extends State<AlbumArtView> {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: _currentArtProvider != null
-                  ? Image(
-                      key: ValueKey(_currentArtKey),
-                      image: _currentArtProvider!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.error),
-                    )
-                  : const Icon(Icons.error),
+                    ? Image(
+                        key: ValueKey(_currentArtKey),
+                        image: _currentArtProvider!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.error),
+                      )
+                    : const Icon(Icons.error),
               ),
             ),
           ),

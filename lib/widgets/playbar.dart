@@ -187,12 +187,8 @@ class PlaybarState extends State<Playbar> {
 
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 
   Future<String> _getCachedLocalArtFuture(String fileName) {

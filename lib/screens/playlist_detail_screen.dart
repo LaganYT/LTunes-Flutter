@@ -33,10 +33,12 @@ class PlaylistDetailScreen extends StatefulWidget {
 
 class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   final PlaylistManagerService _playlistManager = PlaylistManagerService();
-  
+
   // Cache Future objects to prevent art flashing
-  final Map<String, Future<String>> _localArtFutureCache = {}; // For deleting playlist
-  final Map<String, Future<ImageProvider>> _artProviderFutureCache = {}; // <-- Add this line
+  final Map<String, Future<String>> _localArtFutureCache =
+      {}; // For deleting playlist
+  final Map<String, Future<ImageProvider>> _artProviderFutureCache =
+      {}; // <-- Add this line
 
   // Helper method to resolve local album art path
   Future<String> _resolveLocalArtPath(String fileName) async {
@@ -65,15 +67,19 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   Future<void> _downloadAllSongs(Playlist currentPlaylist) async {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     if (currentPlaylist.songs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Playlist is empty. Nothing to download.')),
+        const SnackBar(
+            content: Text('Playlist is empty. Nothing to download.')),
       );
       return;
     }
 
-    final songsToDownload = currentPlaylist.songs.where((s) => !s.isImported && !s.isDownloaded).toList();
+    final songsToDownload = currentPlaylist.songs
+        .where((s) => !s.isImported && !s.isDownloaded)
+        .toList();
 
     for (final song in songsToDownload) {
       currentSongProvider.queueSongForDownload(song);
@@ -81,17 +87,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     if (songsToDownload.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Queued ${songsToDownload.length} songs for download.')),
+        SnackBar(
+            content:
+                Text('Queued ${songsToDownload.length} songs for download.')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All songs are already downloaded or imported.')),
+        const SnackBar(
+            content: Text('All songs are already downloaded or imported.')),
       );
     }
   }
 
   Future<void> _removeDownloadsFromPlaylist(Playlist currentPlaylist) async {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     if (currentPlaylist.songs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Playlist is empty. Nothing to remove.')),
@@ -100,11 +110,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     // Get songs that are downloaded (not imported)
-    final songsToRemoveDownloads = currentPlaylist.songs.where((s) => !s.isImported && s.isDownloaded).toList();
+    final songsToRemoveDownloads = currentPlaylist.songs
+        .where((s) => !s.isImported && s.isDownloaded)
+        .toList();
 
     if (songsToRemoveDownloads.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No downloaded songs to remove from this playlist.')),
+        const SnackBar(
+            content: Text('No downloaded songs to remove from this playlist.')),
       );
       return;
     }
@@ -115,7 +128,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Remove Downloads?'),
-          content: Text('Are you sure you want to remove downloads for ${songsToRemoveDownloads.length} song(s) from this playlist? This will delete the local files but keep the songs in your library.'),
+          content: Text(
+              'Are you sure you want to remove downloads for ${songsToRemoveDownloads.length} song(s) from this playlist? This will delete the local files but keep the songs in your library.'),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
@@ -124,7 +138,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               },
             ),
             TextButton(
-              child: Text('Remove', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text('Remove',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onPressed: () {
                 Navigator.of(context).pop(true);
               },
@@ -146,7 +161,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       try {
         // Delete the local audio file
         if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
-          final audioFile = File(p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
+          final audioFile = File(
+              p.join(appDocDir.path, downloadsSubDir, song.localFilePath!));
           if (await audioFile.exists()) {
             await audioFile.delete();
             debugPrint('Deleted audio file: ${audioFile.path}');
@@ -154,11 +170,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         }
 
         // Delete the local album art file if it exists and is not used by other songs
-        if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+        if (song.albumArtUrl.isNotEmpty &&
+            !song.albumArtUrl.startsWith('http')) {
           // Check if any other song uses this cover
-          bool coverIsUsedElsewhere = currentPlaylist.songs.any((other) => 
-            other.id != song.id && other.albumArtUrl == song.albumArtUrl);
-          
+          bool coverIsUsedElsewhere = currentPlaylist.songs.any((other) =>
+              other.id != song.id && other.albumArtUrl == song.albumArtUrl);
+
           if (!coverIsUsedElsewhere) {
             final albumArtFile = File(p.join(appDocDir.path, song.albumArtUrl));
             if (await albumArtFile.exists()) {
@@ -170,12 +187,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
         // Fetch the original network album art URL
         String originalAlbumArtUrl = '';
-        if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
+        if (song.albumArtUrl.isNotEmpty &&
+            !song.albumArtUrl.startsWith('http')) {
           // Try to fetch the original network URL for the album art
           try {
             final apiService = ApiService();
             // First try to find the song to get its album art URL
-            final searchResults = await apiService.fetchSongs('${song.title} ${song.artist}');
+            final searchResults =
+                await apiService.fetchSongs('${song.title} ${song.artist}');
             Song? exactMatch;
             for (final result in searchResults) {
               if (result.title.toLowerCase() == song.title.toLowerCase() &&
@@ -184,8 +203,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 break;
               }
             }
-            
-            if (exactMatch != null && exactMatch.albumArtUrl.isNotEmpty && exactMatch.albumArtUrl.startsWith('http')) {
+
+            if (exactMatch != null &&
+                exactMatch.albumArtUrl.isNotEmpty &&
+                exactMatch.albumArtUrl.startsWith('http')) {
               originalAlbumArtUrl = exactMatch.albumArtUrl;
             } else if (song.album != null && song.album!.isNotEmpty) {
               // Try to get the album art from the album
@@ -195,21 +216,25 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               }
             }
           } catch (e) {
-            debugPrint('Error fetching original album art URL for ${song.title}: $e');
+            debugPrint(
+                'Error fetching original album art URL for ${song.title}: $e');
             // If we can't fetch the original URL, we'll leave it empty
           }
         }
 
         // Update song metadata to mark as not downloaded and restore network album art URL
         final updatedSong = song.copyWith(
-          isDownloaded: false, 
+          isDownloaded: false,
           localFilePath: null,
-          albumArtUrl: originalAlbumArtUrl.isNotEmpty ? originalAlbumArtUrl : song.albumArtUrl,
+          albumArtUrl: originalAlbumArtUrl.isNotEmpty
+              ? originalAlbumArtUrl
+              : song.albumArtUrl,
         );
-        
+
         // Update in SharedPreferences
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('song_${updatedSong.id}', jsonEncode(updatedSong.toJson()));
+        await prefs.setString(
+            'song_${updatedSong.id}', jsonEncode(updatedSong.toJson()));
 
         // Notify services
         currentSongProvider.updateSongDetails(updatedSong);
@@ -224,13 +249,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Removed downloads for $removedCount song(s) from playlist.')),
+        SnackBar(
+            content: Text(
+                'Removed downloads for $removedCount song(s) from playlist.')),
       );
     }
   }
 
-  Future<void> _showRemoveSongDialog(Song songToRemove, int originalIndexInPlaylist, Playlist currentPlaylist) async {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+  Future<void> _showRemoveSongDialog(Song songToRemove,
+      int originalIndexInPlaylist, Playlist currentPlaylist) async {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     // Capture mounted state outside async gap if used across await
     final bool isCurrentlyMounted = mounted;
 
@@ -243,7 +272,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text('Are you sure you want to remove "${songToRemove.title}" from this playlist?'),
+                Text(
+                    'Are you sure you want to remove "${songToRemove.title}" from this playlist?'),
               ],
             ),
           ),
@@ -255,21 +285,26 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               },
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+              style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error),
               child: const Text('Remove'),
-              onPressed: () async { // Make onPressed async
+              onPressed: () async {
+                // Make onPressed async
                 Song? currentlyPlayingSong = currentSongProvider.currentSong;
-                bool wasPlayingRemovedSong = currentlyPlayingSong?.id == songToRemove.id;
+                bool wasPlayingRemovedSong =
+                    currentlyPlayingSong?.id == songToRemove.id;
 
                 // Use PlaylistManagerService to remove the song
-                await _playlistManager.removeSongFromPlaylist(currentPlaylist, songToRemove);
-                
+                await _playlistManager.removeSongFromPlaylist(
+                    currentPlaylist, songToRemove);
+
                 // The playlist instance from the manager will be updated,
                 // so we need to fetch the latest version for queue updates.
                 // However, for immediate UI update and queue logic, we can work with a modified local list.
                 // The Consumer will handle getting the absolute latest from the manager.
-                List<Song> updatedPlaylistSongs = List.from(currentPlaylist.songs)..removeWhere((s) => s.id == songToRemove.id);
-
+                List<Song> updatedPlaylistSongs =
+                    List.from(currentPlaylist.songs)
+                      ..removeWhere((s) => s.id == songToRemove.id);
 
                 if (isCurrentlyMounted) {
                   setState(() {
@@ -289,21 +324,26 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       newPlayIndex = 0;
                     }
                     if (newPlayIndex < 0) newPlayIndex = 0;
-                    currentSongProvider.setQueue(updatedPlaylistSongs, initialIndex: newPlayIndex);
-                    currentSongProvider.playSong(updatedPlaylistSongs[newPlayIndex]);
+                    currentSongProvider.setQueue(updatedPlaylistSongs,
+                        initialIndex: newPlayIndex);
+                    currentSongProvider
+                        .playSong(updatedPlaylistSongs[newPlayIndex]);
                   }
                 } else {
                   Song? songThatWasPlaying = currentlyPlayingSong;
                   int newIndexOfSongThatWasPlaying = -1;
                   if (songThatWasPlaying != null) {
                     // Use ID for matching
-                    newIndexOfSongThatWasPlaying = updatedPlaylistSongs.indexWhere((s) => s.id == songThatWasPlaying.id);
+                    newIndexOfSongThatWasPlaying = updatedPlaylistSongs
+                        .indexWhere((s) => s.id == songThatWasPlaying.id);
                   }
 
                   if (newIndexOfSongThatWasPlaying != -1) {
-                    currentSongProvider.setQueue(updatedPlaylistSongs, initialIndex: newIndexOfSongThatWasPlaying);
+                    currentSongProvider.setQueue(updatedPlaylistSongs,
+                        initialIndex: newIndexOfSongThatWasPlaying);
                   } else {
-                    currentSongProvider.setQueue(updatedPlaylistSongs, initialIndex: 0);
+                    currentSongProvider.setQueue(updatedPlaylistSongs,
+                        initialIndex: 0);
                   }
                 }
                 Navigator.of(dialogContext).pop(); // Close the dialog
@@ -329,7 +369,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text('Are you sure you want to delete the playlist "${currentPlaylist.name}"? This action cannot be undone.'),
+                Text(
+                    'Are you sure you want to delete the playlist "${currentPlaylist.name}"? This action cannot be undone.'),
               ],
             ),
           ),
@@ -341,7 +382,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               },
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: Theme.of(currentContext).colorScheme.error),
+              style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(currentContext).colorScheme.error),
               child: const Text('Delete'),
               onPressed: () async {
                 await _playlistManager.removePlaylist(currentPlaylist);
@@ -351,7 +393,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   // Navigate back to the previous screen (LibraryScreen)
                   Navigator.of(currentContext).pop();
                   ScaffoldMessenger.of(currentContext).showSnackBar(
-                    SnackBar(content: Text('Playlist "${currentPlaylist.name}" deleted.')),
+                    SnackBar(
+                        content: Text(
+                            'Playlist "${currentPlaylist.name}" deleted.')),
                   );
                 }
               },
@@ -363,7 +407,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   // Helper to build individual art piece for grid/single display
-  Widget _buildArtImage(String artUrl, double size, {BoxFit fit = BoxFit.cover}) {
+  Widget _buildArtImage(String artUrl, double size,
+      {BoxFit fit = BoxFit.cover}) {
     Widget placeholder = Container(
       width: size,
       height: size,
@@ -384,7 +429,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         future: _getCachedLocalArtFuture(artUrl),
         key: ValueKey<String>('playlist_detail_art_$artUrl'),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+          if (snapshot.connectionState == ConnectionState.done &&
+              snapshot.hasData &&
+              snapshot.data!.isNotEmpty) {
             return Image.file(
               File(snapshot.data!),
               width: size,
@@ -399,12 +446,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
   }
 
-  Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+  Widget robustArtwork(String artUrl,
+      {double? width, double? height, BoxFit fit = BoxFit.cover}) {
     return FutureBuilder<ImageProvider>(
       key: ValueKey('artwork_$artUrl'), // Add stable key
       future: _getCachedArtProviderFuture(artUrl), // Use cached future
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
           return Image(
             image: snapshot.data!,
             width: width,
@@ -414,7 +463,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               width: width,
               height: height,
               color: Colors.grey[700],
-              child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+              child: Icon(Icons.music_note,
+                  size: (width ?? 48) * 0.6, color: Colors.white70),
             ),
           );
         }
@@ -422,13 +472,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           width: width,
           height: height,
           color: Colors.grey[700],
-          child: Icon(Icons.music_note, size: (width ?? 48) * 0.6, color: Colors.white70),
+          child: Icon(Icons.music_note,
+              size: (width ?? 48) * 0.6, color: Colors.white70),
         );
       },
     );
   }
 
-  Widget _buildProminentPlaylistArt(List<String> artUrls, double containerSize) {
+  Widget _buildProminentPlaylistArt(
+      List<String> artUrls, double containerSize) {
     if (artUrls.isEmpty) {
       return Container(
         width: containerSize,
@@ -436,12 +488,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           gradient: LinearGradient(
-            colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)],
+            colors: [
+              Theme.of(context).colorScheme.primaryContainer,
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
-        child: Icon(Icons.music_note, color: Colors.white.withValues(alpha: 0.7), size: containerSize * 0.5),
+        child: Icon(Icons.music_note,
+            color: Colors.white.withValues(alpha: 0.7),
+            size: containerSize * 0.5),
       );
     }
 
@@ -449,7 +506,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       // Display first art as a single image
       return ClipRRect(
         borderRadius: BorderRadius.circular(8.0),
-        child: robustArtwork(artUrls.first, width: containerSize, height: containerSize),
+        child: robustArtwork(artUrls.first,
+            width: containerSize, height: containerSize),
       );
     } else {
       // Display a 2x2 grid of the first 4 album arts
@@ -464,7 +522,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             padding: EdgeInsets.zero,
-            children: artUrls.take(4).map((url) => robustArtwork(url, width: imageSize, height: imageSize)).toList(),
+            children: artUrls
+                .take(4)
+                .map((url) =>
+                    robustArtwork(url, width: imageSize, height: imageSize))
+                .toList(),
           ),
         ),
       );
@@ -498,16 +560,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       // Example: if (song.duration != null) totalDuration += song.duration!;
       // As a placeholder if song.duration doesn't exist:
       // totalDuration += const Duration(minutes: 3, seconds: 30); // Placeholder
-      
+
       // Assuming Song model has: Duration? duration;
       if (song.duration != null) {
         totalDuration += song.duration!;
       }
     }
     if (totalDuration == Duration.zero && currentPlaylist.songs.isNotEmpty) {
-        // This case means songs exist but none had a parsable duration,
-        // or the duration field isn't populated in the Song model.
-        return "N/A"; 
+      // This case means songs exist but none had a parsable duration,
+      // or the duration field isn't populated in the Song model.
+      return "N/A";
     }
     return _formatDuration(totalDuration);
   }
@@ -517,7 +579,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   bool _artLoading = false;
 
   Future<void> _updateArtProvider(String artUrl, String id) async {
-    setState(() { _artLoading = true; });
+    setState(() {
+      _artLoading = true;
+    });
     if (artUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(artUrl);
     } else {
@@ -529,7 +593,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
     _currentArtId = id;
-    if (mounted) setState(() { _artLoading = false; });
+    if (mounted)
+      setState(() {
+        _artLoading = false;
+      });
   }
 
   ImageProvider getArtworkProvider(String artUrl) {
@@ -543,14 +610,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     return Consumer<PlaylistManagerService>(
       builder: (context, playlistManager, child) {
         // Get the latest playlist instance from the manager
         final Playlist currentPlaylist = playlistManager.playlists.firstWhere(
           (p) => p.id == widget.playlist.id,
-          orElse: () => widget.playlist, // Fallback, though ideally it's always found
+          orElse: () =>
+              widget.playlist, // Fallback, though ideally it's always found
         );
 
         final bool hasSongs = currentPlaylist.songs.isNotEmpty;
@@ -569,14 +638,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             flexibleSpaceBackground = Image.network(
               uniqueAlbumArtUrls.first,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[850]),
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(color: Colors.grey[850]),
             );
           } else {
             flexibleSpaceBackground = FutureBuilder<String>(
               future: _getCachedLocalArtFuture(uniqueAlbumArtUrls.first),
-              key: ValueKey<String>('playlist_detail_bg_${uniqueAlbumArtUrls.first}'),
+              key: ValueKey<String>(
+                  'playlist_detail_bg_${uniqueAlbumArtUrls.first}'),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData && snapshot.data!.isNotEmpty) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData &&
+                    snapshot.data!.isNotEmpty) {
                   return Image.file(File(snapshot.data!), fit: BoxFit.cover);
                 }
                 return Container(color: Colors.grey[850]); // Placeholder
@@ -587,7 +660,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           flexibleSpaceBackground = Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)],
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.5)
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -595,63 +674,70 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           );
         }
 
-        const double prominentArtSize = 160.0; 
+        const double prominentArtSize = 160.0;
         final double systemTopPadding = MediaQuery.of(context).padding.top;
 
         return Scaffold(
           body: CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 390.0, 
+                expandedHeight: 390.0,
                 pinned: true,
                 stretch: true,
                 flexibleSpace: FlexibleSpaceBar(
-                  title: Builder(
-                    builder: (context) {
-                      final settings = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
-                      if (settings == null) return const SizedBox.shrink();
+                  title: Builder(builder: (context) {
+                    final settings = context.dependOnInheritedWidgetOfExactType<
+                        FlexibleSpaceBarSettings>();
+                    if (settings == null) return const SizedBox.shrink();
 
-                      // Calculate how "collapsed" the bar is.
-                      // currentExtent goes from maxExtent down to minExtent.
-                      // We want the title to appear when currentExtent is very close to minExtent.
-                      // Calculate opacity for title fade-in, safely guarding division by zero
-                      final double delta = settings.maxExtent - settings.minExtent;
-                      final double collapseThreshold = delta * 0.1;
-                      final double extentDelta = settings.currentExtent - settings.minExtent;
-                      double opacity;
-                      if (collapseThreshold > 0) {
-                        // Fade in when within threshold of collapse
-                        opacity = extentDelta < collapseThreshold
-                            ? (1.0 - (extentDelta / collapseThreshold)).clamp(0.0, 1.0)
-                            : 0.0;
-                      } else {
-                        // If no scroll range, show only when fully collapsed
-                        opacity = (settings.currentExtent == settings.minExtent) ? 1.0 : 0.0;
-                      }
-
-
-                      return Opacity(opacity: opacity,
-                        child: Text(
-                          currentPlaylist.name, // Use currentPlaylist
-                          style: const TextStyle(
-                            fontSize: 16.0, 
-                            color: Colors.white, // Ensure text color is set for visibility
-                            shadows: [ // Optional: add a slight shadow for better readability
-                              Shadow(
-                                blurRadius: 1.0,
-                                color: Colors.black54,
-                                offset: Offset(0.5, 0.5),
-                              ),
-                            ],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
+                    // Calculate how "collapsed" the bar is.
+                    // currentExtent goes from maxExtent down to minExtent.
+                    // We want the title to appear when currentExtent is very close to minExtent.
+                    // Calculate opacity for title fade-in, safely guarding division by zero
+                    final double delta =
+                        settings.maxExtent - settings.minExtent;
+                    final double collapseThreshold = delta * 0.1;
+                    final double extentDelta =
+                        settings.currentExtent - settings.minExtent;
+                    double opacity;
+                    if (collapseThreshold > 0) {
+                      // Fade in when within threshold of collapse
+                      opacity = extentDelta < collapseThreshold
+                          ? (1.0 - (extentDelta / collapseThreshold))
+                              .clamp(0.0, 1.0)
+                          : 0.0;
+                    } else {
+                      // If no scroll range, show only when fully collapsed
+                      opacity = (settings.currentExtent == settings.minExtent)
+                          ? 1.0
+                          : 0.0;
                     }
-                  ),
-                  centerTitle: true, 
-                  titlePadding: const EdgeInsets.only(bottom: 16.0, left: 48.0, right: 48.0), 
+
+                    return Opacity(
+                      opacity: opacity,
+                      child: Text(
+                        currentPlaylist.name, // Use currentPlaylist
+                        style: const TextStyle(
+                          fontSize: 16.0,
+                          color: Colors
+                              .white, // Ensure text color is set for visibility
+                          shadows: [
+                            // Optional: add a slight shadow for better readability
+                            Shadow(
+                              blurRadius: 1.0,
+                              color: Colors.black54,
+                              offset: Offset(0.5, 0.5),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }),
+                  centerTitle: true,
+                  titlePadding: const EdgeInsets.only(
+                      bottom: 16.0, left: 48.0, right: 48.0),
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -665,55 +751,95 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       // Use Padding to position the content column correctly
                       Padding(
                         padding: EdgeInsets.only(
-                          top: systemTopPadding + kToolbarHeight + 10, // Space for status bar, app bar, and a small margin
+                          top: systemTopPadding +
+                              kToolbarHeight +
+                              10, // Space for status bar, app bar, and a small margin
                           left: 16.0,
                           right: 16.0,
-                          bottom: 16.0, // Padding at the bottom of the content area
+                          bottom:
+                              16.0, // Padding at the bottom of the content area
                         ),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start, // Align content to the start (top) of the padded area
-                          mainAxisSize: MainAxisSize.min, 
+                          mainAxisAlignment: MainAxisAlignment
+                              .start, // Align content to the start (top) of the padded area
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                _buildProminentPlaylistArt(uniqueAlbumArtUrls, prominentArtSize),
+                                _buildProminentPlaylistArt(
+                                    uniqueAlbumArtUrls, prominentArtSize),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        currentPlaylist.name, // Use currentPlaylist
+                                        currentPlaylist
+                                            .name, // Use currentPlaylist
                                         style: const TextStyle(
                                           fontSize: 22, // Adjusted size
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
-                                          shadows: [Shadow(blurRadius: 3, color: Colors.black)],
+                                          shadows: [
+                                            Shadow(
+                                                blurRadius: 3,
+                                                color: Colors.black)
+                                          ],
                                         ),
-                                        maxLines: 3, // Allow more lines for playlist name
+                                        maxLines:
+                                            3, // Allow more lines for playlist name
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
                                         '${currentPlaylist.songs.length} songs', // Use currentPlaylist
-                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 14, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)]),
+                                        style: TextStyle(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.85),
+                                            fontSize: 14,
+                                            shadows: const [
+                                              Shadow(
+                                                  blurRadius: 2,
+                                                  color: Colors.black87)
+                                            ]),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        _calculateAndFormatPlaylistDuration(currentPlaylist), // Use currentPlaylist
-                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                        _calculateAndFormatPlaylistDuration(
+                                            currentPlaylist), // Use currentPlaylist
+                                        style: TextStyle(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.75),
+                                            fontSize: 13,
+                                            shadows: const [
+                                              Shadow(
+                                                  blurRadius: 1,
+                                                  color: Colors.black54)
+                                            ]),
                                       ),
                                       if (isFullyDownloaded && hasSongs) ...[
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
-                                            Icon(Icons.check_circle, color: Colors.greenAccent.withValues(alpha: 0.9), size: 16),
+                                            Icon(Icons.check_circle,
+                                                color: Colors.greenAccent
+                                                    .withValues(alpha: 0.9),
+                                                size: 16),
                                             const SizedBox(width: 4),
                                             Text(
                                               'All songs downloaded',
-                                              style: TextStyle(color: Colors.greenAccent.withValues(alpha: 0.9), fontSize: 12, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)]),
+                                              style: TextStyle(
+                                                  color: Colors.greenAccent
+                                                      .withValues(alpha: 0.9),
+                                                  fontSize: 12,
+                                                  shadows: const [
+                                                    Shadow(
+                                                        blurRadius: 1,
+                                                        color: Colors.black54)
+                                                  ]),
                                             ),
                                           ],
                                         ),
@@ -723,21 +849,32 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 24), 
+                            const SizedBox(height: 24),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    onPressed: hasSongs ? () async {
-                                      await currentSongProvider.smartPlayWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
-                                    } : null,
+                                    onPressed: hasSongs
+                                        ? () async {
+                                            await currentSongProvider
+                                                .smartPlayWithContext(
+                                                    currentPlaylist.songs,
+                                                    currentPlaylist
+                                                        .songs.first);
+                                          }
+                                        : null,
                                     icon: const Icon(Icons.play_arrow),
                                     label: const Text('Play All'),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Theme.of(context).colorScheme.surface, // Brighter background
-                                      foregroundColor: Theme.of(context).colorScheme.onSurface, // Contrasting text
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      backgroundColor: Theme.of(context)
+                                          .colorScheme
+                                          .surface, // Brighter background
+                                      foregroundColor: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface, // Contrasting text
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(24),
                                       ),
@@ -747,16 +884,28 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: OutlinedButton.icon(
-                                    onPressed: hasSongs ? () async {
-                                      if (!currentSongProvider.isShuffling) currentSongProvider.toggleShuffle();
-                                      await currentSongProvider.smartPlayWithContext(currentPlaylist.songs, currentPlaylist.songs.first);
-                                    } : null,
+                                    onPressed: hasSongs
+                                        ? () async {
+                                            if (!currentSongProvider
+                                                .isShuffling)
+                                              currentSongProvider
+                                                  .toggleShuffle();
+                                            await currentSongProvider
+                                                .smartPlayWithContext(
+                                                    currentPlaylist.songs,
+                                                    currentPlaylist
+                                                        .songs.first);
+                                          }
+                                        : null,
                                     icon: const Icon(Icons.shuffle),
                                     label: const Text('Shuffle'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.white,
-                                      side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      side: BorderSide(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.7)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(24),
                                       ),
@@ -772,38 +921,76 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 if (hasSongs)
                                   Expanded(
                                     child: TextButton.icon(
-                                      onPressed: isFullyDownloaded ? () => _removeDownloadsFromPlaylist(currentPlaylist) : () => _downloadAllSongs(currentPlaylist), // Use currentPlaylist
+                                      onPressed: isFullyDownloaded
+                                          ? () => _removeDownloadsFromPlaylist(
+                                              currentPlaylist)
+                                          : () => _downloadAllSongs(
+                                              currentPlaylist), // Use currentPlaylist
                                       icon: Icon(
-                                        isFullyDownloaded ? Icons.delete_outline : Icons.download_for_offline_outlined,
-                                        color: isFullyDownloaded ? Colors.red.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.85)
-                                      ),
+                                          isFullyDownloaded
+                                              ? Icons.delete_outline
+                                              : Icons
+                                                  .download_for_offline_outlined,
+                                          color: isFullyDownloaded
+                                              ? Colors.red
+                                                  .withValues(alpha: 0.85)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.85)),
                                       label: Text(
-                                        isFullyDownloaded ? 'Remove Downloads' : 'Download', 
-                                        style: TextStyle(color: isFullyDownloaded ? Colors.red.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.85)),
+                                        isFullyDownloaded
+                                            ? 'Remove Downloads'
+                                            : 'Download',
+                                        style: TextStyle(
+                                            color: isFullyDownloaded
+                                                ? Colors.red
+                                                    .withValues(alpha: 0.85)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.85)),
                                       ),
                                       style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 10),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(20),
-                                          side: BorderSide(color: isFullyDownloaded ? Colors.red.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.4)),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          side: BorderSide(
+                                              color: isFullyDownloaded
+                                                  ? Colors.red
+                                                      .withValues(alpha: 0.4)
+                                                  : Colors.white
+                                                      .withValues(alpha: 0.4)),
                                         ),
                                       ),
                                     ),
                                   ),
-                                if (hasSongs) const SizedBox(width: 12), 
+                                if (hasSongs) const SizedBox(width: 12),
                                 Expanded(
                                   child: TextButton.icon(
-                                    onPressed: () => _showDeletePlaylistDialog(currentPlaylist), // Use currentPlaylist
-                                    icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error.withValues(alpha: 0.9)),
+                                    onPressed: () => _showDeletePlaylistDialog(
+                                        currentPlaylist), // Use currentPlaylist
+                                    icon: Icon(Icons.delete_outline,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .error
+                                            .withValues(alpha: 0.9)),
                                     label: Text(
                                       'Delete Playlist', // Shorter label
-                                      style: TextStyle(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.9)),
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error
+                                              .withValues(alpha: 0.9)),
                                     ),
                                     style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5)),
+                                        side: BorderSide(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error
+                                                .withValues(alpha: 0.5)),
                                       ),
                                     ),
                                   ),
@@ -818,22 +1005,38 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   ),
                 ),
               ),
-              if (!hasSongs) 
-                SliverFillRemaining( // Use SliverFillRemaining for empty state
+              if (!hasSongs)
+                SliverFillRemaining(
+                  // Use SliverFillRemaining for empty state
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.music_off_outlined, size: 60, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(Icons.music_off_outlined,
+                            size: 60,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(height: 16),
                         Text(
                           'This playlist is empty.',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Add some songs from your library.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -842,11 +1045,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               else
                 SliverReorderableList(
                   itemBuilder: (context, index) {
-                    final song = currentPlaylist.songs[index]; // Use currentPlaylist
+                    final song =
+                        currentPlaylist.songs[index]; // Use currentPlaylist
                     final Key itemKey = ValueKey(song.id);
 
                     // Use robustArtwork for all song icons
-                    Widget listItemLeading = robustArtwork(song.albumArtUrl, width: 50, height: 50);
+                    Widget listItemLeading =
+                        robustArtwork(song.albumArtUrl, width: 50, height: 50);
 
                     return ReorderableDelayedDragStartListener(
                       key: itemKey,
@@ -854,55 +1059,86 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       child: Material(
                         color: Colors.transparent,
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16.0, vertical: 8.0),
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: listItemLeading,
                           ),
                           title: Text(
                             song.title,
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
-                             maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            song.artist.isNotEmpty ? song.artist : "Unknown Artist",
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                             maxLines: 1, overflow: TextOverflow.ellipsis,
+                            song.artist.isNotEmpty
+                                ? song.artist
+                                : "Unknown Artist",
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.7)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                                icon: Icon(Icons.remove_circle_outline,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.7)),
                                 tooltip: 'Remove from playlist',
                                 onPressed: () {
-                                  _showRemoveSongDialog(song, index, currentPlaylist); // Use currentPlaylist
+                                  _showRemoveSongDialog(song, index,
+                                      currentPlaylist); // Use currentPlaylist
                                 },
                               ),
-                              const SizedBox(width: 8), // Spacing before drag handle
-                              Icon(Icons.drag_handle, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
+                              const SizedBox(
+                                  width: 8), // Spacing before drag handle
+                              Icon(Icons.drag_handle,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.5)),
                             ],
                           ),
                           onTap: () async {
-                            await currentSongProvider.smartPlayWithContext(currentPlaylist.songs, song);
+                            await currentSongProvider.smartPlayWithContext(
+                                currentPlaylist.songs, song);
                           },
                         ),
                       ),
                     );
                   },
-                  itemCount: currentPlaylist.songs.length, // Use currentPlaylist
-                  proxyDecorator: (Widget child, int index, Animation<double> animation) {
+                  itemCount:
+                      currentPlaylist.songs.length, // Use currentPlaylist
+                  proxyDecorator:
+                      (Widget child, int index, Animation<double> animation) {
                     return AnimatedBuilder(
                       animation: animation,
                       builder: (BuildContext context, Widget? child) {
-                        final double animValue = Curves.easeInOut.transform(animation.value);
-                        final double elevation = lerpDouble(0, 8, animValue)!; // Elevate when dragging
-                        final double scale = lerpDouble(1, 1.05, animValue)!; // Slightly scale up
-                        return Material( // Material for shadow and proper rendering of the proxy
+                        final double animValue =
+                            Curves.easeInOut.transform(animation.value);
+                        final double elevation = lerpDouble(
+                            0, 8, animValue)!; // Elevate when dragging
+                        final double scale = lerpDouble(
+                            1, 1.05, animValue)!; // Slightly scale up
+                        return Material(
+                          // Material for shadow and proper rendering of the proxy
                           elevation: elevation,
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest, // Or another suitable color for drag proxy
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest, // Or another suitable color for drag proxy
                           shadowColor: Colors.black.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(8), // Optional: match ListTile's visual style
+                          borderRadius: BorderRadius.circular(
+                              8), // Optional: match ListTile's visual style
                           child: Transform.scale(scale: scale, child: child),
                         );
                       },
@@ -915,21 +1151,27 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         newIndex -= 1;
                       }
                       // Create a mutable copy for reordering
-                      List<Song> reorderedSongs = List.from(currentPlaylist.songs);
+                      List<Song> reorderedSongs =
+                          List.from(currentPlaylist.songs);
                       final Song item = reorderedSongs.removeAt(oldIndex);
                       reorderedSongs.insert(newIndex, item);
 
                       // Create an updated playlist object with the new song order
-                      Playlist updatedPlaylist = currentPlaylist.copyWith(songs: reorderedSongs);
-                      
-                      _playlistManager.updatePlaylist(updatedPlaylist).then((_) {
+                      Playlist updatedPlaylist =
+                          currentPlaylist.copyWith(songs: reorderedSongs);
+
+                      _playlistManager
+                          .updatePlaylist(updatedPlaylist)
+                          .then((_) {
                         // PlaylistManagerService will notify its listeners,
                         // and the Consumer will rebuild with the new order.
                       }).catchError((error) {
                         // Optional: Handle error during saving
                         if (mounted && context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error saving playlist order: $error')),
+                            SnackBar(
+                                content: Text(
+                                    'Error saving playlist order: $error')),
                           );
                         }
                         // Optionally, revert the order in UI if save fails, though this can be complex.
@@ -937,22 +1179,27 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
                       // Only update the queue if the currently playing song is from this playlist
                       // and only if the current queue context matches this playlist
-                      Song? currentlyPlayingSong = currentSongProvider.currentSong;
+                      Song? currentlyPlayingSong =
+                          currentSongProvider.currentSong;
                       if (currentlyPlayingSong != null) {
                         // Check if the current song is from this playlist
-                        int songIndexInPlaylist = updatedPlaylist.songs.indexWhere((s) => s.id == currentlyPlayingSong.id);
+                        int songIndexInPlaylist = updatedPlaylist.songs
+                            .indexWhere((s) => s.id == currentlyPlayingSong.id);
                         if (songIndexInPlaylist != -1) {
                           // Check if the current queue context matches this playlist
                           final currentQueue = currentSongProvider.queue;
-                          if (currentQueue.length == updatedPlaylist.songs.length) {
+                          if (currentQueue.length ==
+                              updatedPlaylist.songs.length) {
                             // Compare if all songs in the queue match the playlist (in any order)
-                            bool queueMatchesPlaylist = currentQueue.every((queueSong) => 
-                              updatedPlaylist.songs.any((playlistSong) => playlistSong.id == queueSong.id)
-                            );
-                            
+                            bool queueMatchesPlaylist = currentQueue.every(
+                                (queueSong) => updatedPlaylist.songs.any(
+                                    (playlistSong) =>
+                                        playlistSong.id == queueSong.id));
+
                             if (queueMatchesPlaylist) {
                               // Update the queue order without changing context
-                              currentSongProvider.reorderQueue(oldIndex, newIndex);
+                              currentSongProvider.reorderQueue(
+                                  oldIndex, newIndex);
                             }
                           }
                         }
@@ -972,5 +1219,5 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         );
       },
     );
- }
+  }
 }

@@ -34,11 +34,13 @@ Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   return await artworkService.getArtworkProvider(artUrl);
 }
 
-Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+Widget robustArtwork(String artUrl,
+    {double? width, double? height, BoxFit fit = BoxFit.cover}) {
   return FutureBuilder<ImageProvider>(
     future: getRobustArtworkProvider(artUrl),
     builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+      if (snapshot.connectionState == ConnectionState.done &&
+          snapshot.hasData) {
         return Image(
           image: snapshot.data!,
           width: width,
@@ -48,7 +50,8 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
             width: _getSafeDimension(width),
             height: _getSafeDimension(height),
             color: Colors.grey[700],
-            child: Icon(Icons.music_note, size: _getSafeIconSize(width), color: Colors.white70),
+            child: Icon(Icons.music_note,
+                size: _getSafeIconSize(width), color: Colors.white70),
           ),
         );
       }
@@ -56,7 +59,8 @@ Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit =
         width: _getSafeDimension(width),
         height: _getSafeDimension(height),
         color: Colors.grey[700],
-        child: Icon(Icons.music_note, size: _getSafeIconSize(width), color: Colors.white70),
+        child: Icon(Icons.music_note,
+            size: _getSafeIconSize(width), color: Colors.white70),
       );
     },
   );
@@ -87,7 +91,9 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
   }
 
   Future<void> _updateArtProvider(String artUrl) async {
-    setState(() { _artLoading = true; });
+    setState(() {
+      _artLoading = true;
+    });
     try {
       _currentArtProvider = await artworkService.getArtworkProvider(artUrl);
     } catch (e) {
@@ -95,7 +101,10 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
       _currentArtProvider = null;
     }
     _currentArtKey = artUrl;
-    if (mounted) setState(() { _artLoading = false; });
+    if (mounted)
+      setState(() {
+        _artLoading = false;
+      });
   }
 
   ImageProvider getArtworkProvider(String artUrl) {
@@ -123,7 +132,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48.0),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search albums...',
@@ -134,12 +144,20 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                 ),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+                hintStyle: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7)),
               ),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {
                 setState(() {
-                  _albums = _manager.savedAlbums.where((album) => album.title.toLowerCase().contains(query.toLowerCase())).toList();
+                  _albums = _manager.savedAlbums
+                      .where((album) => album.title
+                          .toLowerCase()
+                          .contains(query.toLowerCase()))
+                      .toList();
                 });
               },
             ),
@@ -172,7 +190,9 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4.0),
                           child: Container(
-                            child: robustArtwork(a.effectiveAlbumArtUrl, width: double.infinity, height: double.infinity),
+                            child: robustArtwork(a.effectiveAlbumArtUrl,
+                                width: double.infinity,
+                                height: double.infinity),
                           ),
                         ),
                       ),
@@ -221,8 +241,10 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
-              title: Text('Unsave Album', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              leading: Icon(Icons.delete,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text('Unsave Album',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
               onTap: () async {
                 Navigator.pop(context);
                 await _unsaveAlbum(album);
@@ -268,7 +290,9 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         onPressed: () {
                           // Implement new playlist creation logic here
                         },
-                        child: const Text('New playlist', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: const Text('New playlist',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -281,19 +305,29 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                               controller: searchController,
                               decoration: InputDecoration(
                                 hintText: 'Find playlist',
-                                prefixIcon: Icon(Icons.search, color: Theme.of(context).iconTheme.color?.withValues(alpha: 0.7)),
+                                prefixIcon: Icon(Icons.search,
+                                    color: Theme.of(context)
+                                        .iconTheme
+                                        .color
+                                        ?.withValues(alpha: 0.7)),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(24.0),
                                   borderSide: BorderSide.none,
                                 ),
                                 filled: true,
-                                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                                fillColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 0, horizontal: 16),
                               ),
                               onChanged: (value) {
                                 setState(() {
                                   filteredPlaylists = playlists
-                                      .where((playlist) => playlist.name.toLowerCase().contains(value.toLowerCase()))
+                                      .where((playlist) => playlist.name
+                                          .toLowerCase()
+                                          .contains(value.toLowerCase()))
                                       .toList();
                                 });
                               },
@@ -307,8 +341,13 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                       child: filteredPlaylists.isEmpty
                           ? Center(
                               child: Text(
-                                searchController.text.isNotEmpty ? 'No playlists found.' : 'No playlists available.',
-                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                                searchController.text.isNotEmpty
+                                    ? 'No playlists found.'
+                                    : 'No playlists available.',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface),
                               ),
                             )
                           : ListView.builder(
@@ -322,20 +361,27 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                                     height: 48,
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(4.0),
-                                      child: Container(color: Colors.grey), // Replace with playlist art logic
+                                      child: Container(
+                                          color: Colors
+                                              .grey), // Replace with playlist art logic
                                     ),
                                   ),
                                   title: Text(playlist.name),
-                                  subtitle: Text('${playlist.songs.length} songs'),
+                                  subtitle:
+                                      Text('${playlist.songs.length} songs'),
                                   onTap: () async {
                                     final navigator = Navigator.of(context);
-                                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                                    final scaffoldMessenger =
+                                        ScaffoldMessenger.of(context);
                                     for (final track in album.tracks) {
-                                      await playlistManager.addSongToPlaylist(playlist, track);
+                                      await playlistManager.addSongToPlaylist(
+                                          playlist, track);
                                     }
                                     navigator.pop();
                                     scaffoldMessenger.showSnackBar(
-                                      SnackBar(content: Text('Added album to playlist: ${playlist.name}')),
+                                      SnackBar(
+                                          content: Text(
+                                              'Added album to playlist: ${playlist.name}')),
                                     );
                                   },
                                 );

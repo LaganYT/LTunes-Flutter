@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart'; // ensure this is present
 import 'package:path/path.dart' as p;
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
+import '../services/artwork_service.dart'; // Import centralized artwork service
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
 import '../widgets/playbar.dart';
@@ -16,7 +17,7 @@ class LikedSongsScreen extends StatefulWidget {
   const LikedSongsScreen({super.key});
   @override
   LikedSongsScreenState createState() => LikedSongsScreenState();
-  }
+}
 
 class LikedSongsScreenState extends State<LikedSongsScreen> {
   List<Song> _likedSongs = [];
@@ -25,7 +26,8 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
   @override
   void initState() {
     super.initState();
-    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    _currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     _loadLikedSongs();
     _currentSongProvider.addListener(_onSongDataChanged);
   }
@@ -47,20 +49,24 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
     if (!mounted) return;
 
     final raw = prefs.getStringList('liked_songs') ?? [];
-    final songs = raw.map((s) {
-      try {
-        final songData = jsonDecode(s) as Map<String, dynamic>;
-        final songId = songData['id'];
-        // Check for an updated canonical version in SharedPreferences
-        final canonicalSongJson = prefs.getString('song_$songId');
-        if (canonicalSongJson != null) {
-          return Song.fromJson(jsonDecode(canonicalSongJson) as Map<String, dynamic>);
-        }
-        return Song.fromJson(songData);
-      } catch (_) {
-        return null;
-      }
-    }).whereType<Song>().toList();
+    final songs = raw
+        .map((s) {
+          try {
+            final songData = jsonDecode(s) as Map<String, dynamic>;
+            final songId = songData['id'];
+            // Check for an updated canonical version in SharedPreferences
+            final canonicalSongJson = prefs.getString('song_$songId');
+            if (canonicalSongJson != null) {
+              return Song.fromJson(
+                  jsonDecode(canonicalSongJson) as Map<String, dynamic>);
+            }
+            return Song.fromJson(songData);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<Song>()
+        .toList();
 
     if (mounted) {
       try {
@@ -90,7 +96,9 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
 
   Future<void> _downloadAllLikedSongs() async {
     final songsToDownload = (await Future.wait(_likedSongs.map((song) async {
-      if (song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty) {
+      if (song.isDownloaded &&
+          song.localFilePath != null &&
+          song.localFilePath!.isNotEmpty) {
         final directory = await getApplicationDocumentsDirectory();
         final filePath = p.join(directory.path, song.localFilePath!);
         if (await File(filePath).exists()) {
@@ -106,43 +114,47 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
 
     if (songsToDownload.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All liked songs are already downloaded.')),
+        const SnackBar(
+            content: Text('All liked songs are already downloaded.')),
       );
       return;
     }
 
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     for (final song in songsToDownload) {
       currentSongProvider.queueSongForDownload(song);
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Queued ${songsToDownload.length} songs for download.')),
+      SnackBar(
+          content:
+              Text('Queued ${songsToDownload.length} songs for download.')),
     );
   }
 
   // resolve a local art filename to a full path or return empty
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
-    final dir = await getApplicationDocumentsDirectory();
-    final full = p.join(dir.path, p.basename(fileName));
-    return await File(full).exists() ? full : '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 
   // format a Duration into human-friendly string
   String _formatDuration(Duration d) {
-    String two(int n)=>n.toString().padLeft(2,'0');
-    final m = two(d.inMinutes.remainder(60)), s = two(d.inSeconds.remainder(60));
-    if (d.inHours>0) return "${d.inHours} hr $m min";
-    if (d.inMinutes>0) return "$m min $s sec";
+    String two(int n) => n.toString().padLeft(2, '0');
+    final m = two(d.inMinutes.remainder(60)),
+        s = two(d.inSeconds.remainder(60));
+    if (d.inHours > 0) return "${d.inHours} hr $m min";
+    if (d.inMinutes > 0) return "$m min $s sec";
     return "$s sec";
   }
 
   // sum up liked songs durations
   String _calculateAndFormatPlaylistDuration() {
     if (_likedSongs.isEmpty) return "0 sec";
-    Duration total=Duration.zero;
-    for(var s in _likedSongs){
+    Duration total = Duration.zero;
+    for (var s in _likedSongs) {
       if (s.duration != null) total += s.duration!;
     }
     return total == Duration.zero ? "N/A" : _formatDuration(total);
@@ -153,12 +165,15 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
     final provider = Provider.of<CurrentSongProvider>(context, listen: false);
     final hasSongs = _likedSongs.isNotEmpty;
     // Add logic to check if all liked songs are downloaded
-    final bool areAllLikedSongsDownloaded = hasSongs && _likedSongs.every((song) {
-      final isPersistedAsDownloaded = song.isDownloaded && song.localFilePath != null && song.localFilePath!.isNotEmpty;
-      if (!isPersistedAsDownloaded) return false;
-      // Optionally, check file existence (could be async, but for UI, trust metadata)
-      return true;
-    });
+    final bool areAllLikedSongsDownloaded = hasSongs &&
+        _likedSongs.every((song) {
+          final isPersistedAsDownloaded = song.isDownloaded &&
+              song.localFilePath != null &&
+              song.localFilePath!.isNotEmpty;
+          if (!isPersistedAsDownloaded) return false;
+          // Optionally, check file existence (could be async, but for UI, trust metadata)
+          return true;
+        });
 
     return Scaffold(
       appBar: AppBar(
@@ -169,7 +184,8 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(top: 16, left: 20, right: 20, bottom: 16),
+              padding: const EdgeInsets.only(
+                  top: 16, left: 20, right: 20, bottom: 16),
               child: Column(
                 children: [
                   Row(
@@ -177,7 +193,8 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                     children: [
                       // Heart icon collage placeholder
                       Container(
-                        width: 120, height: 120,
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           color: Colors.grey[700],
@@ -199,13 +216,19 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                           children: [
                             const SizedBox(height: 4),
                             Text('Liked Songs',
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
                             Text('${_likedSongs.length} songs',
                                 style: Theme.of(context).textTheme.bodyMedium),
                             const SizedBox(height: 2),
                             Text(_calculateAndFormatPlaylistDuration(),
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[400])),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: Colors.grey[400])),
                           ],
                         ),
                       ),
@@ -220,15 +243,19 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                           onPressed: hasSongs
                               ? () async {
                                   // Always use canonical downloaded versions
-                                  final provider = Provider.of<CurrentSongProvider>(context, listen: false);
-                                  await provider.smartPlayWithContext(_likedSongs, _likedSongs.first);
+                                  final provider =
+                                      Provider.of<CurrentSongProvider>(context,
+                                          listen: false);
+                                  await provider.smartPlayWithContext(
+                                      _likedSongs, _likedSongs.first);
                                 }
                               : null,
                           icon: const Icon(Icons.play_arrow),
                           label: const Text('Play All'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
                           ),
                         ),
                       ),
@@ -237,16 +264,21 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                         child: OutlinedButton.icon(
                           onPressed: hasSongs
                               ? () async {
-                                  final provider = Provider.of<CurrentSongProvider>(context, listen: false);
-                                  if (!provider.isShuffling) provider.toggleShuffle();
-                                  await provider.setQueue(_likedSongs, initialIndex: 0);
+                                  final provider =
+                                      Provider.of<CurrentSongProvider>(context,
+                                          listen: false);
+                                  if (!provider.isShuffling)
+                                    provider.toggleShuffle();
+                                  await provider.setQueue(_likedSongs,
+                                      initialIndex: 0);
                                 }
                               : null,
                           icon: const Icon(Icons.shuffle),
                           label: const Text('Shuffle'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
                           ),
                         ),
                       ),
@@ -260,11 +292,14 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: null,
-                            icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-                            label: const Text('All Downloaded', style: TextStyle(color: Colors.green)),
+                            icon: const Icon(Icons.check_circle_outline,
+                                color: Colors.green),
+                            label: const Text('All Downloaded',
+                                style: TextStyle(color: Colors.green)),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30)),
                             ),
                           ),
                         )
@@ -276,7 +311,8 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                             label: const Text('Download'),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30)),
                             ),
                           ),
                         ),
@@ -288,7 +324,9 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
           ),
           if (!hasSongs)
             SliverFillRemaining(
-              child: Center(child: Text('No liked songs yet.', style: Theme.of(context).textTheme.bodyLarge)),
+              child: Center(
+                  child: Text('No liked songs yet.',
+                      style: Theme.of(context).textTheme.bodyLarge)),
             )
           else ...[
             SliverList(
@@ -305,11 +343,15 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                           onPressed: (context) {
                             provider.addToQueue(song);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${song.title} added to queue')),
+                              SnackBar(
+                                  content:
+                                      Text('${song.title} added to queue')),
                             );
                           },
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onPrimary,
                           icon: Icons.playlist_add,
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -320,8 +362,10 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                               builder: (_) => AddToPlaylistDialog(song: song),
                             );
                           },
-                          backgroundColor: Theme.of(context).colorScheme.secondary,
-                          foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                          backgroundColor:
+                              Theme.of(context).colorScheme.secondary,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onSecondary,
                           icon: Icons.library_add,
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -339,13 +383,17 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                                     memCacheWidth: 80,
                                     memCacheHeight: 80,
                                     fit: BoxFit.cover,
-                                    placeholder: (context, url) => const Icon(Icons.album, size: 40),
-                                    errorWidget: (context, url, error) => const Icon(Icons.error, size: 40),
+                                    placeholder: (context, url) =>
+                                        const Icon(Icons.album, size: 40),
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(Icons.error, size: 40),
                                   )
                                 : FutureBuilder<String>(
-                                    future: _resolveLocalArtPath(song.albumArtUrl),
+                                    future:
+                                        _resolveLocalArtPath(song.albumArtUrl),
                                     builder: (context, snapshot) {
-                                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                      if (snapshot.hasData &&
+                                          snapshot.data!.isNotEmpty) {
                                         return Image.file(
                                           File(snapshot.data!),
                                           width: 40,
@@ -353,11 +401,15 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                                           cacheWidth: 80,
                                           cacheHeight: 80,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 40),
+                                          errorBuilder: (context, error,
+                                                  stackTrace) =>
+                                              const Icon(Icons.error, size: 40),
                                         );
                                       }
-                                      if (snapshot.connectionState == ConnectionState.waiting) {
-                                        return const Icon(Icons.album, size: 40);
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return const Icon(Icons.album,
+                                            size: 40);
                                       }
                                       return const Icon(Icons.error, size: 40);
                                     },
@@ -368,7 +420,8 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                       subtitle: Text(song.artist),
                       // swap delete icon for heart
                       trailing: IconButton(
-                        icon: Icon(Icons.favorite, color: Theme.of(context).colorScheme.secondary),
+                        icon: Icon(Icons.favorite,
+                            color: Theme.of(context).colorScheme.secondary),
                         onPressed: () => _removeLikedSong(song),
                       ),
                       onTap: () {

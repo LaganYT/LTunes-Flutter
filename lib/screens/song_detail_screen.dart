@@ -1599,16 +1599,8 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
       return '';
     }
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, fileName);
-      if (await File(fullPath).exists()) {
-        return fullPath;
-      }
-    } catch (e) {
-      debugPrint("Error resolving local art path for dialog: $e");
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 
   Widget _buildPlaylistArt(Playlist playlist, BuildContext context) {

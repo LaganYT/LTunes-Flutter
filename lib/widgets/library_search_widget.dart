@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 // Create a reusable HTTP client for image downloads
 final http.Client _imageHttpClient = http.Client();
@@ -24,22 +25,22 @@ final Map<String, Future<String>> _stationIconFutures = {};
 
 Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
-  
+
   // Check if we already have a cached result
   if (_stationIconCache.containsKey(stationId)) {
     return _stationIconCache[stationId]!;
   }
-  
+
   // Check if we already have a future for this station
   if (_stationIconFutures.containsKey(stationId)) {
     final result = await _stationIconFutures[stationId]!;
     return result;
   }
-  
+
   // Create a new future for this station
   final future = _cacheStationIconInternal(imageUrl, stationId);
   _stationIconFutures[stationId] = future;
-  
+
   try {
     final result = await future;
     _stationIconCache[stationId] = result;
@@ -51,7 +52,8 @@ Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   }
 }
 
-Future<String> _cacheStationIconInternal(String imageUrl, String stationId) async {
+Future<String> _cacheStationIconInternal(
+    String imageUrl, String stationId) async {
   try {
     final directory = await getApplicationDocumentsDirectory();
     final fileName = 'stationicon_$stationId.jpg';
@@ -105,7 +107,8 @@ class _RadioStationIconState extends State<RadioStationIcon> {
   @override
   void didUpdateWidget(RadioStationIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl || oldWidget.stationId != widget.stationId) {
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.stationId != widget.stationId) {
       _loadIcon();
     }
   }
@@ -125,7 +128,8 @@ class _RadioStationIconState extends State<RadioStationIcon> {
     });
 
     try {
-      final cachedPath = await cacheStationIcon(widget.imageUrl, widget.stationId);
+      final cachedPath =
+          await cacheStationIcon(widget.imageUrl, widget.stationId);
       if (mounted) {
         setState(() {
           _cachedPath = cachedPath;
@@ -199,7 +203,10 @@ class _RadioStationIconState extends State<RadioStationIcon> {
             child: Icon(
               Icons.radio,
               size: widget.size * 0.6,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.7),
             ),
           ),
         ),
@@ -312,7 +319,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
               Icon(Icons.search_off, size: 48, color: Colors.grey[600]),
               const SizedBox(height: 8),
               Text(
-                widget.searchQuery.trim().isEmpty 
+                widget.searchQuery.trim().isEmpty
                     ? 'Enter a search term to find music'
                     : 'No results found for "${widget.searchQuery}"',
                 style: TextStyle(color: Colors.grey[600]),
@@ -340,15 +347,18 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
       case SearchResultType.album:
         return _buildAlbumTile(result.item as Album, result.matchedFields);
       case SearchResultType.playlist:
-        return _buildPlaylistTile(result.item as Playlist, result.matchedFields);
+        return _buildPlaylistTile(
+            result.item as Playlist, result.matchedFields);
       case SearchResultType.radioStation:
-        return _buildRadioStationTile(result.item as RadioStation, result.matchedFields);
+        return _buildRadioStationTile(
+            result.item as RadioStation, result.matchedFields);
     }
   }
 
   Widget _buildSongTile(Song song, List<String> matchedFields) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(8.0),
@@ -359,8 +369,10 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
                     width: 40,
                     height: 40,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => const Icon(Icons.music_note, size: 40),
-                    errorWidget: (context, url, error) => const Icon(Icons.music_note, size: 40),
+                    placeholder: (context, url) =>
+                        const Icon(Icons.music_note, size: 40),
+                    errorWidget: (context, url, error) =>
+                        const Icon(Icons.music_note, size: 40),
                   )
                 : FutureBuilder<String>(
                     future: _resolveLocalArtPath(song.albumArtUrl),
@@ -373,7 +385,8 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
                           width: 40,
                           height: 40,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.music_note, size: 40),
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.music_note, size: 40),
                         );
                       }
                       return const Icon(Icons.music_note, size: 40);
@@ -393,20 +406,22 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           RichText(
             text: TextSpan(
               style: DefaultTextStyle.of(context).style.copyWith(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-              children: _highlightMatchedText(song.artist, matchedFields, 'artist'),
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+              children:
+                  _highlightMatchedText(song.artist, matchedFields, 'artist'),
             ),
           ),
           if (song.album != null)
             RichText(
               text: TextSpan(
                 style: DefaultTextStyle.of(context).style.copyWith(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
-                children: _highlightMatchedText(song.album!, matchedFields, 'album'),
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                children:
+                    _highlightMatchedText(song.album!, matchedFields, 'album'),
               ),
             ),
           if (matchedFields.contains('lyrics'))
@@ -466,8 +481,10 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
                 width: 40,
                 height: 40,
                 fit: BoxFit.cover,
-                placeholder: (context, url) => const Icon(Icons.album, size: 40),
-                errorWidget: (context, url, error) => const Icon(Icons.album, size: 40),
+                placeholder: (context, url) =>
+                    const Icon(Icons.album, size: 40),
+                errorWidget: (context, url, error) =>
+                    const Icon(Icons.album, size: 40),
               )
             : const Icon(Icons.album, size: 40),
       ),
@@ -483,10 +500,11 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           RichText(
             text: TextSpan(
               style: DefaultTextStyle.of(context).style.copyWith(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-              children: _highlightMatchedText(album.artistName, matchedFields, 'artist'),
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+              children: _highlightMatchedText(
+                  album.artistName, matchedFields, 'artist'),
             ),
           ),
           Text(
@@ -585,9 +603,11 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
     );
   }
 
-  Widget _buildRadioStationTile(RadioStation station, List<String> matchedFields) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+  Widget _buildRadioStationTile(
+      RadioStation station, List<String> matchedFields) {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(8.0),
@@ -623,7 +643,8 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
             audioUrl: station.streamUrl,
             extras: {'isRadio': true, 'streamUrl': station.streamUrl},
           );
-          await currentSongProvider.smartPlayWithContext([radioSong], radioSong);
+          await currentSongProvider
+              .smartPlayWithContext([radioSong], radioSong);
           widget.onResultTap?.call();
         },
       ),
@@ -642,24 +663,26 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
     );
   }
 
-  List<TextSpan> _highlightMatchedText(String text, List<String> matchedFields, String fieldName) {
-    if (!matchedFields.contains(fieldName) || widget.searchQuery.trim().isEmpty) {
+  List<TextSpan> _highlightMatchedText(
+      String text, List<String> matchedFields, String fieldName) {
+    if (!matchedFields.contains(fieldName) ||
+        widget.searchQuery.trim().isEmpty) {
       return [TextSpan(text: text)];
     }
 
     final query = widget.searchQuery.toLowerCase();
     final textLower = text.toLowerCase();
     final spans = <TextSpan>[];
-    
+
     int start = 0;
     int index = textLower.indexOf(query);
-    
+
     while (index != -1) {
       // Add text before match
       if (index > start) {
         spans.add(TextSpan(text: text.substring(start, index)));
       }
-      
+
       // Add highlighted match
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
@@ -668,30 +691,22 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           fontWeight: FontWeight.bold,
         ),
       ));
-      
+
       start = index + query.length;
       index = textLower.indexOf(query, start);
     }
-    
+
     // Add remaining text
     if (start < text.length) {
       spans.add(TextSpan(text: text.substring(start)));
     }
-    
+
     return spans;
   }
 
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, fileName);
-      if (await File(fullPath).exists()) {
-        return fullPath;
-      }
-    } catch (e) {
-      debugPrint('Error resolving local art path: $e');
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
-} 
+}

@@ -16,21 +16,11 @@ import 'package:excel/excel.dart';
 import '../services/api_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
-  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
-  if (artUrl.startsWith('http')) {
-    return CachedNetworkImageProvider(artUrl);
-  } else {
-    final dir = await getApplicationDocumentsDirectory();
-    final name = p.basename(artUrl);
-    final fullPath = p.join(dir.path, name);
-    if (await File(fullPath).exists()) {
-      return FileImage(File(fullPath));
-    } else {
-      return const AssetImage('assets/placeholder.png');
-    }
-  }
+  // Use centralized artwork service for consistent handling
+  return await artworkService.getArtworkProvider(artUrl);
 }
 
 Widget robustArtwork(String artUrl,

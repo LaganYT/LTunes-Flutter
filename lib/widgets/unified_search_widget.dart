@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 // Create a reusable HTTP client for image downloads
 final http.Client _imageHttpClient = http.Client();
@@ -719,15 +720,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
 
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, fileName);
-      if (await File(fullPath).exists()) {
-        return fullPath;
-      }
-    } catch (e) {
-      debugPrint('Error resolving local art path: $e');
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 }

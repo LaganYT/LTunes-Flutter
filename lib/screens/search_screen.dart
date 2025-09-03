@@ -21,6 +21,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:http/http.dart' as http;
 import '../models/playlist.dart';
 import '../services/loading_service.dart';
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 // Enum for content types
 enum ContentType {
@@ -49,22 +50,22 @@ final Map<String, Future<String>> _stationIconFutures = {};
 
 Future<String> cacheStationIcon(String imageUrl, String stationId) async {
   if (imageUrl.isEmpty || !imageUrl.startsWith('http')) return '';
-  
+
   // Check if we already have a cached result
   if (_stationIconCache.containsKey(stationId)) {
     return _stationIconCache[stationId]!;
   }
-  
+
   // Check if we already have a future for this station
   if (_stationIconFutures.containsKey(stationId)) {
     final result = await _stationIconFutures[stationId]!;
     return result;
   }
-  
+
   // Create a new future for this station
   final future = _cacheStationIconInternal(imageUrl, stationId);
   _stationIconFutures[stationId] = future;
-  
+
   try {
     final result = await future;
     _stationIconCache[stationId] = result;
@@ -79,7 +80,8 @@ Future<String> cacheStationIcon(String imageUrl, String stationId) async {
 // Create a reusable HTTP client for image downloads
 final http.Client _imageHttpClient = http.Client();
 
-Future<String> _cacheStationIconInternal(String imageUrl, String stationId) async {
+Future<String> _cacheStationIconInternal(
+    String imageUrl, String stationId) async {
   try {
     final directory = await getApplicationDocumentsDirectory();
     final fileName = 'stationicon_$stationId.jpg';
@@ -133,7 +135,8 @@ class _RadioStationIconState extends State<RadioStationIcon> {
   @override
   void didUpdateWidget(RadioStationIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl || oldWidget.stationId != widget.stationId) {
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.stationId != widget.stationId) {
       _loadIcon();
     }
   }
@@ -153,7 +156,8 @@ class _RadioStationIconState extends State<RadioStationIcon> {
     });
 
     try {
-      final cachedPath = await cacheStationIcon(widget.imageUrl, widget.stationId);
+      final cachedPath =
+          await cacheStationIcon(widget.imageUrl, widget.stationId);
       if (mounted) {
         setState(() {
           _cachedPath = cachedPath;
@@ -227,7 +231,10 @@ class _RadioStationIconState extends State<RadioStationIcon> {
             child: Icon(
               Icons.radio,
               size: widget.size * 0.6,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.7),
             ),
           ),
         ),
@@ -243,7 +250,8 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+class _SearchScreenState extends State<SearchScreen>
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late TabController _tabController;
@@ -251,28 +259,28 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   final UnifiedSearchService _unifiedSearchService = UnifiedSearchService();
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
   final AlbumManagerService _albumManager = AlbumManagerService();
-  
+
   // Search results
   List<SearchResultItem> _musicResults = [];
   List<SearchResultItem> _stationResults = [];
-  
+
   // Loading states
   bool _isLoadingMusic = false;
   bool _isLoadingStations = false;
-  
+
   // Performance: Search debouncing
   Timer? _searchDebounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 500);
-  
+
   // Setting change listener
   Timer? _settingChangeTimer;
-  
+
   // Performance: Cache for song download status
   final Map<String, Song> _songDownloadStatusCache = {};
-  
+
   // Liked songs tracking
   Set<String> _likedSongIds = {};
-  
+
   // Radio tab visibility
   bool _showRadioTab = true;
 
@@ -284,12 +292,12 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     super.initState();
     // Initialize tab controller immediately with default value
     _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
-    
+
     _loadRadioTabSetting();
     _albumManager.addListener(_onAlbumManagerStateChanged);
     _loadLikedSongIds();
     _loadInitialContent();
-    
+
     // Listen for setting changes
     _listenForSettingChanges();
   }
@@ -297,17 +305,14 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   Future<void> _loadRadioTabSetting() async {
     final prefs = await SharedPreferences.getInstance();
     final showRadioTab = prefs.getBool('showRadioTab') ?? true;
-    
+
     if (showRadioTab != _showRadioTab) {
       setState(() {
         _showRadioTab = showRadioTab;
         // Update tab controller with correct length based on setting
         _tabController.dispose();
         _tabController = TabController(
-          length: _showRadioTab ? 2 : 1, 
-          vsync: this, 
-          initialIndex: 0
-        );
+            length: _showRadioTab ? 2 : 1, vsync: this, initialIndex: 0);
       });
     } else {
       // Just update the state without recreating the controller
@@ -319,25 +324,23 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
 
   void _listenForSettingChanges() {
     // Check for setting changes periodically
-    _settingChangeTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+    _settingChangeTimer =
+        Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       final prefs = await SharedPreferences.getInstance();
       final showRadioTab = prefs.getBool('showRadioTab') ?? true;
-      
+
       if (showRadioTab != _showRadioTab) {
         setState(() {
           _showRadioTab = showRadioTab;
           // Dispose old controller and create new one with correct length
           _tabController.dispose();
           _tabController = TabController(
-            length: _showRadioTab ? 2 : 1, 
-            vsync: this, 
-            initialIndex: 0
-          );
+              length: _showRadioTab ? 2 : 1, vsync: this, initialIndex: 0);
         });
       }
     });
@@ -366,13 +369,16 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   Future<void> _loadLikedSongIds() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('liked_songs') ?? [];
-    final ids = raw.map((s) {
-      try {
-        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
-      } catch (_) {
-        return null;
-      }
-    }).whereType<String>().toSet();
+    final ids = raw
+        .map((s) {
+          try {
+            return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<String>()
+        .toSet();
     if (mounted) {
       setState(() {
         _likedSongIds = ids;
@@ -395,10 +401,10 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     try {
       // Load only songs when no search query
       final songs = await _apiService.fetchSongs('');
-      
+
       if (mounted) {
         final results = <SearchResultItem>[];
-        
+
         // Add songs (top 50)
         for (final song in songs.take(50)) {
           results.add(SearchResultItem(
@@ -407,7 +413,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
             relevanceScore: 1.0,
           ));
         }
-        
+
         setState(() {
           _musicResults = results;
           _isLoadingMusic = false;
@@ -418,7 +424,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         setState(() {
           _isLoadingMusic = false;
         });
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'loading music');
+        _errorHandler.showErrorSnackBar(context, e,
+            errorContext: 'loading music');
       }
     }
   }
@@ -433,10 +440,10 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
       final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
       final country = usRadioOnly ? 'United States' : '';
       final stations = await _apiService.fetchStationsByCountry(country);
-      
+
       if (mounted) {
         final results = <SearchResultItem>[];
-        
+
         // Add stations (top 50)
         for (final station in stations.take(50)) {
           results.add(SearchResultItem(
@@ -445,7 +452,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
             relevanceScore: 1.0,
           ));
         }
-        
+
         setState(() {
           _stationResults = results;
           _isLoadingStations = false;
@@ -456,7 +463,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         setState(() {
           _isLoadingStations = false;
         });
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'loading stations');
+        _errorHandler.showErrorSnackBar(context, e,
+            errorContext: 'loading stations');
       }
     }
   }
@@ -464,15 +472,15 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   // Performance: Debounced search
   void _onSearch(String value) async {
     _searchDebounceTimer?.cancel();
-    
+
     _searchDebounceTimer = Timer(_debounceDelay, () async {
       final newQuery = value.trim();
-      
+
       if (mounted) {
         setState(() {
           _searchQuery = newQuery;
         });
-        
+
         if (newQuery.isEmpty) {
           _loadInitialContent();
         } else {
@@ -494,41 +502,44 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
 
     try {
       final results = <SearchResultItem>[];
-      
+
       // Search songs
       final songs = await _apiService.fetchSongs(query);
       for (final song in songs) {
         results.add(SearchResultItem(
           type: ContentType.song,
           data: song,
-          relevanceScore: _calculateRelevance(song.title, query) + _calculateRelevance(song.artist, query),
+          relevanceScore: _calculateRelevance(song.title, query) +
+              _calculateRelevance(song.artist, query),
         ));
       }
-      
+
       // Search albums
       final albums = await _apiService.searchAlbums(query);
       for (final album in albums) {
         results.add(SearchResultItem(
           type: ContentType.album,
           data: album,
-          relevanceScore: _calculateRelevance(album.title, query) + _calculateRelevance(album.artistName, query),
+          relevanceScore: _calculateRelevance(album.title, query) +
+              _calculateRelevance(album.artistName, query),
         ));
       }
-      
+
       // Search artists
       final artists = await _apiService.searchArtists(query);
       for (final artist in artists) {
-        final artistName = artist['ART_NAME'] as String? ?? artist['name'] as String? ?? '';
+        final artistName =
+            artist['ART_NAME'] as String? ?? artist['name'] as String? ?? '';
         results.add(SearchResultItem(
           type: ContentType.artist,
           data: artist,
           relevanceScore: _calculateRelevance(artistName, query),
         ));
       }
-      
+
       // Sort by relevance score
       results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
-      
+
       if (mounted) {
         setState(() {
           _musicResults = results;
@@ -540,7 +551,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         setState(() {
           _isLoadingMusic = false;
         });
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'searching music');
+        _errorHandler.showErrorSnackBar(context, e,
+            errorContext: 'searching music');
       }
     }
   }
@@ -554,10 +566,11 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
       final prefs = await SharedPreferences.getInstance();
       final usRadioOnly = prefs.getBool('usRadioOnly') ?? true;
       final country = usRadioOnly ? 'United States' : '';
-      final stations = await _apiService.fetchStationsByCountry(country, name: query);
-      
+      final stations =
+          await _apiService.fetchStationsByCountry(country, name: query);
+
       final results = <SearchResultItem>[];
-      
+
       for (final station in stations) {
         results.add(SearchResultItem(
           type: ContentType.station,
@@ -565,10 +578,10 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
           relevanceScore: _calculateRelevance(station['name'] ?? '', query),
         ));
       }
-      
+
       // Sort by relevance score
       results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
-      
+
       if (mounted) {
         setState(() {
           _stationResults = results;
@@ -587,22 +600,22 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   double _calculateRelevance(String text, String query) {
     final textLower = text.toLowerCase();
     final queryLower = query.toLowerCase();
-    
+
     // Exact match gets highest score
     if (textLower == queryLower) {
       return 1.0;
     }
-    
+
     // Starts with query gets high score
     if (textLower.startsWith(queryLower)) {
       return 0.9;
     }
-    
+
     // Contains query gets medium score
     if (textLower.contains(queryLower)) {
       return 0.7;
     }
-    
+
     // Word boundary matches get lower score
     final words = textLower.split(' ');
     for (final word in words) {
@@ -610,7 +623,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         return 0.6;
       }
     }
-    
+
     return 0.3; // Default low score for partial matches
   }
 
@@ -633,7 +646,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
       _likedSongIds.add(song.id);
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .queueSongForDownload(song);
       }
     }
 
@@ -643,7 +657,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
 
   Future<void> _toggleAlbumSave(Album album) async {
     final isSaved = _albumManager.isAlbumSaved(album.id);
-    
+
     if (isSaved) {
       await _albumManager.removeSavedAlbum(album.id);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -674,25 +688,31 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         if (fullAlbum != null) {
           await _albumManager.addSavedAlbum(fullAlbum);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${fullAlbum.title} added to library with ${fullAlbum.tracks.length} tracks')),
+            SnackBar(
+                content: Text(
+                    '${fullAlbum.title} added to library with ${fullAlbum.tracks.length} tracks')),
           );
         } else {
           // Fallback to saving the basic album if full details couldn't be fetched
           await _albumManager.addSavedAlbum(album);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${album.title} added to library (basic info only)')),
+            SnackBar(
+                content:
+                    Text('${album.title} added to library (basic info only)')),
           );
         }
       } catch (e) {
         // Fallback to saving the basic album if there's an error
         await _albumManager.addSavedAlbum(album);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${album.title} added to library (basic info only)')),
+          SnackBar(
+              content:
+                  Text('${album.title} added to library (basic info only)')),
         );
         _errorHandler.logError(e, context: 'fetching album details for save');
       }
     }
-    
+
     setState(() {});
   }
 
@@ -702,14 +722,16 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     if (_songDownloadStatusCache.containsKey(songFromApi.id)) {
       return _songDownloadStatusCache[songFromApi.id]!;
     }
-    
+
     final prefs = await SharedPreferences.getInstance();
     final songJson = prefs.getString('song_${songFromApi.id}');
     if (songJson != null) {
       try {
         final storedSongData = jsonDecode(songJson) as Map<String, dynamic>;
         final storedSong = Song.fromJson(storedSongData);
-        if (storedSong.isDownloaded && storedSong.localFilePath != null && storedSong.localFilePath!.isNotEmpty) {
+        if (storedSong.isDownloaded &&
+            storedSong.localFilePath != null &&
+            storedSong.localFilePath!.isNotEmpty) {
           final appDocDir = await getApplicationDocumentsDirectory();
           final fullPath = p.join(appDocDir.path, storedSong.localFilePath!);
           if (await File(fullPath).exists()) {
@@ -722,7 +744,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         debugPrint('Error reading stored song data for ${songFromApi.id}: $e');
       }
     }
-    
+
     // Cache the original song
     _songDownloadStatusCache[songFromApi.id] = songFromApi;
     return songFromApi;
@@ -731,12 +753,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   // Performance: Optimized local art path resolution
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 
   // Build song list item
@@ -745,8 +763,10 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
       future: _getSongWithDownloadStatusInternal(song),
       builder: (context, snapshot) {
         final songWithStatus = snapshot.data ?? song;
-        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-        final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
+        final currentSongProvider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
+        final bool isRadioPlayingGlobal =
+            currentSongProvider.isCurrentlyPlayingRadio;
 
         return Slidable(
           key: Key(songWithStatus.id),
@@ -759,7 +779,9 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                   if (!isRadioPlayingGlobal) {
                     currentSongProvider.addToQueue(songWithStatus);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${songWithStatus.title} added to queue')),
+                      SnackBar(
+                          content:
+                              Text('${songWithStatus.title} added to queue')),
                     );
                   }
                 },
@@ -789,92 +811,100 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
           child: Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: ListTile(
-            leading: SizedBox(
-              width: 56,
-              height: 56,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: songWithStatus.albumArtUrl.isNotEmpty
-                    ? songWithStatus.albumArtUrl.startsWith('http')
-                        ? CachedNetworkImage(
-                            imageUrl: songWithStatus.albumArtUrl,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 112,
-                            memCacheHeight: 112,
-                            placeholder: (context, url) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.music_note),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.music_note),
-                            ),
-                          )
-                        : FutureBuilder<String>(
-                            future: _resolveLocalArtPath(songWithStatus.albumArtUrl),
-                            builder: (context, artSnapshot) {
-                              if (artSnapshot.connectionState == ConnectionState.done &&
-                                  artSnapshot.hasData &&
-                                  artSnapshot.data!.isNotEmpty) {
-                                return Image.file(
-                                  File(artSnapshot.data!),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                        color: Colors.grey[300],
-                                        child: const Icon(Icons.music_note),
-                                      ),
-                                );
-                              }
-                              return Container(
+              leading: SizedBox(
+                width: 56,
+                height: 56,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: songWithStatus.albumArtUrl.isNotEmpty
+                      ? songWithStatus.albumArtUrl.startsWith('http')
+                          ? CachedNetworkImage(
+                              imageUrl: songWithStatus.albumArtUrl,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 112,
+                              memCacheHeight: 112,
+                              placeholder: (context, url) => Container(
                                 color: Colors.grey[300],
                                 child: const Icon(Icons.music_note),
-                              );
-                            },
-                          )
-                    : Container(
-                        color: Colors.grey[300],
-                        child: const Icon(Icons.music_note),
-                      ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.music_note),
+                              ),
+                            )
+                          : FutureBuilder<String>(
+                              future: _resolveLocalArtPath(
+                                  songWithStatus.albumArtUrl),
+                              builder: (context, artSnapshot) {
+                                if (artSnapshot.connectionState ==
+                                        ConnectionState.done &&
+                                    artSnapshot.hasData &&
+                                    artSnapshot.data!.isNotEmpty) {
+                                  return Image.file(
+                                    File(artSnapshot.data!),
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.music_note),
+                                    ),
+                                  );
+                                }
+                                return Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.music_note),
+                                );
+                              },
+                            )
+                      : Container(
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.music_note),
+                        ),
+                ),
               ),
-            ),
-            title: Text(
-              songWithStatus.title,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Text(
-              songWithStatus.artist,
-              style: TextStyle(color: Colors.grey[600]),
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (songWithStatus.isDownloaded)
-                  const Icon(Icons.download_done, color: Colors.green, size: 20),
-                IconButton(
-                  icon: Icon(
-                    _likedSongIds.contains(songWithStatus.id)
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    color: _likedSongIds.contains(songWithStatus.id) ? Colors.red : null,
+              title: Text(
+                songWithStatus.title,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                songWithStatus.artist,
+                style: TextStyle(color: Colors.grey[600]),
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (songWithStatus.isDownloaded)
+                    const Icon(Icons.download_done,
+                        color: Colors.green, size: 20),
+                  IconButton(
+                    icon: Icon(
+                      _likedSongIds.contains(songWithStatus.id)
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color: _likedSongIds.contains(songWithStatus.id)
+                          ? Colors.red
+                          : null,
+                    ),
+                    onPressed: () => _toggleLike(songWithStatus),
                   ),
-                  onPressed: () => _toggleLike(songWithStatus),
-                ),
-              ],
-            ),
-            onTap: () async {
-              await currentSongProvider.smartPlayWithContext([songWithStatus], songWithStatus);
-            },
-            onLongPress: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SongDetailScreen(song: songWithStatus),
-                ),
-              );
-            },
+                ],
+              ),
+              onTap: () async {
+                await currentSongProvider
+                    .smartPlayWithContext([songWithStatus], songWithStatus);
+              },
+              onLongPress: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        SongDetailScreen(song: songWithStatus),
+                  ),
+                );
+              },
             ),
           ),
         );
@@ -935,16 +965,15 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         ),
         trailing: IconButton(
           icon: Icon(
-            _albumManager.isAlbumSaved(album.id) 
-                ? Icons.bookmark 
+            _albumManager.isAlbumSaved(album.id)
+                ? Icons.bookmark
                 : Icons.bookmark_border,
-            color: _albumManager.isAlbumSaved(album.id) 
-                ? Theme.of(context).colorScheme.primary 
+            color: _albumManager.isAlbumSaved(album.id)
+                ? Theme.of(context).colorScheme.primary
                 : null,
           ),
           onPressed: () => _toggleAlbumSave(album),
         ),
-
         onTap: () async {
           // Show loading dialog
           showDialog(
@@ -971,7 +1000,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Could not load album details.')),
+                  const SnackBar(
+                      content: Text('Could not load album details.')),
                 );
               }
             }
@@ -991,18 +1021,19 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   // Build artist list item
   Widget _buildArtistListItem(dynamic artist) {
     // Handle the actual API response structure
-    final artistName = artist['ART_NAME'] as String? ?? 
-                      artist['name'] as String? ?? 
-                      'Unknown Artist';
-    final artistPicture = artist['ART_PICTURE'] as String? ?? 
-                         artist['picture'] as String?;
-    
+    final artistName = artist['ART_NAME'] as String? ??
+        artist['name'] as String? ??
+        'Unknown Artist';
+    final artistPicture =
+        artist['ART_PICTURE'] as String? ?? artist['picture'] as String?;
+
     // Construct the artist picture URL if we have the picture ID
     String? artistImageUrl;
     if (artistPicture != null && artistPicture.isNotEmpty) {
-      artistImageUrl = 'https://e-cdns-images.dzcdn.net/images/artist/$artistPicture/1000x1000-000000-80-0-0.jpg';
+      artistImageUrl =
+          'https://e-cdns-images.dzcdn.net/images/artist/$artistPicture/1000x1000-000000-80-0-0.jpg';
     }
-    
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
@@ -1041,13 +1072,14 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
           'Artist',
           style: TextStyle(color: Colors.grey[600]),
         ),
-
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => ArtistScreen(
-                artistId: artist['ART_ID']?.toString() ?? artist['id']?.toString() ?? '',
+                artistId: artist['ART_ID']?.toString() ??
+                    artist['id']?.toString() ??
+                    '',
                 artistName: artistName,
               ),
             ),
@@ -1062,7 +1094,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     final stationName = station['name'] as String? ?? 'Unknown Station';
     final stationCountry = station['country'] as String? ?? 'Unknown Country';
     final stationFavicon = station['favicon'] as String?;
-    
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
@@ -1097,9 +1129,11 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
           icon: const Icon(Icons.play_arrow),
           onPressed: () {
             final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
-            final stationFavicon = station['favicon'] ?? station['imageUrl'] ?? '';
-            
-            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+            final stationFavicon =
+                station['favicon'] ?? station['imageUrl'] ?? '';
+
+            final currentSongProvider =
+                Provider.of<CurrentSongProvider>(context, listen: false);
             currentSongProvider.playStream(
               streamUrl,
               stationName: stationName,
@@ -1109,9 +1143,11 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
         ),
         onTap: () {
           final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
-          final stationFavicon = station['favicon'] ?? station['imageUrl'] ?? '';
-          
-          final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+          final stationFavicon =
+              station['favicon'] ?? station['imageUrl'] ?? '';
+
+          final currentSongProvider =
+              Provider.of<CurrentSongProvider>(context, listen: false);
           currentSongProvider.playStream(
             streamUrl,
             stationName: stationName,
@@ -1146,7 +1182,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
       return _errorHandler.buildEmptyStateWidget(
         context,
         title: _searchQuery.isEmpty ? 'No Music Available' : 'No Music Found',
-        message: _searchQuery.isEmpty 
+        message: _searchQuery.isEmpty
             ? 'Unable to load music. Please check your connection and try again.'
             : 'No music found for "$_searchQuery". Try a different search term.',
         icon: _searchQuery.isEmpty ? Icons.music_note : Icons.search_off,
@@ -1156,7 +1192,9 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     }
 
     return RefreshIndicator(
-      onRefresh: _searchQuery.isEmpty ? _loadInitialMusic : () => _searchMusic(_searchQuery),
+      onRefresh: _searchQuery.isEmpty
+          ? _loadInitialMusic
+          : () => _searchMusic(_searchQuery),
       child: ListView.builder(
         itemCount: _musicResults.length,
         itemBuilder: (context, index) => _buildListItem(_musicResults[index]),
@@ -1173,8 +1211,10 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     if (_stationResults.isEmpty) {
       return _errorHandler.buildEmptyStateWidget(
         context,
-        title: _searchQuery.isEmpty ? 'No Radio Stations Available' : 'No Radio Stations Found',
-        message: _searchQuery.isEmpty 
+        title: _searchQuery.isEmpty
+            ? 'No Radio Stations Available'
+            : 'No Radio Stations Found',
+        message: _searchQuery.isEmpty
             ? 'Unable to load radio stations. Please check your connection and try again.'
             : 'No radio stations found for "$_searchQuery". Try a different search term.',
         icon: _searchQuery.isEmpty ? Icons.radio : Icons.search_off,
@@ -1184,7 +1224,9 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     }
 
     return RefreshIndicator(
-      onRefresh: _searchQuery.isEmpty ? _loadInitialStations : () => _searchStations(_searchQuery),
+      onRefresh: _searchQuery.isEmpty
+          ? _loadInitialStations
+          : () => _searchStations(_searchQuery),
       child: ListView.builder(
         itemCount: _stationResults.length,
         itemBuilder: (context, index) => _buildListItem(_stationResults[index]),
@@ -1195,7 +1237,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search'),
@@ -1210,7 +1252,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Search...',
-                prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface),
+                prefixIcon: Icon(Icons.search,
+                    color: Theme.of(context).colorScheme.onSurface),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
@@ -1226,7 +1269,9 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.grey[200],
+                fillColor: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[900]
+                    : Colors.grey[200],
               ),
             ),
           ),

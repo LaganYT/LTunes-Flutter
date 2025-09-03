@@ -547,16 +547,8 @@ Future<String> _resolveLocalArtPath(String? fileName) async {
   if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
     return '';
   }
-  try {
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
-    }
-  } catch (e) {
-    debugPrint("Error resolving local art path: $e");
-  }
-  return '';
+  // Use centralized artwork service for consistent path resolution
+  return await artworkService.resolveLocalArtPath(fileName);
 }
 
 class FullScreenPlayer extends StatefulWidget {
@@ -857,13 +849,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
   Future<void> _loadArtworkAsync(Song song) async {
     try {
-      _currentArtProvider = await artworkService.getArtworkProvider(song.albumArtUrl);
+      _currentArtProvider =
+          await artworkService.getArtworkProvider(song.albumArtUrl);
       _currentArtId = song.id;
     } catch (e) {
       debugPrint('Error loading artwork: $e');
       _currentArtProvider = null;
     }
-    
+
     if (mounted) {
       setState(() {
         _artLoading = false;
@@ -1950,16 +1943,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (fileName == null || fileName.isEmpty || fileName.startsWith('http')) {
       return '';
     }
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, fileName);
-      if (await File(fullPath).exists()) {
-        return fullPath;
-      }
-    } catch (e) {
-      debugPrint("Error resolving local art path for full screen player: $e");
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 
   String _formatDuration(Duration? duration) {
