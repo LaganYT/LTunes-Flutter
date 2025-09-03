@@ -23,7 +23,7 @@ class Playbar extends StatefulWidget {
 
 class PlaybarState extends State<Playbar> {
   String? _previousSongId;
-  
+
   // Performance: Debounced state updates
   Timer? _updateTimer;
   static const Duration _updateDelay = Duration(milliseconds: 100);
@@ -31,10 +31,10 @@ class PlaybarState extends State<Playbar> {
   CurrentSongProvider? _currentSongProvider;
   // ignore: unused_field
   Future<String>? _localArtPathFuture;
-  
+
   // Cache the current song to prevent unnecessary rebuilds
   Song? _cachedCurrentSong;
-  
+
   // Cache the Future for the current song's local art path
   Future<String>? _cachedLocalArtFuture;
 
@@ -42,7 +42,8 @@ class PlaybarState extends State<Playbar> {
   ImageProvider? _currentArtProvider;
   String? _currentArtId;
   bool _artLoading = false;
-  final Map<String, Future<String>> _localArtFutureCache = {}; // <-- Add this line
+  final Map<String, Future<String>> _localArtFutureCache =
+      {}; // <-- Add this line
   final Map<String, ImageProvider> _artProviderCache = {}; // <-- Add this line
 
   // Static reference to the current playbar instance
@@ -67,8 +68,9 @@ class PlaybarState extends State<Playbar> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _currentInstance = this; // Set the static instance reference
-    _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-    
+    _currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     // Initialize current song and listener
     final currentSong = _currentSongProvider?.currentSong;
     _previousSongId = currentSong?.id;
@@ -81,7 +83,7 @@ class PlaybarState extends State<Playbar> {
       }
       _updateArtProvider(currentSong);
     }
-    
+
     // Add listener for song changes (only if not already added)
     if (_currentSongProvider != null && mounted) {
       _currentSongProvider!.addListener(_onSongChanged);
@@ -91,7 +93,6 @@ class PlaybarState extends State<Playbar> {
   @override
   void initState() {
     super.initState();
-
   }
 
   @override
@@ -99,7 +100,8 @@ class PlaybarState extends State<Playbar> {
     _updateTimer?.cancel();
     _currentSongProvider?.removeListener(_onSongChanged);
     if (_currentInstance == this) {
-      _currentInstance = null; // Clear the static reference if it's this instance
+      _currentInstance =
+          null; // Clear the static reference if it's this instance
     }
     super.dispose();
   }
@@ -115,7 +117,7 @@ class PlaybarState extends State<Playbar> {
       if (currentSongProvider == null) return;
       final newSong = currentSongProvider.currentSong;
       final newSongId = newSong?.id;
-      
+
       // Only update if the song ID actually changed
       if (newSongId != _previousSongId) {
         _previousSongId = newSongId;
@@ -141,18 +143,22 @@ class PlaybarState extends State<Playbar> {
 
   Future<void> _updateArtProvider(Song song) async {
     if (!mounted) return;
-    setState(() { _artLoading = true; });
-    
+    setState(() {
+      _artLoading = true;
+    });
+
     final artUrl = song.albumArtUrl;
     if (_artProviderCache.containsKey(song.id)) {
       _currentArtProvider = _artProviderCache[song.id];
       _currentArtId = song.id;
       if (mounted) {
-        setState(() { _artLoading = false; });
+        setState(() {
+          _artLoading = false;
+        });
       }
       return;
     }
-    
+
     if (artUrl.startsWith('http')) {
       _currentArtProvider = CachedNetworkImageProvider(artUrl);
     } else {
@@ -163,17 +169,20 @@ class PlaybarState extends State<Playbar> {
         _currentArtProvider = const AssetImage('assets/placeholder.png');
       }
     }
-    
+
     _artProviderCache[song.id] = _currentArtProvider!;
     _currentArtId = song.id;
-    
+
     if (mounted) {
-      setState(() { _artLoading = false; });
+      setState(() {
+        _artLoading = false;
+      });
     }
   }
 
   void playUrl(String url) {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     currentSongProvider.playUrl(url);
   }
 
@@ -206,16 +215,17 @@ class PlaybarState extends State<Playbar> {
   @override
   Widget build(BuildContext context) {
     // Use listen: false to prevent rebuilds on every state change
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     final Song? currentSong = currentSongProvider.currentSong;
-    
+
     if (currentSong == null) {
       return const SizedBox.shrink(); // Don't show playbar if no song is loaded
     }
 
     // Use cached song for album art to prevent flashing, but current song for other UI
     final Song songForArt = _cachedCurrentSong ?? currentSong;
-    
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
@@ -224,28 +234,31 @@ class PlaybarState extends State<Playbar> {
     Widget albumArtContent = AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: _currentArtProvider != null
-        ? Image(
-            key: ValueKey(_currentArtId),
-            image: _currentArtProvider!,
-            width: 48,
-            height: 48,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Icon(Icons.album, size: 48, color: colorScheme.onSurfaceVariant);
-            },
-          )
-        : Icon(
-            Icons.album,
-            size: 48,
-            color: colorScheme.onSurfaceVariant,
-            key: ValueKey<String>('playbar_art_${songForArt.id}'),
-          ),
+          ? Image(
+              key: ValueKey(_currentArtId),
+              image: _currentArtProvider!,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(Icons.album,
+                    size: 48, color: colorScheme.onSurfaceVariant);
+              },
+            )
+          : Icon(
+              Icons.album,
+              size: 48,
+              color: colorScheme.onSurfaceVariant,
+              key: ValueKey<String>('playbar_art_${songForArt.id}'),
+            ),
     );
 
-    Widget leadingWidget = SizedBox( // Remove Hero wrapper, just use SizedBox
+    Widget leadingWidget = SizedBox(
+      // Remove Hero wrapper, just use SizedBox
       width: 48,
       height: 48,
-      child: ClipRRect( // Optional: for rounded corners if desired, matching FullScreenPlayer
+      child: ClipRRect(
+        // Optional: for rounded corners if desired, matching FullScreenPlayer
         borderRadius: BorderRadius.circular(6.0),
         child: albumArtContent,
       ),
@@ -254,18 +267,22 @@ class PlaybarState extends State<Playbar> {
     return GestureDetector(
       onTap: () {
         final animationService = AnimationService.instance;
-        if (animationService.isAnimationEnabled(AnimationType.songChangeAnimations)) {
+        if (animationService
+            .isAnimationEnabled(AnimationType.songChangeAnimations)) {
           Navigator.push(
             context,
             PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const FullScreenPlayer(),
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  const FullScreenPlayer(),
               transitionDuration: const Duration(milliseconds: 350),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
                 const begin = Offset(0.0, 1.0); // Slide from bottom
                 const end = Offset.zero; // Slide to center
                 final curve = Curves.easeOutQuint; // Smoother curve
 
-                final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                final tween = Tween(begin: begin, end: end)
+                    .chain(CurveTween(curve: curve));
                 final offsetAnimation = animation.drive(tween);
 
                 return SlideTransition(
@@ -284,21 +301,23 @@ class PlaybarState extends State<Playbar> {
           );
         }
       },
-      child: GestureDetector( // Added GestureDetector for horizontal swipes
+      child: GestureDetector(
+        // Added GestureDetector for horizontal swipes
         onHorizontalDragEnd: (details) {
-           // Swipe gestures on playbar can also trigger next/previous
-           if (details.primaryVelocity! > 0) {
-             // Swiped right (previous)
-             currentSongProvider.playPrevious();
-           } else if (details.primaryVelocity! < 0) {
-             // Swiped left (next)
-             currentSongProvider.playNext();
-           }
-         },
+          // Swipe gestures on playbar can also trigger next/previous
+          if (details.primaryVelocity! > 0) {
+            // Swiped right (previous)
+            currentSongProvider.playPrevious();
+          } else if (details.primaryVelocity! < 0) {
+            // Swiped left (next)
+            currentSongProvider.playNext();
+          }
+        },
         child: Material(
           elevation: 8.0,
           color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           clipBehavior: Clip.antiAlias,
           child: AnimatedSwitcher(
             duration: AnimationService.instance.getAnimationDuration(
@@ -306,22 +325,25 @@ class PlaybarState extends State<Playbar> {
               type: AnimationType.uiAnimations,
             ),
             transitionBuilder: (Widget child, Animation<double> animation) {
-              if (!AnimationService.instance.isAnimationEnabled(AnimationType.uiAnimations)) {
+              if (!AnimationService.instance
+                  .isAnimationEnabled(AnimationType.uiAnimations)) {
                 return child;
               }
               return FadeTransition(
                 opacity: animation,
                 child: ScaleTransition(
                   scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-                    CurvedAnimation(parent: animation, curve: Curves.easeOutQuart)
-                  ),
+                      CurvedAnimation(
+                          parent: animation, curve: Curves.easeOutQuart)),
                   child: child,
                 ),
               );
             },
             child: Container(
-              key: ValueKey<String>('playbar_container_${songForArt.id}'), // Key to trigger animation only on song change
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              key: ValueKey<String>(
+                  'playbar_container_${songForArt.id}'), // Key to trigger animation only on song change
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
               height: 64, // Standard height for a playbar
               child: Row(
                 children: [
@@ -332,23 +354,38 @@ class PlaybarState extends State<Playbar> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          currentSong.title,
-                          style: textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
+                        // Use Consumer to listen to song changes for the title
+                        Consumer<CurrentSongProvider>(
+                          builder: (context, provider, child) {
+                            final song = provider.currentSong;
+                            if (song == null) return const SizedBox.shrink();
+                            return Text(
+                              song.title,
+                              style: textTheme.titleSmall?.copyWith(
+                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            );
+                          },
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          currentSong.artist,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
+                        // Use Consumer to listen to song changes for the artist
+                        Consumer<CurrentSongProvider>(
+                          builder: (context, provider, child) {
+                            final song = provider.currentSong;
+                            if (song == null) return const SizedBox.shrink();
+                            return Text(
+                              song.artist,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurface
+                                    .withValues(alpha: 0.7),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -356,7 +393,6 @@ class PlaybarState extends State<Playbar> {
                   const SizedBox(width: 8),
                   // Separate widget for controls that can listen to state changes
                   _PlaybarControls(
-                    currentSong: currentSong,
                     colorScheme: colorScheme,
                   ),
                 ],
@@ -371,11 +407,9 @@ class PlaybarState extends State<Playbar> {
 
 // Separate widget for controls that can listen to state changes without affecting album art
 class _PlaybarControls extends StatelessWidget {
-  final Song currentSong;
   final ColorScheme colorScheme;
 
   const _PlaybarControls({
-    required this.currentSong,
     required this.colorScheme,
   });
 
@@ -385,6 +419,8 @@ class _PlaybarControls extends StatelessWidget {
       builder: (context, currentSongProvider, child) {
         final bool isPlaying = currentSongProvider.isPlaying;
         final bool isLoadingAudio = currentSongProvider.isLoadingAudio;
+        // Get the current song from the provider to ensure it's always up to date
+        final song = currentSongProvider.currentSong;
 
         return Row(
           mainAxisSize: MainAxisSize.min,
