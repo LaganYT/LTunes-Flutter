@@ -9,6 +9,7 @@ import '../models/lyrics_data.dart'; // Add import for Lyrics model
 import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart'; // Add import for AlbumManagerService
 import '../services/error_handler_service.dart';
+import '../services/artwork_service.dart'; // Import centralized artwork service
 import '../services/liked_songs_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
@@ -23,19 +24,8 @@ import 'artist_screen.dart'; // Import artist screen
 import '../widgets/playbar.dart'; // Add import for Playbar
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
-  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
-  if (artUrl.startsWith('http')) {
-    return CachedNetworkImageProvider(artUrl);
-  } else {
-    final dir = await getApplicationDocumentsDirectory();
-    final name = p.basename(artUrl);
-    final fullPath = p.join(dir.path, name);
-    if (await File(fullPath).exists()) {
-      return FileImage(File(fullPath));
-    } else {
-      return const AssetImage('assets/placeholder.png');
-    }
-  }
+  // Use centralized artwork service for consistent handling
+  return await artworkService.getArtworkProvider(artUrl);
 }
 
 Widget robustArtwork(String artUrl,

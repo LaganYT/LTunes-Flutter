@@ -9,6 +9,7 @@ import '../widgets/playbar.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 double _getSafeIconSize(double? width) {
   // Ensure we have a safe, finite icon size
@@ -29,19 +30,8 @@ double _getSafeDimension(double? dimension) {
 }
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
-  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
-  if (artUrl.startsWith('http')) {
-    return CachedNetworkImageProvider(artUrl);
-  } else {
-    final dir = await getApplicationDocumentsDirectory();
-    final name = p.basename(artUrl);
-    final fullPath = p.join(dir.path, name);
-    if (await File(fullPath).exists()) {
-      return FileImage(File(fullPath));
-    } else {
-      return const AssetImage('assets/placeholder.png');
-    }
-  }
+  // Use centralized artwork service for consistent handling
+  return await artworkService.getArtworkProvider(artUrl);
 }
 
 Widget robustArtwork(String artUrl, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
@@ -98,25 +88,10 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
 
   Future<void> _updateArtProvider(String artUrl) async {
     setState(() { _artLoading = true; });
-    if (artUrl.startsWith('http')) {
-      _currentArtProvider = CachedNetworkImageProvider(artUrl);
-    } else if (artUrl.isNotEmpty) {
-      // Handle local file paths
-      try {
-        final directory = await getApplicationDocumentsDirectory();
-        final fileName = p.basename(artUrl);
-        final fullPath = p.join(directory.path, fileName);
-        
-        if (await File(fullPath).exists()) {
-          _currentArtProvider = FileImage(File(fullPath));
-        } else {
-          _currentArtProvider = null;
-        }
-      } catch (e) {
-        debugPrint('Error loading local art: $e');
-        _currentArtProvider = null;
-      }
-    } else {
+    try {
+      _currentArtProvider = await artworkService.getArtworkProvider(artUrl);
+    } catch (e) {
+      debugPrint('Error loading artwork: $e');
       _currentArtProvider = null;
     }
     _currentArtKey = artUrl;
@@ -128,6 +103,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
     if (artUrl.startsWith('http')) {
       return CachedNetworkImageProvider(artUrl);
     } else {
+      // For local files, we need to resolve the path properly
+      // This method is kept for backward compatibility but should use the service
       return FileImage(File(artUrl));
     }
   }

@@ -15,21 +15,11 @@ import '../widgets/playbar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/album_manager_service.dart';
+import '../services/artwork_service.dart'; // Import centralized artwork service
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
-  if (artUrl.isEmpty) return const AssetImage('assets/placeholder.png');
-  if (artUrl.startsWith('http')) {
-    return CachedNetworkImageProvider(artUrl);
-  } else {
-    final dir = await getApplicationDocumentsDirectory();
-    final name = p.basename(artUrl);
-    final fullPath = p.join(dir.path, name);
-    if (await File(fullPath).exists()) {
-      return FileImage(File(fullPath));
-    } else {
-      return const AssetImage('assets/placeholder.png');
-    }
-  }
+  // Use centralized artwork service for consistent handling
+  return await artworkService.getArtworkProvider(artUrl);
 }
 
 class PlaylistDetailScreen extends StatefulWidget {
@@ -51,12 +41,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   // Helper method to resolve local album art path
   Future<String> _resolveLocalArtPath(String fileName) async {
     if (fileName.isEmpty) return '';
-    final directory = await getApplicationDocumentsDirectory();
-    final fullPath = p.join(directory.path, fileName);
-    if (await File(fullPath).exists()) {
-      return fullPath;
-    }
-    return '';
+    // Use centralized artwork service for consistent path resolution
+    return await artworkService.resolveLocalArtPath(fileName);
   }
 
   // Get cached Future for local art to prevent flashing

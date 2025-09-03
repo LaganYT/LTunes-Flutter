@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart'; // Ensure this is the correct path to CurrentSongProvider
 import '../services/animation_service.dart';
+import '../services/artwork_service.dart'; // Add import for centralized artwork service
 import '../widgets/full_screen_player.dart';
 import 'animated_page_route.dart';
 import 'package:path_provider/path_provider.dart'; // Added import
@@ -159,19 +160,17 @@ class PlaybarState extends State<Playbar> {
       return;
     }
 
-    if (artUrl.startsWith('http')) {
-      _currentArtProvider = CachedNetworkImageProvider(artUrl);
-    } else {
-      final path = await _getCachedLocalArtFuture(artUrl);
-      if (path.isNotEmpty) {
-        _currentArtProvider = FileImage(File(path));
-      } else {
-        _currentArtProvider = const AssetImage('assets/placeholder.png');
-      }
+    // Use centralized artwork service for consistent handling
+    try {
+      _currentArtProvider = await artworkService.getArtworkProvider(artUrl);
+      _artProviderCache[song.id] = _currentArtProvider!;
+      _currentArtId = song.id;
+    } catch (e) {
+      debugPrint('Error updating artwork provider: $e');
+      _currentArtProvider = const AssetImage('assets/placeholder.png');
+      _artProviderCache[song.id] = _currentArtProvider!;
+      _currentArtId = song.id;
     }
-
-    _artProviderCache[song.id] = _currentArtProvider!;
-    _currentArtId = song.id;
 
     if (mounted) {
       setState(() {
@@ -208,6 +207,8 @@ class PlaybarState extends State<Playbar> {
     if (artUrl.startsWith('http')) {
       return CachedNetworkImageProvider(artUrl);
     } else {
+      // For local files, we need to resolve the path properly
+      // This method is kept for backward compatibility but should use the service
       return FileImage(File(artUrl));
     }
   }

@@ -8,7 +8,8 @@ import '../models/playlist.dart';
 import '../models/album.dart'; // Import Album model
 import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
-import '../services/album_manager_service.dart'; // Import AlbumManagerService
+import '../services/album_manager_service.dart';
+import '../services/artwork_service.dart'; // Import centralized artwork service // Import AlbumManagerService
 import '../services/auto_fetch_service.dart';
 import '../services/unified_search_service.dart';
 import '../services/liked_songs_service.dart';
@@ -1333,14 +1334,13 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
     }
 
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final fullPath = p.join(directory.path, fileName);
-      if (await File(fullPath).exists()) {
+      final fullPath = await artworkService.resolveLocalArtPath(fileName);
+      if (fullPath.isNotEmpty) {
         _localArtPathCache[fileName] = fullPath;
         debugPrint('Found local album art (cached): $fullPath');
         return fullPath;
       } else {
-        debugPrint('Local album art not found (cached): $fullPath');
+        debugPrint('Local album art not found (cached): $fileName');
       }
     } catch (e) {
       debugPrint('Error caching local art path: $e');

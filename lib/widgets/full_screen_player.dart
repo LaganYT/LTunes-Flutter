@@ -25,6 +25,7 @@ import '../screens/artist_screen.dart'; // Import ArtistScreen
 import '../services/animation_service.dart'; // Import AnimationService
 import '../models/album.dart'; // Import Album model
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
+import '../services/artwork_service.dart'; // Import centralized artwork service
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 
 // Helper class for parsed lyric lines
@@ -850,29 +851,22 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       return;
     }
 
-    // Otherwise, load the artwork asynchronously
-    if (song.albumArtUrl.startsWith('http')) {
-      _currentArtProvider = CachedNetworkImageProvider(song.albumArtUrl);
+    // Otherwise, load the artwork asynchronously using centralized service
+    _loadArtworkAsync(song);
+  }
+
+  Future<void> _loadArtworkAsync(Song song) async {
+    try {
+      _currentArtProvider = await artworkService.getArtworkProvider(song.albumArtUrl);
       _currentArtId = song.id;
-      if (mounted) {
-        setState(() {
-          _artLoading = false;
-        });
-      }
-    } else {
-      // For local files, resolve the path asynchronously
-      _resolveLocalArtPath(song.albumArtUrl).then((path) {
-        if (mounted) {
-          if (path.isNotEmpty) {
-            _currentArtProvider = FileImage(File(path));
-          } else {
-            _currentArtProvider = null;
-          }
-          _currentArtId = song.id;
-          setState(() {
-            _artLoading = false;
-          });
-        }
+    } catch (e) {
+      debugPrint('Error loading artwork: $e');
+      _currentArtProvider = null;
+    }
+    
+    if (mounted) {
+      setState(() {
+        _artLoading = false;
       });
     }
   }
@@ -3432,6 +3426,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (artUrl.startsWith('http')) {
       return CachedNetworkImageProvider(artUrl);
     } else {
+      // For local files, we need to resolve the path properly
+      // This method is kept for backward compatibility but should use the service
       return FileImage(File(artUrl));
     }
   }
