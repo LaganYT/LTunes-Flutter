@@ -17,6 +17,5 @@
 
 
 
-When loop is off have it still loop to the first song at the end of the queue but have it paused
 
 Fix: when songs are in the background they either loop the song again when its over or just end the audio session

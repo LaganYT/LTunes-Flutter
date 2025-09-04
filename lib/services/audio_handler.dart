@@ -661,8 +661,8 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
         newIndex = 0;
       } else {
-        await stop();
-        return;
+        // When loop is off, loop to first song
+        newIndex = 0;
       }
     }
     await skipToQueueItem(newIndex);
@@ -676,8 +676,8 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
         newIndex = _playlist.length - 1;
       } else {
-        await stop();
-        return;
+        // When loop is off, loop to last song
+        newIndex = _playlist.length - 1;
       }
     }
     await skipToQueueItem(newIndex);
@@ -936,7 +936,20 @@ class AudioPlayerHandler extends BaseAudioHandler
         return;
       }
     } else {
-      await skipToNext();
+      // Check if we're at the end of the queue and loop is off
+      if (repeatMode == AudioServiceRepeatMode.none &&
+          _currentIndex == _playlist.length - 1) {
+        // Loop to first song but keep it paused
+        await _prepareToPlay(0);
+        _currentIndex = 0;
+        playbackState.add(playbackState.value.copyWith(
+          queueIndex: _currentIndex,
+          playing: false,
+        ));
+        return;
+      } else {
+        await skipToNext();
+      }
     }
   }
 
