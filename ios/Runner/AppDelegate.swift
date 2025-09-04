@@ -131,7 +131,7 @@ import AVFoundation
     // Ensure audio session is properly configured for background playback
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth])
+      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .mixWithOthers])
       try audioSession.setActive(true)
       print("iOS audio session configured for background playback")
       
@@ -170,6 +170,16 @@ import AVFoundation
           }
         }
       }
+      
+      // Add a final check after 2 minutes to ensure long-term background playback
+      DispatchQueue.main.asyncAfter(deadline: .now() + 120.0) {
+        do {
+          try audioSession.setActive(true)
+          print("iOS background session maintenance: 2 minute check for long-term background playback")
+        } catch {
+          print("Error in iOS background session maintenance for long-term background playback: \(error)")
+        }
+      }
     } catch {
       print("Error configuring iOS audio session for background: \(error)")
     }
@@ -182,9 +192,14 @@ import AVFoundation
     // Reactivate audio session when app comes to foreground
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth])
+      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .mixWithOthers])
       try audioSession.setActive(true)
       print("iOS audio session reactivated for foreground")
+      
+      // If we were playing audio in background, ensure it continues seamlessly
+      if audioSession.isOtherAudioPlaying {
+        print("iOS: Other audio detected, maintaining playback session")
+      }
     } catch {
       print("Error reactivating iOS audio session: \(error)")
     }
@@ -197,6 +212,7 @@ import AVFoundation
     // Ensure audio session is maintained when app is about to be suspended
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .mixWithOthers])
       try audioSession.setActive(true, options: [])
       print("iOS audio session maintained for app suspension")
     } catch {

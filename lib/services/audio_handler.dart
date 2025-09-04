@@ -141,11 +141,39 @@ class AudioPlayerHandler extends BaseAudioHandler
         _isSessionActive = true;
         _lastSessionActivation = now;
         _consecutiveErrors = 0; // Reset error count on successful activation
+        debugPrint("AudioHandler: Audio session activated successfully");
       } catch (e) {
         debugPrint("Error activating audio session: $e");
         _consecutiveErrors++;
         _scheduleErrorRecovery();
       }
+    } else if (_isBackgroundMode) {
+      // In background mode, periodically verify session is still active
+      try {
+        // This will throw an error if the session is no longer active
+        await _audioSession!.setActive(true);
+        debugPrint("AudioHandler: Background audio session verified as active");
+      } catch (e) {
+        debugPrint(
+            "AudioHandler: Background audio session lost, reactivating: $e");
+        _isSessionActive = false;
+        await _ensureAudioSessionActive();
+      }
+    }
+  }
+
+  Future<void> _restoreAudioSessionIfNeeded() async {
+    if (!_isIOS || _audioSession == null) return;
+
+    try {
+      // Check if session is still active
+      await _audioSession!.setActive(true);
+      debugPrint("AudioHandler: Audio session restored successfully");
+    } catch (e) {
+      debugPrint(
+          "AudioHandler: Audio session restoration failed, attempting full reactivation: $e");
+      _isSessionActive = false;
+      await _ensureAudioSessionActive();
     }
   }
 
@@ -157,6 +185,17 @@ class AudioPlayerHandler extends BaseAudioHandler
         _isSessionActive = false;
         _consecutiveErrors = 0;
         _ensureAudioSessionActive();
+
+        // If we're in background mode, also try to restore playback
+        if (_isBackgroundMode && _playlist.isNotEmpty && _currentIndex >= 0) {
+          Future.delayed(const Duration(seconds: 2), () async {
+            try {
+              await _ensureBackgroundPlaybackContinuity();
+            } catch (e) {
+              debugPrint("Error during background playback recovery: $e");
+            }
+          });
+        }
       });
     }
   }
@@ -170,7 +209,16 @@ class AudioPlayerHandler extends BaseAudioHandler
     } else {
       if (event.type == AudioInterruptionType.pause ||
           event.type == AudioInterruptionType.unknown) {
-        if (!_audioPlayer.playing && _currentIndex >= 0) _audioPlayer.play();
+        // When interruption ends, ensure audio session is active before resuming
+        if (_isBackgroundMode) {
+          _ensureAudioSessionActive().then((_) {
+            if (!_audioPlayer.playing && _currentIndex >= 0) {
+              _audioPlayer.play();
+            }
+          });
+        } else {
+          if (!_audioPlayer.playing && _currentIndex >= 0) _audioPlayer.play();
+        }
       }
     }
   }
@@ -425,6 +473,12 @@ class AudioPlayerHandler extends BaseAudioHandler
                 !_isHandlingCompletion) {
               _lastCompletedSongId = songId;
               _isHandlingCompletion = true;
+
+              // Ensure audio session is active before handling completion
+              if (_isBackgroundMode) {
+                await _ensureAudioSessionActive();
+              }
+
               await _handleSongCompletion();
               _isHandlingCompletion = false;
             }
@@ -436,6 +490,12 @@ class AudioPlayerHandler extends BaseAudioHandler
     _audioPlayer.processingStateStream.listen((state) async {
       if (state == ProcessingState.completed && !_isHandlingCompletion) {
         _isHandlingCompletion = true;
+
+        // If we're in background mode, ensure audio session stays active
+        if (_isBackgroundMode) {
+          await _ensureAudioSessionActive();
+        }
+
         await _handleSongCompletion();
         _isHandlingCompletion = false;
       }
@@ -532,8 +592,11 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> _incrementPlayCounts() async {
     final prefs = await SharedPreferences.getInstance();
     final statsEnabled = prefs.getBool('listeningStatsEnabled') ?? true;
-    if (!statsEnabled || _currentIndex < 0 || _currentIndex >= _playlist.length)
+    if (!statsEnabled ||
+        _currentIndex < 0 ||
+        _currentIndex >= _playlist.length) {
       return;
+    }
 
     final item = _playlist[_currentIndex];
     final songId = item.extras?['songId'] as String?;
@@ -817,6 +880,59 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
   }
 
+  Future<void> _ensureBackgroundPlaybackContinuity() async {
+    if (!_isIOS || _audioSession == null) return;
+
+    try {
+      // Ensure audio session is active
+      await _ensureAudioSessionActive();
+
+      // If we're in background mode and have a playlist, ensure continuity
+      if (_isBackgroundMode && _playlist.isNotEmpty) {
+        final currentState = _audioPlayer.processingState;
+
+        // If audio player is completed but we should continue playing
+        if (currentState == ProcessingState.completed &&
+            _currentIndex >= 0 &&
+            _currentIndex < _playlist.length) {
+          final repeatMode = playbackState.value.repeatMode;
+
+          // If repeat is on or we're not at the last song, continue to next
+          if (repeatMode == AudioServiceRepeatMode.all ||
+              _currentIndex < _playlist.length - 1) {
+            debugPrint(
+                "AudioHandler: Ensuring background playback continuity - moving to next song");
+            await skipToNext();
+          } else if (repeatMode == AudioServiceRepeatMode.one) {
+            // If repeat one is on, restart current song
+            debugPrint(
+                "AudioHandler: Ensuring background playback continuity - restarting current song");
+            await _prepareToPlay(_currentIndex);
+            await _audioPlayer.play();
+            await _syncMetadata();
+          }
+        }
+
+        // Also check if we're stuck in a loading state in the background
+        if (currentState == ProcessingState.loading ||
+            currentState == ProcessingState.buffering) {
+          // If stuck loading for too long in background, try to recover
+          debugPrint(
+              "AudioHandler: Detected stuck loading state in background, attempting recovery");
+          if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+            await _prepareToPlay(_currentIndex);
+            if (playbackState.value.playing) {
+              await _audioPlayer.play();
+              await _syncMetadata();
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error ensuring background playback continuity: $e");
+    }
+  }
+
   Future<void> handleAppForeground() async {
     _isBackgroundMode = false;
     if (_isIOS && _audioSession != null && _audioPlayer.playing) {
@@ -907,21 +1023,43 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   Future<void> handleAppBackground() async {
     _isBackgroundMode = true;
-    if (_isIOS && _audioSession != null && _audioPlayer.playing) {
+    if (_isIOS && _audioSession != null) {
+      // Always ensure audio session is active when going to background
+      // This helps maintain background playback continuity
       await _ensureAudioSessionActive();
+
+      // If we're playing, ensure the session stays active
+      if (_audioPlayer.playing) {
+        debugPrint(
+            "AudioHandler: App going to background - ensuring audio session stays active");
+      }
     }
   }
 
   Future<void> dispose() async {
     _errorRecoveryTimer?.cancel();
+
+    // If we're in background mode, ensure audio session stays active
+    if (_isBackgroundMode && _isIOS && _audioSession != null) {
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint("AudioHandler: Audio session maintained during disposal");
+      } catch (e) {
+        debugPrint("Error maintaining audio session during disposal: $e");
+      }
+    }
+
     await _audioPlayer.dispose();
   }
 
   Future<void> _handleSongCompletion() async {
     final repeatMode = playbackState.value.repeatMode;
+
+    // Ensure audio session is active for background playback
+    await _ensureAudioSessionActive();
+
     if (repeatMode == AudioServiceRepeatMode.one) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-        await _ensureAudioSessionActive();
         await _prepareToPlay(_currentIndex);
         // Reset position to 0 when looping a single song
         _justResetForLoop = true; // Set flag before seeking
@@ -936,18 +1074,34 @@ class AudioPlayerHandler extends BaseAudioHandler
         return;
       }
     } else {
-      // Check if we're at the end of the queue and loop is off
-      if (repeatMode == AudioServiceRepeatMode.none &&
-          _currentIndex == _playlist.length - 1) {
-        // Loop to first song but keep it paused
-        await _prepareToPlay(0);
-        _currentIndex = 0;
-        playbackState.add(playbackState.value.copyWith(
-          queueIndex: _currentIndex,
-          playing: false,
-        ));
-        return;
+      // Check if we're at the end of the queue
+      if (_currentIndex == _playlist.length - 1) {
+        if (repeatMode == AudioServiceRepeatMode.all) {
+          // Loop to first song and continue playing
+          await _prepareToPlay(0);
+          _currentIndex = 0;
+          playbackState.add(playbackState.value.copyWith(
+            queueIndex: _currentIndex,
+            playing: true,
+          ));
+          await _audioPlayer.play();
+          await _syncMetadata();
+        } else {
+          // When loop is off and we're at the last song, stop playback
+          // but keep the audio session active for background
+          await _audioPlayer.stop();
+          playbackState.add(playbackState.value.copyWith(
+            playing: false,
+            processingState: AudioProcessingState.completed,
+          ));
+          // Ensure background audio session stays active
+          if (_isBackgroundMode) {
+            await _ensureAudioSessionActive();
+          }
+          return;
+        }
       } else {
+        // Move to next song
         await skipToNext();
       }
     }
@@ -1041,6 +1195,10 @@ class AudioPlayerHandler extends BaseAudioHandler
         await ensureBackgroundPlayback();
         break;
 
+      case 'ensureBackgroundPlaybackContinuity':
+        await _ensureBackgroundPlaybackContinuity();
+        break;
+
       case 'handleAppForeground':
         await handleAppForeground();
         break;
@@ -1094,6 +1252,10 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       case 'forceSessionActivation':
         if (_isIOS && _audioSession != null) await _ensureAudioSessionActive();
+        break;
+
+      case 'restoreAudioSession':
+        await _restoreAudioSessionIfNeeded();
         break;
 
       case 'seekToPosition':
@@ -1150,14 +1312,16 @@ class AudioPlayerHandler extends BaseAudioHandler
       case 'setEqualizerBand':
         final band = extras?['band'] as int?;
         final value = extras?['value'] as double?;
-        if (band != null && value != null)
+        if (band != null && value != null) {
           await _audioEffectsService.setEqualizerBand(band, value);
+        }
         break;
 
       case 'setEqualizerPreset':
         final preset = extras?['preset'] as String?;
-        if (preset != null)
+        if (preset != null) {
           await _audioEffectsService.setEqualizerPreset(preset);
+        }
         break;
 
       case 'resetAudioEffects':

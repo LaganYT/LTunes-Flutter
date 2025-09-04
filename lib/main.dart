@@ -157,6 +157,11 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         Timer.periodic(const Duration(seconds: 15), (timer) {
       _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
     });
+
+    // Also add a timer for audio session restoration
+    Timer.periodic(const Duration(seconds: 30), (timer) {
+      _audioHandler.customAction('restoreAudioSession', {});
+    });
   }
 
   void _stopBackgroundContinuityTimer() {
@@ -216,6 +221,11 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
           // Add a single session activation check after 5 seconds
           Future.delayed(const Duration(seconds: 5), () {
             _audioHandler.customAction('forceSessionActivation', {});
+          });
+
+          // Add audio session restoration check after 15 seconds
+          Future.delayed(const Duration(seconds: 15), () {
+            _audioHandler.customAction('restoreAudioSession', {});
           });
 
           // Add background playback continuity check after 30 seconds

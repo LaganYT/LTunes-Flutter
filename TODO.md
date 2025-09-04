@@ -14,8 +14,3 @@
 
 ## Development & Infrastructure
 - Put a clone of the api in the same folder as the flutter project and let cursor edit both to be as compatible at possible
-
-
-
-
-Fix: when songs are in the background they either loop the song again when its over or just end the audio session
