@@ -138,6 +138,9 @@ class CurrentSongProvider with ChangeNotifier {
     _downloadNotificationService
         .setNotificationActionCallback(handleDownloadNotificationAction);
     _downloadNotificationService.setAudioHandler(_audioHandler);
+
+    // Validate queue on initialization
+    await validateAndFixQueue();
   }
 
   // Playback speed control methods
@@ -180,6 +183,77 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   // Queue management
+  Future<void> validateAndFixQueue() async {
+    try {
+      // Check if current index is valid
+      if (_currentIndexInAppQueue < 0 ||
+          _currentIndexInAppQueue >= _queue.length) {
+        debugPrint(
+            "CurrentSongProvider: Invalid current index $_currentIndexInAppQueue, fixing...");
+        if (_queue.isNotEmpty) {
+          _currentIndexInAppQueue = 0;
+          _currentSongFromAppLogic = _queue[0];
+        } else {
+          _currentIndexInAppQueue = -1;
+          _currentSongFromAppLogic = null;
+        }
+        notifyListeners();
+        _saveCurrentSongToStorage();
+      }
+
+      // Check if current song matches the queue
+      if (_currentSongFromAppLogic != null &&
+          _currentIndexInAppQueue >= 0 &&
+          _currentIndexInAppQueue < _queue.length) {
+        final expectedSong = _queue[_currentIndexInAppQueue];
+        if (_currentSongFromAppLogic!.id != expectedSong.id) {
+          debugPrint("CurrentSongProvider: Current song mismatch, fixing...");
+          _currentSongFromAppLogic = expectedSong;
+          notifyListeners();
+          _saveCurrentSongToStorage();
+        }
+      }
+
+      // Check for duplicate songs in queue
+      final Set<String> seenIds = {};
+      final List<Song> uniqueSongs = [];
+      for (final song in _queue) {
+        if (!seenIds.contains(song.id)) {
+          seenIds.add(song.id);
+          uniqueSongs.add(song);
+        } else {
+          debugPrint(
+              "CurrentSongProvider: Found duplicate song in queue: ${song.id}");
+        }
+      }
+
+      if (uniqueSongs.length != _queue.length) {
+        debugPrint("CurrentSongProvider: Removing duplicate songs from queue");
+        _queue = uniqueSongs;
+
+        // Update current index if needed
+        if (_currentSongFromAppLogic != null) {
+          final newIndex =
+              _queue.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+          if (newIndex != -1) {
+            _currentIndexInAppQueue = newIndex;
+          } else {
+            _currentIndexInAppQueue = 0;
+            _currentSongFromAppLogic = _queue.isNotEmpty ? _queue[0] : null;
+          }
+        }
+
+        notifyListeners();
+        _saveCurrentSongToStorage();
+      }
+    } catch (e, stackTrace) {
+      debugPrint("CurrentSongProvider: Error validating queue: $e");
+      debugPrintStack(stackTrace: stackTrace);
+      _errorHandler.logError(e,
+          context: 'queue validation', stackTrace: stackTrace);
+    }
+  }
+
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
     if (oldIndex < 0 ||
         oldIndex >= _queue.length ||
@@ -1146,11 +1220,33 @@ class CurrentSongProvider with ChangeNotifier {
         _audioHandler.playbackState.listen((playbackState) {
       final oldIsPlaying = _isPlaying;
       final oldIsLoading = _isLoadingAudio;
+      final oldQueueIndex = _currentIndexInAppQueue;
 
       _isPlaying = playbackState.playing;
       _isLoadingAudio =
           playbackState.processingState == AudioProcessingState.loading ||
               playbackState.processingState == AudioProcessingState.buffering;
+
+      // Sync queue index from audio handler
+      final audioHandlerQueueIndex = playbackState.queueIndex;
+      if (audioHandlerQueueIndex != null &&
+          audioHandlerQueueIndex != _currentIndexInAppQueue &&
+          audioHandlerQueueIndex >= 0 &&
+          audioHandlerQueueIndex < _queue.length) {
+        _currentIndexInAppQueue = audioHandlerQueueIndex;
+        debugPrint(
+            "CurrentSongProvider: Queue index synced from audio handler: $oldQueueIndex -> $_currentIndexInAppQueue");
+
+        // Update current song if the index changed
+        if (_queue.isNotEmpty && _currentIndexInAppQueue < _queue.length) {
+          final newCurrentSong = _queue[_currentIndexInAppQueue];
+          if (_currentSongFromAppLogic?.id != newCurrentSong.id) {
+            _currentSongFromAppLogic = newCurrentSong;
+            debugPrint(
+                "CurrentSongProvider: Current song updated to: ${newCurrentSong.title}");
+          }
+        }
+      }
 
       if (oldIsPlaying != _isPlaying) {
         debugPrint(
@@ -1170,7 +1266,9 @@ class CurrentSongProvider with ChangeNotifier {
         _checkForStuckLoadingState();
       }
 
-      if (oldIsPlaying != _isPlaying || oldIsLoading != _isLoadingAudio) {
+      if (oldIsPlaying != _isPlaying ||
+          oldIsLoading != _isLoadingAudio ||
+          oldQueueIndex != _currentIndexInAppQueue) {
         notifyListeners();
       }
     });
@@ -1307,6 +1405,131 @@ class CurrentSongProvider with ChangeNotifier {
       }
 
       notifyListeners();
+    });
+
+    _queueSubscription = _audioHandler.queue.listen((audioHandlerQueue) async {
+      try {
+        // Validate audio handler queue
+        if (audioHandlerQueue.isEmpty) {
+          if (_queue.isNotEmpty) {
+            debugPrint(
+                "CurrentSongProvider: Audio handler queue is empty, clearing provider queue");
+            _queue.clear();
+            _currentIndexInAppQueue = -1;
+            _currentSongFromAppLogic = null;
+            notifyListeners();
+            _saveCurrentSongToStorage();
+          }
+          return;
+        }
+
+        // Sync the provider's queue with the audio handler's queue
+        bool queueChanged = false;
+
+        // Check if the queue length changed
+        if (_queue.length != audioHandlerQueue.length) {
+          queueChanged = true;
+          debugPrint(
+              "CurrentSongProvider: Queue length changed from ${_queue.length} to ${audioHandlerQueue.length}");
+        }
+
+        // Check if any songs in the queue have changed
+        if (!queueChanged &&
+            _queue.isNotEmpty &&
+            audioHandlerQueue.isNotEmpty) {
+          for (int i = 0;
+              i < _queue.length && i < audioHandlerQueue.length;
+              i++) {
+            final providerSong = _queue[i];
+            final handlerMediaItem = audioHandlerQueue[i];
+            final handlerSongId =
+                handlerMediaItem.extras?['songId'] as String? ??
+                    handlerMediaItem.id;
+
+            if (providerSong.id != handlerSongId) {
+              queueChanged = true;
+              debugPrint(
+                  "CurrentSongProvider: Queue item at index $i changed from ${providerSong.id} to $handlerSongId");
+              break;
+            }
+          }
+        }
+
+        if (queueChanged) {
+          // Rebuild the provider's queue from the audio handler's queue
+          List<Song> newQueue = [];
+          for (final mediaItem in audioHandlerQueue) {
+            final songId = mediaItem.extras?['songId'] as String?;
+            if (songId != null) {
+              // Try to find the song in the current queue first
+              final existingSong = _queue.firstWhere(
+                (s) => s.id == songId,
+                orElse: () => Song(
+                  id: songId,
+                  title: mediaItem.title,
+                  artist: mediaItem.artist ?? 'Unknown Artist',
+                  artistId: mediaItem.extras?['artistId'] as String? ?? '',
+                  album: mediaItem.album,
+                  albumArtUrl: mediaItem.artUri?.toString() ?? '',
+                  audioUrl: mediaItem.id,
+                  isDownloaded: mediaItem.extras?['isLocal'] as bool? ?? false,
+                  localFilePath:
+                      (mediaItem.extras?['isLocal'] as bool? ?? false)
+                          ? p.basename(mediaItem.id)
+                          : null,
+                ),
+              );
+              newQueue.add(existingSong);
+            }
+          }
+
+          // Validate the new queue
+          if (newQueue.isEmpty) {
+            debugPrint(
+                "CurrentSongProvider: Warning - new queue is empty after sync");
+            return;
+          }
+
+          _queue = newQueue;
+
+          // Update current index if needed
+          if (_currentSongFromAppLogic != null) {
+            final newIndex =
+                _queue.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+            if (newIndex != -1 && _currentIndexInAppQueue != newIndex) {
+              _currentIndexInAppQueue = newIndex;
+              debugPrint(
+                  "CurrentSongProvider: Current index updated to $newIndex");
+            } else if (newIndex == -1) {
+              // Current song is no longer in the queue, find the closest match
+              debugPrint(
+                  "CurrentSongProvider: Current song ${_currentSongFromAppLogic!.id} not found in new queue, updating to first song");
+              _currentIndexInAppQueue = 0;
+              _currentSongFromAppLogic = _queue[0];
+            }
+          } else if (_queue.isNotEmpty) {
+            // No current song but queue has items, set to first
+            _currentIndexInAppQueue = 0;
+            _currentSongFromAppLogic = _queue[0];
+          }
+
+          // Validate current index
+          if (_currentIndexInAppQueue >= _queue.length) {
+            debugPrint(
+                "CurrentSongProvider: Warning - current index $_currentIndexInAppQueue is out of bounds, resetting to 0");
+            _currentIndexInAppQueue = 0;
+            _currentSongFromAppLogic = _queue.isNotEmpty ? _queue[0] : null;
+          }
+
+          notifyListeners();
+          _saveCurrentSongToStorage();
+        }
+      } catch (e, stackTrace) {
+        debugPrint("CurrentSongProvider: Error in queue subscription: $e");
+        debugPrintStack(stackTrace: stackTrace);
+        _errorHandler.logError(e,
+            context: 'queue subscription', stackTrace: stackTrace);
+      }
     });
   }
 
