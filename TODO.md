@@ -13,4 +13,4 @@
 - Before the artist name on a song show an explicit marker and a downloaded marker on the song lists
 
 ## Development & Infrastructure
-- Update project to use new api (apiv2), also create very good docs for new api so this ai can learn and adapt the app to work with the api as effeciently ass possible
+- Update project to use new api (apiv2), also create very good docs for new api so this ai can learn and adapt the app to work with the api as effeciently as possible
