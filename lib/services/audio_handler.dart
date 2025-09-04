@@ -57,6 +57,10 @@ class AudioPlayerHandler extends BaseAudioHandler
   bool _shouldBePaused = false;
   final AudioEffectsService _audioEffectsService = AudioEffectsService();
 
+  // Prevent duplicate completion handling
+  DateTime? _lastCompletionTime;
+  static const Duration _completionCooldown = Duration(milliseconds: 500);
+
   // Simplified session management
   DateTime? _lastSessionActivation;
   static const Duration _sessionActivationCooldown =
@@ -70,6 +74,11 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   // Track loop reset state
   bool _justResetForLoop = false;
+
+  // Track local file completion to prevent infinite loops
+  String? _lastLocalFileCompleted;
+  int _localFileCompletionCount = 0;
+  static const int _maxLocalFileCompletions = 3;
 
   AudioPlayerHandler() {
     _initializeAudioSession();
@@ -247,6 +256,16 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     _currentIndex = index;
     MediaItem itemToPlay = _playlist[_currentIndex];
+
+    // Reset completion state for new song
+    _isHandlingCompletion = false;
+    _lastCompletionTime = null;
+
+    // Reset local file completion tracking for new song
+    if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
+      _localFileCompletionCount = 0;
+      _lastLocalFileCompleted = null;
+    }
 
     mediaItem.add(itemToPlay);
     playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
@@ -464,15 +483,38 @@ class AudioPlayerHandler extends BaseAudioHandler
         if (currentItem != null && currentItem.duration != null) {
           final duration = currentItem.duration!;
           final timeRemaining = duration - position;
-          final completionThreshold = 100; // 100ms
+
+          // Use different completion thresholds for local vs streaming files
+          final isLocalFile = currentItem.extras?['isLocal'] as bool? ?? false;
+          final completionThreshold =
+              isLocalFile ? 300 : 100; // 300ms for local, 100ms for streaming
+
+          // For local files, also check if we're not in a loop state
+          if (isLocalFile && _justResetForLoop) {
+            return; // Skip completion detection if we just reset for a loop
+          }
 
           if (timeRemaining.inMilliseconds <= completionThreshold) {
             final songId = currentItem.extras?['songId'] as String?;
+            final now = DateTime.now();
+
+            // Check if enough time has passed since last completion
+            if (_lastCompletionTime != null &&
+                now.difference(_lastCompletionTime!) < _completionCooldown) {
+              debugPrint(
+                  "AudioHandler: Skipping completion - too soon since last completion");
+              return;
+            }
+
             if (songId != null &&
                 songId != _lastCompletedSongId &&
                 !_isHandlingCompletion) {
               _lastCompletedSongId = songId;
+              _lastCompletionTime = now;
               _isHandlingCompletion = true;
+
+              debugPrint(
+                  "AudioHandler: Position-based completion detected for song: $songId");
 
               // Ensure audio session is active before handling completion
               if (_isBackgroundMode) {
@@ -489,6 +531,17 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     _audioPlayer.processingStateStream.listen((state) async {
       if (state == ProcessingState.completed && !_isHandlingCompletion) {
+        final now = DateTime.now();
+
+        // Check if enough time has passed since last completion
+        if (_lastCompletionTime != null &&
+            now.difference(_lastCompletionTime!) < _completionCooldown) {
+          debugPrint(
+              "AudioHandler: Skipping ProcessingState.completed - too soon since last completion");
+          return;
+        }
+
+        _lastCompletionTime = now;
         _isHandlingCompletion = true;
 
         // If we're in background mode, ensure audio session stays active
@@ -496,6 +549,8 @@ class AudioPlayerHandler extends BaseAudioHandler
           await _ensureAudioSessionActive();
         }
 
+        debugPrint(
+            "AudioHandler: ProcessingState.completed detected - handling song completion");
         await _handleSongCompletion();
         _isHandlingCompletion = false;
       }
@@ -890,6 +945,11 @@ class AudioPlayerHandler extends BaseAudioHandler
       // If we're in background mode and have a playlist, ensure continuity
       if (_isBackgroundMode && _playlist.isNotEmpty) {
         final currentState = _audioPlayer.processingState;
+        final currentItem =
+            _currentIndex >= 0 && _currentIndex < _playlist.length
+                ? _playlist[_currentIndex]
+                : null;
+        final isLocalFile = currentItem?.extras?['isLocal'] as bool? ?? false;
 
         // If audio player is completed but we should continue playing
         if (currentState == ProcessingState.completed &&
@@ -901,12 +961,12 @@ class AudioPlayerHandler extends BaseAudioHandler
           if (repeatMode == AudioServiceRepeatMode.all ||
               _currentIndex < _playlist.length - 1) {
             debugPrint(
-                "AudioHandler: Ensuring background playback continuity - moving to next song");
+                "AudioHandler: Ensuring background playback continuity - moving to next song (local: $isLocalFile)");
             await skipToNext();
           } else if (repeatMode == AudioServiceRepeatMode.one) {
             // If repeat one is on, restart current song
             debugPrint(
-                "AudioHandler: Ensuring background playback continuity - restarting current song");
+                "AudioHandler: Ensuring background playback continuity - restarting current song (local: $isLocalFile)");
             await _prepareToPlay(_currentIndex);
             await _audioPlayer.play();
             await _syncMetadata();
@@ -918,12 +978,33 @@ class AudioPlayerHandler extends BaseAudioHandler
             currentState == ProcessingState.buffering) {
           // If stuck loading for too long in background, try to recover
           debugPrint(
-              "AudioHandler: Detected stuck loading state in background, attempting recovery");
+              "AudioHandler: Detected stuck loading state in background, attempting recovery (local: $isLocalFile)");
           if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
             await _prepareToPlay(_currentIndex);
             if (playbackState.value.playing) {
               await _audioPlayer.play();
               await _syncMetadata();
+            }
+          }
+        }
+
+        // Special handling for local files that might not report completion properly
+        if (isLocalFile &&
+            currentState == ProcessingState.ready &&
+            _audioPlayer.playing &&
+            currentItem?.duration != null) {
+          final position = _audioPlayer.position;
+          final duration = currentItem!.duration!;
+
+          // If we're very close to the end of a local file, force completion
+          if (position > Duration.zero &&
+              (duration - position).inMilliseconds <= 50) {
+            debugPrint(
+                "AudioHandler: Local file near end, forcing completion check");
+            if (!_isHandlingCompletion) {
+              _isHandlingCompletion = true;
+              await _handleSongCompletion();
+              _isHandlingCompletion = false;
             }
           }
         }
@@ -1054,12 +1135,64 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   Future<void> _handleSongCompletion() async {
     final repeatMode = playbackState.value.repeatMode;
+    final currentItem = _currentIndex >= 0 && _currentIndex < _playlist.length
+        ? _playlist[_currentIndex]
+        : null;
+    final isLocalFile = currentItem?.extras?['isLocal'] as bool? ?? false;
+    final songId = currentItem?.extras?['songId'] as String?;
+
+    debugPrint(
+        "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
+
+    // For local files, check if we're stuck in a completion loop
+    if (isLocalFile && songId != null) {
+      if (_lastLocalFileCompleted == songId) {
+        _localFileCompletionCount++;
+        debugPrint(
+            "AudioHandler: Local file completion count: $_localFileCompletionCount for song: $songId");
+
+        // If we've completed the same local file too many times, force move to next
+        if (_localFileCompletionCount >= _maxLocalFileCompletions) {
+          debugPrint(
+              "AudioHandler: Too many completions for local file, forcing next song");
+          _localFileCompletionCount = 0;
+          _lastLocalFileCompleted = null;
+
+          if (_currentIndex < _playlist.length - 1) {
+            await skipToNext();
+            return;
+          } else if (repeatMode == AudioServiceRepeatMode.all) {
+            await _prepareToPlay(0);
+            _currentIndex = 0;
+            playbackState.add(playbackState.value.copyWith(
+              queueIndex: _currentIndex,
+              playing: true,
+            ));
+            await _audioPlayer.play();
+            await _syncMetadata();
+            return;
+          } else {
+            // Stop playback at end of queue
+            await _audioPlayer.stop();
+            playbackState.add(playbackState.value.copyWith(
+              playing: false,
+              processingState: AudioProcessingState.completed,
+            ));
+            return;
+          }
+        }
+      } else {
+        _localFileCompletionCount = 1;
+        _lastLocalFileCompleted = songId;
+      }
+    }
 
     // Ensure audio session is active for background playback
     await _ensureAudioSessionActive();
 
     if (repeatMode == AudioServiceRepeatMode.one) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
+        debugPrint("AudioHandler: Repeating single song (local: $isLocalFile)");
         await _prepareToPlay(_currentIndex);
         // Reset position to 0 when looping a single song
         _justResetForLoop = true; // Set flag before seeking
@@ -1078,6 +1211,8 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (_currentIndex == _playlist.length - 1) {
         if (repeatMode == AudioServiceRepeatMode.all) {
           // Loop to first song and continue playing
+          debugPrint(
+              "AudioHandler: Looping queue - moving from last song to first (local: $isLocalFile)");
           await _prepareToPlay(0);
           _currentIndex = 0;
           playbackState.add(playbackState.value.copyWith(
@@ -1089,6 +1224,8 @@ class AudioPlayerHandler extends BaseAudioHandler
         } else {
           // When loop is off and we're at the last song, stop playback
           // but keep the audio session active for background
+          debugPrint(
+              "AudioHandler: End of queue reached - stopping playback (local: $isLocalFile)");
           await _audioPlayer.stop();
           playbackState.add(playbackState.value.copyWith(
             playing: false,
@@ -1102,6 +1239,7 @@ class AudioPlayerHandler extends BaseAudioHandler
         }
       } else {
         // Move to next song
+        debugPrint("AudioHandler: Moving to next song (local: $isLocalFile)");
         await skipToNext();
       }
     }
@@ -1256,6 +1394,14 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       case 'restoreAudioSession':
         await _restoreAudioSessionIfNeeded();
+        break;
+
+      case 'forceNextSong':
+        // Force move to next song (useful for stuck local files)
+        if (_playlist.isNotEmpty && _currentIndex >= 0) {
+          debugPrint("AudioHandler: Force next song requested");
+          await skipToNext();
+        }
         break;
 
       case 'seekToPosition':

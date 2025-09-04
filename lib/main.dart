@@ -162,6 +162,11 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     Timer.periodic(const Duration(seconds: 30), (timer) {
       _audioHandler.customAction('restoreAudioSession', {});
     });
+
+    // Add a timer to detect and fix stuck local files
+    Timer.periodic(const Duration(seconds: 45), (timer) {
+      _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+    });
   }
 
   void _stopBackgroundContinuityTimer() {
