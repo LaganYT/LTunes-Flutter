@@ -130,7 +130,7 @@ A modern, feature-rich Flutter music app for streaming, downloading, and organiz
 
 ### Platform Support
 - ✅ **Android**: API 21+ (Android 5.0+)
-- ✅ **iOS**: iOS 12.0+
+- ✅ **iOS**: iOS 13.0+
 
 ## 🎯 Usage Guide
 
