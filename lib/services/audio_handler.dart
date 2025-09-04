@@ -214,7 +214,9 @@ class AudioPlayerHandler extends BaseAudioHandler
     AudioSource source;
     try {
       if (itemToPlay.extras?['isLocal'] as bool? ?? false) {
-        final filePath = itemToPlay.id;
+        // For local files, use the localFilePath from extras
+        final filePath =
+            itemToPlay.extras?['localFilePath'] as String? ?? itemToPlay.id;
         final file = File(filePath);
         if (!await file.exists()) {
           throw Exception("Local file not found: $filePath");

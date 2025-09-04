@@ -214,7 +214,7 @@ class CurrentSongProvider with ChangeNotifier {
       if (downloaded != null) {
         canonicalSongs.add(s.copyWith(
           id: downloaded.id,
-          isDownloaded: true,
+          isDownloaded: downloaded.isDownloaded,
           localFilePath: downloaded.localFilePath,
           duration: downloaded.duration ?? s.duration,
           albumArtUrl: downloaded.albumArtUrl.isNotEmpty &&
@@ -255,14 +255,28 @@ class CurrentSongProvider with ChangeNotifier {
       _currentSongFromAppLogic = null;
     }
 
-    final mediaItems = await Future.wait(
-        _queue.map((s) async => _prepareMediaItem(s)).toList());
-    await _audioHandler.updateQueue(mediaItems);
+    try {
+      final mediaItems = await Future.wait(
+          _queue.map((s) async => _prepareMediaItem(s)).toList());
+      await _audioHandler.updateQueue(mediaItems);
 
-    if (_currentSongFromAppLogic != null && _currentIndexInAppQueue != -1) {
-      await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
-    } else if (_queue.isEmpty) {
-      await _audioHandler.stop();
+      if (_currentSongFromAppLogic != null && _currentIndexInAppQueue != -1) {
+        await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+      } else if (_queue.isEmpty) {
+        await _audioHandler.stop();
+      }
+    } catch (e) {
+      debugPrint('Error setting queue: $e');
+      // If there's an error, try to set a minimal queue with just the current song
+      if (_currentSongFromAppLogic != null) {
+        try {
+          final mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
+          await _audioHandler.updateQueue([mediaItem]);
+          await _audioHandler.skipToQueueItem(0);
+        } catch (fallbackError) {
+          debugPrint('Fallback queue setting also failed: $fallbackError');
+        }
+      }
     }
 
     notifyListeners();
@@ -1371,6 +1385,7 @@ class CurrentSongProvider with ChangeNotifier {
                 jsonDecode(songJson) as Map<String, dynamic>;
             Song songCandidate = Song.fromJson(songMap);
 
+            // Check for exact match first
             if (songCandidate.isDownloaded &&
                 songCandidate.localFilePath != null &&
                 songCandidate.localFilePath!.isNotEmpty &&
@@ -1383,6 +1398,27 @@ class CurrentSongProvider with ChangeNotifier {
               } else {
                 debugPrint(
                     "Song ${songCandidate.title} matched title/artist and isDownloaded=true, but local file $fullPath missing.");
+              }
+            }
+
+            // Also check for imported songs that might be the same track
+            if (songCandidate.isImported &&
+                songCandidate.localFilePath != null &&
+                songCandidate.localFilePath!.isNotEmpty &&
+                _areSongsEquivalent(
+                    songCandidate,
+                    Song(
+                      id: '',
+                      title: title,
+                      artist: artist,
+                      artistId: '',
+                      albumArtUrl: '',
+                      audioUrl: '',
+                    ))) {
+              final fullPath = p.join(appDocDir.path, downloadsSubDir,
+                  songCandidate.localFilePath!);
+              if (await File(fullPath).exists()) {
+                return songCandidate;
               }
             }
           } catch (e) {
