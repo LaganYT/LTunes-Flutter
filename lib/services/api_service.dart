@@ -42,7 +42,7 @@ class ApiService {
 
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
-  static const String baseUrl = 'https://ltn-api.vercel.app/api/';
+  static const String baseUrl = 'https://apiv2.ltunes.app/api/';
   static const String updateUrl =
       'https://ltn-api.vercel.app/updates/update.json';
 
@@ -154,7 +154,8 @@ class ApiService {
 
     final Uri url;
     if (query.isNotEmpty) {
-      url = Uri.parse('${baseUrl}search/?query=${Uri.encodeComponent(query)}');
+      url = Uri.parse(
+          '${baseUrl}search/tracks?query=${Uri.encodeComponent(query)}');
     } else {
       url = Uri.parse('${baseUrl}topCharts');
     }
@@ -167,11 +168,14 @@ class ApiService {
       if (query.isNotEmpty) {
         items = data;
       } else {
+        // Handle top charts - API v2 returns both topArtists and tracks
         if (data is Map &&
             data.containsKey('tracks') &&
             data['tracks'] is List) {
+          // Use tracks directly from topCharts response
           items = data['tracks'];
         } else if (data is List) {
+          // Handle array response
           items = data;
         } else {
           items = [];
@@ -339,24 +343,20 @@ class ApiService {
 
     // Try each search query until we find a match
     for (final query in searchQueries) {
-      final parts = query.trim().split(' ');
-      if (parts.length < 2) continue;
-
-      // Extract potential artist and music name from query
-      final queryArtist = parts.last; // Assume artist is last
-      final queryMusicName =
-          parts.take(parts.length - 1).join(' '); // Rest is music name
-
-      final Uri url = Uri.parse(
-          '${baseUrl}audio/?artist=${Uri.encodeComponent(queryArtist)}&musicName=${Uri.encodeComponent(queryMusicName)}');
-
       try {
-        final response = await _get(url.toString());
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data != null && data['audioURL'] != null) {
-            audioUrl = data['audioURL'] as String;
-            break; // Found a match, stop searching
+        // First, search for tracks to get trackId
+        final tracks = await _fetchSongsInternal(query);
+        if (tracks.isNotEmpty) {
+          final trackId = tracks.first.id;
+          final Uri url = Uri.parse('${baseUrl}audio?trackId=$trackId');
+
+          final response = await _get(url.toString());
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            if (data != null && data['audioURL'] != null) {
+              audioUrl = data['audioURL'] as String;
+              break; // Found a match, stop searching
+            }
           }
         }
       } catch (e) {
@@ -368,14 +368,19 @@ class ApiService {
 
     // If version-aware search didn't work, try the original approach as fallback
     if (audioUrl == null) {
-      final Uri fallbackUrl = Uri.parse(
-          '${baseUrl}audio/?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}');
       try {
-        final response = await _get(fallbackUrl.toString());
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data != null && data['audioURL'] != null) {
-            audioUrl = data['audioURL'] as String;
+        // Search for tracks using original artist and musicName
+        final tracks = await _fetchSongsInternal('$artist $musicName');
+        if (tracks.isNotEmpty) {
+          final trackId = tracks.first.id;
+          final Uri url = Uri.parse('${baseUrl}audio?trackId=$trackId');
+
+          final response = await _get(url.toString());
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            if (data != null && data['audioURL'] != null) {
+              audioUrl = data['audioURL'] as String;
+            }
           }
         }
       } catch (e) {
@@ -404,7 +409,7 @@ class ApiService {
     if (country.isNotEmpty) queryParams['country'] = country;
     if (name.isNotEmpty) queryParams['name'] = name;
 
-    final url = Uri.https('ltn-api.vercel.app', '/api/radio',
+    final url = Uri.https('apiv2.ltunes.app', '/api/radio',
         queryParams.isEmpty ? null : queryParams);
 
     try {
@@ -526,18 +531,22 @@ class ApiService {
   }
 
   Future<LyricsData?> fetchLyrics(String artist, String musicName) async {
-    final url =
-        '${baseUrl}lyrics?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}';
     try {
+      // First, search for tracks to get trackId
+      final tracks = await _fetchSongsInternal('$artist $musicName');
+      if (tracks.isEmpty) {
+        return null;
+      }
+
+      final trackId = tracks.first.id;
+      final url = '${baseUrl}lyrics?trackId=$trackId';
+
       final response = await _get(url);
       final data = jsonDecode(response.body);
 
-      if (data != null && data['lyrics'] != null && data['lyrics'] is Map) {
-        final lyricsMap = data['lyrics'] as Map<String, dynamic>;
-        return LyricsData(
-          plainLyrics: lyricsMap['plainLyrics'] as String?,
-          syncedLyrics: lyricsMap['syncedLyrics'] as String?,
-        );
+      if (data != null) {
+        // Use the new API v2 format parser
+        return LyricsData.fromApiV2Response(data);
       }
       return null;
     } catch (e) {

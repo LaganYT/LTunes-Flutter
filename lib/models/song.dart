@@ -120,26 +120,45 @@ class Song {
   factory Song.fromJson(Map<String, dynamic> json) {
     try {
       // Use helpers for safer parsing
-      final title = _asString(json['title'] ?? json['name'], 'Unknown Title');
-      final id = _asString(
-          json['id'], DateTime.now().millisecondsSinceEpoch.toString());
+      final title = _asString(
+          json['title'] ?? json['name'] ?? json['SNG_TITLE'], 'Unknown Title');
+      final id = _asString(json['id'] ?? json['SNG_ID'],
+          DateTime.now().millisecondsSinceEpoch.toString());
 
-      String artist = _asString(json['artist']);
-      String artistIdFromJson = _asString(json['artistId']); // Parse artistId
+      String artist = _asString(json['artist'] ?? json['ART_NAME']);
+      String artistIdFromJson =
+          _asString(json['artistId'] ?? json['ART_ID']); // Parse artistId
       String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
       String audioUrl = _asString(json['audioUrl']);
 
       String? albumName;
       String? releaseDate = _asNullableString(json['releaseDate']);
 
-      // Parse duration_ms robustly
+      // Parse duration robustly - handle both generic and Deezer API formats
       dynamic durationMsValue = json['duration_ms'];
+      dynamic durationSecondsValue = json['DURATION'];
+
       int? durationMsAsInt;
       if (durationMsValue is int) {
         durationMsAsInt = durationMsValue;
       } else if (durationMsValue is String) {
         durationMsAsInt = int.tryParse(durationMsValue);
       }
+
+      // If no duration_ms, try to parse DURATION (in seconds) from Deezer API
+      if (durationMsAsInt == null && durationSecondsValue != null) {
+        int? durationSeconds;
+        if (durationSecondsValue is int) {
+          durationSeconds = durationSecondsValue;
+        } else if (durationSecondsValue is String) {
+          durationSeconds = int.tryParse(durationSecondsValue);
+        }
+        if (durationSeconds != null) {
+          durationMsAsInt =
+              durationSeconds * 1000; // Convert seconds to milliseconds
+        }
+      }
+
       // If durationMsValue is null or not int/String, durationMsAsInt remains null.
       final Duration? parsedDuration = durationMsAsInt != null
           ? Duration(milliseconds: durationMsAsInt)
@@ -162,6 +181,7 @@ class Song {
         }
       }
 
+      // Handle album parsing for both generic and Deezer API formats
       final albumField = json['album'];
       if (albumField is Map) {
         albumName = _asNullableString(albumField['name']);
@@ -176,7 +196,17 @@ class Song {
         }
       } else {
         // albumField is not a Map (could be String, null, or other type to convert)
-        albumName = _asNullableString(albumField);
+        albumName = _asNullableString(albumField) ??
+            _asNullableString(json['ALB_TITLE']);
+      }
+
+      // Handle Deezer API album art URL
+      if (albumArtUrlFromJson.isEmpty && json['ALB_PICTURE'] != null) {
+        final albumPictureId = json['ALB_PICTURE'].toString();
+        if (albumPictureId.isNotEmpty) {
+          albumArtUrlFromJson =
+              'https://e-cdns-images.dzcdn.net/images/cover/$albumPictureId/500x500-000000-80-0-0.jpg';
+        }
       }
 
       final bool isImported =
