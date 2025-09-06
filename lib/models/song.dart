@@ -117,9 +117,10 @@ class Song {
     return null;
   }
 
+  /// Universal factory constructor that handles both API v2 and original API formats
   factory Song.fromJson(Map<String, dynamic> json) {
     try {
-      // Use helpers for safer parsing
+      // Use helpers for safer parsing - handle both API v2 and original API field names
       final title = _asString(
           json['title'] ?? json['name'] ?? json['SNG_TITLE'], 'Unknown Title');
       final id = _asString(json['id'] ?? json['SNG_ID'],
@@ -132,7 +133,8 @@ class Song {
       String audioUrl = _asString(json['audioUrl']);
 
       String? albumName;
-      String? releaseDate = _asNullableString(json['releaseDate']);
+      String? releaseDate = _asNullableString(
+          json['releaseDate'] ?? json['PHYSICAL_RELEASE_DATE']);
 
       // Parse duration robustly - handle both generic and Deezer API formats
       dynamic durationMsValue = json['duration_ms'];
@@ -207,6 +209,111 @@ class Song {
           albumArtUrlFromJson =
               'https://e-cdns-images.dzcdn.net/images/cover/$albumPictureId/500x500-000000-80-0-0.jpg';
         }
+      }
+
+      final bool isImported =
+          json['isImported'] as bool? ?? false; // Parse isImported
+      final String? plainLyrics = _asNullableString(json['plainLyrics']);
+      final String? syncedLyrics = _asNullableString(json['syncedLyrics']);
+      final int playCount = json['playCount'] as int? ?? 0; // Parse playCount
+      final bool isCustomMetadata =
+          json['isCustomMetadata'] as bool? ?? false; // Parse isCustomMetadata
+
+      return Song(
+        title: title,
+        id: id,
+        artist: artist,
+        artistId: artistIdFromJson, // Assign parsed artistId
+        albumArtUrl:
+            albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
+        album: albumName, // albumName is already String?
+        releaseDate: releaseDate, // releaseDate is already String?
+        audioUrl: audioUrl,
+        isDownloaded: json['isDownloaded'] as bool? ??
+            false, // Assuming isDownloaded is boolean
+        localFilePath: _asNullableString(json[
+            'localFilePath']), // Store as is; migration/usage logic handles interpretation
+        extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
+        duration: parsedDuration, // Assign parsed duration
+        isImported: isImported, // Assign parsed isImported
+        plainLyrics: plainLyrics,
+        syncedLyrics: syncedLyrics,
+        playCount: playCount, // Assign playCount
+        isCustomMetadata: isCustomMetadata, // Assign parsed isCustomMetadata
+        // isDownloading and downloadProgress will use default constructor values
+      );
+    } catch (e) {
+      // For debugging purposes, it can be helpful to print the problematic JSON.
+      // print('Error parsing song from JSON: $json. Error: $e');
+      throw FormatException('Invalid song JSON format: $e. Source JSON: $json');
+    }
+  }
+
+  /// Factory constructor specifically for API v2 format
+  factory Song.fromApiV2Json(Map<String, dynamic> json) {
+    return Song.fromJson(
+        json); // API v2 uses the same format as the universal parser
+  }
+
+  /// Factory constructor specifically for original API (fallback) format
+  /// This matches the old Song.fromJson behavior exactly
+  factory Song.fromOriginalApiJson(Map<String, dynamic> json) {
+    try {
+      // Use the exact same logic as the old fromJson method
+      final title = _asString(json['title'] ?? json['name'], 'Unknown Title');
+      final id = _asString(
+          json['id'], DateTime.now().millisecondsSinceEpoch.toString());
+
+      String artist = _asString(json['artist']);
+      String artistIdFromJson = _asString(json['artistId']); // Parse artistId
+      String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
+      String audioUrl = _asString(json['audioUrl']);
+
+      String? albumName;
+      String? releaseDate = _asNullableString(json['releaseDate']);
+
+      // Parse duration_ms robustly (same as old method)
+      dynamic durationMsValue = json['duration_ms'];
+      int? durationMsAsInt;
+      if (durationMsValue is int) {
+        durationMsAsInt = durationMsValue;
+      } else if (durationMsValue is String) {
+        durationMsAsInt = int.tryParse(durationMsValue);
+      }
+      // If durationMsValue is null or not int/String, durationMsAsInt remains null.
+      final Duration? parsedDuration = durationMsAsInt != null
+          ? Duration(milliseconds: durationMsAsInt)
+          : null;
+
+      // Handle artists array (same as old method)
+      if (artist.isEmpty && json.containsKey('artists')) {
+        final artistsList = json['artists'] as List?;
+        if (artistsList != null && artistsList.isNotEmpty) {
+          final firstArtistMap = artistsList.first as Map?;
+          artist = _asString(firstArtistMap?['name']);
+          // Attempt to get artistId from the same structure if not already found
+          if (artistIdFromJson.isEmpty) {
+            artistIdFromJson = _asString(firstArtistMap?['id']);
+          }
+        }
+      }
+
+      // Handle album field (same as old method)
+      final albumField = json['album'];
+      if (albumField is Map) {
+        albumName = _asNullableString(albumField['name']);
+        releaseDate =
+            _asNullableString(albumField['release_date']) ?? releaseDate;
+        if (albumArtUrlFromJson.isEmpty && albumField.containsKey('images')) {
+          final images = albumField['images'] as List?;
+          if (images != null && images.isNotEmpty) {
+            final firstImageMap = images.first as Map?;
+            albumArtUrlFromJson = _asString(firstImageMap?['url']);
+          }
+        }
+      } else {
+        // albumField is not a Map (could be String, null, or other type to convert)
+        albumName = _asNullableString(albumField);
       }
 
       final bool isImported =

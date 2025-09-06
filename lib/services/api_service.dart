@@ -43,6 +43,7 @@ class ApiService {
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
 
   static const String baseUrl = 'https://apiv2.ltunes.app/api/';
+  static const String originalBaseUrl = 'https://ltn-api.vercel.app/api/';
   static const String updateUrl =
       'https://ltn-api.vercel.app/updates/update.json';
 
@@ -148,10 +149,29 @@ class ApiService {
     return completer.future;
   }
 
-  // Performance: Internal fetch method
+  // Performance: Internal fetch method with fallback
   Future<List<Song>> _fetchSongsInternal(String query) async {
     final String cacheKey = query.isEmpty ? "__topCharts__" : query;
 
+    try {
+      // Try primary API first
+      return await _fetchSongsFromPrimaryApi(query, cacheKey);
+    } catch (e) {
+      debugPrint('Primary API failed for query "$query": $e');
+      try {
+        // Fallback to original API
+        return await _fetchSongsFromFallbackApi(query, cacheKey);
+      } catch (fallbackError) {
+        debugPrint(
+            'Fallback API also failed for query "$query": $fallbackError');
+        rethrow;
+      }
+    }
+  }
+
+  // Primary API fetch method
+  Future<List<Song>> _fetchSongsFromPrimaryApi(
+      String query, String cacheKey) async {
     final Uri url;
     if (query.isNotEmpty) {
       url = Uri.parse(
@@ -160,43 +180,74 @@ class ApiService {
       url = Uri.parse('${baseUrl}topCharts');
     }
 
-    try {
-      final response = await _get(url.toString());
-      dynamic data = json.decode(response.body);
+    final response = await _get(url.toString());
+    dynamic data = json.decode(response.body);
 
-      List<dynamic> items;
-      if (query.isNotEmpty) {
+    List<dynamic> items;
+    if (query.isNotEmpty) {
+      items = data;
+    } else {
+      // Handle top charts - API v2 returns both topArtists and tracks
+      if (data is Map && data.containsKey('tracks') && data['tracks'] is List) {
+        // Use tracks directly from topCharts response
+        items = data['tracks'];
+      } else if (data is List) {
+        // Handle array response
         items = data;
       } else {
-        // Handle top charts - API v2 returns both topArtists and tracks
-        if (data is Map &&
-            data.containsKey('tracks') &&
-            data['tracks'] is List) {
-          // Use tracks directly from topCharts response
-          items = data['tracks'];
-        } else if (data is List) {
-          // Handle array response
-          items = data;
-        } else {
-          items = [];
-        }
+        throw Exception('Unexpected response format from primary API');
       }
-
-      final songs = items.map<Song>((json) => Song.fromJson(json)).toList();
-
-      // Performance: Cache with TTL
-      _songCache[cacheKey] = _CacheEntry(songs, DateTime.now());
-
-      return songs;
-    } catch (e) {
-      rethrow;
     }
+
+    final songs = items.map<Song>((json) => Song.fromApiV2Json(json)).toList();
+
+    // Performance: Cache with TTL
+    _songCache[cacheKey] = _CacheEntry(songs, DateTime.now());
+
+    return songs;
+  }
+
+  // Fallback API fetch method (original API)
+  Future<List<Song>> _fetchSongsFromFallbackApi(
+      String query, String cacheKey) async {
+    final Uri url;
+    if (query.isNotEmpty) {
+      url = Uri.parse(
+          '${originalBaseUrl}search/?query=${Uri.encodeComponent(query)}');
+    } else {
+      url = Uri.parse('${originalBaseUrl}topCharts');
+    }
+
+    final response = await _get(url.toString());
+    dynamic data = json.decode(response.body);
+
+    List<dynamic> items;
+    if (query.isNotEmpty) {
+      items = data;
+    } else {
+      if (data is Map && data.containsKey('tracks') && data['tracks'] is List) {
+        items = data['tracks'];
+      } else if (data is List) {
+        items = data;
+      } else {
+        items = [];
+      }
+    }
+
+    final songs = items.map<Song>((json) => Song.fromJson(json)).toList();
+
+    // Performance: Cache with TTL
+    _songCache[cacheKey] = _CacheEntry(songs, DateTime.now());
+
+    return songs;
   }
 
   Future<String?> _searchForAlbumId(String albumName, String artistName) async {
     final query = '${albumName.trim()} ${artistName.trim()}';
-    final url = '${baseUrl}search/albums?query=${Uri.encodeComponent(query)}';
+
     try {
+      // Try primary API first
+      final url = '${baseUrl}search/albums?query=${Uri.encodeComponent(query)}';
       final response = await _get(url);
       List<dynamic> searchResults = jsonDecode(response.body);
       if (searchResults.isNotEmpty) {
@@ -204,8 +255,22 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      _errorHandler.logError(e, context: 'searchForAlbumId');
-      return null;
+      debugPrint('Primary API failed for album search "$query": $e');
+      try {
+        // Fallback to original API
+        final fallbackUrl =
+            '${originalBaseUrl}search/albums?query=${Uri.encodeComponent(query)}';
+        final fallbackResponse = await _get(fallbackUrl);
+        List<dynamic> searchResults = jsonDecode(fallbackResponse.body);
+        if (searchResults.isNotEmpty) {
+          return searchResults.first['ALB_ID']?.toString();
+        }
+        return null;
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError,
+            context: 'searchForAlbumId fallback');
+        return null;
+      }
     }
   }
 
@@ -215,8 +280,9 @@ class ApiService {
       return cached.data;
     }
 
-    final url = '${baseUrl}album/$albumId';
     try {
+      // Try primary API first
+      final url = '${baseUrl}album/$albumId';
       final response = await _get(url);
       Map<String, dynamic> data = jsonDecode(response.body);
       final album = Album.fromJson(data);
@@ -226,8 +292,23 @@ class ApiService {
 
       return album;
     } catch (e) {
-      _errorHandler.logError(e, context: 'fetchAlbumDetailsById');
-      return null;
+      debugPrint('Primary API failed for album details $albumId: $e');
+      try {
+        // Fallback to original API
+        final fallbackUrl = '${originalBaseUrl}album/$albumId';
+        final fallbackResponse = await _get(fallbackUrl);
+        Map<String, dynamic> data = jsonDecode(fallbackResponse.body);
+        final album = Album.fromJson(data);
+
+        // Performance: Cache with longer TTL for albums
+        _albumDetailCache[albumId] = _CacheEntry(album, DateTime.now());
+
+        return album;
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError,
+            context: 'fetchAlbumDetailsById fallback');
+        return null;
+      }
     }
   }
 
@@ -242,6 +323,7 @@ class ApiService {
   // Search albums by query
   Future<List<Album>> searchAlbums(String query) async {
     try {
+      // Try primary API first
       final url = '${baseUrl}search/albums?query=${Uri.encodeComponent(query)}';
       final response = await _get(url);
       final data = jsonDecode(response.body) as List<dynamic>;
@@ -250,14 +332,28 @@ class ApiService {
         return Album.fromJson(albumJson as Map<String, dynamic>);
       }).toList();
     } catch (e) {
-      _errorHandler.logError(e, context: 'searchAlbums');
-      return [];
+      debugPrint('Primary API failed for album search "$query": $e');
+      try {
+        // Fallback to original API
+        final fallbackUrl =
+            '${originalBaseUrl}search/albums?query=${Uri.encodeComponent(query)}';
+        final fallbackResponse = await _get(fallbackUrl);
+        final data = jsonDecode(fallbackResponse.body) as List<dynamic>;
+
+        return data.map((albumJson) {
+          return Album.fromJson(albumJson as Map<String, dynamic>);
+        }).toList();
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError, context: 'searchAlbums fallback');
+        return [];
+      }
     }
   }
 
   // Search artists by query
   Future<List<Map<String, dynamic>>> searchArtists(String query) async {
     try {
+      // Try primary API first
       final url =
           '${baseUrl}search/artists?query=${Uri.encodeComponent(query)}';
       final response = await _get(url);
@@ -267,8 +363,22 @@ class ApiService {
         return artistJson as Map<String, dynamic>;
       }).toList();
     } catch (e) {
-      _errorHandler.logError(e, context: 'searchArtists');
-      return [];
+      debugPrint('Primary API failed for artist search "$query": $e');
+      try {
+        // Fallback to original API
+        final fallbackUrl =
+            '${originalBaseUrl}search/artists?query=${Uri.encodeComponent(query)}';
+        final fallbackResponse = await _get(fallbackUrl);
+        final data = jsonDecode(fallbackResponse.body) as List<dynamic>;
+
+        return data.map((artistJson) {
+          return artistJson as Map<String, dynamic>;
+        }).toList();
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError,
+            context: 'searchArtists fallback');
+        return [];
+      }
     }
   }
 
@@ -384,7 +494,16 @@ class ApiService {
           }
         }
       } catch (e) {
-        _errorHandler.logError(e, context: 'fetchAudioUrl');
+        debugPrint(
+            'Primary API failed for fetchAudioUrl "$artist $musicName": $e');
+        // Try fallback API with original approach
+        try {
+          audioUrl = await _fetchAudioUrlFromFallbackApi(
+              artist, musicName, searchQueries);
+        } catch (fallbackError) {
+          _errorHandler.logError(fallbackError,
+              context: 'fetchAudioUrl fallback');
+        }
       }
     }
 
@@ -395,6 +514,60 @@ class ApiService {
     }
 
     return null;
+  }
+
+  // Fallback method for audio URL fetching using original API
+  Future<String?> _fetchAudioUrlFromFallbackApi(
+      String artist, String musicName, List<String> searchQueries) async {
+    String? audioUrl;
+
+    // Try each search query until we find a match
+    for (final query in searchQueries) {
+      final parts = query.trim().split(' ');
+      if (parts.length < 2) continue;
+
+      // Extract potential artist and music name from query
+      final queryArtist = parts.last; // Assume artist is last
+      final queryMusicName =
+          parts.take(parts.length - 1).join(' '); // Rest is music name
+
+      final Uri url = Uri.parse(
+          '${originalBaseUrl}audio/?artist=${Uri.encodeComponent(queryArtist)}&musicName=${Uri.encodeComponent(queryMusicName)}');
+
+      try {
+        final response = await _get(url.toString());
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data != null && data['audioURL'] != null) {
+            audioUrl = data['audioURL'] as String;
+            break; // Found a match, stop searching
+          }
+        }
+      } catch (e) {
+        // Log error but continue trying other queries
+        debugPrint('Error fetching audio with fallback query "$query": $e');
+        continue;
+      }
+    }
+
+    // If version-aware search didn't work, try the original approach as fallback
+    if (audioUrl == null) {
+      final Uri fallbackUrl = Uri.parse(
+          '${originalBaseUrl}audio/?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}');
+      try {
+        final response = await _get(fallbackUrl.toString());
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data != null && data['audioURL'] != null) {
+            audioUrl = data['audioURL'] as String;
+          }
+        }
+      } catch (e) {
+        debugPrint('Fallback API also failed for audio URL: $e');
+      }
+    }
+
+    return audioUrl;
   }
 
   Future<List<dynamic>> fetchStationsByCountry(String country,
@@ -409,10 +582,11 @@ class ApiService {
     if (country.isNotEmpty) queryParams['country'] = country;
     if (name.isNotEmpty) queryParams['name'] = name;
 
-    final url = Uri.https('apiv2.ltunes.app', '/api/radio',
-        queryParams.isEmpty ? null : queryParams);
-
     try {
+      // Try primary API first
+      final url = Uri.https('apiv2.ltunes.app', '/api/radio',
+          queryParams.isEmpty ? null : queryParams);
+
       final response = await _get(url.toString());
       if (response.statusCode == 200) {
         try {
@@ -436,7 +610,40 @@ class ApiService {
             'Failed to load radio stations. Status code: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching radio stations: $e');
+      debugPrint('Primary API failed for radio stations: $e');
+      try {
+        // Fallback to original API
+        final fallbackUrl = Uri.https('ltn-api.vercel.app', '/api/radio',
+            queryParams.isEmpty ? null : queryParams);
+
+        final fallbackResponse = await _get(fallbackUrl.toString());
+        if (fallbackResponse.statusCode == 200) {
+          try {
+            final stations =
+                json.decode(fallbackResponse.body) as List<dynamic>;
+
+            // Performance: Cache radio stations
+            _radioStationCache[cacheKey] =
+                _CacheEntry(stations, DateTime.now());
+
+            return stations;
+          } catch (e) {
+            throw Exception(
+                'Error decoding JSON from fallback: $e\nResponse body: ${fallbackResponse.body}');
+          }
+        } else if (fallbackResponse.statusCode == 404) {
+          final emptyStations = <dynamic>[];
+          _radioStationCache[cacheKey] =
+              _CacheEntry(emptyStations, DateTime.now());
+          return emptyStations;
+        } else {
+          throw Exception(
+              'Failed to load radio stations from fallback. Status code: ${fallbackResponse.statusCode}');
+        }
+      } catch (fallbackError) {
+        throw Exception(
+            'Error fetching radio stations (both APIs): $fallbackError');
+      }
     }
   }
 
@@ -550,16 +757,31 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      _errorHandler.logError(e, context: 'fetchLyrics');
-      if (e.toString().contains('404')) {
+      debugPrint('Primary API failed for fetchLyrics "$artist $musicName": $e');
+      try {
+        // Fallback to original API
+        final fallbackUrl =
+            '${originalBaseUrl}lyrics?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}';
+        final fallbackResponse = await _get(fallbackUrl);
+        final data = jsonDecode(fallbackResponse.body);
+
+        if (data != null && data['lyrics'] != null && data['lyrics'] is Map) {
+          return LyricsData.fromOriginalApiResponse(data);
+        }
+        return null;
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError, context: 'fetchLyrics fallback');
+        if (fallbackError.toString().contains('404')) {
+          return null;
+        }
         return null;
       }
-      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getArtistById(String query) async {
     try {
+      // Try primary API first
       late String artistId;
       if (RegExp(r'^\d+$').hasMatch(query)) {
         artistId = query;
@@ -582,12 +804,40 @@ class ApiService {
       final detailResp = await _get(detailUrl);
       return jsonDecode(detailResp.body) as Map<String, dynamic>;
     } catch (e) {
-      throw Exception('getArtistById failed for "$query": $e');
+      debugPrint('Primary API failed for getArtistById "$query": $e');
+      try {
+        // Fallback to original API
+        late String artistId;
+        if (RegExp(r'^\d+$').hasMatch(query)) {
+          artistId = query;
+        } else {
+          final searchUrl =
+              '${originalBaseUrl}search/artists?query=${Uri.encodeComponent(query)}';
+          final searchResp = await _get(searchUrl);
+          final List<dynamic> results =
+              jsonDecode(searchResp.body) as List<dynamic>;
+          if (results.isEmpty) {
+            throw Exception('No artists found for query: "$query"');
+          }
+          artistId = results.first['ART_ID']?.toString() ?? '';
+          if (artistId.isEmpty) {
+            throw Exception('Artist ID missing in search results for "$query"');
+          }
+        }
+
+        final detailUrl = '${originalBaseUrl}artist/$artistId';
+        final detailResp = await _get(detailUrl);
+        return jsonDecode(detailResp.body) as Map<String, dynamic>;
+      } catch (fallbackError) {
+        throw Exception(
+            'getArtistById failed for "$query" (both APIs): $fallbackError');
+      }
     }
   }
 
   Future<List<Album>> getArtistAlbums(String artistId) async {
     try {
+      // Try primary API first
       final response = await _get('${baseUrl}artist/$artistId/albums');
 
       final data = json.decode(response.body);
@@ -614,8 +864,41 @@ class ApiService {
           .map((albumData) => Album.fromJson(albumData as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      _errorHandler.logError(e, context: 'getArtistAlbums');
-      return [];
+      debugPrint('Primary API failed for getArtistAlbums $artistId: $e');
+      try {
+        // Fallback to original API
+        final fallbackResponse =
+            await _get('${originalBaseUrl}artist/$artistId/albums');
+
+        final data = json.decode(fallbackResponse.body);
+
+        // Handle different possible response structures
+        List<dynamic> albumList = [];
+
+        if (data is List) {
+          // If the response is directly an array of albums
+          albumList = data;
+        } else if (data is Map<String, dynamic>) {
+          // If the response is an object with albums in a 'data' property
+          if (data.containsKey('data') && data['data'] is List) {
+            albumList = data['data'];
+          } else if (data.containsKey('albums') && data['albums'] is List) {
+            albumList = data['albums'];
+          } else {
+            // If the response object itself contains album data
+            return [Album.fromJson(data)];
+          }
+        }
+
+        return albumList
+            .map((albumData) =>
+                Album.fromJson(albumData as Map<String, dynamic>))
+            .toList();
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError,
+            context: 'getArtistAlbums fallback');
+        return [];
+      }
     }
   }
 }
