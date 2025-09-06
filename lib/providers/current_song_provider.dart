@@ -130,7 +130,7 @@ class CurrentSongProvider with ChangeNotifier {
   Future<void> _initializeProvider() async {
     await _initializeDownloadManager();
     await _primeDownloadProgressFromStorage();
-    _loadCurrentSongFromStorage();
+    await _loadCurrentSongFromStorage(); // Make this awaited to ensure state is loaded before validation
     _listenToAudioHandler();
     await _loadPlaybackSpeedFromStorage();
     await _loadSwitchContextSettingFromStorage();
@@ -139,8 +139,47 @@ class CurrentSongProvider with ChangeNotifier {
         .setNotificationActionCallback(handleDownloadNotificationAction);
     _downloadNotificationService.setAudioHandler(_audioHandler);
 
-    // Validate queue on initialization
+    // Validate queue on initialization - now that state is fully loaded
     await validateAndFixQueue();
+
+    // Ensure audio handler is properly synchronized after state loading
+    await _synchronizeAudioHandlerState();
+  }
+
+  /// Synchronize the audio handler state with the provider's state after loading
+  Future<void> _synchronizeAudioHandlerState() async {
+    try {
+      // If we have a current song and queue, ensure the audio handler is properly set up
+      if (_currentSongFromAppLogic != null && _queue.isNotEmpty) {
+        // Update the audio handler's queue if needed
+        final mediaItems =
+            await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+        await _audioHandler.updateQueue(mediaItems);
+
+        // Set the correct queue index
+        if (_currentIndexInAppQueue >= 0 &&
+            _currentIndexInAppQueue < _queue.length) {
+          await _audioHandler.customAction(
+              'setQueueIndex', {'index': _currentIndexInAppQueue});
+        }
+
+        // Prepare the current song for playback (but don't start playing automatically)
+        await _audioHandler
+            .customAction('prepareToPlay', {'index': _currentIndexInAppQueue});
+
+        debugPrint(
+            "CurrentSongProvider: Audio handler state synchronized successfully");
+      } else {
+        // No current song, ensure audio handler is in a clean state
+        await _audioHandler.updateQueue([]);
+        debugPrint(
+            "CurrentSongProvider: Audio handler cleared - no saved state");
+      }
+    } catch (e) {
+      debugPrint(
+          "CurrentSongProvider: Error synchronizing audio handler state: $e");
+      _errorHandler.logError(e, context: 'synchronizeAudioHandlerState');
+    }
   }
 
   // Playback speed control methods
@@ -188,8 +227,13 @@ class CurrentSongProvider with ChangeNotifier {
       // Check if current index is valid
       if (_currentIndexInAppQueue < 0 ||
           _currentIndexInAppQueue >= _queue.length) {
-        debugPrint(
-            "CurrentSongProvider: Invalid current index $_currentIndexInAppQueue, fixing...");
+        // Only show the error message if we have a queue but invalid index
+        // This prevents showing the error when there's legitimately no saved state
+        if (_queue.isNotEmpty) {
+          debugPrint(
+              "CurrentSongProvider: Invalid current index $_currentIndexInAppQueue for queue of length ${_queue.length}, fixing...");
+        }
+
         if (_queue.isNotEmpty) {
           _currentIndexInAppQueue = 0;
           _currentSongFromAppLogic = _queue[0];
@@ -1588,6 +1632,17 @@ class CurrentSongProvider with ChangeNotifier {
     await prefs.setInt(
         'loop_mode_v2', _audioHandler.playbackState.value.repeatMode.index);
     await prefs.setBool('shuffle_mode_v2', _isShuffling);
+  }
+
+  /// Public method to save state to storage (called during app lifecycle changes)
+  Future<void> saveStateToStorage() async {
+    try {
+      await _saveCurrentSongToStorage();
+      debugPrint("CurrentSongProvider: State saved to storage successfully");
+    } catch (e) {
+      debugPrint("CurrentSongProvider: Error saving state to storage: $e");
+      _errorHandler.logError(e, context: 'saveStateToStorage');
+    }
   }
 
   Future<Song?> _findExistingDownloadedSongByTitleArtist(

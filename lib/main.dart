@@ -196,17 +196,26 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       case AppLifecycleState.inactive:
         // App is going to background, ensure audio session stays active
         _audioHandler.customAction('handleAppBackground', {});
+        // Save current state before going to background
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .saveStateToStorage();
         _startBackgroundContinuityTimer();
         break;
       case AppLifecycleState.detached:
         // App is being terminated, ensure background playback is configured
         _audioHandler.customAction('ensureBackgroundPlayback', {});
+        // Save current state before app termination
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .saveStateToStorage();
         _stopBackgroundContinuityTimer();
         // MetadataHistoryService().clearHistory(); // Removed: never clear metadata history
         break;
       case AppLifecycleState.hidden:
         // App is hidden (iOS specific), ensure background playback
         _audioHandler.customAction('handleAppBackground', {});
+        // Save current state before going to background
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .saveStateToStorage();
         _startBackgroundContinuityTimer();
         break;
     }
