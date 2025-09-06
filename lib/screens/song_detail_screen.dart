@@ -178,10 +178,11 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     }
 
     _currentArtKey = artUrl;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _artLoading = false;
       });
+    }
   }
 
   @override
@@ -802,9 +803,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                           width: 300,
                           height: 300,
                           color: Colors.grey[700],
+                          key: ValueKey('song_detail_art_none'),
                           child: const Icon(Icons.music_note,
                               size: 150, color: Colors.white70),
-                          key: ValueKey('song_detail_art_none'),
                         ),
                 ),
               ),

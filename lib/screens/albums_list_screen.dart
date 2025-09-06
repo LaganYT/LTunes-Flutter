@@ -101,10 +101,11 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
       _currentArtProvider = null;
     }
     _currentArtKey = artUrl;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _artLoading = false;
       });
+    }
   }
 
   ImageProvider getArtworkProvider(String artUrl) {

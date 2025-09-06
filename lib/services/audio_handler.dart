@@ -660,7 +660,7 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     if (songId == null || songId.isEmpty) return;
 
-    final songKey = 'song_' + songId;
+    final songKey = 'song_$songId';
     final songJson = prefs.getString(songKey);
     if (songJson != null) {
       final songMap = _safeJsonDecode(songJson);
@@ -922,11 +922,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       }
     }
   }
-
-  @override
-  Future<void> onTaskRemoved() async => super.onTaskRemoved();
-  @override
-  Future<void> onNotificationDeleted() async => super.onNotificationDeleted();
 
   Future<void> ensureBackgroundPlayback() async {
     if (_isIOS && _audioSession != null) {

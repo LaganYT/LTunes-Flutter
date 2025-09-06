@@ -62,9 +62,9 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Equalizer Section
           Card(
             child: Padding(
@@ -94,10 +94,10 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Preset Dropdown
                   DropdownButtonFormField<String>(
-                    value: _audioEffectsService.currentPresetName,
+                    initialValue: _audioEffectsService.currentPresetName,
                     decoration: const InputDecoration(
                       labelText: 'Preset',
                       border: OutlineInputBorder(),
@@ -112,14 +112,15 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                       if (value != null) {
                         await _audioEffectsService.setEqualizerPreset(value);
                         setState(() {
-                          _equalizerBands = List.from(_audioEffectsService.equalizerBands);
+                          _equalizerBands =
+                              List.from(_audioEffectsService.equalizerBands);
                         });
                       }
                     },
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Equalizer Bands
                   SizedBox(
                     height: 200,
@@ -131,7 +132,8 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                             children: [
                               // Frequency label
                               Text(
-                                _formatFrequency(_audioEffectsService.frequencyBands[index]),
+                                _formatFrequency(
+                                    _audioEffectsService.frequencyBands[index]),
                                 style: const TextStyle(fontSize: 10),
                                 textAlign: TextAlign.center,
                               ),
@@ -146,7 +148,8 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                                     max: 12.0,
                                     divisions: 24,
                                     onChanged: (value) async {
-                                      await _audioEffectsService.setEqualizerBand(index, value);
+                                      await _audioEffectsService
+                                          .setEqualizerBand(index, value);
                                       setState(() {
                                         _equalizerBands[index] = value;
                                       });
@@ -171,9 +174,9 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Bass Boost Section
           Card(
             child: Padding(
@@ -228,9 +231,9 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Reverb Section
           Card(
             child: Padding(
@@ -285,9 +288,9 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // 8D Mode Section
           Card(
             child: Padding(
@@ -368,7 +371,10 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
                       '8D mode creates a spatial audio effect that simulates sound moving around you in a 360-degree space.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.7),
                         fontStyle: FontStyle.italic,
                       ),
                     ),
@@ -377,9 +383,9 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Info Card
           Card(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -416,9 +422,9 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Reset Button at the bottom
           SizedBox(
             width: double.infinity,
@@ -433,7 +439,7 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
         ],
       ),
@@ -453,7 +459,8 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Reset Audio Effects?'),
-          content: const Text('This will reset all audio effects to their default values. This action cannot be undone.'),
+          content: const Text(
+              'This will reset all audio effects to their default values. This action cannot be undone.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -474,7 +481,7 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
     if (confirmed == true) {
       _audioEffectsService.resetToDefaults();
       await _loadSettings();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Audio effects reset to defaults')),
@@ -482,4 +489,4 @@ class _AudioEffectsScreenState extends State<AudioEffectsScreen> {
       }
     }
   }
-} 
+}

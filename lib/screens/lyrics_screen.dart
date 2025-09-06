@@ -101,10 +101,11 @@ class _AlbumArtViewState extends State<AlbumArtView> {
       _currentArtProvider = null;
     }
     _currentArtKey = artUrl;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _artLoading = false;
       });
+    }
   }
 
   @override

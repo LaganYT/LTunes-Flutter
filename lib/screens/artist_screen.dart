@@ -22,7 +22,7 @@ class ArtistScreen extends StatefulWidget {
   final Map<String, dynamic>? preloadedArtistInfo;
   final List<Song>? preloadedArtistTracks;
   final List<Album>? preloadedArtistAlbums;
-  
+
   const ArtistScreen({
     super.key,
     required this.artistId,
@@ -36,7 +36,8 @@ class ArtistScreen extends StatefulWidget {
   State<ArtistScreen> createState() => _ArtistScreenState();
 }
 
-class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderStateMixin {
+class _ArtistScreenState extends State<ArtistScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _artistInfo;
   List<Song>? _tracks;
   List<Album>? _albums;
@@ -45,21 +46,21 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   String? _errorMessage;
   late TabController _tabController;
   final ErrorHandlerService _errorHandler = ErrorHandlerService();
-  
+
   // Like functionality
   Set<String> _likedSongIds = {};
-  
-  // Download functionality
-  bool _isDownloading = false;
-  double _downloadProgress = 0.0;
+
+  // Download functionality (removed unused fields)
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadLikedSongIds();
-    
-    if (widget.preloadedArtistInfo != null && widget.preloadedArtistTracks != null && widget.preloadedArtistAlbums != null) {
+
+    if (widget.preloadedArtistInfo != null &&
+        widget.preloadedArtistTracks != null &&
+        widget.preloadedArtistAlbums != null) {
       setState(() {
         _artistInfo = widget.preloadedArtistInfo;
         _tracks = widget.preloadedArtistTracks;
@@ -81,13 +82,16 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
   Future<void> _loadLikedSongIds() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('liked_songs') ?? [];
-    final ids = raw.map((s) {
-      try {
-        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
-      } catch (_) {
-        return null;
-      }
-    }).whereType<String>().toSet();
+    final ids = raw
+        .map((s) {
+          try {
+            return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<String>()
+        .toSet();
     if (mounted) {
       setState(() {
         _likedSongIds = ids;
@@ -114,7 +118,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
       _likedSongIds.add(song.id);
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        Provider.of<CurrentSongProvider>(context, listen: false).queueSongForDownload(song);
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .queueSongForDownload(song);
       }
     }
 
@@ -132,13 +137,14 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
       }
 
       final api = ApiService();
-      
+
       final searchQuery = widget.artistName ?? widget.artistId;
       final artistData = await api.getArtistById(searchQuery);
-      
+
       final artistInfo = artistData['info'] as Map<String, dynamic>;
-      final actualArtistId = artistInfo['ART_ID']?.toString() ?? widget.artistId;
-      
+      final actualArtistId =
+          artistInfo['ART_ID']?.toString() ?? widget.artistId;
+
       List<Album>? albums;
       try {
         albums = await api.getArtistAlbums(actualArtistId);
@@ -171,7 +177,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
           _errorMessage = e.toString();
           _loading = false;
         });
-        _errorHandler.showErrorSnackBar(context, e, errorContext: 'loading artist data');
+        _errorHandler.showErrorSnackBar(context, e,
+            errorContext: 'loading artist data');
       }
     }
   }
@@ -188,7 +195,10 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
 
   Widget _buildHeader() {
     final info = _artistInfo!;
-    final name = info['ART_NAME'] as String? ?? info['name'] as String? ?? widget.artistName ?? 'Artist';
+    final name = info['ART_NAME'] as String? ??
+        info['name'] as String? ??
+        widget.artistName ??
+        'Artist';
     final pictureId = info['ART_PICTURE'] as String? ?? '';
     final fansCount = info['NB_FAN'] as int? ?? 0;
     final albumCount = info['NB_ALBUM'] as int? ?? _albums?.length ?? 0;
@@ -221,7 +231,9 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                       imageUrl: artistImageUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         child: Icon(
                           Icons.person,
                           size: 48,
@@ -229,7 +241,9 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         child: Icon(
                           Icons.person,
                           size: 48,
@@ -238,7 +252,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                       ),
                     )
                   : Container(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       child: Icon(
                         Icons.person,
                         size: 48,
@@ -251,8 +266,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
           Text(
             name,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -284,7 +299,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildStatItem(BuildContext context, String label, String value, IconData icon) {
+  Widget _buildStatItem(
+      BuildContext context, String label, String value, IconData icon) {
     return Column(
       children: [
         Icon(
@@ -296,16 +312,16 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
         ),
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
         ),
       ],
     );
@@ -326,8 +342,10 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
       itemCount: _tracks!.length,
       itemBuilder: (context, index) {
         final track = _tracks![index];
-        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-        final bool isRadioPlayingGlobal = currentSongProvider.isCurrentlyPlayingRadio;
+        final currentSongProvider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
+        final bool isRadioPlayingGlobal =
+            currentSongProvider.isCurrentlyPlayingRadio;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 8.0),
@@ -341,7 +359,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                     if (!isRadioPlayingGlobal) {
                       currentSongProvider.addToQueue(track);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${track.title} added to queue')),
+                        SnackBar(
+                            content: Text('${track.title} added to queue')),
                       );
                     }
                   },
@@ -402,13 +421,15 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (track.isDownloaded)
-                    const Icon(Icons.download_done, color: Colors.green, size: 20),
+                    const Icon(Icons.download_done,
+                        color: Colors.green, size: 20),
                   IconButton(
                     icon: Icon(
                       _likedSongIds.contains(track.id)
                           ? Icons.favorite
                           : Icons.favorite_border,
-                      color: _likedSongIds.contains(track.id) ? Colors.red : null,
+                      color:
+                          _likedSongIds.contains(track.id) ? Colors.red : null,
                     ),
                     onPressed: () => _toggleLike(track),
                   ),
@@ -439,7 +460,7 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
         ),
       );
     }
-    
+
     if (_albums!.isEmpty) {
       return const Center(
         child: Padding(
@@ -487,7 +508,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                   );
                 } else {
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Could not load album details.')),
+                    const SnackBar(
+                        content: Text('Could not load album details.')),
                   );
                 }
               }
@@ -523,13 +545,17 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                             imageUrl: album.fullAlbumArtUrl,
                             fit: BoxFit.cover,
                             placeholder: (context, url) => Container(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                               child: const Center(
                                 child: CircularProgressIndicator(),
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                               child: Icon(
                                 Icons.album,
                                 size: 48,
@@ -538,7 +564,9 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                             ),
                           )
                         : Container(
-                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                             child: Icon(
                               Icons.album,
                               size: 48,
@@ -552,8 +580,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
               Text(
                 album.title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                      fontWeight: FontWeight.w600,
+                    ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -563,8 +591,8 @@ class _ArtistScreenState extends State<ArtistScreen> with SingleTickerProviderSt
                     ? album.releaseDate.substring(0, 4)
                     : 'Unknown Year',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
               ),
             ],
           ),
@@ -660,7 +688,8 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => tabBar.preferredSize.height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: tabBar,

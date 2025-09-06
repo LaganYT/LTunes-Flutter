@@ -13,8 +13,8 @@ enum AnimationType {
 class AnimationService extends ChangeNotifier {
   static AnimationService? _instance;
   static AnimationService get instance => _instance ??= AnimationService._();
-  
-  Map<AnimationType, bool> _animationSettings = {
+
+  final Map<AnimationType, bool> _animationSettings = {
     AnimationType.pageTransitions: true,
     AnimationType.equalizerAnimations: true,
     AnimationType.songChangeAnimations: true,
@@ -28,14 +28,15 @@ class AnimationService extends ChangeNotifier {
 
   Future<void> _loadAnimationSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Load individual settings
     for (AnimationType type in AnimationType.values) {
       if (type != AnimationType.all) {
-        _animationSettings[type] = prefs.getBool('animation_${type.name}') ?? true;
+        _animationSettings[type] =
+            prefs.getBool('animation_${type.name}') ?? true;
       }
     }
-    
+
     notifyListeners();
   }
 
@@ -54,7 +55,7 @@ class AnimationService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('animation_${type.name}', enabled);
     }
-    
+
     notifyListeners();
   }
 
@@ -69,7 +70,8 @@ class AnimationService extends ChangeNotifier {
   bool get animationsEnabled => isAnimationEnabled(AnimationType.all);
 
   // Helper method to get animation duration based on setting
-  Duration getAnimationDuration(Duration defaultDuration, {AnimationType? type}) {
+  Duration getAnimationDuration(Duration defaultDuration,
+      {AnimationType? type}) {
     final animationType = type ?? AnimationType.uiAnimations;
     return isAnimationEnabled(animationType) ? defaultDuration : Duration.zero;
   }
@@ -93,7 +95,8 @@ class AnimationService extends ChangeNotifier {
   Curve get linearCurve => Curves.linear;
 
   // Get all animation settings for the UI
-  Map<AnimationType, bool> get animationSettings => Map.unmodifiable(_animationSettings);
+  Map<AnimationType, bool> get animationSettings =>
+      Map.unmodifiable(_animationSettings);
 
   // Reset all settings to default
   Future<void> resetToDefaults() async {

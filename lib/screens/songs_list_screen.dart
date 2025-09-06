@@ -181,7 +181,7 @@ class SongsScreenState extends State<SongsScreen> {
     // Notify CurrentSongProvider to remove the song from its active state (queue, current song)
     // This should happen before file deletion and SharedPreferences.remove
     // so that CurrentSongProvider saves its state *without* the song.
-    if (mounted && context.mounted) {
+    if (context.mounted) {
       await Provider.of<CurrentSongProvider>(context, listen: false)
           .processSongLibraryRemoval(s.id);
     }
@@ -272,7 +272,7 @@ class SongsScreenState extends State<SongsScreen> {
         int importCount = 0;
 
         // Show a loading indicator
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Importing songs...')),
           );
@@ -411,7 +411,7 @@ class SongsScreenState extends State<SongsScreen> {
           }
         }
 
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).removeCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -425,7 +425,7 @@ class SongsScreenState extends State<SongsScreen> {
         }
       } else {
         // User canceled the picker or no files selected
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No songs selected for import.')),
           );
@@ -433,7 +433,7 @@ class SongsScreenState extends State<SongsScreen> {
       }
     } catch (e) {
       debugPrint('Error importing songs: $e');
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('An error occurred during import: $e')),
         );

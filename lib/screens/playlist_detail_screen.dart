@@ -593,10 +593,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       }
     }
     _currentArtId = id;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _artLoading = false;
       });
+    }
   }
 
   ImageProvider getArtworkProvider(String artUrl) {
@@ -887,9 +888,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                     onPressed: hasSongs
                                         ? () async {
                                             if (!currentSongProvider
-                                                .isShuffling)
+                                                .isShuffling) {
                                               currentSongProvider
                                                   .toggleShuffle();
+                                            }
                                             await currentSongProvider
                                                 .smartPlayWithContext(
                                                     currentPlaylist.songs,
@@ -1167,7 +1169,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         // and the Consumer will rebuild with the new order.
                       }).catchError((error) {
                         // Optional: Handle error during saving
-                        if (mounted && context.mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                                 content: Text(

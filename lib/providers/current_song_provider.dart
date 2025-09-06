@@ -302,7 +302,9 @@ class CurrentSongProvider with ChangeNotifier {
     if (oldIndex < 0 ||
         oldIndex >= _queue.length ||
         newIndex < 0 ||
-        newIndex >= _queue.length) return;
+        newIndex >= _queue.length) {
+      return;
+    }
 
     final song = _queue.removeAt(oldIndex);
     _queue.insert(newIndex, song);
@@ -899,8 +901,9 @@ class CurrentSongProvider with ChangeNotifier {
       final existingDownloadedSong =
           await _findExistingDownloadedSongByTitleArtist(
               song.title, song.artist);
-      if (playRequest != null && playRequest != _playRequestCounter)
+      if (playRequest != null && playRequest != _playRequestCounter) {
         return Future.error('Cancelled');
+      }
       if (existingDownloadedSong != null) {
         effectiveSong = song.copyWith(
           id: existingDownloadedSong.id,
@@ -919,15 +922,17 @@ class CurrentSongProvider with ChangeNotifier {
 
     String playableUrl =
         await fetchSongUrl(effectiveSong, playRequest: playRequest);
-    if (playRequest != null && playRequest != _playRequestCounter)
+    if (playRequest != null && playRequest != _playRequestCounter) {
       return Future.error('Cancelled');
+    }
 
     if (playableUrl.isEmpty) {
       final apiService = ApiService();
       final fetchedApiUrl = await apiService.fetchAudioUrl(
           effectiveSong.artist, effectiveSong.title);
-      if (playRequest != null && playRequest != _playRequestCounter)
+      if (playRequest != null && playRequest != _playRequestCounter) {
         return Future.error('Cancelled');
+      }
       if (fetchedApiUrl != null && fetchedApiUrl.isNotEmpty) {
         playableUrl = fetchedApiUrl;
         effectiveSong = effectiveSong.copyWith(
@@ -948,8 +953,9 @@ class CurrentSongProvider with ChangeNotifier {
         } else {
           fetchedDuration = await audioPlayer.setUrl(playableUrl);
         }
-        if (playRequest != null && playRequest != _playRequestCounter)
+        if (playRequest != null && playRequest != _playRequestCounter) {
           return Future.error('Cancelled');
+        }
         songDuration = fetchedDuration;
         if (songDuration != null &&
             songDuration != Duration.zero &&
@@ -982,8 +988,9 @@ class CurrentSongProvider with ChangeNotifier {
   Future<String> fetchSongUrl(Song song, {int? playRequest}) async {
     if (song.isDownloaded && (song.localFilePath?.isNotEmpty ?? false)) {
       final appDocDir = await getApplicationDocumentsDirectory();
-      if (playRequest != null && playRequest != _playRequestCounter)
+      if (playRequest != null && playRequest != _playRequestCounter) {
         return Future.error('Cancelled');
+      }
       final downloadsSubDir = _downloadManager?.subDir ?? 'ltunes_downloads';
       final filePath =
           p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
@@ -1027,8 +1034,9 @@ class CurrentSongProvider with ChangeNotifier {
 
     final apiService = ApiService();
     final fetchedUrl = await apiService.fetchAudioUrl(song.artist, song.title);
-    if (playRequest != null && playRequest != _playRequestCounter)
+    if (playRequest != null && playRequest != _playRequestCounter) {
       return Future.error('Cancelled');
+    }
     return fetchedUrl ?? '';
   }
 

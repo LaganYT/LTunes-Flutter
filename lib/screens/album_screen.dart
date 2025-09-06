@@ -25,7 +25,8 @@ class AlbumScreen extends StatefulWidget {
   State<AlbumScreen> createState() => _AlbumScreenState();
 }
 
-class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin {
+class _AlbumScreenState extends State<AlbumScreen>
+    with TickerProviderStateMixin {
   late bool _isSaved;
   final AlbumManagerService _albumManager = AlbumManagerService();
   late bool _areAllTracksDownloaded;
@@ -39,21 +40,24 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
   bool _loadingSavedSongs = false;
 
   // Helper function to safely create TextStyle with valid fontSize
-  TextStyle _safeTextStyle(TextStyle? baseStyle, {
+  TextStyle _safeTextStyle(
+    TextStyle? baseStyle, {
     Color? color,
     FontWeight? fontWeight,
     List<Shadow>? shadows,
     double? fallbackFontSize,
   }) {
     // Check if base style has valid fontSize
-    if (baseStyle != null && baseStyle.fontSize != null && baseStyle.fontSize!.isFinite) {
+    if (baseStyle != null &&
+        baseStyle.fontSize != null &&
+        baseStyle.fontSize!.isFinite) {
       return baseStyle.copyWith(
         color: color,
         fontWeight: fontWeight,
         shadows: shadows,
       );
     }
-    
+
     // Use fallback with safe fontSize
     return TextStyle(
       color: color,
@@ -75,12 +79,13 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+        _currentSongProvider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
         _currentSongProvider?.addListener(_onCurrentSongProviderChanged);
-        
+
         // Prime the provider with the status of already downloaded tracks
         _primeProviderWithDownloadedTracksStatus();
-        
+
         _updateAllTracksDownloadedStatus(); // Initial check
       }
     });
@@ -110,10 +115,14 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
     final currentSongProvider = _currentSongProvider!;
     for (final track in widget.album.tracks) {
       final bool isPersistedAsDownloaded = track.isDownloaded;
-      final bool isMarkedCompleteByProvider = currentSongProvider.downloadProgress[track.id] == 1.0;
-      final bool isActiveDownload = currentSongProvider.activeDownloadTasks.containsKey(track.id);
+      final bool isMarkedCompleteByProvider =
+          currentSongProvider.downloadProgress[track.id] == 1.0;
+      final bool isActiveDownload =
+          currentSongProvider.activeDownloadTasks.containsKey(track.id);
 
-      if (isPersistedAsDownloaded && !isMarkedCompleteByProvider && !isActiveDownload) {
+      if (isPersistedAsDownloaded &&
+          !isMarkedCompleteByProvider &&
+          !isActiveDownload) {
         // This track is marked as downloaded in its metadata,
         // but the provider doesn't show it as 100% complete yet,
         // and it's not an active download.
@@ -128,7 +137,8 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
   void _updateAllTracksDownloadedStatus() {
     if (!mounted) return;
 
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     bool newAllDownloadedStatus;
 
     if (widget.album.tracks.isEmpty) {
@@ -153,8 +163,10 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
           // one might consider calling queueSongForDownload which would update progress to 1.0
           // if file exists. For display purposes, this assumption is generally okay.
           // If the file was deleted externally, this would be stale until user tries to play/download.
-          bool foundInActiveDownloads = currentSongProvider.activeDownloadTasks.containsKey(track.id);
-          if (foundInActiveDownloads) { // If it's in active downloads but progress is null, it's not done.
+          bool foundInActiveDownloads =
+              currentSongProvider.activeDownloadTasks.containsKey(track.id);
+          if (foundInActiveDownloads) {
+            // If it's in active downloads but progress is null, it's not done.
             newAllDownloadedStatus = false;
             break;
           }
@@ -219,9 +231,11 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
   }
 
   void _playAlbum() async {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     final navigator = Navigator.of(context); // Capture before async
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async
     if (widget.album.tracks.isNotEmpty) {
       // Increment album play count in SharedPreferences
       final prefs = await SharedPreferences.getInstance();
@@ -238,11 +252,13 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
               await prefs.setString(key, jsonEncode(albumMap));
             }
           } catch (e) {
-            debugPrint('Error incrementing album play count from album screen: $e');
+            debugPrint(
+                'Error incrementing album play count from album screen: $e');
           }
         }
       }
-      await currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks.first);
+      await currentSongProvider.smartPlayWithContext(
+          widget.album.tracks, widget.album.tracks.first);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
@@ -254,29 +270,35 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
   }
 
   void _playAlbumShuffle() async {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     final navigator = Navigator.of(context); // Capture before async
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async
     if (widget.album.tracks.isNotEmpty) {
       // Ensure shuffle is on
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
-      await currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks.first);
+      await currentSongProvider.smartPlayWithContext(
+          widget.album.tracks, widget.album.tracks.first);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
     } else {
       scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('This album has no tracks to shuffle play.')),
+        const SnackBar(
+            content: Text('This album has no tracks to shuffle play.')),
       );
     }
   }
 
   void _downloadAlbum() {
-    final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
     int queuedCount = 0;
-    int alreadyProcessedCount = 0; // Tracks already downloaded or being processed
+    int alreadyProcessedCount =
+        0; // Tracks already downloaded or being processed
 
     if (widget.album.tracks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -296,12 +318,16 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
       bool isPersistedAsDownloaded = track.isDownloaded;
 
       // Check if actively being downloaded by the provider
-      bool isActiveDownload = currentSongProvider.activeDownloadTasks.containsKey(track.id);
-      
-      // Check if provider has marked it as 100% downloaded in this session
-      bool isMarkedCompleteByProvider = currentSongProvider.downloadProgress[track.id] == 1.0;
+      bool isActiveDownload =
+          currentSongProvider.activeDownloadTasks.containsKey(track.id);
 
-      if (isPersistedAsDownloaded || isActiveDownload || isMarkedCompleteByProvider) {
+      // Check if provider has marked it as 100% downloaded in this session
+      bool isMarkedCompleteByProvider =
+          currentSongProvider.downloadProgress[track.id] == 1.0;
+
+      if (isPersistedAsDownloaded ||
+          isActiveDownload ||
+          isMarkedCompleteByProvider) {
         alreadyProcessedCount++;
         continue; // Skip this track
       }
@@ -318,7 +344,9 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
     } else if (alreadyProcessedCount == widget.album.tracks.length) {
       // This means all tracks were either already downloaded or are being processed
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All tracks are already downloaded or being processed.')),
+        const SnackBar(
+            content:
+                Text('All tracks are already downloaded or being processed.')),
       );
     } else {
       // This case should ideally not be hit if the logic is correct and album is not empty.
@@ -326,7 +354,8 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
       // Could happen if album has tracks but all failed some pre-check not covered,
       // or if there's a logic flaw.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No new tracks were queued for download.')),
+        const SnackBar(
+            content: Text('No new tracks were queued for download.')),
       );
     }
   }
@@ -347,12 +376,14 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
 
   Widget _buildProminentAlbumArt(BuildContext context) {
     // Consistent size with playlist prominent art
-    final imageSize = 160.0; 
+    final imageSize = 160.0;
 
     String imageUrl = '';
     if (widget.album.effectiveAlbumArtUrl.isNotEmpty) {
       imageUrl = widget.album.effectiveAlbumArtUrl;
-    } else if (widget.album.tracks.isNotEmpty && widget.album.tracks.first.albumArtUrl.isNotEmpty && widget.album.tracks.first.albumArtUrl.startsWith('http')) {
+    } else if (widget.album.tracks.isNotEmpty &&
+        widget.album.tracks.first.albumArtUrl.isNotEmpty &&
+        widget.album.tracks.first.albumArtUrl.startsWith('http')) {
       imageUrl = widget.album.tracks.first.albumArtUrl;
     }
 
@@ -362,12 +393,16 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         gradient: LinearGradient(
-          colors: [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)],
+          colors: [
+            Theme.of(context).colorScheme.primaryContainer,
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-              child: Icon(Icons.album, color: Colors.white.withValues(alpha: 0.7), size: imageSize * 0.5),
+      child: Icon(Icons.album,
+          color: Colors.white.withValues(alpha: 0.7), size: imageSize * 0.5),
     );
 
     if (imageUrl.isEmpty) {
@@ -376,7 +411,7 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
         child: placeholder,
       );
     }
-    
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8.0),
       child: imageUrl.startsWith('http')
@@ -446,8 +481,10 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                 )
               : null,
           onTap: () {
-            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-            currentSongProvider.setQueue(widget.album.tracks, initialIndex: index);
+            final currentSongProvider =
+                Provider.of<CurrentSongProvider>(context, listen: false);
+            currentSongProvider.setQueue(widget.album.tracks,
+                initialIndex: index);
             currentSongProvider.playSong(widget.album.tracks[index]);
             Navigator.push(
               context,
@@ -476,17 +513,22 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
   }
 
   Future<void> _loadSavedSongIds() async {
-    setState(() { _loadingSavedSongs = true; });
+    setState(() {
+      _loadingSavedSongs = true;
+    });
     // Load liked song IDs
     final prefs = await SharedPreferences.getInstance();
     final rawLiked = prefs.getStringList('liked_songs') ?? [];
-    final likedIds = rawLiked.map((s) {
-      try {
-        return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
-      } catch (_) {
-        return null;
-      }
-    }).whereType<String>().toSet();
+    final likedIds = rawLiked
+        .map((s) {
+          try {
+            return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<String>()
+        .toSet();
     // Load playlist song IDs
     final playlistManager = PlaylistManagerService();
     await playlistManager.ensurePlaylistsLoaded();
@@ -504,7 +546,8 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
   }
 
   bool _isSongSaved(Song song) {
-    return _likedSongIds.contains(song.id) || _playlistSongIds.contains(song.id);
+    return _likedSongIds.contains(song.id) ||
+        _playlistSongIds.contains(song.id);
   }
 
   List<Song> get _filteredTracks {
@@ -530,9 +573,12 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
     final systemTopPadding = MediaQuery.of(context).padding.top;
 
     String backgroundArtUrl = '';
-    if (widget.album.fullAlbumArtUrl.isNotEmpty && widget.album.fullAlbumArtUrl.startsWith('http')) {
+    if (widget.album.fullAlbumArtUrl.isNotEmpty &&
+        widget.album.fullAlbumArtUrl.startsWith('http')) {
       backgroundArtUrl = widget.album.fullAlbumArtUrl;
-    } else if (hasTracks && widget.album.tracks.first.albumArtUrl.isNotEmpty && widget.album.tracks.first.albumArtUrl.startsWith('http')) {
+    } else if (hasTracks &&
+        widget.album.tracks.first.albumArtUrl.isNotEmpty &&
+        widget.album.tracks.first.albumArtUrl.startsWith('http')) {
       backgroundArtUrl = widget.album.tracks.first.albumArtUrl;
     }
 
@@ -541,13 +587,17 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
       flexibleSpaceBackground = Image.network(
         backgroundArtUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey[850]),
+        errorBuilder: (context, error, stackTrace) =>
+            Container(color: Colors.grey[850]),
       );
     } else {
       flexibleSpaceBackground = Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [colorScheme.primary, colorScheme.primaryContainer.withValues(alpha: 0.5)],
+            colors: [
+              colorScheme.primary,
+              colorScheme.primaryContainer.withValues(alpha: 0.5)
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -564,13 +614,13 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
 
     final shuffleButtonStyle = OutlinedButton.styleFrom(
       foregroundColor: Colors.white,
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
       padding: const EdgeInsets.symmetric(vertical: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     );
-    
-          final secondaryButtonColor = Colors.white.withValues(alpha: 0.85);
-      final secondaryButtonSideColor = Colors.white.withValues(alpha: 0.4);
+
+    final secondaryButtonColor = Colors.white.withValues(alpha: 0.85);
+    final secondaryButtonSideColor = Colors.white.withValues(alpha: 0.4);
 
     final removeButtonStyle = TextButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -579,7 +629,7 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
         side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
       ),
     );
-    
+
     final saveButtonStyle = TextButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 10),
       shape: RoundedRectangleBorder(
@@ -587,7 +637,6 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
         side: BorderSide(color: secondaryButtonSideColor),
       ),
     );
-
 
     return Scaffold(
       // appBar removed, will be part of CustomScrollView
@@ -599,34 +648,45 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
             stretch: true,
             // leading: IconButton for back button is implicitly handled by SliverAppBar
             flexibleSpace: FlexibleSpaceBar(
-              title: Builder(
-                builder: (context) {
-                  final settings = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
-                  if (settings == null) return const SizedBox.shrink();
-                  final double delta = settings.maxExtent - settings.minExtent;
-                  final double collapseThreshold = delta * 0.1;
-                  double opacity = 0.0;
-                  if (delta > 0) {
-                    if ((settings.currentExtent - settings.minExtent) < collapseThreshold) {
-                        opacity = 1.0 - ((settings.currentExtent - settings.minExtent) / collapseThreshold);
-                        opacity = opacity.clamp(0.0, 1.0);
-                    }
-                  } else if (settings.currentExtent == settings.minExtent) {
-                    opacity = 1.0;
+              title: Builder(builder: (context) {
+                final settings = context.dependOnInheritedWidgetOfExactType<
+                    FlexibleSpaceBarSettings>();
+                if (settings == null) return const SizedBox.shrink();
+                final double delta = settings.maxExtent - settings.minExtent;
+                final double collapseThreshold = delta * 0.1;
+                double opacity = 0.0;
+                if (delta > 0) {
+                  if ((settings.currentExtent - settings.minExtent) <
+                      collapseThreshold) {
+                    opacity = 1.0 -
+                        ((settings.currentExtent - settings.minExtent) /
+                            collapseThreshold);
+                    opacity = opacity.clamp(0.0, 1.0);
                   }
-                  return Opacity(
-                    opacity: opacity,
-                    child: Text(
-                      widget.album.title,
-                                              style: _safeTextStyle(textTheme.headlineSmall, color: Colors.white, shadows: const [Shadow(blurRadius: 1.0, color: Colors.black54, offset: Offset(0.5, 0.5))], fallbackFontSize: 16.0),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
+                } else if (settings.currentExtent == settings.minExtent) {
+                  opacity = 1.0;
                 }
-              ),
+                return Opacity(
+                  opacity: opacity,
+                  child: Text(
+                    widget.album.title,
+                    style: _safeTextStyle(textTheme.headlineSmall,
+                        color: Colors.white,
+                        shadows: const [
+                          Shadow(
+                              blurRadius: 1.0,
+                              color: Colors.black54,
+                              offset: Offset(0.5, 0.5))
+                        ],
+                        fallbackFontSize: 16.0),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }),
               centerTitle: true,
-              titlePadding: const EdgeInsets.only(bottom: 16.0, left: 48.0, right: 48.0),
+              titlePadding:
+                  const EdgeInsets.only(bottom: 16.0, left: 48.0, right: 48.0),
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -660,28 +720,56 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                                 children: [
                                   Text(
                                     widget.album.title,
-                                    style: _safeTextStyle(textTheme.headlineSmall, color: Colors.white, fontWeight: FontWeight.bold, shadows: const [
-                                          Shadow(blurRadius: 3, color: Colors.black)
-                                        ], fallbackFontSize: 24.0),
+                                    style: _safeTextStyle(
+                                        textTheme.headlineSmall,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: const [
+                                          Shadow(
+                                              blurRadius: 3,
+                                              color: Colors.black)
+                                        ],
+                                        fallbackFontSize: 24.0),
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     widget.album.artistName,
-                                    style: _safeTextStyle(textTheme.titleMedium, color: Colors.white70, shadows: const [Shadow(blurRadius: 2, color: Colors.black87)], fallbackFontSize: 16.0),
+                                    style: _safeTextStyle(textTheme.titleMedium,
+                                        color: Colors.white70,
+                                        shadows: const [
+                                          Shadow(
+                                              blurRadius: 2,
+                                              color: Colors.black87)
+                                        ],
+                                        fallbackFontSize: 16.0),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     '${widget.album.tracks.length} Songs',
-                                    style: _safeTextStyle(textTheme.titleMedium, color: Colors.white60, shadows: const [Shadow(blurRadius: 2, color: Colors.black54)], fallbackFontSize: 16.0),
+                                    style: _safeTextStyle(textTheme.titleMedium,
+                                        color: Colors.white60,
+                                        shadows: const [
+                                          Shadow(
+                                              blurRadius: 2,
+                                              color: Colors.black54)
+                                        ],
+                                        fallbackFontSize: 16.0),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     _formatDuration(_calculateTotalDuration()),
-                                    style: _safeTextStyle(textTheme.bodyMedium, color: Colors.white60, shadows: const [Shadow(blurRadius: 1, color: Colors.black54)], fallbackFontSize: 14.0),
+                                    style: _safeTextStyle(textTheme.bodyMedium,
+                                        color: Colors.white60,
+                                        shadows: const [
+                                          Shadow(
+                                              blurRadius: 1,
+                                              color: Colors.black54)
+                                        ],
+                                        fallbackFontSize: 14.0),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -719,14 +807,22 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                               if (_areAllTracksDownloaded)
                                 Expanded(
                                   child: TextButton.icon(
-                                                icon: Icon(Icons.check_circle_outline, color: secondaryButtonColor.withValues(alpha: 0.7)),
-            label: Text('All Downloaded', style: TextStyle(color: secondaryButtonColor.withValues(alpha: 0.7))),
+                                    icon: Icon(Icons.check_circle_outline,
+                                        color: secondaryButtonColor.withValues(
+                                            alpha: 0.7)),
+                                    label: Text('All Downloaded',
+                                        style: TextStyle(
+                                            color: secondaryButtonColor
+                                                .withValues(alpha: 0.7))),
                                     onPressed: null, // Disabled
                                     style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(color: secondaryButtonSideColor.withValues(alpha: 0.5)),
+                                        side: BorderSide(
+                                            color: secondaryButtonSideColor
+                                                .withValues(alpha: 0.5)),
                                       ),
                                     ),
                                   ),
@@ -734,14 +830,20 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                               else
                                 Expanded(
                                   child: TextButton.icon(
-                                    icon: Icon(Icons.download_for_offline_outlined, color: secondaryButtonColor),
-                                    label: Text('Download', style: TextStyle(color: secondaryButtonColor)),
+                                    icon: Icon(
+                                        Icons.download_for_offline_outlined,
+                                        color: secondaryButtonColor),
+                                    label: Text('Download',
+                                        style: TextStyle(
+                                            color: secondaryButtonColor)),
                                     onPressed: _downloadAlbum,
                                     style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(color: secondaryButtonSideColor),
+                                        side: BorderSide(
+                                            color: secondaryButtonSideColor),
                                       ),
                                     ),
                                   ),
@@ -750,15 +852,26 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                             Expanded(
                               child: TextButton.icon(
                                 icon: Icon(
-                                  _isSaved ? Icons.delete_outline : Icons.bookmark_add_outlined,
-                                  color: _isSaved ? theme.colorScheme.error.withValues(alpha: 0.9) : secondaryButtonColor,
+                                  _isSaved
+                                      ? Icons.delete_outline
+                                      : Icons.bookmark_add_outlined,
+                                  color: _isSaved
+                                      ? theme.colorScheme.error
+                                          .withValues(alpha: 0.9)
+                                      : secondaryButtonColor,
                                 ),
                                 label: Text(
                                   _isSaved ? 'Remove' : 'Save',
-                                  style: TextStyle(color: _isSaved ? theme.colorScheme.error.withValues(alpha: 0.9) : secondaryButtonColor),
+                                  style: TextStyle(
+                                      color: _isSaved
+                                          ? theme.colorScheme.error
+                                              .withValues(alpha: 0.9)
+                                          : secondaryButtonColor),
                                 ),
                                 onPressed: _toggleSaveAlbum,
-                                style: _isSaved ? removeButtonStyle : saveButtonStyle,
+                                style: _isSaved
+                                    ? removeButtonStyle
+                                    : saveButtonStyle,
                               ),
                             ),
                           ],
@@ -773,15 +886,21 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
           if (hasTracks) ...[
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 24.0, bottom: 8.0),
+                padding: const EdgeInsets.only(
+                    left: 16.0, right: 16.0, top: 24.0, bottom: 8.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                                           Text('Tracks', style: _safeTextStyle(textTheme.titleLarge, color: colorScheme.onSurface, fallbackFontSize: 22.0)),
+                    Text('Tracks',
+                        style: _safeTextStyle(textTheme.titleLarge,
+                            color: colorScheme.onSurface,
+                            fallbackFontSize: 22.0)),
                     if (_showOnlySavedSongs && widget.album.isSaved)
                       TextButton(
                         onPressed: _toggleShowAllSongs,
-                        child: Text(_overrideShowAll ? 'Show Only Saved Songs' : 'Show All Songs'),
+                        child: Text(_overrideShowAll
+                            ? 'Show Only Saved Songs'
+                            : 'Show All Songs'),
                       ),
                   ],
                 ),
@@ -789,7 +908,8 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
             ),
             if (_loadingSavedSongs)
               const SliverToBoxAdapter(
-                child: Center(child: Padding(
+                child: Center(
+                    child: Padding(
                   padding: EdgeInsets.all(24.0),
                   child: CircularProgressIndicator(),
                 )),
@@ -799,81 +919,110 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final track = _filteredTracks[index];
-                  return Slidable(
-                    key: Key(track.id),
-                    endActionPane: ActionPane(
-                      motion: const DrawerMotion(),
-                      extentRatio: 0.32, // enough for two square buttons
-                      children: [
-                        SlidableAction(
-                          onPressed: (context) {
-                            final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                            currentSongProvider.addToQueue(track);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${track.title} added to queue')),
-                            );
-                          },
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          icon: Icons.playlist_add,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        SlidableAction(
-                          onPressed: (context) {
-                            showDialog(
-                              context: context,
-                              builder: (BuildContext dialogContext) {
-                                return AddToPlaylistDialog(song: track);
-                              },
-                            );
-                          },
-                          backgroundColor: Theme.of(context).colorScheme.secondary,
-                          foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                          icon: Icons.library_add,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ],
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                      leading: Text(
-                        '${index + 1}',
-                                                 style: _safeTextStyle(textTheme.bodyMedium, color: colorScheme.onSurfaceVariant, fallbackFontSize: 14.0),
-                      ),
-                      title: Text(
-                        track.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _safeTextStyle(textTheme.bodyLarge, color: colorScheme.onSurface, fontWeight: FontWeight.w500, fallbackFontSize: 16.0),
-                      ),
-                      subtitle: Text(
-                        track.artist.isNotEmpty ? track.artist : widget.album.artistName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _safeTextStyle(textTheme.bodyMedium, color: colorScheme.onSurface.withValues(alpha: 0.7), fallbackFontSize: 14.0),
-                      ),
-                      trailing: Text(
-                        track.duration != null ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}' : '-:--',
-                                                 style: _safeTextStyle(textTheme.bodySmall, color: colorScheme.onSurfaceVariant, fallbackFontSize: 12.0),
-                      ),
-                      onTap: () async {
-                        final currentSongProvider = Provider.of<CurrentSongProvider>(context, listen: false);
-                        final navigator = Navigator.of(context); // Capture before async
-                        await currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks[index]);
-                        navigator.push(
-                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-                        );
-                      },
-                      onLongPress: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SongDetailScreen(song: track),
+                    return Slidable(
+                      key: Key(track.id),
+                      endActionPane: ActionPane(
+                        motion: const DrawerMotion(),
+                        extentRatio: 0.32, // enough for two square buttons
+                        children: [
+                          SlidableAction(
+                            onPressed: (context) {
+                              final currentSongProvider =
+                                  Provider.of<CurrentSongProvider>(context,
+                                      listen: false);
+                              currentSongProvider.addToQueue(track);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content:
+                                        Text('${track.title} added to queue')),
+                              );
+                            },
+                            backgroundColor:
+                                Theme.of(context).colorScheme.primary,
+                            foregroundColor:
+                                Theme.of(context).colorScheme.onPrimary,
+                            icon: Icons.playlist_add,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        );
-                      },
-                    ),
-                  );
+                          SlidableAction(
+                            onPressed: (context) {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext dialogContext) {
+                                  return AddToPlaylistDialog(song: track);
+                                },
+                              );
+                            },
+                            backgroundColor:
+                                Theme.of(context).colorScheme.secondary,
+                            foregroundColor:
+                                Theme.of(context).colorScheme.onSecondary,
+                            icon: Icons.library_add,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ],
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 4.0),
+                        leading: Text(
+                          '${index + 1}',
+                          style: _safeTextStyle(textTheme.bodyMedium,
+                              color: colorScheme.onSurfaceVariant,
+                              fallbackFontSize: 14.0),
+                        ),
+                        title: Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _safeTextStyle(textTheme.bodyLarge,
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w500,
+                              fallbackFontSize: 16.0),
+                        ),
+                        subtitle: Text(
+                          track.artist.isNotEmpty
+                              ? track.artist
+                              : widget.album.artistName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _safeTextStyle(textTheme.bodyMedium,
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.7),
+                              fallbackFontSize: 14.0),
+                        ),
+                        trailing: Text(
+                          track.duration != null
+                              ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}'
+                              : '-:--',
+                          style: _safeTextStyle(textTheme.bodySmall,
+                              color: colorScheme.onSurfaceVariant,
+                              fallbackFontSize: 12.0),
+                        ),
+                        onTap: () async {
+                          final currentSongProvider =
+                              Provider.of<CurrentSongProvider>(context,
+                                  listen: false);
+                          final navigator =
+                              Navigator.of(context); // Capture before async
+                          await currentSongProvider.smartPlayWithContext(
+                              widget.album.tracks, widget.album.tracks[index]);
+                          navigator.push(
+                            MaterialPageRoute(
+                                builder: (context) => const FullScreenPlayer()),
+                          );
+                        },
+                        onLongPress: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  SongDetailScreen(song: track),
+                            ),
+                          );
+                        },
+                      ),
+                    );
                   },
                   childCount: _filteredTracks.length,
                 ),
@@ -885,11 +1034,14 @@ class _AlbumScreenState extends State<AlbumScreen> with TickerProviderStateMixin
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.music_off_outlined, size: 60, color: colorScheme.onSurfaceVariant),
+                    Icon(Icons.music_off_outlined,
+                        size: 60, color: colorScheme.onSurfaceVariant),
                     const SizedBox(height: 16),
                     Text(
                       'This album has no tracks.',
-                      style: _safeTextStyle(textTheme.titleMedium, color: colorScheme.onSurfaceVariant, fallbackFontSize: 16.0),
+                      style: _safeTextStyle(textTheme.titleMedium,
+                          color: colorScheme.onSurfaceVariant,
+                          fallbackFontSize: 16.0),
                     ),
                   ],
                 ),

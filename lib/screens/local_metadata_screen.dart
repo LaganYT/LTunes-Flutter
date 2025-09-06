@@ -101,7 +101,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
 
     final scaffoldMessenger =
         ScaffoldMessenger.of(context); // Capture before async
-    if (mounted && context.mounted) {
+    if (context.mounted) {
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('"${song.title}" will be ignored from metadata lookup'),
@@ -126,7 +126,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
 
     final scaffoldMessenger =
         ScaffoldMessenger.of(context); // Capture before async
-    if (mounted && context.mounted) {
+    if (context.mounted) {
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('"${song.title}" will be included in metadata lookup'),
@@ -173,7 +173,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
         }
       }
 
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         showDialog(
           context: context,
           builder: (BuildContext context) {
@@ -242,7 +242,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
 
     final scaffoldMessenger =
         ScaffoldMessenger.of(context); // Capture before async
-    if (mounted && context.mounted) {
+    if (context.mounted) {
       scaffoldMessenger.showSnackBar(
         const SnackBar(
           content:
@@ -393,7 +393,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
         await _convertToNativeSong(song, bestMatch);
         final scaffoldMessenger =
             ScaffoldMessenger.of(context); // Capture before async
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           scaffoldMessenger.showSnackBar(
             SnackBar(
               content:
@@ -408,7 +408,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
         }
       } else {
         // Show search popup for manual selection
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           await _showSearchPopup(song, searchResults);
         }
       }
@@ -616,7 +616,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                             context); // Capture before async
                                     await _convertToNativeSong(
                                         localSong, result);
-                                    if (mounted && context.mounted) {
+                                    if (context.mounted) {
                                       scaffoldMessenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
@@ -797,7 +797,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                       final scaffoldMessenger =
                           ScaffoldMessenger.of(context); // Capture before async
                       await _convertToNativeSong(localSong, customSong);
-                      if (mounted && context.mounted) {
+                      if (context.mounted) {
                         scaffoldMessenger.showSnackBar(
                           SnackBar(
                             content: Text(
@@ -978,7 +978,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
 
       final scaffoldMessenger =
           ScaffoldMessenger.of(context); // Capture before async
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Metadata fetch undone'),
@@ -990,7 +990,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       debugPrint('Error undoing metadata fetch: $e');
       final scaffoldMessenger =
           ScaffoldMessenger.of(context); // Capture before async
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Error undoing: ${e.toString()}'),
@@ -1018,8 +1018,10 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
     });
     for (final song in _localSongs) {
       // Skip if already fetching this song or if song is ignored
-      if (_fetchingSongs[song.id] == true || _ignoredSongIds.contains(song.id))
+      if (_fetchingSongs[song.id] == true ||
+          _ignoredSongIds.contains(song.id)) {
         continue;
+      }
       setState(() {
         _fetchingSongs[song.id] = true;
       });
@@ -1065,7 +1067,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
           await _convertToNativeSong(song, bestMatch);
         } else {
           // Show popup for manual selection
-          if (mounted && context.mounted) {
+          if (context.mounted) {
             await _showSearchPopup(song, searchResults);
           }
         }
@@ -1576,7 +1578,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                         'song_${editedSong.id}',
                                         jsonEncode(editedSong.toJson()));
                                     await _loadLocalSongs();
-                                    if (mounted && context.mounted) {
+                                    if (context.mounted) {
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         const SnackBar(

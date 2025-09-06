@@ -19,7 +19,7 @@ class AudioEffectsService {
 
   // Improved state management
   bool _isInitialized = false;
-  double _baseVolume = 1.0;
+  final double _baseVolume = 1.0;
   Timer? _debounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 100);
 

@@ -146,7 +146,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, -2),
                   ),
@@ -160,7 +160,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                     height: 4,
                     margin: const EdgeInsets.only(top: 12, bottom: 8),
                     decoration: BoxDecoration(
-                      color: colorScheme.onSurface.withOpacity(0.3),
+                      color: colorScheme.onSurface.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -218,13 +218,15 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                             Icon(
                               Icons.queue_music,
                               size: 64,
-                              color: colorScheme.onSurface.withOpacity(0.4),
+                              color:
+                                  colorScheme.onSurface.withValues(alpha: 0.4),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               'Your queue is empty',
                               style: textTheme.titleMedium?.copyWith(
-                                color: colorScheme.onSurface.withOpacity(0.7),
+                                color: colorScheme.onSurface
+                                    .withValues(alpha: 0.7),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -232,7 +234,8 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                             Text(
                               'Songs you play next will appear here',
                               style: textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurface.withOpacity(0.5),
+                                color: colorScheme.onSurface
+                                    .withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -256,11 +259,13 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               song.albumArtUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
-                                color: colorScheme.surface.withOpacity(0.3),
+                                color:
+                                    colorScheme.surface.withValues(alpha: 0.3),
                                 child: Icon(
                                   Icons.music_note,
                                   size: 24,
-                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                  color: colorScheme.onSurface
+                                      .withValues(alpha: 0.6),
                                 ),
                               ),
                             );
@@ -269,21 +274,24 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                               File(artPath),
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
-                                color: colorScheme.surface.withOpacity(0.3),
+                                color:
+                                    colorScheme.surface.withValues(alpha: 0.3),
                                 child: Icon(
                                   Icons.music_note,
                                   size: 24,
-                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                  color: colorScheme.onSurface
+                                      .withValues(alpha: 0.6),
                                 ),
                               ),
                             );
                           } else {
                             imageWidget = Container(
-                              color: colorScheme.surface.withOpacity(0.3),
+                              color: colorScheme.surface.withValues(alpha: 0.3),
                               child: Icon(
                                 Icons.music_note,
                                 size: 24,
-                                color: colorScheme.onSurface.withOpacity(0.6),
+                                color: colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
                               ),
                             );
                           }
@@ -353,9 +361,11 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                                   fontSize: 11,
                                                   color: isCurrentlyPlaying
                                                       ? colorScheme.primary
-                                                          .withOpacity(0.8)
+                                                          .withValues(
+                                                              alpha: 0.8)
                                                       : colorScheme.onSurface
-                                                          .withOpacity(0.6),
+                                                          .withValues(
+                                                              alpha: 0.6),
                                                   fontStyle: FontStyle.italic,
                                                 ),
                                               ),
@@ -373,9 +383,9 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                             fontSize: 12,
                                             color: isCurrentlyPlaying
                                                 ? colorScheme.primary
-                                                    .withOpacity(0.9)
+                                                    .withValues(alpha: 0.9)
                                                 : colorScheme.onSurface
-                                                    .withOpacity(0.7),
+                                                    .withValues(alpha: 0.7),
                                           ),
                                         ),
                                       ],
@@ -399,7 +409,7 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                         child: Icon(
                                           Icons.drag_handle,
                                           color: colorScheme.onSurface
-                                              .withOpacity(0.5),
+                                              .withValues(alpha: 0.5),
                                           size: 20,
                                         ),
                                       ),
@@ -762,7 +772,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         if (mounted) setState(() {});
       },
       onTimerExpired: () {
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text('Sleep timer expired. Playback stopped.')),
@@ -3585,7 +3595,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                   ...presetMinutes.map((m) => RadioListTile<int>(
                         title: Text('$m minutes'),
                         value: m,
+                        // ignore: deprecated_member_use
                         groupValue: selectedMinutes,
+                        // ignore: deprecated_member_use
                         onChanged: (val) {
                           setState(() {
                             selectedMinutes = val;
@@ -3617,10 +3629,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             !presetMinutes.contains(selectedMinutes!)
                         ? selectedMinutes!
                         : -1,
+                    // ignore: deprecated_member_use
                     groupValue: selectedMinutes != null &&
                             !presetMinutes.contains(selectedMinutes!)
                         ? selectedMinutes!
                         : -1,
+                    // ignore: deprecated_member_use
                     onChanged: (_) {},
                   ),
                 ],

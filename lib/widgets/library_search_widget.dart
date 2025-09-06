@@ -429,7 +429,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
               margin: const EdgeInsets.only(top: 2),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
+                color: Colors.blue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -519,7 +519,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
               margin: const EdgeInsets.only(top: 2),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -551,7 +551,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Colors.purple.withOpacity(0.1),
+          color: Colors.purple.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8.0),
         ),
         child: const Icon(Icons.playlist_play, color: Colors.purple),
@@ -577,7 +577,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
               margin: const EdgeInsets.only(top: 2),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.1),
+                color: Colors.purple.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(

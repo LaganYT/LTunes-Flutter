@@ -733,7 +733,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
       label: Text(label),
       selected: isSelected,
       onSelected: onChanged,
-      selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+      selectedColor:
+          Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
       checkmarkColor: Theme.of(context).colorScheme.primary,
       labelStyle: TextStyle(
         color: isSelected
@@ -859,7 +860,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
               song.artist.isNotEmpty ? song.artist : 'Unknown Artist',
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.7),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -869,8 +873,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                 song.album!,
                 style: TextStyle(
                   fontSize: 12,
-                  color:
-                      Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.5),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -880,7 +886,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                 margin: const EdgeInsets.only(top: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -945,7 +954,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            color: Colors.purple.withOpacity(0.1),
+            color: Colors.purple.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8.0),
           ),
           child:
@@ -961,7 +970,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
           '${playlist.songs.length} songs',
           style: TextStyle(
             fontSize: 14,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
           ),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 20),
@@ -1029,7 +1039,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
               album.artistName,
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.7),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1038,7 +1051,10 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
               '${album.tracks.length} tracks',
               style: TextStyle(
                 fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.5),
               ),
             ),
           ],
@@ -1484,7 +1500,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
     if (_songs.isEmpty) {
       final scaffoldMessenger =
           ScaffoldMessenger.of(context); // Capture before async
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         scaffoldMessenger.showSnackBar(
           const SnackBar(
               content: Text('No downloaded songs available to add.')),
@@ -1503,7 +1519,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
     if (availableSongs.isEmpty) {
       final scaffoldMessenger =
           ScaffoldMessenger.of(context); // Capture before async
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(
               content: Text(
@@ -1571,7 +1587,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
         await _playlistManager.addSongToPlaylist(playlist, song); // await
       }
       // _loadPlaylists(); // No longer needed here, listener will handle it.
-      if (mounted && context.mounted) {
+      if (context.mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(
               content: Text(
@@ -2141,7 +2157,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                 await _albumManager.removeSavedAlbum(album.id);
                 final scaffoldMessenger =
                     ScaffoldMessenger.of(context); // Capture before async
-                if (mounted && context.mounted) {
+                if (context.mounted) {
                   // Check if the widget is still in the tree
                   scaffoldMessenger.showSnackBar(
                     SnackBar(content: Text('"${album.title}" unsaved.')),
@@ -2252,8 +2268,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                                       }
                                       final fullPath =
                                           p.join(dir.path, artFileName);
-                                      if (await File(fullPath).exists())
+                                      if (await File(fullPath).exists()) {
                                         return fullPath;
+                                      }
                                       return '';
                                     })(),
                                     builder: (context, snap) {

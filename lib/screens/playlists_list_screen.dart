@@ -714,7 +714,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           if (action == 'keep' && matchedSongs.isNotEmpty) {
             await _createPlaylistFromMatchedSongs(matchedSongs);
           } else if (action == 'discard') {
-            if (mounted && context.mounted) {
+            if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                     content: Text('Playlist import cancelled and discarded.')),
@@ -728,7 +728,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
 
       if (matchedSongs.isEmpty) {
         debugPrint('No songs matched in the imported file.');
-        if (mounted && context.mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('No songs matched in the imported file.')),
           );
@@ -968,7 +968,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                             setState(() {
                               isSearching = false;
                             });
-                            if (mounted && context.mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                     content: Text('Search error: $e'),
