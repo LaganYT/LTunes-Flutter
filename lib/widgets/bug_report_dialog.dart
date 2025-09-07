@@ -58,17 +58,16 @@ class _BugReportDialogState extends State<BugReportDialog> {
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
-                  labelText: 'Describe the bug *',
+                  labelText: 'Describe the bug (optional)',
                   hintText: 'What happened? What did you expect to happen?',
                   border: OutlineInputBorder(),
                 ),
                 maxLines: 4,
                 maxLength: 2000,
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please describe the bug';
-                  }
-                  if (value.trim().length < 10) {
+                  if (value != null &&
+                      value.trim().isNotEmpty &&
+                      value.trim().length < 10) {
                     return 'Please provide more details (at least 10 characters)';
                   }
                   return null;

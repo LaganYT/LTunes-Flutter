@@ -179,10 +179,7 @@ class BugReportService {
       // Create simple message payload (embeds don't work well with file attachments)
       final message = '''🐛 **Bug Report - LTunes**
 
-**User Description:**
-$userDescription
-
-**App Information:**
+${userDescription.trim().isNotEmpty ? '**User Description:**\n$userDescription\n' : ''}**App Information:**
 Version: ${packageInfo.version}
 Build: ${packageInfo.buildNumber}
 Package: ${packageInfo.packageName}
@@ -245,10 +242,7 @@ Reported at: ${DateTime.now().toIso8601String()}''';
     try {
       final message = '''🐛 **Bug Report - LTunes**
 
-**User Description:**
-$userDescription
-
-**App Information:**
+${userDescription.trim().isNotEmpty ? '**User Description:**\n$userDescription\n' : ''}**App Information:**
 Version: ${packageInfo.version}
 Build: ${packageInfo.buildNumber}
 Package: ${packageInfo.packageName}
