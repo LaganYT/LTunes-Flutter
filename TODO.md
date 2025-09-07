@@ -13,4 +13,3 @@
 
 ## Development & Infrastructure
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
-
