@@ -1864,6 +1864,19 @@ class CurrentSongProvider with ChangeNotifier {
       // Wait for audio handler to complete its foreground processing
       await Future.delayed(const Duration(milliseconds: 200));
 
+      // CRITICAL FIX: Detect and fix the audio session bug first
+      // This prevents the bug where audio stops but UI shows as playing
+      final bugDetectionResult =
+          await _audioHandler.customAction('detectAndFixAudioSessionBug', {});
+      if (bugDetectionResult is Map &&
+          bugDetectionResult['bugDetected'] == true) {
+        debugPrint(
+            "CurrentSongProvider: Audio session bug was detected and fixed during foreground");
+        // Update our state to reflect the fix
+        _isPlaying = false;
+        notifyListeners();
+      }
+
       // Force position sync when app comes to foreground
       await _audioHandler.customAction('forcePositionSync', {});
 

@@ -809,12 +809,19 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
 
     try {
+      // CRITICAL FIX: Ensure audio session is active before any transition
+      // This prevents the bug where audio session becomes inactive during song changes
+      await _ensureAudioSessionActive();
+
       if (_audioPlayer.processingState == ProcessingState.completed) {
         await _audioPlayer.stop();
         await Future.delayed(const Duration(milliseconds: 100));
       }
 
       await _prepareToPlay(index);
+
+      // CRITICAL FIX: Ensure audio session is still active after preparing to play
+      // This is especially important during background/foreground transitions
       await _ensureAudioSessionActive();
 
       if (_shouldBePaused) {
@@ -828,11 +835,41 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (_audioPlayer.processingState == ProcessingState.ready) {
         await _audioPlayer.play();
         await _syncMetadata();
+
+        // CRITICAL FIX: Final verification that audio session is active after starting playback
+        // This ensures the audio actually plays and doesn't get stuck in a "fake" playing state
+        if (_isIOS && _audioSession != null) {
+          try {
+            await _audioSession!.setActive(true);
+            debugPrint(
+                "AudioHandler: Audio session verified active after skipToQueueItem");
+          } catch (e) {
+            debugPrint(
+                "AudioHandler: Audio session issue after skipToQueueItem, attempting recovery: $e");
+            // If session activation fails, pause and retry
+            await _audioPlayer.pause();
+            await Future.delayed(const Duration(milliseconds: 200));
+            await _ensureAudioSessionActive();
+            await _audioPlayer.play();
+          }
+        }
       } else {
         await Future.delayed(const Duration(milliseconds: 500));
         if (_audioPlayer.processingState == ProcessingState.ready) {
           await _audioPlayer.play();
           await _syncMetadata();
+
+          // Same verification for the delayed case
+          if (_isIOS && _audioSession != null) {
+            try {
+              await _audioSession!.setActive(true);
+              debugPrint(
+                  "AudioHandler: Audio session verified active after delayed skipToQueueItem");
+            } catch (e) {
+              debugPrint(
+                  "AudioHandler: Audio session issue after delayed skipToQueueItem: $e");
+            }
+          }
         }
       }
     } catch (e) {
@@ -1011,7 +1048,10 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   Future<void> handleAppForeground() async {
     _isBackgroundMode = false;
-    if (_isIOS && _audioSession != null && _audioPlayer.playing) {
+
+    // CRITICAL FIX: Always ensure audio session is active when coming to foreground
+    // This prevents the bug where audio stops but UI shows as playing
+    if (_isIOS && _audioSession != null) {
       await _ensureAudioSessionActive();
     }
 
@@ -1021,9 +1061,29 @@ class AudioPlayerHandler extends BaseAudioHandler
     final isPlaying = _audioPlayer.playing;
     final processingState = _audioPlayer.processingState;
 
+    // CRITICAL FIX: Check for audio session inconsistency during transitions
+    // If we think we're playing but audio session is not active, fix the state
+    if (isPlaying && _isIOS && _audioSession != null) {
+      try {
+        // Test if audio session is actually active by trying to set it active
+        await _audioSession!.setActive(true);
+        debugPrint(
+            "AudioHandler: Audio session verified as active during foreground");
+      } catch (e) {
+        debugPrint(
+            "AudioHandler: Audio session was inactive during foreground, fixing state: $e");
+        // If audio session was inactive, we need to stop the "fake" playing state
+        await _audioPlayer.pause();
+        playbackState.add(playbackState.value.copyWith(playing: false));
+        // Don't return here - continue with position sync to get accurate state
+      }
+    }
+
     // Get multiple position readings to find the stable one
     Duration? stablePosition;
     final lastKnownPos = _lastKnownPosition ?? Duration.zero;
+    final actualIsPlaying =
+        _audioPlayer.playing; // Get fresh playing state after session check
 
     // Try multiple readings with delays to find stable position
     for (int attempt = 0; attempt < 5; attempt++) {
@@ -1037,13 +1097,13 @@ class AudioPlayerHandler extends BaseAudioHandler
       // this is likely an incorrect reading - keep trying
       if (currentPos == Duration.zero &&
           lastKnownPos > Duration.zero &&
-          isPlaying &&
+          actualIsPlaying &&
           attempt < 4) {
         continue;
       }
 
       // If we get a reasonable position (not 0 or close to last known), use it
-      if (currentPos > Duration.zero || !isPlaying) {
+      if (currentPos > Duration.zero || !actualIsPlaying) {
         stablePosition = currentPos;
         break;
       }
@@ -1057,7 +1117,7 @@ class AudioPlayerHandler extends BaseAudioHandler
     // Fall back to last known position if all readings were 0 and we were playing
     if (stablePosition == Duration.zero &&
         lastKnownPos > Duration.zero &&
-        isPlaying) {
+        actualIsPlaying) {
       debugPrint(
           "AudioHandler: All position readings were 0, using last known position: ${lastKnownPos.inSeconds}s");
       stablePosition = lastKnownPos;
@@ -1067,12 +1127,12 @@ class AudioPlayerHandler extends BaseAudioHandler
     _lastKnownPosition = finalPosition;
 
     debugPrint(
-        "AudioHandler: App foregrounded - Final Position: ${finalPosition.inSeconds}s, Playing: $isPlaying, State: $processingState");
+        "AudioHandler: App foregrounded - Final Position: ${finalPosition.inSeconds}s, Playing: $actualIsPlaying, State: $processingState");
 
-    // Force comprehensive playback state update with stable position
+    // Force comprehensive playback state update with stable position and corrected playing state
     playbackState.add(playbackState.value.copyWith(
       updatePosition: finalPosition,
-      playing: isPlaying,
+      playing: actualIsPlaying, // Use the corrected playing state
       processingState: {
             ProcessingState.idle: AudioProcessingState.idle,
             ProcessingState.loading: AudioProcessingState.loading,
@@ -1086,6 +1146,9 @@ class AudioPlayerHandler extends BaseAudioHandler
     // Final verification after everything stabilizes
     Future.delayed(const Duration(milliseconds: 1000), () async {
       final verifyPosition = _audioPlayer.position;
+      final verifyPlaying = _audioPlayer.playing;
+
+      // Check for position drift
       if (verifyPosition > Duration.zero &&
           (verifyPosition - finalPosition).abs() > const Duration(seconds: 2)) {
         debugPrint(
@@ -1093,6 +1156,13 @@ class AudioPlayerHandler extends BaseAudioHandler
         _lastKnownPosition = verifyPosition;
         playbackState
             .add(playbackState.value.copyWith(updatePosition: verifyPosition));
+      }
+
+      // Check for playing state drift (critical for the bug fix)
+      if (verifyPlaying != actualIsPlaying) {
+        debugPrint(
+            "AudioHandler: Final playing state verification - correcting from $actualIsPlaying to $verifyPlaying");
+        playbackState.add(playbackState.value.copyWith(playing: verifyPlaying));
       }
     });
   }
@@ -1139,6 +1209,10 @@ class AudioPlayerHandler extends BaseAudioHandler
     debugPrint(
         "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
 
+    // CRITICAL FIX: Always ensure audio session is active before handling completion
+    // This prevents the bug where audio session becomes inactive during transitions
+    await _ensureAudioSessionActive();
+
     // For local files, check if we're stuck in a completion loop
     if (isLocalFile && songId != null) {
       if (_lastLocalFileCompleted == songId) {
@@ -1181,9 +1255,6 @@ class AudioPlayerHandler extends BaseAudioHandler
         _lastLocalFileCompleted = songId;
       }
     }
-
-    // Ensure audio session is active for background playback
-    await _ensureAudioSessionActive();
 
     if (repeatMode == AudioServiceRepeatMode.one) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
@@ -1485,6 +1556,58 @@ class AudioPlayerHandler extends BaseAudioHandler
       case 'reapplyAudioEffects':
         _audioEffectsService.reapplyEffects();
         break;
+
+      case 'detectAndFixAudioSessionBug':
+        // CRITICAL FIX: Detect and fix the specific bug where audio stops but UI shows as playing
+        // This happens when the app is opened from background during song transitions
+        try {
+          final isPlaying = _audioPlayer.playing;
+          final processingState = _audioPlayer.processingState;
+
+          debugPrint(
+              "AudioHandler: Detecting audio session bug - Playing: $isPlaying, State: $processingState");
+
+          if (isPlaying && _isIOS && _audioSession != null) {
+            // Test if audio session is actually active
+            try {
+              await _audioSession!.setActive(true);
+              debugPrint(
+                  "AudioHandler: Audio session is active, no bug detected");
+              return {'bugDetected': false, 'fixed': false};
+            } catch (e) {
+              debugPrint(
+                  "AudioHandler: Audio session bug detected! Audio session inactive while playing: $e");
+
+              // Fix the bug by stopping the fake playing state
+              await _audioPlayer.pause();
+              playbackState.add(playbackState.value.copyWith(playing: false));
+
+              debugPrint(
+                  "AudioHandler: Audio session bug fixed - stopped fake playing state");
+              return {'bugDetected': true, 'fixed': true};
+            }
+          } else if (!isPlaying && processingState == ProcessingState.ready) {
+            // Another case: UI might show as not playing but audio session is active
+            // This is less critical but we can still verify
+            if (_isIOS && _audioSession != null) {
+              try {
+                await _audioSession!.setActive(true);
+                debugPrint(
+                    "AudioHandler: Audio session verified as active for paused state");
+              } catch (e) {
+                debugPrint(
+                    "AudioHandler: Audio session issue in paused state: $e");
+                await _ensureAudioSessionActive();
+              }
+            }
+            return {'bugDetected': false, 'fixed': false};
+          }
+
+          return {'bugDetected': false, 'fixed': false};
+        } catch (e) {
+          debugPrint("AudioHandler: Error detecting audio session bug: $e");
+          return {'bugDetected': false, 'fixed': false, 'error': e.toString()};
+        }
     }
     return null;
   }
