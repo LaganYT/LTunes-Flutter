@@ -14,4 +14,3 @@
 ## Development & Infrastructure
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
 
-Add a bug report system in settings that uploads a log of the app as well as the users input and posts it to a discord webhook

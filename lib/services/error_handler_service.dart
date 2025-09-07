@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'bug_report_service.dart';
 
 class ErrorHandlerService {
   static final ErrorHandlerService _instance = ErrorHandlerService._internal();
@@ -436,8 +437,9 @@ class ErrorHandlerService {
       debugPrint('ErrorHandler: Stack trace: $stackTrace');
     }
 
-    // In a production app, you might want to send this to a logging service
-    // _sendToLoggingService(error, context, stackTrace);
+    // Log to bug report service
+    BugReportService()
+        .logError(error, context: context, stackTrace: stackTrace);
   }
 
   // Check if error is recoverable

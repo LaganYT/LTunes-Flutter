@@ -11,6 +11,7 @@ import '../screens/download_queue_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'audio_effects_service.dart';
+import 'bug_report_service.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -609,6 +610,13 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (_audioPlayer.playing || _shouldBePaused) {
       return;
     }
+
+    // Log audio event
+    BugReportService().logAudioEvent('play_requested', data: {
+      'current_index': _currentIndex,
+      'playlist_length': _playlist.length,
+      'should_be_paused': _shouldBePaused,
+    });
 
     await _incrementPlayCounts();
     await _ensureAudioSessionActive();

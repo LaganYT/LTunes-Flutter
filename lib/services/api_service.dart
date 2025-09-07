@@ -8,6 +8,7 @@ import '../models/album.dart'; // Import the new Album model
 import '../models/lyrics_data.dart'; // Import LyricsData
 import 'error_handler_service.dart';
 import 'version_service.dart'; // Import VersionService
+import 'bug_report_service.dart'; // Import BugReportService
 import 'dart:async';
 
 // Performance: Cache entry with TTL
@@ -88,6 +89,11 @@ class ApiService {
             throw Exception('Request timeout for URL: $url');
           },
         );
+
+        // Log network request
+        BugReportService()
+            .logNetworkRequest('GET', url, statusCode: response.statusCode);
+
         if (response.statusCode == 200) {
           return response;
         } else if (response.statusCode == 404) {

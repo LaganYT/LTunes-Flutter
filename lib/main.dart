@@ -17,6 +17,7 @@ import 'services/playlist_manager_service.dart'; // Import PlaylistManagerServic
 import 'services/download_notification_service.dart'; // Import DownloadNotificationService
 import 'services/metadata_history_service.dart'; // Import MetadataHistoryService
 import 'services/animation_service.dart'; // Import AnimationService
+import 'services/bug_report_service.dart'; // Import BugReportService
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
@@ -34,6 +35,9 @@ Future<void> main() async {
 
   // Initialize download notification service
   await DownloadNotificationService().initialize();
+
+  // Initialize bug report service
+  await BugReportService().initialize();
 
   _audioHandler = await AudioService.init(
     builder: () => AudioPlayerHandler(),

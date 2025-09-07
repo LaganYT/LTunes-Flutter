@@ -27,6 +27,8 @@ import 'audio_effects_screen.dart'; // Import AudioEffectsScreen
 import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/audio_effects_service.dart'; // Import AudioEffectsService
 import '../services/animation_service.dart'; // Import AnimationService
+import '../widgets/bug_report_dialog.dart'; // Import BugReportDialog
+import '../services/bug_report_service.dart'; // Import BugReportService
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -70,6 +72,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSettings();
     _loadAppVersion();
     _loadListeningStatsEnabled();
+
+    // Log settings screen opened
+    BugReportService().logUserAction('settings_screen_opened');
   }
 
   @override
@@ -2458,6 +2463,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Terms of Service'),
                   subtitle: const Text('View terms of service'),
                   onTap: () => _showTermsOfService(context),
+                ),
+                ListTile(
+                  leading: Icon(Icons.bug_report,
+                      color: Theme.of(context).colorScheme.error),
+                  title: const Text('Report a Bug'),
+                  subtitle: const Text('Help us improve the app'),
+                  onTap: () {
+                    BugReportService()
+                        .logUserAction('bug_report_dialog_opened');
+                    showBugReportDialog(context);
+                  },
                 ),
               ],
             ),
