@@ -48,6 +48,9 @@ class CurrentSongProvider with ChangeNotifier {
   int _currentActiveDownloadCount = 0;
   final Map<String, int> _downloadRetryCount = {};
   final Map<String, DateTime> _downloadLastRetry = {};
+
+  // Queue reordering flag to prevent unwanted current song changes
+  bool _isReorderingQueue = false;
   final Map<String, Timer> _retryTimers = {};
   static const int _maxDownloadRetries = 3;
   static const Duration _baseRetryDelay = Duration(seconds: 2);
@@ -306,24 +309,39 @@ class CurrentSongProvider with ChangeNotifier {
       return;
     }
 
-    final song = _queue.removeAt(oldIndex);
-    _queue.insert(newIndex, song);
+    // Set flag to prevent unwanted current song changes during reordering
+    _isReorderingQueue = true;
 
-    if (_currentSongFromAppLogic != null) {
-      _currentIndexInAppQueue =
-          _queue.indexWhere((s) => s.id == _currentSongFromAppLogic!.id);
+    try {
+      // Store the currently playing song before reordering
+      final currentlyPlayingSong = _currentSongFromAppLogic;
+      final currentlyPlayingSongId = currentlyPlayingSong?.id;
+
+      final song = _queue.removeAt(oldIndex);
+      _queue.insert(newIndex, song);
+
+      // Always preserve the currently playing song reference
+      if (currentlyPlayingSongId != null) {
+        _currentIndexInAppQueue =
+            _queue.indexWhere((s) => s.id == currentlyPlayingSongId);
+        // Ensure the current song reference remains the same
+        _currentSongFromAppLogic = currentlyPlayingSong;
+      }
+
+      notifyListeners();
+
+      final mediaItems =
+          await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+      await _audioHandler.updateQueue(mediaItems);
+      if (_currentIndexInAppQueue != -1) {
+        await _audioHandler
+            .customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+      }
+      _saveCurrentSongToStorage();
+    } finally {
+      // Reset flag after reordering is complete
+      _isReorderingQueue = false;
     }
-
-    notifyListeners();
-
-    final mediaItems =
-        await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
-    await _audioHandler.updateQueue(mediaItems);
-    if (_currentIndexInAppQueue != -1) {
-      await _audioHandler
-          .customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
-    }
-    _saveCurrentSongToStorage();
   }
 
   Future<void> setQueue(List<Song> songs, {int initialIndex = 0}) async {
@@ -1289,8 +1307,10 @@ class CurrentSongProvider with ChangeNotifier {
         debugPrint(
             "CurrentSongProvider: Queue index synced from audio handler: $oldQueueIndex -> $_currentIndexInAppQueue");
 
-        // Update current song if the index changed
-        if (_queue.isNotEmpty && _currentIndexInAppQueue < _queue.length) {
+        // Update current song if the index changed, but not during queue reordering
+        if (!_isReorderingQueue &&
+            _queue.isNotEmpty &&
+            _currentIndexInAppQueue < _queue.length) {
           final newCurrentSong = _queue[_currentIndexInAppQueue];
           if (_currentSongFromAppLogic?.id != newCurrentSong.id) {
             _currentSongFromAppLogic = newCurrentSong;
