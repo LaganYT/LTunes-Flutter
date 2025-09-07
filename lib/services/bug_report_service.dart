@@ -177,6 +177,9 @@ class BugReportService {
       // Create logs file for attachment
       final logsFile = await _createLogsFile(recentLogs);
 
+      // Create shared preferences file for attachment
+      final prefsFile = await _createSharedPreferencesFile(sharedPrefsData);
+
       // Create simple message payload (embeds don't work well with file attachments)
       final message = '''🐛 **Bug Report - LTunes**
 
@@ -189,8 +192,8 @@ Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}
 **Device Information:**
 $deviceInfo
 
-**App Settings (SharedPreferences):**
-$sharedPrefsData
+**App Settings:**
+Shared preferences attached as file
 
 ${userEmail != null ? '**Contact Email:** $userEmail\n' : ''}${additionalData != null ? '**Additional Data:** ${jsonEncode(additionalData)}\n' : ''}**Recent Logs:**
 ${recentLogs.isEmpty ? 'No recent logs available' : 'Logs attached as file (${recentLogs.split('\n').length} entries)'}
@@ -223,10 +226,10 @@ Reported at: ${DateTime.now().toIso8601String()}''';
         userEmail: userEmail,
         packageInfo: packageInfo,
         deviceInfo: deviceInfo,
-        sharedPrefsData: sharedPrefsData,
         recentLogs: recentLogs,
         additionalData: additionalData,
         logsFile: logsFile,
+        prefsFile: prefsFile,
       );
     } catch (e, stackTrace) {
       logError(e, context: 'BugReport', stackTrace: stackTrace);
@@ -240,10 +243,10 @@ Reported at: ${DateTime.now().toIso8601String()}''';
     String? userEmail,
     required PackageInfo packageInfo,
     required String deviceInfo,
-    required String sharedPrefsData,
     required String recentLogs,
     Map<String, dynamic>? additionalData,
     File? logsFile,
+    File? prefsFile,
   }) async {
     try {
       final message = '''🐛 **Bug Report - LTunes**
@@ -257,8 +260,8 @@ Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}
 **Device Information:**
 $deviceInfo
 
-**App Settings (SharedPreferences):**
-$sharedPrefsData
+**App Settings:**
+Shared preferences attached as file
 
 ${userEmail != null ? '**Contact Email:** $userEmail\n' : ''}${additionalData != null ? '**Additional Data:** ${jsonEncode(additionalData)}\n' : ''}**Recent Logs:**
 ${recentLogs.isEmpty ? 'No recent logs available' : 'Logs attached as file (${recentLogs.split('\n').length} entries)'}
@@ -285,12 +288,25 @@ Reported at: ${DateTime.now().toIso8601String()}''';
         final fileStream = http.ByteStream(logsFile.openRead());
         final fileLength = await logsFile.length();
         final multipartFile = http.MultipartFile(
-          'file',
+          'files[0]',
           fileStream,
           fileLength,
           filename: 'ltunes_logs.txt',
         );
         request.files.add(multipartFile);
+      }
+
+      // Add shared preferences file if available
+      if (prefsFile != null && await prefsFile.exists()) {
+        final prefsStream = http.ByteStream(prefsFile.openRead());
+        final prefsLength = await prefsFile.length();
+        final prefsMultipartFile = http.MultipartFile(
+          'files[1]',
+          prefsStream,
+          prefsLength,
+          filename: 'ltunes_preferences.json',
+        );
+        request.files.add(prefsMultipartFile);
       }
 
       // Send the request
@@ -301,9 +317,12 @@ Reported at: ${DateTime.now().toIso8601String()}''';
       log('Discord webhook response: ${response.statusCode} - ${response.body}',
           level: LogLevel.info, context: 'BugReport');
 
-      // Clean up the temporary file
+      // Clean up the temporary files
       if (logsFile != null && await logsFile.exists()) {
         await logsFile.delete();
+      }
+      if (prefsFile != null && await prefsFile.exists()) {
+        await prefsFile.delete();
       }
 
       if (response.statusCode == 200 || response.statusCode == 204) {
@@ -472,6 +491,23 @@ Reported at: ${DateTime.now().toIso8601String()}''';
 
       await logsFile.writeAsString(logs);
       return logsFile;
+    } catch (e) {
+      logError(e, context: 'BugReport');
+      return null;
+    }
+  }
+
+  /// Create a temporary file for shared preferences data
+  Future<File?> _createSharedPreferencesFile(String prefsData) async {
+    try {
+      if (prefsData.isEmpty) return null;
+
+      final directory = await getTemporaryDirectory();
+      final prefsFile = File(p.join(directory.path,
+          'ltunes_preferences_${DateTime.now().millisecondsSinceEpoch}.json'));
+
+      await prefsFile.writeAsString(prefsData);
+      return prefsFile;
     } catch (e) {
       logError(e, context: 'BugReport');
       return null;
