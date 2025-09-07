@@ -169,6 +169,7 @@ class BugReportService {
       // Get app information
       final packageInfo = await PackageInfo.fromPlatform();
       final deviceInfo = await _getDeviceInfo();
+      final sharedPrefsData = await _getSharedPreferencesData();
 
       // Get recent logs (last 50 entries or last 24 hours, whichever is smaller)
       final recentLogs = _getRecentLogs();
@@ -187,6 +188,9 @@ Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}
 
 **Device Information:**
 $deviceInfo
+
+**App Settings (SharedPreferences):**
+$sharedPrefsData
 
 ${userEmail != null ? '**Contact Email:** $userEmail\n' : ''}${additionalData != null ? '**Additional Data:** ${jsonEncode(additionalData)}\n' : ''}**Recent Logs:**
 ${recentLogs.isEmpty ? 'No recent logs available' : 'Logs attached as file (${recentLogs.split('\n').length} entries)'}
@@ -219,6 +223,7 @@ Reported at: ${DateTime.now().toIso8601String()}''';
         userEmail: userEmail,
         packageInfo: packageInfo,
         deviceInfo: deviceInfo,
+        sharedPrefsData: sharedPrefsData,
         recentLogs: recentLogs,
         additionalData: additionalData,
         logsFile: logsFile,
@@ -235,6 +240,7 @@ Reported at: ${DateTime.now().toIso8601String()}''';
     String? userEmail,
     required PackageInfo packageInfo,
     required String deviceInfo,
+    required String sharedPrefsData,
     required String recentLogs,
     Map<String, dynamic>? additionalData,
     File? logsFile,
@@ -250,6 +256,9 @@ Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}
 
 **Device Information:**
 $deviceInfo
+
+**App Settings (SharedPreferences):**
+$sharedPrefsData
 
 ${userEmail != null ? '**Contact Email:** $userEmail\n' : ''}${additionalData != null ? '**Additional Data:** ${jsonEncode(additionalData)}\n' : ''}**Recent Logs:**
 ${recentLogs.isEmpty ? 'No recent logs available' : 'Logs attached as file (${recentLogs.split('\n').length} entries)'}
@@ -327,6 +336,48 @@ Reported at: ${DateTime.now().toIso8601String()}''';
       ''';
     } catch (e) {
       return 'Error getting device info: $e';
+    }
+  }
+
+  /// Get shared preferences data
+  Future<String> _getSharedPreferencesData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      if (keys.isEmpty) {
+        return 'No shared preferences data found';
+      }
+
+      final Map<String, dynamic> prefsData = {};
+
+      for (final key in keys) {
+        try {
+          final value = prefs.get(key);
+          if (value != null) {
+            // Convert the value to a readable format
+            if (value is String) {
+              prefsData[key] = value;
+            } else if (value is bool) {
+              prefsData[key] = value;
+            } else if (value is int) {
+              prefsData[key] = value;
+            } else if (value is double) {
+              prefsData[key] = value;
+            } else if (value is List<String>) {
+              prefsData[key] = value;
+            } else {
+              prefsData[key] = value.toString();
+            }
+          }
+        } catch (e) {
+          prefsData[key] = 'Error reading value: $e';
+        }
+      }
+
+      return jsonEncode(prefsData);
+    } catch (e) {
+      return 'Error getting shared preferences: $e';
     }
   }
 
