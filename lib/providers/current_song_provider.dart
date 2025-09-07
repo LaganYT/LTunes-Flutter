@@ -540,27 +540,41 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     final currentSongBeforeAction = _currentSongFromAppLogic;
+    final currentIndexBeforeAction = _currentIndexInAppQueue;
 
     if (newShuffleState) {
+      // Enable shuffle: save unshuffled queue and shuffle the current queue
       _unshuffledQueue = List.from(_queue);
       _queue.shuffle();
     } else {
+      // Disable shuffle: restore the unshuffled queue
       if (_unshuffledQueue.isNotEmpty) {
         _queue = List.from(_unshuffledQueue);
       }
     }
 
+    // Ensure the current song remains the same and find its new position
     if (currentSongBeforeAction != null) {
-      _currentIndexInAppQueue =
+      final newIndex =
           _queue.indexWhere((s) => s.id == currentSongBeforeAction.id);
-      if (_currentIndexInAppQueue == -1) {
+      if (newIndex != -1) {
+        // Current song found in the new queue - keep it as current
+        _currentIndexInAppQueue = newIndex;
+        _currentSongFromAppLogic = currentSongBeforeAction;
+      } else {
+        // This shouldn't happen, but fallback to original behavior
         _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
         _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
       }
     } else {
+      // No current song - set to first
       _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
       _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
     }
+
+    // Update the audio handler's queue without changing playback state
+    await _updateAudioHandlerQueue();
+    // Don't call skipToQueueItem as it can restart the song or start playback
 
     await _audioHandler.setShuffleMode(newShuffleState
         ? AudioServiceShuffleMode.all
@@ -575,9 +589,14 @@ class CurrentSongProvider with ChangeNotifier {
       _isLoadingAudio = true;
       notifyListeners();
 
-      _updateAudioHandlerQueue().then((_) {
-        _audioHandler.skipToPrevious();
-      });
+      if (_isShuffling) {
+        // Handle shuffle logic in provider
+        _handleShufflePrevious();
+      } else {
+        _updateAudioHandlerQueue().then((_) {
+          _audioHandler.skipToPrevious();
+        });
+      }
     } else {
       _audioHandler.skipToPrevious();
     }
@@ -588,16 +607,82 @@ class CurrentSongProvider with ChangeNotifier {
       _isLoadingAudio = true;
       notifyListeners();
 
-      _updateAudioHandlerQueue().then((_) {
-        _audioHandler.skipToNext().then((_) {
-          notifyListeners();
+      if (_isShuffling) {
+        // Handle shuffle logic in provider
+        _handleShuffleNext();
+      } else {
+        _updateAudioHandlerQueue().then((_) {
+          _audioHandler.skipToNext().then((_) {
+            notifyListeners();
+          });
         });
-      });
+      }
     } else {
       _audioHandler.skipToNext().then((_) {
         notifyListeners();
       });
     }
+  }
+
+  Future<void> _handleShuffleNext() async {
+    if (_queue.isEmpty) return;
+
+    // Move to next song in shuffled queue
+    int nextIndex = _currentIndexInAppQueue + 1;
+    if (nextIndex >= _queue.length) {
+      // End of queue - check repeat mode
+      if (_audioHandler.playbackState.value.repeatMode ==
+          AudioServiceRepeatMode.all) {
+        nextIndex = 0; // Loop to beginning
+      } else {
+        // No repeat - stop playback
+        await _audioHandler.stop();
+        _isLoadingAudio = false;
+        notifyListeners();
+        return;
+      }
+    }
+
+    // Update current index and song
+    _currentIndexInAppQueue = nextIndex;
+    _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
+
+    // Update audio handler queue and skip to the new song
+    await _updateAudioHandlerQueue();
+    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+
+    _isLoadingAudio = false;
+    notifyListeners();
+    _saveCurrentSongToStorage();
+  }
+
+  Future<void> _handleShufflePrevious() async {
+    if (_queue.isEmpty) return;
+
+    // Move to previous song in shuffled queue
+    int prevIndex = _currentIndexInAppQueue - 1;
+    if (prevIndex < 0) {
+      // Beginning of queue - check repeat mode
+      if (_audioHandler.playbackState.value.repeatMode ==
+          AudioServiceRepeatMode.all) {
+        prevIndex = _queue.length - 1; // Loop to end
+      } else {
+        // No repeat - go to beginning
+        prevIndex = 0;
+      }
+    }
+
+    // Update current index and song
+    _currentIndexInAppQueue = prevIndex;
+    _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
+
+    // Update audio handler queue and skip to the new song
+    await _updateAudioHandlerQueue();
+    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+
+    _isLoadingAudio = false;
+    notifyListeners();
+    _saveCurrentSongToStorage();
   }
 
   Future<void> seek(Duration position) async {

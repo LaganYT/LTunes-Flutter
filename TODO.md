@@ -14,8 +14,6 @@
 ## Development & Infrastructure
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
 
-Fix shuffle not working
 Online songs seek functionality isn’t working
 If you open the app from the background while it’s transitioning to the next song it bugs and just stops audio session and audio playback but the full screen player still acts like its playing
 Add a bug report system in settings that uploads a log of the app as well as the users input and posts it to a discord webhook
-When you click on a song in queue the artwork shows the no art found until you rebuild the queue (close and reopen it)
