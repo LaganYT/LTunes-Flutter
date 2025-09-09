@@ -366,11 +366,30 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     _unshuffledQueue = List.from(canonicalSongs);
-    _queue = List.from(canonicalSongs);
 
-    if (_isShuffling) {
-      _queue.shuffle();
+    if (_isShuffling && canonicalSongs.isNotEmpty) {
+      // Create shuffled queue with initial song at the beginning if specified
+      Song? initialSong;
+      if (initialIndex >= 0 && initialIndex < canonicalSongs.length) {
+        initialSong = canonicalSongs[initialIndex];
+      }
+
+      if (initialSong != null) {
+        // Remove initial song from list to shuffle
+        List<Song> songsToShuffle = List.from(canonicalSongs);
+        songsToShuffle.removeWhere((s) => s.id == initialSong!.id);
+        songsToShuffle.shuffle();
+        // Put initial song at the beginning of shuffled queue
+        _queue = [initialSong, ...songsToShuffle];
+      } else {
+        _queue = List.from(canonicalSongs)..shuffle();
+      }
+    } else {
+      _queue = List.from(canonicalSongs);
     }
+
+    debugPrint(
+        "CurrentSongProvider: Queue initialized - shuffling: $_isShuffling, queue size: ${_queue.length}, unshuffled size: ${_unshuffledQueue.length}");
 
     if (_queue.isNotEmpty) {
       Song? initialSong;
@@ -531,60 +550,89 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> toggleShuffle() async {
     final newShuffleState = !_isShuffling;
+    final oldShuffleState = _isShuffling;
     _isShuffling = newShuffleState;
 
     if (_queue.isEmpty) {
       notifyListeners();
-      _saveCurrentSongToStorage();
+      await _saveCurrentSongToStorage();
       return;
     }
 
     final currentSongBeforeAction = _currentSongFromAppLogic;
-    final currentIndexBeforeAction = _currentIndexInAppQueue;
+    debugPrint(
+        "CurrentSongProvider: Toggling shuffle from $oldShuffleState to $newShuffleState, current song: ${currentSongBeforeAction?.title}");
 
     if (newShuffleState) {
-      // Enable shuffle: save unshuffled queue and shuffle the current queue
-      _unshuffledQueue = List.from(_queue);
-      _queue.shuffle();
-    } else {
-      // Disable shuffle: restore the unshuffled queue
-      if (_unshuffledQueue.isNotEmpty) {
-        _queue = List.from(_unshuffledQueue);
+      // Enable shuffle: save unshuffled queue and create shuffled version
+      if (_unshuffledQueue.isEmpty) {
+        _unshuffledQueue = List.from(_queue);
       }
-    }
 
-    // Ensure the current song remains the same and find its new position
-    if (currentSongBeforeAction != null) {
-      final newIndex =
-          _queue.indexWhere((s) => s.id == currentSongBeforeAction.id);
-      if (newIndex != -1) {
-        // Current song found in the new queue - keep it as current
-        _currentIndexInAppQueue = newIndex;
+      // Create a new shuffled queue, but keep current song at the beginning if it exists
+      List<Song> songsToShuffle = List.from(_unshuffledQueue);
+      if (currentSongBeforeAction != null) {
+        // Remove current song from list to shuffle
+        songsToShuffle.removeWhere((s) => s.id == currentSongBeforeAction.id);
+        // Shuffle the remaining songs
+        songsToShuffle.shuffle();
+        // Put current song at the beginning
+        _queue = [currentSongBeforeAction, ...songsToShuffle];
+        _currentIndexInAppQueue = 0;
         _currentSongFromAppLogic = currentSongBeforeAction;
       } else {
-        // This shouldn't happen, but fallback to original behavior
+        _queue = songsToShuffle..shuffle();
         _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
         _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
       }
     } else {
-      // No current song - set to first
-      _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
-      _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
+      // Disable shuffle: restore the unshuffled queue
+      if (_unshuffledQueue.isNotEmpty) {
+        _queue = List.from(_unshuffledQueue);
+
+        // Find current song position in unshuffled queue
+        if (currentSongBeforeAction != null) {
+          final newIndex =
+              _queue.indexWhere((s) => s.id == currentSongBeforeAction.id);
+          if (newIndex != -1) {
+            _currentIndexInAppQueue = newIndex;
+            _currentSongFromAppLogic = currentSongBeforeAction;
+          } else {
+            _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
+            _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
+          }
+        } else {
+          _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
+          _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
+        }
+      }
     }
 
-    // Update the audio handler's queue without changing playback state
-    await _updateAudioHandlerQueue();
-    // Don't call skipToQueueItem as it can restart the song or start playback
+    debugPrint(
+        "CurrentSongProvider: After shuffle toggle, queue length: ${_queue.length}, current index: $_currentIndexInAppQueue, current song: ${_currentSongFromAppLogic?.title}");
 
-    await _audioHandler.setShuffleMode(newShuffleState
-        ? AudioServiceShuffleMode.all
-        : AudioServiceShuffleMode.none);
+    try {
+      // Update the audio handler's queue without changing playback state
+      await _updateAudioHandlerQueue();
+
+      // Set the audio handler shuffle mode to none since we handle shuffle in the provider
+      await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none);
+
+      debugPrint(
+          "CurrentSongProvider: Audio handler queue updated successfully");
+    } catch (e) {
+      debugPrint(
+          "CurrentSongProvider: Error updating audio handler queue during shuffle: $e");
+    }
 
     notifyListeners();
     await _saveCurrentSongToStorage();
   }
 
   void playPrevious() {
+    debugPrint(
+        "CurrentSongProvider: playPrevious called, shuffling: $_isShuffling, queue size: ${_queue.length}");
+
     if (_queue.isNotEmpty) {
       _isLoadingAudio = true;
       notifyListeners();
@@ -593,16 +641,39 @@ class CurrentSongProvider with ChangeNotifier {
         // Handle shuffle logic in provider
         _handleShufflePrevious();
       } else {
+        // Non-shuffle mode: let audio handler handle the navigation
         _updateAudioHandlerQueue().then((_) {
-          _audioHandler.skipToPrevious();
+          _audioHandler.skipToPrevious().then((_) {
+            _isLoadingAudio = false;
+            notifyListeners();
+          }).catchError((e) {
+            debugPrint("CurrentSongProvider: Error in skipToPrevious: $e");
+            _isLoadingAudio = false;
+            notifyListeners();
+          });
+        }).catchError((e) {
+          debugPrint(
+              "CurrentSongProvider: Error updating audio handler queue: $e");
+          _isLoadingAudio = false;
+          notifyListeners();
         });
       }
     } else {
-      _audioHandler.skipToPrevious();
+      // Empty queue - let audio handler handle it
+      _audioHandler.skipToPrevious().then((_) {
+        notifyListeners();
+      }).catchError((e) {
+        debugPrint(
+            "CurrentSongProvider: Error in skipToPrevious with empty queue: $e");
+        notifyListeners();
+      });
     }
   }
 
   void playNext() {
+    debugPrint(
+        "CurrentSongProvider: playNext called, shuffling: $_isShuffling, queue size: ${_queue.length}");
+
     if (_queue.isNotEmpty) {
       _isLoadingAudio = true;
       notifyListeners();
@@ -611,14 +682,30 @@ class CurrentSongProvider with ChangeNotifier {
         // Handle shuffle logic in provider
         _handleShuffleNext();
       } else {
+        // Non-shuffle mode: let audio handler handle the navigation
         _updateAudioHandlerQueue().then((_) {
           _audioHandler.skipToNext().then((_) {
+            _isLoadingAudio = false;
+            notifyListeners();
+          }).catchError((e) {
+            debugPrint("CurrentSongProvider: Error in skipToNext: $e");
+            _isLoadingAudio = false;
             notifyListeners();
           });
+        }).catchError((e) {
+          debugPrint(
+              "CurrentSongProvider: Error updating audio handler queue: $e");
+          _isLoadingAudio = false;
+          notifyListeners();
         });
       }
     } else {
+      // Empty queue - let audio handler handle it
       _audioHandler.skipToNext().then((_) {
+        notifyListeners();
+      }).catchError((e) {
+        debugPrint(
+            "CurrentSongProvider: Error in skipToNext with empty queue: $e");
         notifyListeners();
       });
     }
@@ -627,62 +714,139 @@ class CurrentSongProvider with ChangeNotifier {
   Future<void> _handleShuffleNext() async {
     if (_queue.isEmpty) return;
 
+    debugPrint(
+        "CurrentSongProvider: _handleShuffleNext from index $_currentIndexInAppQueue");
+
     // Move to next song in shuffled queue
     int nextIndex = _currentIndexInAppQueue + 1;
     if (nextIndex >= _queue.length) {
       // End of queue - check repeat mode
-      if (_audioHandler.playbackState.value.repeatMode ==
-          AudioServiceRepeatMode.all) {
+      final repeatMode = _audioHandler.playbackState.value.repeatMode;
+      debugPrint(
+          "CurrentSongProvider: End of shuffled queue reached, repeat mode: $repeatMode");
+
+      if (repeatMode == AudioServiceRepeatMode.all) {
         nextIndex = 0; // Loop to beginning
+        debugPrint(
+            "CurrentSongProvider: Looping back to beginning of shuffled queue");
       } else {
-        // No repeat - stop playback
-        await _audioHandler.stop();
+        // No repeat - end playback
+        debugPrint("CurrentSongProvider: No repeat mode, stopping playback");
+        await _audioHandler.pause();
         _isLoadingAudio = false;
         notifyListeners();
         return;
       }
     }
 
-    // Update current index and song
+    // Validate the next index
+    if (nextIndex < 0 || nextIndex >= _queue.length) {
+      debugPrint(
+          "CurrentSongProvider: Invalid next index $nextIndex, queue length: ${_queue.length}");
+      _isLoadingAudio = false;
+      notifyListeners();
+      return;
+    }
+
+    // Prevent getting stuck on the same song by checking if it's the same
+    if (nextIndex == _currentIndexInAppQueue && _queue.length > 1) {
+      debugPrint(
+          "CurrentSongProvider: Next index is same as current, skipping to avoid loop");
+      nextIndex = (nextIndex + 1) % _queue.length;
+      debugPrint("CurrentSongProvider: Adjusted next index to: $nextIndex");
+    }
+
+    // Update current index and song BEFORE calling audio handler
+    final previousIndex = _currentIndexInAppQueue;
     _currentIndexInAppQueue = nextIndex;
     _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
 
-    // Update audio handler queue and skip to the new song
-    await _updateAudioHandlerQueue();
-    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+    debugPrint(
+        "CurrentSongProvider: Moving to shuffled song: ${_currentSongFromAppLogic?.title} at index $_currentIndexInAppQueue (from $previousIndex)");
+
+    try {
+      // Update audio handler queue and skip to the new song
+      await _updateAudioHandlerQueue();
+      await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+      debugPrint(
+          "CurrentSongProvider: Successfully moved to next shuffled song");
+    } catch (e) {
+      debugPrint("CurrentSongProvider: Error in _handleShuffleNext: $e");
+      // Revert on error to maintain consistency
+      _currentIndexInAppQueue = previousIndex;
+      _currentSongFromAppLogic = _queue[previousIndex];
+    }
 
     _isLoadingAudio = false;
     notifyListeners();
-    _saveCurrentSongToStorage();
+    await _saveCurrentSongToStorage();
   }
 
   Future<void> _handleShufflePrevious() async {
     if (_queue.isEmpty) return;
 
+    debugPrint(
+        "CurrentSongProvider: _handleShufflePrevious from index $_currentIndexInAppQueue");
+
     // Move to previous song in shuffled queue
     int prevIndex = _currentIndexInAppQueue - 1;
     if (prevIndex < 0) {
       // Beginning of queue - check repeat mode
-      if (_audioHandler.playbackState.value.repeatMode ==
-          AudioServiceRepeatMode.all) {
+      final repeatMode = _audioHandler.playbackState.value.repeatMode;
+      debugPrint(
+          "CurrentSongProvider: Beginning of shuffled queue reached, repeat mode: $repeatMode");
+
+      if (repeatMode == AudioServiceRepeatMode.all) {
         prevIndex = _queue.length - 1; // Loop to end
+        debugPrint("CurrentSongProvider: Looping to end of shuffled queue");
       } else {
-        // No repeat - go to beginning
+        // No repeat - stay at beginning
         prevIndex = 0;
+        debugPrint("CurrentSongProvider: No repeat mode, staying at beginning");
       }
     }
 
-    // Update current index and song
+    // Validate the previous index
+    if (prevIndex < 0 || prevIndex >= _queue.length) {
+      debugPrint(
+          "CurrentSongProvider: Invalid previous index $prevIndex, queue length: ${_queue.length}");
+      _isLoadingAudio = false;
+      notifyListeners();
+      return;
+    }
+
+    // Prevent getting stuck on the same song by checking if it's the same
+    if (prevIndex == _currentIndexInAppQueue && _queue.length > 1) {
+      debugPrint(
+          "CurrentSongProvider: Previous index is same as current, skipping to avoid loop");
+      prevIndex = (prevIndex - 1 + _queue.length) % _queue.length;
+      debugPrint("CurrentSongProvider: Adjusted previous index to: $prevIndex");
+    }
+
+    // Update current index and song BEFORE calling audio handler
+    final previousIndex = _currentIndexInAppQueue;
     _currentIndexInAppQueue = prevIndex;
     _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
 
-    // Update audio handler queue and skip to the new song
-    await _updateAudioHandlerQueue();
-    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+    debugPrint(
+        "CurrentSongProvider: Moving to previous shuffled song: ${_currentSongFromAppLogic?.title} at index $_currentIndexInAppQueue (from $previousIndex)");
+
+    try {
+      // Update audio handler queue and skip to the new song
+      await _updateAudioHandlerQueue();
+      await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+      debugPrint(
+          "CurrentSongProvider: Successfully moved to previous shuffled song");
+    } catch (e) {
+      debugPrint("CurrentSongProvider: Error in _handleShufflePrevious: $e");
+      // Revert on error to maintain consistency
+      _currentIndexInAppQueue = previousIndex;
+      _currentSongFromAppLogic = _queue[previousIndex];
+    }
 
     _isLoadingAudio = false;
     notifyListeners();
-    _saveCurrentSongToStorage();
+    await _saveCurrentSongToStorage();
   }
 
   Future<void> seek(Duration position) async {
@@ -1382,9 +1546,11 @@ class CurrentSongProvider with ChangeNotifier {
           playbackState.processingState == AudioProcessingState.loading ||
               playbackState.processingState == AudioProcessingState.buffering;
 
-      // Sync queue index from audio handler
+      // Sync queue index from audio handler, but NOT when shuffle is enabled
+      // When shuffle is on, the provider handles navigation and should be the source of truth
       final audioHandlerQueueIndex = playbackState.queueIndex;
-      if (audioHandlerQueueIndex != null &&
+      if (!_isShuffling && // CRITICAL FIX: Don't sync when shuffling
+          audioHandlerQueueIndex != null &&
           audioHandlerQueueIndex != _currentIndexInAppQueue &&
           audioHandlerQueueIndex >= 0 &&
           audioHandlerQueueIndex < _queue.length) {
@@ -1403,6 +1569,11 @@ class CurrentSongProvider with ChangeNotifier {
                 "CurrentSongProvider: Current song updated to: ${newCurrentSong.title}");
           }
         }
+      } else if (_isShuffling &&
+          audioHandlerQueueIndex != null &&
+          audioHandlerQueueIndex != _currentIndexInAppQueue) {
+        debugPrint(
+            "CurrentSongProvider: Ignoring audio handler queue index sync ($oldQueueIndex -> $audioHandlerQueueIndex) because shuffle is enabled");
       }
 
       if (oldIsPlaying != _isPlaying) {
@@ -2047,6 +2218,65 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+  /// Updates song details but does NOT automatically switch the currently playing song
+  /// This is used when a song download completes to prevent interrupting the current playback
+  void updateSongDetailsWithoutSwitchingCurrent(Song updatedSong) {
+    bool providerStateChanged = false;
+
+    // Update the song in the queue
+    final indexInProviderQueue =
+        _queue.indexWhere((s) => s.id == updatedSong.id);
+    if (indexInProviderQueue != -1) {
+      _queue[indexInProviderQueue] = updatedSong;
+      providerStateChanged = true;
+    }
+
+    // Also update in unshuffled queue if it exists
+    if (_unshuffledQueue.isNotEmpty) {
+      final indexInUnshuffledQueue =
+          _unshuffledQueue.indexWhere((s) => s.id == updatedSong.id);
+      if (indexInUnshuffledQueue != -1) {
+        _unshuffledQueue[indexInUnshuffledQueue] = updatedSong;
+      }
+    }
+
+    // IMPORTANT: Do NOT update _currentSongFromAppLogic here
+    // The current song should keep playing from its original source (online URL)
+    // until the user explicitly selects the song again
+
+    debugPrint(
+        "CurrentSongProvider: Updated song ${updatedSong.title} details without switching current playback (isDownloaded: ${updatedSong.isDownloaded})");
+
+    // Update the audio handler queue with new metadata, but don't change current playback
+    if (providerStateChanged) {
+      // Only update queue items that aren't currently playing
+      final currentMediaItem = _audioHandler.mediaItem.value;
+      final isCurrentlyPlaying =
+          currentMediaItem?.extras?['songId'] == updatedSong.id;
+
+      if (!isCurrentlyPlaying) {
+        // Safe to update non-current songs in the queue
+        _prepareMediaItem(updatedSong).then((newMediaItem) async {
+          final handlerQueue = List<MediaItem>.from(_audioHandler.queue.value);
+          int itemIndexInHandlerQueue = handlerQueue
+              .indexWhere((mi) => mi.extras?['songId'] == updatedSong.id);
+
+          if (itemIndexInHandlerQueue != -1) {
+            handlerQueue[itemIndexInHandlerQueue] = newMediaItem;
+            await _audioHandler.updateQueue(handlerQueue);
+          }
+        }).catchError((e) {
+          debugPrint('Error updating MediaItem in queue: $e');
+        });
+      } else {
+        debugPrint(
+            "CurrentSongProvider: Skipping audio handler update for currently playing song to avoid switching sources");
+      }
+
+      notifyListeners();
+    }
+  }
+
   Future<void> updateMissingMetadata(Song song) async {
     if (!song.isDownloaded) return;
 
@@ -2570,7 +2800,7 @@ class CurrentSongProvider with ChangeNotifier {
       }
 
       await _persistSongMetadata(updatedSong);
-      updateSongDetails(updatedSong);
+      updateSongDetailsWithoutSwitchingCurrent(updatedSong);
       PlaylistManagerService().updateSongInPlaylists(updatedSong);
       debugPrint(
           'Download complete: ${updatedSong.title}. Lyrics fetched: ${lyricsData != null && (lyricsData.plainLyrics != null || lyricsData.syncedLyrics != null)}');

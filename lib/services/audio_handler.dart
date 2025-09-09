@@ -782,6 +782,13 @@ class AudioPlayerHandler extends BaseAudioHandler
   @override
   Future<void> skipToNext() async {
     if (_playlist.isEmpty) return;
+
+    // CRITICAL FIX: Ensure audio session is active before any skip operation in background
+    if (_isBackgroundMode) {
+      await _ensureAudioSessionActive();
+      debugPrint("AudioHandler: Background session verified before skipToNext");
+    }
+
     int newIndex = _currentIndex + 1;
     if (newIndex >= _playlist.length) {
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
@@ -791,12 +798,23 @@ class AudioPlayerHandler extends BaseAudioHandler
         newIndex = 0;
       }
     }
+
+    debugPrint(
+        "AudioHandler: skipToNext from $_currentIndex to $newIndex (background: $_isBackgroundMode)");
     await skipToQueueItem(newIndex);
   }
 
   @override
   Future<void> skipToPrevious() async {
     if (_playlist.isEmpty) return;
+
+    // CRITICAL FIX: Ensure audio session is active before any skip operation in background
+    if (_isBackgroundMode) {
+      await _ensureAudioSessionActive();
+      debugPrint(
+          "AudioHandler: Background session verified before skipToPrevious");
+    }
+
     int newIndex = _currentIndex - 1;
     if (newIndex < 0) {
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
@@ -806,6 +824,9 @@ class AudioPlayerHandler extends BaseAudioHandler
         newIndex = _playlist.length - 1;
       }
     }
+
+    debugPrint(
+        "AudioHandler: skipToPrevious from $_currentIndex to $newIndex (background: $_isBackgroundMode)");
     await skipToQueueItem(newIndex);
   }
 
@@ -1215,11 +1236,27 @@ class AudioPlayerHandler extends BaseAudioHandler
     final songId = currentItem?.extras?['songId'] as String?;
 
     debugPrint(
-        "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
+        "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile, Background: $_isBackgroundMode");
 
     // CRITICAL FIX: Always ensure audio session is active before handling completion
     // This prevents the bug where audio session becomes inactive during transitions
     await _ensureAudioSessionActive();
+
+    // CRITICAL FIX: Additional background mode session reinforcement
+    // When in background mode, we need to be extra aggressive about keeping the session active
+    if (_isBackgroundMode && _isIOS && _audioSession != null) {
+      try {
+        await _audioSession!.setActive(true);
+        debugPrint(
+            "AudioHandler: Background audio session reinforced during completion");
+      } catch (e) {
+        debugPrint(
+            "AudioHandler: Failed to reinforce background session during completion: $e");
+        // If we can't maintain the session, we need to recover
+        _isSessionActive = false;
+        await _ensureAudioSessionActive();
+      }
+    }
 
     // For local files, check if we're stuck in a completion loop
     if (isLocalFile && songId != null) {
@@ -1287,27 +1324,56 @@ class AudioPlayerHandler extends BaseAudioHandler
           // Loop to first song and continue playing
           debugPrint(
               "AudioHandler: Looping queue - moving from last song to first (local: $isLocalFile)");
+
+          // CRITICAL FIX: Ensure audio session stays active during queue loop in background
+          if (_isBackgroundMode) {
+            await _ensureAudioSessionActive();
+            debugPrint(
+                "AudioHandler: Background session verified during queue loop");
+          }
+
           await _prepareToPlay(0);
           _currentIndex = 0;
           playbackState.add(playbackState.value.copyWith(
             queueIndex: _currentIndex,
             playing: true,
           ));
+
+          // CRITICAL FIX: Additional session check before playing first song in loop
+          if (_isBackgroundMode) {
+            await _ensureAudioSessionActive();
+          }
+
           await _audioPlayer.play();
           await _syncMetadata();
         } else {
-          // When loop is off and we're at the last song, stop playback
-          // but keep the audio session active for background
+          // When loop is off and we're at the last song, handle end of queue
           debugPrint(
-              "AudioHandler: End of queue reached - stopping playback (local: $isLocalFile)");
-          await _audioPlayer.stop();
-          playbackState.add(playbackState.value.copyWith(
-            playing: false,
-            processingState: AudioProcessingState.completed,
-          ));
-          // Ensure background audio session stays active
+              "AudioHandler: End of queue reached - handling end state (local: $isLocalFile, background: $_isBackgroundMode)");
+
+          // CRITICAL FIX: In background mode, stopping audio can deactivate the session
+          // Instead of stopping completely, pause to maintain the session
           if (_isBackgroundMode) {
+            debugPrint(
+                "AudioHandler: Background mode - pausing instead of stopping to maintain session");
+            await _audioPlayer.pause();
+            playbackState.add(playbackState.value.copyWith(
+              playing: false,
+              processingState:
+                  AudioProcessingState.ready, // Keep as ready, not completed
+            ));
+
+            // Ensure the audio session stays active even though we're paused
             await _ensureAudioSessionActive();
+            debugPrint(
+                "AudioHandler: Background session maintained after queue end");
+          } else {
+            // In foreground mode, it's safe to stop completely
+            await _audioPlayer.stop();
+            playbackState.add(playbackState.value.copyWith(
+              playing: false,
+              processingState: AudioProcessingState.completed,
+            ));
           }
           return;
         }
