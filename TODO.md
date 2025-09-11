@@ -13,3 +13,7 @@
 
 ## Development & Infrastructure
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
+
+
+Fix the queue getting stuck loading
+Rework how shuffle works: when shuffle is on and you press play all have it skip to a random song in playlist/album and then have the queue shuffled from there, if clicking on a specific song then dont skip to random song just shuffle queue from there, when changing to another context have it shuffle the queue again, when shuffle is on that just means to use a shuffled version of that queue, when off just use the default version (non shuffled) of that queue
