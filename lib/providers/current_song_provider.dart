@@ -46,6 +46,8 @@ class CurrentSongProvider with ChangeNotifier {
   final Map<String, Song> _activeDownloads = {};
   final List<Song> _downloadQueue = [];
   int _currentActiveDownloadCount = 0;
+  final Map<String, DateTime> _downloadStartTimes =
+      {}; // Track when downloads started
   final Map<String, int> _downloadRetryCount = {};
   final Map<String, DateTime> _downloadLastRetry = {};
 
@@ -1368,6 +1370,47 @@ class CurrentSongProvider with ChangeNotifier {
     await _initializeDownloadManager();
   }
 
+  /// Check for stuck downloads and clean them up
+  void _checkForStuckDownloads() {
+    final now = DateTime.now();
+    final stuckThreshold =
+        const Duration(minutes: 5); // Consider stuck after 5 minutes
+
+    final stuckDownloads = <String>[];
+
+    for (final entry in _downloadStartTimes.entries) {
+      final songId = entry.key;
+      final startTime = entry.value;
+      final progress = _downloadProgress[songId] ?? 0.0;
+
+      // If download has been running for more than 5 minutes with no progress
+      if (now.difference(startTime) > stuckThreshold && progress == 0.0) {
+        stuckDownloads.add(songId);
+      }
+    }
+
+    // Clean up stuck downloads
+    for (final songId in stuckDownloads) {
+      debugPrint(
+          'Detected stuck download for song ID: $songId, cleaning up...');
+      _handleDownloadError(
+          songId, Exception('Download stuck - no progress for 5 minutes'));
+    }
+  }
+
+  /// Public method to manually check for stuck downloads
+  void checkForStuckDownloads() {
+    _checkForStuckDownloads();
+  }
+
+  /// Public method to reinitialize the download manager if it's stuck
+  Future<void> reinitializeDownloadManagerIfNeeded() async {
+    if (!_isDownloadManagerInitialized || _downloadManager == null) {
+      debugPrint('DownloadManager not initialized, reinitializing...');
+      await reinitializeDownloadManager();
+    }
+  }
+
   Future<void> _primeDownloadProgressFromStorage() async {
     final prefs = await SharedPreferences.getInstance();
     final Set<String> keys = prefs.getKeys();
@@ -2644,6 +2687,9 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   void _triggerNextDownloadInProviderQueue() async {
+    // Check for stuck downloads before processing new ones
+    _checkForStuckDownloads();
+
     final prefs = await SharedPreferences.getInstance();
     final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 1;
 
@@ -2653,6 +2699,8 @@ class CurrentSongProvider with ChangeNotifier {
       _activeDownloads[songToDownload.id] = songToDownload;
       _downloadProgress[songToDownload.id] =
           _downloadProgress[songToDownload.id] ?? 0.0;
+      _downloadStartTimes[songToDownload.id] =
+          DateTime.now(); // Track start time
       _currentActiveDownloadCount++;
       notifyListeners();
       _processAndSubmitDownload(songToDownload);
@@ -2661,19 +2709,36 @@ class CurrentSongProvider with ChangeNotifier {
 
   Future<void> _processAndSubmitDownload(Song song) async {
     if (!_isDownloadManagerInitialized || _downloadManager == null) {
-      _handleDownloadError(
-          song.id, Exception("DownloadManager not initialized"));
-      return;
+      debugPrint(
+          'DownloadManager not initialized, attempting to reinitialize...');
+      await reinitializeDownloadManager();
+      if (!_isDownloadManagerInitialized || _downloadManager == null) {
+        _handleDownloadError(song.id,
+            Exception("DownloadManager failed to initialize after retry"));
+        return;
+      }
     }
 
     String? audioUrl;
     try {
-      audioUrl = await fetchSongUrl(song);
+      // Add timeout for URL fetching to prevent getting stuck
+      audioUrl = await fetchSongUrl(song).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Timeout while fetching song URL');
+        },
+      );
       if (audioUrl.isEmpty ||
           audioUrl.startsWith('file://') ||
           !(Uri.tryParse(audioUrl)?.isAbsolute ?? false)) {
         final apiService = ApiService();
-        audioUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+        audioUrl =
+            await apiService.fetchAudioUrl(song.artist, song.title).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('Timeout while fetching audio URL from API');
+          },
+        );
       }
       if (audioUrl == null ||
           audioUrl.isEmpty ||
@@ -2719,7 +2784,14 @@ class CurrentSongProvider with ChangeNotifier {
     );
 
     try {
-      final downloadedFile = await _downloadManager!.getFile(queueItem);
+      // Add timeout for the actual download to prevent getting stuck
+      final downloadedFile = await _downloadManager!.getFile(queueItem).timeout(
+        const Duration(minutes: 10), // 10 minute timeout for downloads
+        onTimeout: () {
+          throw Exception(
+              'Download timeout - download took longer than 10 minutes');
+        },
+      );
       if (downloadedFile != null && await downloadedFile.exists()) {
         final fileSize = await downloadedFile.length();
         if (fileSize > 0) {
@@ -2811,6 +2883,7 @@ class CurrentSongProvider with ChangeNotifier {
       if (_activeDownloads.containsKey(songId)) {
         _activeDownloads.remove(songId);
         _downloadProgress.remove(songId);
+        _downloadStartTimes.remove(songId); // Clean up start time tracking
       }
       _currentActiveDownloadCount--;
       notifyListeners();
@@ -2840,6 +2913,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       _activeDownloads.remove(songId);
       _downloadProgress.remove(songId);
+      _downloadStartTimes.remove(songId); // Clean up start time tracking
       _currentActiveDownloadCount--;
       notifyListeners();
       _triggerNextDownloadInProviderQueue();
@@ -2860,6 +2934,7 @@ class CurrentSongProvider with ChangeNotifier {
       if (_activeDownloads.containsKey(songId)) {
         _activeDownloads.remove(songId);
         _downloadProgress.remove(songId);
+        _downloadStartTimes.remove(songId); // Clean up start time tracking
       }
       _currentActiveDownloadCount--;
       notifyListeners();
