@@ -8,6 +8,7 @@ import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import '../services/album_manager_service.dart';
+import '../services/api_service.dart'; // Import ApiService
 import '../widgets/full_screen_player.dart'; // For navigation to player
 import '../screens/song_detail_screen.dart'; // For navigation to song details
 import '../widgets/playbar.dart';
@@ -356,6 +357,191 @@ class _AlbumScreenState extends State<AlbumScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('No new tracks were queued for download.')),
+      );
+    }
+  }
+
+  Future<void> _removeDownloadsFromAlbum() async {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    if (widget.album.tracks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Album is empty. Nothing to remove.')),
+      );
+      return;
+    }
+
+    // Get tracks that are downloaded (not imported)
+    // Use the same logic as _updateAllTracksDownloadedStatus
+    final tracksToRemoveDownloads = <Song>[];
+    for (final track in widget.album.tracks) {
+      if (track.isImported) continue; // Skip imported tracks
+
+      final progress = currentSongProvider.downloadProgress[track.id];
+      final bool isPersistedAsDownloaded = track.isDownloaded;
+
+      bool isDownloaded = false;
+      if (progress == 1.0) {
+        // Explicitly marked as 100% downloaded by provider
+        isDownloaded = true;
+      } else if (progress == null && isPersistedAsDownloaded) {
+        // Not in provider's active/completed download map for this session,
+        // but the track data says it's downloaded
+        bool foundInActiveDownloads =
+            currentSongProvider.activeDownloadTasks.containsKey(track.id);
+        if (!foundInActiveDownloads) {
+          isDownloaded = true;
+        }
+      }
+
+      if (isDownloaded) {
+        tracksToRemoveDownloads.add(track);
+      }
+    }
+
+    if (tracksToRemoveDownloads.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('No downloaded tracks to remove from this album.')),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Remove Downloads?'),
+          content: Text(
+              'Are you sure you want to remove downloads for ${tracksToRemoveDownloads.length} track(s) from this album? This will delete the local files but keep the tracks in your library.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: Text('Remove',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    int removedCount = 0;
+    final appDocDir = await getApplicationDocumentsDirectory();
+    const String downloadsSubDir = 'ltunes_downloads';
+
+    for (final track in tracksToRemoveDownloads) {
+      try {
+        // Delete the local audio file
+        if (track.localFilePath != null && track.localFilePath!.isNotEmpty) {
+          final audioFile = File(
+              p.join(appDocDir.path, downloadsSubDir, track.localFilePath!));
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+            debugPrint('Deleted audio file: ${audioFile.path}');
+          }
+        }
+
+        // Delete the local album art file if it exists and is not used by other tracks
+        if (track.albumArtUrl.isNotEmpty &&
+            !track.albumArtUrl.startsWith('http')) {
+          // Check if any other track uses this cover
+          bool coverIsUsedElsewhere = widget.album.tracks.any((other) =>
+              other.id != track.id && other.albumArtUrl == track.albumArtUrl);
+
+          if (!coverIsUsedElsewhere) {
+            final albumArtFile =
+                File(p.join(appDocDir.path, track.albumArtUrl));
+            if (await albumArtFile.exists()) {
+              await albumArtFile.delete();
+              debugPrint('Deleted album art file: ${albumArtFile.path}');
+            }
+          }
+        }
+
+        // Fetch the original network album art URL
+        String originalAlbumArtUrl = '';
+        if (track.albumArtUrl.isNotEmpty &&
+            !track.albumArtUrl.startsWith('http')) {
+          // Try to fetch the original network URL for the album art
+          try {
+            final apiService = ApiService();
+            // First try to find the track to get its album art URL
+            final searchResults =
+                await apiService.fetchSongs('${track.title} ${track.artist}');
+            Song? exactMatch;
+            for (final result in searchResults) {
+              if (result.title.toLowerCase() == track.title.toLowerCase() &&
+                  result.artist.toLowerCase() == track.artist.toLowerCase()) {
+                exactMatch = result;
+                break;
+              }
+            }
+
+            if (exactMatch != null &&
+                exactMatch.albumArtUrl.isNotEmpty &&
+                exactMatch.albumArtUrl.startsWith('http')) {
+              originalAlbumArtUrl = exactMatch.albumArtUrl;
+            } else if (track.album != null && track.album!.isNotEmpty) {
+              // Try to get the album art from the album
+              final album =
+                  await apiService.getAlbum(track.album!, track.artist);
+              if (album != null && album.fullAlbumArtUrl.isNotEmpty) {
+                originalAlbumArtUrl = album.fullAlbumArtUrl;
+              }
+            }
+          } catch (e) {
+            debugPrint(
+                'Error fetching original album art URL for ${track.title}: $e');
+            // If we can't fetch the original URL, we'll leave it empty
+          }
+        }
+
+        // Update track metadata to mark as not downloaded and restore network album art URL
+        final updatedTrack = track.copyWith(
+          isDownloaded: false,
+          localFilePath: null,
+          albumArtUrl: originalAlbumArtUrl.isNotEmpty
+              ? originalAlbumArtUrl
+              : track.albumArtUrl,
+        );
+
+        // Update in SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+            'song_${updatedTrack.id}', jsonEncode(updatedTrack.toJson()));
+
+        // Clear download progress from provider
+        currentSongProvider.downloadProgress.remove(track.id);
+
+        // Notify services
+        currentSongProvider.updateSongDetails(updatedTrack);
+        PlaylistManagerService().updateSongInPlaylists(updatedTrack);
+        await AlbumManagerService().updateSongInAlbums(updatedTrack);
+
+        removedCount++;
+      } catch (e) {
+        debugPrint('Error removing download for track ${track.title}: $e');
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'Removed downloads for $removedCount track(s) from album.')),
       );
     }
   }
@@ -822,31 +1008,54 @@ class _AlbumScreenState extends State<AlbumScreen>
                                           const SizedBox(height: 8),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
+                                                horizontal: 12, vertical: 6),
                                             decoration: BoxDecoration(
-                                              color: Colors.greenAccent
-                                                  .withValues(alpha: 0.2),
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Colors.greenAccent
+                                                      .withValues(alpha: 0.3),
+                                                  Colors.green
+                                                      .withValues(alpha: 0.2),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
                                               borderRadius:
-                                                  BorderRadius.circular(12),
+                                                  BorderRadius.circular(16),
                                               border: Border.all(
                                                 color: Colors.greenAccent
-                                                    .withValues(alpha: 0.3),
+                                                    .withValues(alpha: 0.5),
+                                                width: 1.5,
                                               ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.greenAccent
+                                                      .withValues(alpha: 0.2),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(Icons.offline_pin,
                                                     color: Colors.greenAccent,
-                                                    size: 14),
-                                                const SizedBox(width: 4),
+                                                    size: 16),
+                                                const SizedBox(width: 6),
                                                 Text(
                                                   'Downloaded',
                                                   style: TextStyle(
                                                       color: Colors.greenAccent,
-                                                      fontSize: 12,
+                                                      fontSize: 13,
                                                       fontWeight:
-                                                          FontWeight.w600),
+                                                          FontWeight.w700,
+                                                      shadows: const [
+                                                        Shadow(
+                                                          blurRadius: 1,
+                                                          color: Colors.black54,
+                                                        ),
+                                                      ]),
                                                 ),
                                               ],
                                             ),
@@ -945,7 +1154,7 @@ class _AlbumScreenState extends State<AlbumScreen>
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
                                           color: _areAllTracksDownloaded
-                                              ? Colors.greenAccent
+                                              ? Colors.red
                                                   .withValues(alpha: 0.3)
                                               : Colors.white
                                                   .withValues(alpha: 0.2),
@@ -954,7 +1163,7 @@ class _AlbumScreenState extends State<AlbumScreen>
                                         boxShadow: [
                                           BoxShadow(
                                             color: (_areAllTracksDownloaded
-                                                    ? Colors.greenAccent
+                                                    ? Colors.red
                                                     : Colors.white)
                                                 .withValues(alpha: 0.1),
                                             blurRadius: 4,
@@ -964,22 +1173,22 @@ class _AlbumScreenState extends State<AlbumScreen>
                                       ),
                                       child: IconButton(
                                         onPressed: _areAllTracksDownloaded
-                                            ? null
+                                            ? _removeDownloadsFromAlbum
                                             : _downloadAlbum,
                                         icon: Icon(
                                             _areAllTracksDownloaded
-                                                ? Icons.check_circle
+                                                ? Icons.remove_circle
                                                 : Icons.download,
                                             size: 20,
                                             color: _areAllTracksDownloaded
-                                                ? Colors.greenAccent
+                                                ? Colors.red
                                                     .withValues(alpha: 0.9)
                                                 : Colors.white
                                                     .withValues(alpha: 0.9)),
                                         style: IconButton.styleFrom(
                                           backgroundColor:
                                               _areAllTracksDownloaded
-                                                  ? Colors.greenAccent
+                                                  ? Colors.red
                                                       .withValues(alpha: 0.1)
                                                   : Colors.white
                                                       .withValues(alpha: 0.05),

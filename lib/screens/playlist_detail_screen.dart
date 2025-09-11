@@ -12,6 +12,7 @@ import '../services/playlist_manager_service.dart'; // Import PlaylistManagerSer
 import '../services/api_service.dart'; // Import ApiService
 import 'song_detail_screen.dart'; // Import for AddToPlaylistDialog
 import '../widgets/playbar.dart';
+import '../widgets/full_screen_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/album_manager_service.dart';
@@ -65,6 +66,30 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       _artProviderFutureCache[artUrl] = getRobustArtworkProvider(artUrl);
     }
     return _artProviderFutureCache[artUrl]!;
+  }
+
+  Future<void> _playPlaylistShuffle(Playlist currentPlaylist) async {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    final navigator = Navigator.of(context); // Capture before async
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Capture before async
+    if (currentPlaylist.songs.isNotEmpty) {
+      // Ensure shuffle is on
+      if (!currentSongProvider.isShuffling) {
+        currentSongProvider.toggleShuffle();
+      }
+      await currentSongProvider.smartPlayWithContext(
+          currentPlaylist.songs, currentPlaylist.songs.first);
+      navigator.push(
+        MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+      );
+    } else {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+            content: Text('This playlist has no songs to shuffle play.')),
+      );
+    }
   }
 
   Future<void> _downloadAllSongs(Playlist currentPlaylist) async {
@@ -959,7 +984,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 12),
-                                      // Add to Queue button
+                                      // Shuffle button
                                       Container(
                                         decoration: BoxDecoration(
                                           borderRadius:
@@ -980,25 +1005,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                         ),
                                         child: IconButton(
                                           onPressed: hasSongs
-                                              ? () async {
-                                                  for (final song
-                                                      in currentPlaylist
-                                                          .songs) {
-                                                    currentSongProvider
-                                                        .addToQueue(song);
-                                                  }
-                                                  ScaffoldMessenger.of(context)
-                                                      .showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                          'Added ${currentPlaylist.songs.length} songs to queue'),
-                                                      behavior: SnackBarBehavior
-                                                          .floating,
-                                                    ),
-                                                  );
-                                                }
+                                              ? () => _playPlaylistShuffle(
+                                                  currentPlaylist)
                                               : null,
-                                          icon: const Icon(Icons.queue,
+                                          icon: const Icon(Icons.shuffle,
                                               size: 20, color: Colors.white),
                                           style: IconButton.styleFrom(
                                             backgroundColor: Colors.white
