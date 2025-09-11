@@ -1987,18 +1987,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     );
   }
 
-  // Added method to show "Add to Playlist" dialog
-  void _showAddToPlaylistDialog(BuildContext context, Song song) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        // Assuming AddToPlaylistDialog is accessible and correctly defined
-        // in song_detail_screen.dart or a shared widgets file.
-        return AddToPlaylistDialog(song: song);
-      },
-    );
-  }
-
   // ignore: unused_element
   void _updateCurrentLyricIndex(Duration currentPosition) {
     if (!_areLyricsSynced || _parsedLyrics.isEmpty) {
@@ -2729,8 +2717,14 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             // Add to Playlist
                             IconButton(
                               icon: const Icon(Icons.playlist_add_rounded),
-                              onPressed: () => _showAddToPlaylistDialog(
-                                  context, currentSong),
+                              onPressed: () => showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AddToPlaylistDialog(
+                                    song: currentSong,
+                                  );
+                                },
+                              ),
                               tooltip: 'Add to Playlist',
                               iconSize: 26.0,
                               color:
