@@ -258,8 +258,7 @@ class _AlbumScreenState extends State<AlbumScreen>
           }
         }
       }
-      await currentSongProvider.smartPlayWithContext(
-          widget.album.tracks, widget.album.tracks.first);
+      await currentSongProvider.playAllWithContext(widget.album.tracks);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
@@ -281,8 +280,7 @@ class _AlbumScreenState extends State<AlbumScreen>
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
-      await currentSongProvider.smartPlayWithContext(
-          widget.album.tracks, widget.album.tracks.first);
+      await currentSongProvider.playAllWithContext(widget.album.tracks);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );

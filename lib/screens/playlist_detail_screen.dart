@@ -79,8 +79,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       if (!currentSongProvider.isShuffling) {
         currentSongProvider.toggleShuffle();
       }
-      await currentSongProvider.smartPlayWithContext(
-          currentPlaylist.songs, currentPlaylist.songs.first);
+      await currentSongProvider.playAllWithContext(currentPlaylist.songs);
       navigator.push(
         MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
       );
@@ -965,10 +964,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                           onPressed: hasSongs
                                               ? () async {
                                                   await currentSongProvider
-                                                      .smartPlayWithContext(
-                                                          currentPlaylist.songs,
+                                                      .playAllWithContext(
                                                           currentPlaylist
-                                                              .songs.first);
+                                                              .songs);
                                                 }
                                               : null,
                                           icon: const Icon(Icons.play_arrow,

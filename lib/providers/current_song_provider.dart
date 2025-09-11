@@ -3,6 +3,7 @@ import 'package:just_audio/just_audio.dart' as just_audio;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import '../models/song.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
@@ -571,22 +572,8 @@ class CurrentSongProvider with ChangeNotifier {
         _unshuffledQueue = List.from(_queue);
       }
 
-      // Create a new shuffled queue, but keep current song at the beginning if it exists
-      List<Song> songsToShuffle = List.from(_unshuffledQueue);
-      if (currentSongBeforeAction != null) {
-        // Remove current song from list to shuffle
-        songsToShuffle.removeWhere((s) => s.id == currentSongBeforeAction.id);
-        // Shuffle the remaining songs
-        songsToShuffle.shuffle();
-        // Put current song at the beginning
-        _queue = [currentSongBeforeAction, ...songsToShuffle];
-        _currentIndexInAppQueue = 0;
-        _currentSongFromAppLogic = currentSongBeforeAction;
-      } else {
-        _queue = songsToShuffle..shuffle();
-        _currentIndexInAppQueue = _queue.isNotEmpty ? 0 : -1;
-        _currentSongFromAppLogic = _queue.isNotEmpty ? _queue.first : null;
-      }
+      // Create shuffled queue from current position
+      _createShuffledQueueFromCurrentPosition();
     } else {
       // Disable shuffle: restore the unshuffled queue
       if (_unshuffledQueue.isNotEmpty) {
@@ -1007,29 +994,26 @@ class CurrentSongProvider with ChangeNotifier {
     _currentIndexInAppQueue = index;
     _currentSongFromAppLogic = _queue[index];
 
+    // If shuffle is on, create a shuffled queue from the current position
+    if (_isShuffling) {
+      _createShuffledQueueFromCurrentPosition();
+    }
+
     if (_audioHandler is AudioPlayerHandler) {
       (_audioHandler as AudioPlayerHandler).shouldBePaused = !playImmediately;
     }
 
     await _updateAudioHandlerQueue();
-    await _audioHandler.skipToQueueItem(index);
+    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
     notifyListeners();
     _saveCurrentSongToStorage();
 
-    final wasShuffling = _isShuffling;
-    if (wasShuffling) {
-      _isShuffling = false;
-      notifyListeners();
-    }
+    // Save unshuffled queue to storage
     final prefs = await SharedPreferences.getInstance();
     List<String> unshuffledQueueJson =
         _unshuffledQueue.map((song) => jsonEncode(song.toJson())).toList();
     await prefs.setStringList(
         'current_unshuffled_queue_v2', unshuffledQueueJson);
-    if (wasShuffling) {
-      _isShuffling = true;
-      notifyListeners();
-    }
   }
 
   Future<void> switchContext(List<Song> newContext) async {
@@ -1047,14 +1031,20 @@ class CurrentSongProvider with ChangeNotifier {
 
     final currentPosition = _currentPosition;
     final wasPlaying = _isPlaying;
+    final wasShuffling = _isShuffling;
 
     _queue = List<Song>.from(newContext);
     _unshuffledQueue = List<Song>.from(newContext);
     _currentIndexInAppQueue = newIndex;
     _currentSongFromAppLogic = _queue[newIndex];
 
+    // If shuffle was on, reshuffle the queue from the current position
+    if (wasShuffling) {
+      _createShuffledQueueFromCurrentPosition();
+    }
+
     await _updateAudioHandlerQueue();
-    await _audioHandler.skipToQueueItem(newIndex);
+    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
 
     if (wasPlaying && currentPosition > Duration.zero) {
       await _audioHandler.seek(currentPosition);
@@ -1063,20 +1053,12 @@ class CurrentSongProvider with ChangeNotifier {
     notifyListeners();
     _saveCurrentSongToStorage();
 
-    final wasShuffling = _isShuffling;
-    if (wasShuffling) {
-      _isShuffling = false;
-      notifyListeners();
-    }
+    // Save unshuffled queue to storage
     final prefs = await SharedPreferences.getInstance();
     List<String> unshuffledQueueJson =
         _unshuffledQueue.map((song) => jsonEncode(song.toJson())).toList();
     await prefs.setStringList(
         'current_unshuffled_queue_v2', unshuffledQueueJson);
-    if (wasShuffling) {
-      _isShuffling = true;
-      notifyListeners();
-    }
   }
 
   Future<void> smartPlayWithContext(List<Song> context, Song song,
@@ -1089,11 +1071,52 @@ class CurrentSongProvider with ChangeNotifier {
     }
   }
 
+  /// Play all songs from a context, with shuffle behavior:
+  /// - If shuffle is on: skip to a random song and shuffle the queue from there
+  /// - If shuffle is off: start from the first song
+  Future<void> playAllWithContext(List<Song> context,
+      {bool playImmediately = true}) async {
+    if (context.isEmpty) return;
+
+    Song songToPlay;
+    if (_isShuffling) {
+      // When shuffle is on, pick a random song
+      final random = Random();
+      songToPlay = context[random.nextInt(context.length)];
+    } else {
+      // When shuffle is off, start from the first song
+      songToPlay = context.first;
+    }
+
+    await playWithContext(context, songToPlay,
+        playImmediately: playImmediately);
+  }
+
   // Helper methods
   bool _areSongsEquivalent(Song song1, Song song2) {
     return song1.title.toLowerCase().trim() ==
             song2.title.toLowerCase().trim() &&
         song1.artist.toLowerCase().trim() == song2.artist.toLowerCase().trim();
+  }
+
+  /// Creates a shuffled queue from the current position, keeping the current song at the beginning
+  void _createShuffledQueueFromCurrentPosition() {
+    if (_unshuffledQueue.isEmpty || _currentSongFromAppLogic == null) return;
+
+    // Get all songs except the current one
+    List<Song> songsToShuffle = _unshuffledQueue
+        .where((s) => s.id != _currentSongFromAppLogic!.id)
+        .toList();
+
+    // Shuffle the remaining songs
+    songsToShuffle.shuffle();
+
+    // Create new queue with current song at the beginning, followed by shuffled songs
+    _queue = [_currentSongFromAppLogic!, ...songsToShuffle];
+    _currentIndexInAppQueue = 0;
+
+    debugPrint(
+        "CurrentSongProvider: Created shuffled queue from current position, current song: ${_currentSongFromAppLogic?.title}, queue length: ${_queue.length}");
   }
 
   void _prefetchNextSongs() async {

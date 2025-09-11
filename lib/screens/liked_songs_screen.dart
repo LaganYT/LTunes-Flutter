@@ -246,8 +246,8 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                                   final provider =
                                       Provider.of<CurrentSongProvider>(context,
                                           listen: false);
-                                  await provider.smartPlayWithContext(
-                                      _likedSongs, _likedSongs.first);
+                                  await provider
+                                      .playAllWithContext(_likedSongs);
                                 }
                               : null,
                           icon: const Icon(Icons.play_arrow),
