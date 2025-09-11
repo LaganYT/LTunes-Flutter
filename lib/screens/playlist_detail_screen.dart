@@ -16,6 +16,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/album_manager_service.dart';
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   // Use centralized artwork service for consistent handling
@@ -1207,63 +1208,90 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     return ReorderableDelayedDragStartListener(
                       key: itemKey,
                       index: index,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16.0, vertical: 8.0),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: listItemLeading,
-                          ),
-                          title: Text(
-                            song.title,
-                            style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.w500),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            song.artist.isNotEmpty
-                                ? song.artist
-                                : "Unknown Artist",
-                            style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.7)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.remove_circle_outline,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.7)),
-                                tooltip: 'Remove from playlist',
-                                onPressed: () {
-                                  _showRemoveSongDialog(song, index,
-                                      currentPlaylist); // Use currentPlaylist
-                                },
-                              ),
-                              const SizedBox(
-                                  width: 8), // Spacing before drag handle
-                              Icon(Icons.drag_handle,
+                      child: Slidable(
+                        endActionPane: ActionPane(
+                          motion: const DrawerMotion(),
+                          extentRatio: 0.32,
+                          children: [
+                            SlidableAction(
+                              onPressed: (context) {
+                                currentSongProvider.addToQueue(song);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content:
+                                        Text('${song.title} added to queue'),
+                                    behavior: SnackBarBehavior.floating,
+                                    margin:
+                                        const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                                  ),
+                                );
+                              },
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onPrimary,
+                              icon: Icons.queue,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            SlidableAction(
+                              onPressed: (context) {
+                                _showRemoveSongDialog(
+                                    song, index, currentPlaylist);
+                              },
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.error,
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onError,
+                              icon: Icons.remove_circle,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16.0, vertical: 8.0),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: listItemLeading,
+                            ),
+                            title: Text(
+                              song.title,
+                              style: TextStyle(
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              song.artist.isNotEmpty
+                                  ? song.artist
+                                  : "Unknown Artist",
+                              style: TextStyle(
                                   color: Theme.of(context)
                                       .colorScheme
                                       .onSurface
-                                      .withValues(alpha: 0.5)),
-                            ],
+                                      .withValues(alpha: 0.7)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.drag_handle,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.5)),
+                              ],
+                            ),
+                            onTap: () async {
+                              await currentSongProvider.smartPlayWithContext(
+                                  currentPlaylist.songs, song);
+                            },
                           ),
-                          onTap: () async {
-                            await currentSongProvider.smartPlayWithContext(
-                                currentPlaylist.songs, song);
-                          },
                         ),
                       ),
                     );
