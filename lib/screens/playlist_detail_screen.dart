@@ -682,7 +682,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           body: CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 390.0,
+                expandedHeight: 360.0,
                 pinned: true,
                 stretch: true,
                 flexibleSpace: FlexibleSpaceBar(
@@ -743,10 +743,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     fit: StackFit.expand,
                     children: [
                       flexibleSpaceBackground,
-                      BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.6),
+                      Positioned.fill(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+                          child: Container(
+                            color: Colors.black.withValues(alpha: 0.6),
+                          ),
                         ),
                       ),
                       // Use Padding to position the content column correctly
@@ -754,252 +756,399 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         padding: EdgeInsets.only(
                           top: systemTopPadding +
                               kToolbarHeight +
-                              10, // Space for status bar, app bar, and a small margin
+                              5, // Minimal space for status bar, app bar
                           left: 16.0,
                           right: 16.0,
                           bottom:
-                              16.0, // Padding at the bottom of the content area
+                              0.0, // No padding at the bottom of the content area
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment
                               .start, // Align content to the start (top) of the padded area
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _buildProminentPlaylistArt(
-                                    uniqueAlbumArtUrls, prominentArtSize),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
+                            // Main playlist info card
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                        CrossAxisAlignment.center,
                                     children: [
-                                      Text(
-                                        currentPlaylist
-                                            .name, // Use currentPlaylist
-                                        style: const TextStyle(
-                                          fontSize: 22, // Adjusted size
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          shadows: [
-                                            Shadow(
-                                                blurRadius: 3,
-                                                color: Colors.black)
-                                          ],
-                                        ),
-                                        maxLines:
-                                            3, // Allow more lines for playlist name
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        '${currentPlaylist.songs.length} songs', // Use currentPlaylist
-                                        style: TextStyle(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.85),
-                                            fontSize: 14,
-                                            shadows: const [
-                                              Shadow(
-                                                  blurRadius: 2,
-                                                  color: Colors.black87)
-                                            ]),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _calculateAndFormatPlaylistDuration(
-                                            currentPlaylist), // Use currentPlaylist
-                                        style: TextStyle(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.75),
-                                            fontSize: 13,
-                                            shadows: const [
-                                              Shadow(
-                                                  blurRadius: 1,
-                                                  color: Colors.black54)
-                                            ]),
-                                      ),
-                                      if (isFullyDownloaded && hasSongs) ...[
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Icon(Icons.check_circle,
-                                                color: Colors.greenAccent
-                                                    .withValues(alpha: 0.9),
-                                                size: 16),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'All songs downloaded',
-                                              style: TextStyle(
-                                                  color: Colors.greenAccent
-                                                      .withValues(alpha: 0.9),
-                                                  fontSize: 12,
-                                                  shadows: const [
-                                                    Shadow(
-                                                        blurRadius: 1,
-                                                        color: Colors.black54)
-                                                  ]),
+                                      // Enhanced artwork with glow effect
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.1),
+                                              blurRadius: 8,
+                                              spreadRadius: 2,
                                             ),
                                           ],
+                                        ),
+                                        child: _buildProminentPlaylistArt(
+                                            uniqueAlbumArtUrls,
+                                            prominentArtSize),
+                                      ),
+                                      const SizedBox(width: 20),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            // Playlist name with better styling
+                                            Text(
+                                              currentPlaylist.name,
+                                              style: const TextStyle(
+                                                fontSize: 26,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                                letterSpacing: -0.5,
+                                                shadows: [
+                                                  Shadow(
+                                                    blurRadius: 4,
+                                                    color: Colors.black,
+                                                    offset: Offset(0, 2),
+                                                  )
+                                                ],
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 12),
+                                            // Stats row with icons
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.queue_music,
+                                                  size: 16,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.8),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '${currentPlaylist.songs.length} songs',
+                                                  style: TextStyle(
+                                                      color: Colors.white
+                                                          .withValues(
+                                                              alpha: 0.9),
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      shadows: const [
+                                                        Shadow(
+                                                            blurRadius: 2,
+                                                            color:
+                                                                Colors.black54)
+                                                      ]),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.access_time,
+                                                  size: 16,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.8),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  _calculateAndFormatPlaylistDuration(
+                                                      currentPlaylist),
+                                                  style: TextStyle(
+                                                      color: Colors.white
+                                                          .withValues(
+                                                              alpha: 0.8),
+                                                      fontSize: 14,
+                                                      shadows: const [
+                                                        Shadow(
+                                                            blurRadius: 1,
+                                                            color:
+                                                                Colors.black54)
+                                                      ]),
+                                                ),
+                                              ],
+                                            ),
+                                            if (isFullyDownloaded &&
+                                                hasSongs) ...[
+                                              const SizedBox(height: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.greenAccent
+                                                      .withValues(alpha: 0.2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.greenAccent
+                                                        .withValues(alpha: 0.3),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.offline_pin,
+                                                        color:
+                                                            Colors.greenAccent,
+                                                        size: 14),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Downloaded',
+                                                      style: TextStyle(
+                                                          color: Colors
+                                                              .greenAccent,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w600),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  // Action buttons row - positioned inside the playlist card
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      // Play All button
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                              Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withValues(alpha: 0.8),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withValues(alpha: 0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: IconButton(
+                                          onPressed: hasSongs
+                                              ? () async {
+                                                  await currentSongProvider
+                                                      .smartPlayWithContext(
+                                                          currentPlaylist.songs,
+                                                          currentPlaylist
+                                                              .songs.first);
+                                                }
+                                              : null,
+                                          icon: const Icon(Icons.play_arrow,
+                                              size: 20, color: Colors.white),
+                                          style: IconButton.styleFrom(
+                                            backgroundColor: Colors.transparent,
+                                            padding: const EdgeInsets.all(12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // Add to Queue button
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3),
+                                            width: 1.5,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.1),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: IconButton(
+                                          onPressed: hasSongs
+                                              ? () async {
+                                                  for (final song
+                                                      in currentPlaylist
+                                                          .songs) {
+                                                    currentSongProvider
+                                                        .addToQueue(song);
+                                                  }
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(
+                                                          'Added ${currentPlaylist.songs.length} songs to queue'),
+                                                      behavior: SnackBarBehavior
+                                                          .floating,
+                                                    ),
+                                                  );
+                                                }
+                                              : null,
+                                          icon: const Icon(Icons.queue,
+                                              size: 20, color: Colors.white),
+                                          style: IconButton.styleFrom(
+                                            backgroundColor: Colors.white
+                                                .withValues(alpha: 0.05),
+                                            padding: const EdgeInsets.all(12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      if (hasSongs) ...[
+                                        const SizedBox(width: 12),
+                                        // Download/Remove Downloads button
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            border: Border.all(
+                                              color: isFullyDownloaded
+                                                  ? Colors.red
+                                                      .withValues(alpha: 0.3)
+                                                  : Colors.white
+                                                      .withValues(alpha: 0.2),
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: (isFullyDownloaded
+                                                        ? Colors.red
+                                                        : Colors.white)
+                                                    .withValues(alpha: 0.1),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: IconButton(
+                                            onPressed: isFullyDownloaded
+                                                ? () =>
+                                                    _removeDownloadsFromPlaylist(
+                                                        currentPlaylist)
+                                                : () => _downloadAllSongs(
+                                                    currentPlaylist),
+                                            icon: Icon(
+                                                isFullyDownloaded
+                                                    ? Icons.remove_circle
+                                                    : Icons.download,
+                                                size: 20,
+                                                color: isFullyDownloaded
+                                                    ? Colors.red
+                                                        .withValues(alpha: 0.9)
+                                                    : Colors.white.withValues(
+                                                        alpha: 0.9)),
+                                            style: IconButton.styleFrom(
+                                              backgroundColor: isFullyDownloaded
+                                                  ? Colors.red
+                                                      .withValues(alpha: 0.1)
+                                                  : Colors.white
+                                                      .withValues(alpha: 0.05),
+                                              padding: const EdgeInsets.all(12),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Delete Playlist button
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            border: Border.all(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .error
+                                                  .withValues(alpha: 0.3),
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .error
+                                                    .withValues(alpha: 0.1),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: IconButton(
+                                            onPressed: () =>
+                                                _showDeletePlaylistDialog(
+                                                    currentPlaylist),
+                                            icon: Icon(Icons.playlist_remove,
+                                                size: 20,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .error
+                                                    .withValues(alpha: 0.9)),
+                                            style: IconButton.styleFrom(
+                                              backgroundColor: Theme.of(context)
+                                                  .colorScheme
+                                                  .error
+                                                  .withValues(alpha: 0.1),
+                                              padding: const EdgeInsets.all(12),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ],
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: hasSongs
-                                        ? () async {
-                                            await currentSongProvider
-                                                .smartPlayWithContext(
-                                                    currentPlaylist.songs,
-                                                    currentPlaylist
-                                                        .songs.first);
-                                          }
-                                        : null,
-                                    icon: const Icon(Icons.play_arrow),
-                                    label: const Text('Play All'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Theme.of(context)
-                                          .colorScheme
-                                          .surface, // Brighter background
-                                      foregroundColor: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface, // Contrasting text
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(24),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: hasSongs
-                                        ? () async {
-                                            if (!currentSongProvider
-                                                .isShuffling) {
-                                              currentSongProvider
-                                                  .toggleShuffle();
-                                            }
-                                            await currentSongProvider
-                                                .smartPlayWithContext(
-                                                    currentPlaylist.songs,
-                                                    currentPlaylist
-                                                        .songs.first);
-                                          }
-                                        : null,
-                                    icon: const Icon(Icons.shuffle),
-                                    label: const Text('Shuffle'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white,
-                                      side: BorderSide(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.7)),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(24),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (hasSongs)
-                                  Expanded(
-                                    child: TextButton.icon(
-                                      onPressed: isFullyDownloaded
-                                          ? () => _removeDownloadsFromPlaylist(
-                                              currentPlaylist)
-                                          : () => _downloadAllSongs(
-                                              currentPlaylist), // Use currentPlaylist
-                                      icon: Icon(
-                                          isFullyDownloaded
-                                              ? Icons.delete_outline
-                                              : Icons
-                                                  .download_for_offline_outlined,
-                                          color: isFullyDownloaded
-                                              ? Colors.red
-                                                  .withValues(alpha: 0.85)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.85)),
-                                      label: Text(
-                                        isFullyDownloaded
-                                            ? 'Remove Downloads'
-                                            : 'Download',
-                                        style: TextStyle(
-                                            color: isFullyDownloaded
-                                                ? Colors.red
-                                                    .withValues(alpha: 0.85)
-                                                : Colors.white
-                                                    .withValues(alpha: 0.85)),
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 10),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          side: BorderSide(
-                                              color: isFullyDownloaded
-                                                  ? Colors.red
-                                                      .withValues(alpha: 0.4)
-                                                  : Colors.white
-                                                      .withValues(alpha: 0.4)),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                if (hasSongs) const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextButton.icon(
-                                    onPressed: () => _showDeletePlaylistDialog(
-                                        currentPlaylist), // Use currentPlaylist
-                                    icon: Icon(Icons.delete_outline,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .error
-                                            .withValues(alpha: 0.9)),
-                                    label: Text(
-                                      'Delete Playlist', // Shorter label
-                                      style: TextStyle(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error
-                                              .withValues(alpha: 0.9)),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .error
-                                                .withValues(alpha: 0.5)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // No extra SizedBox here, bottom padding is handled by the outer Padding
                           ],
                         ),
                       ),
