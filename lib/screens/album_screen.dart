@@ -605,39 +605,6 @@ class _AlbumScreenState extends State<AlbumScreen>
       );
     }
 
-    final playAllButtonStyle = ElevatedButton.styleFrom(
-      backgroundColor: theme.colorScheme.surface,
-      foregroundColor: theme.colorScheme.onSurface,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    );
-
-    final shuffleButtonStyle = OutlinedButton.styleFrom(
-      foregroundColor: Colors.white,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    );
-
-    final secondaryButtonColor = Colors.white.withValues(alpha: 0.85);
-    final secondaryButtonSideColor = Colors.white.withValues(alpha: 0.4);
-
-    final removeButtonStyle = TextButton.styleFrom(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.5)),
-      ),
-    );
-
-    final saveButtonStyle = TextButton.styleFrom(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: secondaryButtonSideColor),
-      ),
-    );
-
     return Scaffold(
       // appBar removed, will be part of CustomScrollView
       body: CustomScrollView(
@@ -697,184 +664,396 @@ class _AlbumScreenState extends State<AlbumScreen>
                       color: Colors.black.withValues(alpha: 0.6),
                     ),
                   ),
+                  // Use Padding to position the content column correctly
                   Padding(
                     padding: EdgeInsets.only(
-                      top: systemTopPadding + kToolbarHeight + 10,
+                      top: systemTopPadding +
+                          kToolbarHeight +
+                          5, // Minimal space for status bar, app bar
                       left: 16.0,
                       right: 16.0,
-                      bottom: 16.0,
+                      bottom:
+                          0.0, // No padding at the bottom of the content area
                     ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment
+                          .start, // Align content to the start (top) of the padded area
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _buildProminentAlbumArt(context),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
+                        // Main album info card
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    widget.album.title,
-                                    style: _safeTextStyle(
-                                        textTheme.headlineSmall,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        shadows: const [
-                                          Shadow(
-                                              blurRadius: 3,
-                                              color: Colors.black)
-                                        ],
-                                        fallbackFontSize: 24.0),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
+                                  // Enhanced artwork with glow effect
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.1),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                    child: _buildProminentAlbumArt(context),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    widget.album.artistName,
-                                    style: _safeTextStyle(textTheme.titleMedium,
-                                        color: Colors.white70,
-                                        shadows: const [
-                                          Shadow(
-                                              blurRadius: 2,
-                                              color: Colors.black87)
+                                  const SizedBox(width: 20),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        // Album name with better styling
+                                        Text(
+                                          widget.album.title,
+                                          style: const TextStyle(
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                            letterSpacing: -0.5,
+                                            shadows: [
+                                              Shadow(
+                                                blurRadius: 4,
+                                                color: Colors.black,
+                                                offset: Offset(0, 2),
+                                              )
+                                            ],
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        // Artist name with icon
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.person,
+                                              size: 16,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.8),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              widget.album.artistName,
+                                              style: TextStyle(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.9),
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                  shadows: const [
+                                                    Shadow(
+                                                        blurRadius: 2,
+                                                        color: Colors.black54)
+                                                  ]),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        // Stats row with icons
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.queue_music,
+                                              size: 16,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.8),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${widget.album.tracks.length} songs',
+                                              style: TextStyle(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.9),
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                  shadows: const [
+                                                    Shadow(
+                                                        blurRadius: 2,
+                                                        color: Colors.black54)
+                                                  ]),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.access_time,
+                                              size: 16,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.8),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _formatDuration(
+                                                  _calculateTotalDuration()),
+                                              style: TextStyle(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.8),
+                                                  fontSize: 14,
+                                                  shadows: const [
+                                                    Shadow(
+                                                        blurRadius: 1,
+                                                        color: Colors.black54)
+                                                  ]),
+                                            ),
+                                          ],
+                                        ),
+                                        if (_areAllTracksDownloaded &&
+                                            hasTracks) ...[
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.greenAccent
+                                                  .withValues(alpha: 0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Colors.greenAccent
+                                                    .withValues(alpha: 0.3),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.offline_pin,
+                                                    color: Colors.greenAccent,
+                                                    size: 14),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Downloaded',
+                                                  style: TextStyle(
+                                                      color: Colors.greenAccent,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w600),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ],
-                                        fallbackFontSize: 16.0),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '${widget.album.tracks.length} Songs',
-                                    style: _safeTextStyle(textTheme.titleMedium,
-                                        color: Colors.white60,
-                                        shadows: const [
-                                          Shadow(
-                                              blurRadius: 2,
-                                              color: Colors.black54)
-                                        ],
-                                        fallbackFontSize: 16.0),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatDuration(_calculateTotalDuration()),
-                                    style: _safeTextStyle(textTheme.bodyMedium,
-                                        color: Colors.white60,
-                                        shadows: const [
-                                          Shadow(
-                                              blurRadius: 1,
-                                              color: Colors.black54)
-                                        ],
-                                        fallbackFontSize: 14.0),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Play All'),
-                                onPressed: hasTracks ? _playAlbum : null,
-                                style: playAllButtonStyle,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                icon: const Icon(Icons.shuffle),
-                                label: const Text('Shuffle'),
-                                onPressed: hasTracks ? _playAlbumShuffle : null,
-                                style: shuffleButtonStyle,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            if (hasTracks)
-                              if (_areAllTracksDownloaded)
-                                Expanded(
-                                  child: TextButton.icon(
-                                    icon: Icon(Icons.check_circle_outline,
-                                        color: secondaryButtonColor.withValues(
-                                            alpha: 0.7)),
-                                    label: Text('All Downloaded',
-                                        style: TextStyle(
-                                            color: secondaryButtonColor
-                                                .withValues(alpha: 0.7))),
-                                    onPressed: null, // Disabled
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(
-                                            color: secondaryButtonSideColor
-                                                .withValues(alpha: 0.5)),
+                              const SizedBox(height: 16),
+                              // Action buttons row - positioned inside the album card
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Play All button
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Theme.of(context).colorScheme.primary,
+                                          Theme.of(context)
+                                              .colorScheme
+                                              .primary
+                                              .withValues(alpha: 0.8),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary
+                                              .withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: IconButton(
+                                      onPressed: hasTracks ? _playAlbum : null,
+                                      icon: const Icon(Icons.play_arrow,
+                                          size: 20, color: Colors.white),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        padding: const EdgeInsets.all(12),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                )
-                              else
-                                Expanded(
-                                  child: TextButton.icon(
-                                    icon: Icon(
-                                        Icons.download_for_offline_outlined,
-                                        color: secondaryButtonColor),
-                                    label: Text('Download',
-                                        style: TextStyle(
-                                            color: secondaryButtonColor)),
-                                    onPressed: _downloadAlbum,
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                        side: BorderSide(
-                                            color: secondaryButtonSideColor),
+                                  const SizedBox(width: 12),
+                                  // Shuffle button
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.3),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.1),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: IconButton(
+                                      onPressed:
+                                          hasTracks ? _playAlbumShuffle : null,
+                                      icon: const Icon(Icons.shuffle,
+                                          size: 20, color: Colors.white),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.white
+                                            .withValues(alpha: 0.05),
+                                        padding: const EdgeInsets.all(12),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            if (hasTracks) const SizedBox(width: 12),
-                            Expanded(
-                              child: TextButton.icon(
-                                icon: Icon(
-                                  _isSaved
-                                      ? Icons.delete_outline
-                                      : Icons.bookmark_add_outlined,
-                                  color: _isSaved
-                                      ? theme.colorScheme.error
-                                          .withValues(alpha: 0.9)
-                                      : secondaryButtonColor,
-                                ),
-                                label: Text(
-                                  _isSaved ? 'Remove' : 'Save',
-                                  style: TextStyle(
-                                      color: _isSaved
-                                          ? theme.colorScheme.error
-                                              .withValues(alpha: 0.9)
-                                          : secondaryButtonColor),
-                                ),
-                                onPressed: _toggleSaveAlbum,
-                                style: _isSaved
-                                    ? removeButtonStyle
-                                    : saveButtonStyle,
+                                  if (hasTracks) ...[
+                                    const SizedBox(width: 12),
+                                    // Download/All Downloaded button
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: _areAllTracksDownloaded
+                                              ? Colors.greenAccent
+                                                  .withValues(alpha: 0.3)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.2),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (_areAllTracksDownloaded
+                                                    ? Colors.greenAccent
+                                                    : Colors.white)
+                                                .withValues(alpha: 0.1),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: IconButton(
+                                        onPressed: _areAllTracksDownloaded
+                                            ? null
+                                            : _downloadAlbum,
+                                        icon: Icon(
+                                            _areAllTracksDownloaded
+                                                ? Icons.check_circle
+                                                : Icons.download,
+                                            size: 20,
+                                            color: _areAllTracksDownloaded
+                                                ? Colors.greenAccent
+                                                    .withValues(alpha: 0.9)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.9)),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor:
+                                              _areAllTracksDownloaded
+                                                  ? Colors.greenAccent
+                                                      .withValues(alpha: 0.1)
+                                                  : Colors.white
+                                                      .withValues(alpha: 0.05),
+                                          padding: const EdgeInsets.all(12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Save/Remove button
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: _isSaved
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .error
+                                                  .withValues(alpha: 0.3)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.2),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (_isSaved
+                                                    ? Theme.of(context)
+                                                        .colorScheme
+                                                        .error
+                                                    : Colors.white)
+                                                .withValues(alpha: 0.1),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: IconButton(
+                                        onPressed: _toggleSaveAlbum,
+                                        icon: Icon(
+                                            _isSaved
+                                                ? Icons.bookmark_remove
+                                                : Icons.bookmark_add,
+                                            size: 20,
+                                            color: _isSaved
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .error
+                                                    .withValues(alpha: 0.9)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.9)),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: _isSaved
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .error
+                                                  .withValues(alpha: 0.1)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.05),
+                                          padding: const EdgeInsets.all(12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -962,65 +1141,137 @@ class _AlbumScreenState extends State<AlbumScreen>
                           ),
                         ],
                       ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16.0, vertical: 4.0),
-                        leading: Text(
-                          '${index + 1}',
-                          style: _safeTextStyle(textTheme.bodyMedium,
-                              color: colorScheme.onSurfaceVariant,
-                              fallbackFontSize: 14.0),
-                        ),
-                        title: Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _safeTextStyle(textTheme.bodyLarge,
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w500,
-                              fallbackFontSize: 16.0),
-                        ),
-                        subtitle: Text(
-                          track.artist.isNotEmpty
-                              ? track.artist
-                              : widget.album.artistName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _safeTextStyle(textTheme.bodyMedium,
-                              color:
-                                  colorScheme.onSurface.withValues(alpha: 0.7),
-                              fallbackFontSize: 14.0),
-                        ),
-                        trailing: Text(
-                          track.duration != null
-                              ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}'
-                              : '-:--',
-                          style: _safeTextStyle(textTheme.bodySmall,
-                              color: colorScheme.onSurfaceVariant,
-                              fallbackFontSize: 12.0),
-                        ),
-                        onTap: () async {
-                          final currentSongProvider =
-                              Provider.of<CurrentSongProvider>(context,
-                                  listen: false);
-                          final navigator =
-                              Navigator.of(context); // Capture before async
-                          await currentSongProvider.smartPlayWithContext(
-                              widget.album.tracks, widget.album.tracks[index]);
-                          navigator.push(
-                            MaterialPageRoute(
-                                builder: (context) => const FullScreenPlayer()),
-                          );
-                        },
-                        onLongPress: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  SongDetailScreen(song: track),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16.0, vertical: 8.0),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              color: Colors.grey[700],
+                              child: track.albumArtUrl.isNotEmpty
+                                  ? track.albumArtUrl.startsWith('http')
+                                      ? Image.network(
+                                          track.albumArtUrl,
+                                          width: 50,
+                                          height: 50,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  Icon(
+                                            Icons.music_note,
+                                            size: 30,
+                                            color: Colors.white70,
+                                          ),
+                                        )
+                                      : FutureBuilder<String>(
+                                          future: () async {
+                                            final directory =
+                                                await getApplicationDocumentsDirectory();
+                                            final fileName =
+                                                p.basename(track.albumArtUrl);
+                                            final fullPath = p.join(
+                                                directory.path, fileName);
+                                            return await File(fullPath).exists()
+                                                ? fullPath
+                                                : '';
+                                          }(),
+                                          builder: (context, snapshot) {
+                                            if (snapshot.connectionState ==
+                                                    ConnectionState.done &&
+                                                snapshot.hasData &&
+                                                snapshot.data!.isNotEmpty) {
+                                              return Image.file(
+                                                File(snapshot.data!),
+                                                width: 50,
+                                                height: 50,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error,
+                                                        stackTrace) =>
+                                                    Icon(
+                                                  Icons.music_note,
+                                                  size: 30,
+                                                  color: Colors.white70,
+                                                ),
+                                              );
+                                            }
+                                            return Icon(
+                                              Icons.music_note,
+                                              size: 30,
+                                              color: Colors.white70,
+                                            );
+                                          },
+                                        )
+                                  : Icon(
+                                      Icons.music_note,
+                                      size: 30,
+                                      color: Colors.white70,
+                                    ),
                             ),
-                          );
-                        },
+                          ),
+                          title: Text(
+                            track.title,
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            track.artist.isNotEmpty
+                                ? track.artist
+                                : widget.album.artistName,
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.7)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                track.duration != null
+                                    ? '${track.duration!.inMinutes}:${(track.duration!.inSeconds % 60).toString().padLeft(2, '0')}'
+                                    : '-:--',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.5)),
+                              ),
+                            ],
+                          ),
+                          onTap: () async {
+                            final currentSongProvider =
+                                Provider.of<CurrentSongProvider>(context,
+                                    listen: false);
+                            final navigator =
+                                Navigator.of(context); // Capture before async
+                            await currentSongProvider.smartPlayWithContext(
+                                widget.album.tracks,
+                                widget.album.tracks[index]);
+                            navigator.push(
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const FullScreenPlayer()),
+                            );
+                          },
+                          onLongPress: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    SongDetailScreen(song: track),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     );
                   },
