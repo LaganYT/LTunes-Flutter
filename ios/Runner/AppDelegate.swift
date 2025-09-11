@@ -7,6 +7,7 @@ import AVFoundation
 @objc class AppDelegate: FlutterAppDelegate {
   private let bluetoothChannelName = "bluetooth_events"
   private var bluetoothChannel: FlutterMethodChannel?
+  private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
 
   override func application(
     _ application: UIApplication,
@@ -19,11 +20,17 @@ import AVFoundation
       UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
     }
     
-    // Configure audio session for background playback
+    // Configure audio session for background playback with comprehensive options
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth])
-      try audioSession.setActive(true)
+      // Enhanced category options for better background playback
+      try audioSession.setCategory(.playback, 
+                                 mode: .default, 
+                                 options: [.allowBluetooth, 
+                                          .allowBluetoothA2DP, 
+                                          .allowAirPlay,
+                                          .mixWithOthers])
+      try audioSession.setActive(true, options: [])
       print("iOS audio session configured for background playback on app launch")
       
       // Add notification observer for route changes
@@ -39,6 +46,22 @@ import AVFoundation
         self,
         selector: #selector(handleInterruption),
         name: AVAudioSession.interruptionNotification,
+        object: nil
+      )
+      
+      // Add observer for audio session media services lost (when session becomes inactive)
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleMediaServicesLost),
+        name: AVAudioSession.mediaServicesWereLostNotification,
+        object: nil
+      )
+      
+      // Add observer for audio session media services reset
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleMediaServicesReset),
+        name: AVAudioSession.mediaServicesWereResetNotification,
         object: nil
       )
     } catch {
@@ -104,13 +127,44 @@ import AVFoundation
       // Reactivate the audio session when interruption ends
       do {
         let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-        try audioSession.setActive(true)
-        print("iOS audio session reactivated after interruption")
+        try audioSession.setCategory(.playback, 
+                                   mode: .default, 
+                                   options: [.allowBluetooth, 
+                                            .allowBluetoothA2DP, 
+                                            .allowAirPlay,
+                                            .mixWithOthers])
+        try audioSession.setActive(true, options: [])
+        print("iOS audio session reactivated after interruption with full configuration")
       } catch {
         print("Error reactivating iOS audio session after interruption: \(error)")
       }
     @unknown default:
       break
+    }
+  }
+  
+  // MARK: - Audio Session Media Services Handling
+  @objc func handleMediaServicesLost(notification: Notification) {
+    print("iOS audio media services were lost - attempting to recover")
+    // When media services are lost, the audio session becomes inactive
+    // We need to prepare for recovery when services are restored
+  }
+  
+  @objc func handleMediaServicesReset(notification: Notification) {
+    print("iOS audio media services were reset - reconfiguring audio session")
+    // When services are reset, we need to reconfigure the entire audio session
+    do {
+      let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
+      try audioSession.setCategory(.playback, 
+                                 mode: .default, 
+                                 options: [.allowBluetooth, 
+                                          .allowBluetoothA2DP, 
+                                          .allowAirPlay,
+                                          .mixWithOthers])
+      try audioSession.setActive(true, options: [])
+      print("iOS audio session reconfigured after media services reset")
+    } catch {
+      print("Error reconfiguring iOS audio session after media services reset: \(error)")
     }
   }
   
@@ -128,12 +182,20 @@ import AVFoundation
   override func applicationDidEnterBackground(_ application: UIApplication) {
     super.applicationDidEnterBackground(application)
     
+    // Start background task to maintain audio session
+    startBackgroundTask()
+    
     // Ensure audio session is properly configured for background playback
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .mixWithOthers])
-      try audioSession.setActive(true)
-      print("iOS audio session configured for background playback")
+      try audioSession.setCategory(.playback, 
+                                 mode: .default, 
+                                 options: [.allowBluetooth, 
+                                          .allowBluetoothA2DP, 
+                                          .allowAirPlay,
+                                          .mixWithOthers])
+      try audioSession.setActive(true, options: [])
+      print("iOS audio session configured for background playback with enhanced options")
       
       // For better background audio persistence, set the session to not deactivate
       try audioSession.setActive(true, options: [])
@@ -189,12 +251,20 @@ import AVFoundation
   override func applicationWillEnterForeground(_ application: UIApplication) {
     super.applicationWillEnterForeground(application)
     
+    // End background task as we're now in foreground
+    endBackgroundTask()
+    
     // Reactivate audio session when app comes to foreground
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .mixWithOthers])
-      try audioSession.setActive(true)
-      print("iOS audio session reactivated for foreground")
+      try audioSession.setCategory(.playback, 
+                                 mode: .default, 
+                                 options: [.allowBluetooth, 
+                                          .allowBluetoothA2DP, 
+                                          .allowAirPlay,
+                                          .mixWithOthers])
+      try audioSession.setActive(true, options: [])
+      print("iOS audio session reactivated for foreground with enhanced configuration")
       
       // If we were playing audio in background, ensure it continues seamlessly
       if audioSession.isOtherAudioPlaying {
@@ -212,15 +282,40 @@ import AVFoundation
     // Ensure audio session is maintained when app is about to be suspended
     do {
       let audioSession: AVAudioSession = AVAudioSession.sharedInstance()
-      try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .mixWithOthers])
+      try audioSession.setCategory(.playback, 
+                                 mode: .default, 
+                                 options: [.allowBluetooth, 
+                                          .allowBluetoothA2DP, 
+                                          .allowAirPlay,
+                                          .mixWithOthers])
       try audioSession.setActive(true, options: [])
-      print("iOS audio session maintained for app suspension")
+      print("iOS audio session maintained for app suspension with enhanced configuration")
     } catch {
       print("Error maintaining iOS audio session for suspension: \(error)")
     }
   }
   
+  // MARK: - Background Task Management
+  private func startBackgroundTask() {
+    guard backgroundTaskId == .invalid else { return }
+    
+    backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "AudioSessionMaintenance") { [weak self] in
+      self?.endBackgroundTask()
+    }
+    
+    print("Started background task for audio session maintenance: \(backgroundTaskId)")
+  }
+  
+  private func endBackgroundTask() {
+    guard backgroundTaskId != .invalid else { return }
+    
+    print("Ending background task: \(backgroundTaskId)")
+    UIApplication.shared.endBackgroundTask(backgroundTaskId)
+    backgroundTaskId = .invalid
+  }
+  
   deinit {
+    endBackgroundTask()
     NotificationCenter.default.removeObserver(self)
   }
 }

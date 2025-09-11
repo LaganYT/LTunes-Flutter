@@ -1000,8 +1000,28 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (!_isIOS || _audioSession == null) return;
 
     try {
-      // Ensure audio session is active
+      // Ensure audio session is active and properly configured for background
       await _ensureAudioSessionActive();
+
+      // Extra step: Reinforce the audio session configuration for background continuity
+      try {
+        await _audioSession!.configure(const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.allowAirPlay,
+          avAudioSessionMode: AVAudioSessionMode.defaultMode,
+          avAudioSessionRouteSharingPolicy:
+              AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        ));
+        await _audioSession!.setActive(true);
+        _isSessionActive = true;
+        debugPrint(
+            "AudioHandler: Background audio session configuration reinforced for continuity");
+      } catch (e) {
+        debugPrint(
+            "AudioHandler: Failed to reinforce background session configuration: $e");
+      }
 
       // If we're in background mode and have a playlist, ensure continuity
       if (_isBackgroundMode && _playlist.isNotEmpty) {
@@ -1017,6 +1037,9 @@ class AudioPlayerHandler extends BaseAudioHandler
             _currentIndex >= 0 &&
             _currentIndex < _playlist.length) {
           final repeatMode = playbackState.value.repeatMode;
+
+          // Before any transition, ensure session is active
+          await _ensureAudioSessionActive();
 
           // If repeat is on or we're not at the last song, continue to next
           if (repeatMode == AudioServiceRepeatMode.all ||
@@ -1242,13 +1265,26 @@ class AudioPlayerHandler extends BaseAudioHandler
     // This prevents the bug where audio session becomes inactive during transitions
     await _ensureAudioSessionActive();
 
-    // CRITICAL FIX: Additional background mode session reinforcement
+    // CRITICAL FIX: Enhanced background mode session management
     // When in background mode, we need to be extra aggressive about keeping the session active
+    // and ensure it remains active throughout the entire transition process
     if (_isBackgroundMode && _isIOS && _audioSession != null) {
       try {
+        // Force the audio session to stay active with explicit options
+        await _audioSession!.configure(const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.allowAirPlay,
+          avAudioSessionMode: AVAudioSessionMode.defaultMode,
+          avAudioSessionRouteSharingPolicy:
+              AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        ));
         await _audioSession!.setActive(true);
+        _isSessionActive = true;
+
         debugPrint(
-            "AudioHandler: Background audio session reinforced during completion");
+            "AudioHandler: Background audio session reinforced and reconfigured during completion");
       } catch (e) {
         debugPrint(
             "AudioHandler: Failed to reinforce background session during completion: $e");

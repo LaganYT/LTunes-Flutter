@@ -128,6 +128,8 @@ class TabView extends StatefulWidget {
 class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   Timer? _backgroundContinuityTimer;
+  Timer? _intensiveBackgroundTimer;
+  int _backgroundContinuityCount = 0;
 
   // Widget list is now built dynamically in the build method
   // static final List<Widget> _widgetOptions = <Widget>[
@@ -153,29 +155,49 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void _startBackgroundContinuityTimer() {
     if (!Platform.isIOS) return;
 
-    // Cancel existing timer if any
+    // Cancel existing timers if any
     _backgroundContinuityTimer?.cancel();
+    _intensiveBackgroundTimer?.cancel();
+    _backgroundContinuityCount = 0;
 
-    // Start a timer that periodically ensures background playback continuity
-    _backgroundContinuityTimer =
-        Timer.periodic(const Duration(seconds: 15), (timer) {
+    // Start an intensive timer for the first 2 minutes (most critical period)
+    // This is when audio session is most likely to become inactive after song transitions
+    _intensiveBackgroundTimer =
+        Timer.periodic(const Duration(seconds: 5), (timer) {
+      _backgroundContinuityCount++;
       _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+
+      // After 2 minutes (24 * 5 seconds), switch to less frequent monitoring
+      if (_backgroundContinuityCount >= 24) {
+        timer.cancel();
+        _intensiveBackgroundTimer = null;
+
+        // Start the regular timer (every 15 seconds)
+        _backgroundContinuityTimer =
+            Timer.periodic(const Duration(seconds: 15), (regularTimer) {
+          _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+        });
+
+        debugPrint(
+            "Main: Switched to regular background continuity timer (15s intervals)");
+      }
     });
 
-    // Also add a timer for audio session restoration
+    // Also add a timer for audio session restoration every 30 seconds
     Timer.periodic(const Duration(seconds: 30), (timer) {
       _audioHandler.customAction('restoreAudioSession', {});
     });
 
-    // Add a timer to detect and fix stuck local files
-    Timer.periodic(const Duration(seconds: 45), (timer) {
-      _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
-    });
+    debugPrint(
+        "Main: Started intensive background continuity timer for iOS background playback (5s intervals for first 2 minutes)");
   }
 
   void _stopBackgroundContinuityTimer() {
     _backgroundContinuityTimer?.cancel();
     _backgroundContinuityTimer = null;
+    _intensiveBackgroundTimer?.cancel();
+    _intensiveBackgroundTimer = null;
+    _backgroundContinuityCount = 0;
   }
 
   @override
