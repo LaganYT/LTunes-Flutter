@@ -139,7 +139,7 @@ class _BugReportDialogState extends State<BugReportDialog> {
                 decoration: BoxDecoration(
                   color: Theme.of(context)
                       .colorScheme
-                      .surfaceVariant
+                      .surfaceContainerHighest
                       .withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
