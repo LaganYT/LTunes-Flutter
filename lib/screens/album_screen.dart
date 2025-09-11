@@ -292,6 +292,12 @@ class _AlbumScreenState extends State<AlbumScreen>
     }
   }
 
+  void _toggleShuffleMode() async {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    await currentSongProvider.toggleShuffle();
+  }
+
   void _downloadAlbum() {
     final currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
@@ -1110,39 +1116,71 @@ class _AlbumScreenState extends State<AlbumScreen>
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  // Shuffle button
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color:
-                                            Colors.white.withValues(alpha: 0.3),
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.1),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: IconButton(
-                                      onPressed:
-                                          hasTracks ? _playAlbumShuffle : null,
-                                      icon: const Icon(Icons.shuffle,
-                                          size: 20, color: Colors.white),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: Colors.white
-                                            .withValues(alpha: 0.05),
-                                        padding: const EdgeInsets.all(12),
-                                        shape: RoundedRectangleBorder(
+                                  // Shuffle button with sync to queue shuffle state
+                                  Consumer<CurrentSongProvider>(
+                                    builder:
+                                        (context, currentSongProvider, child) {
+                                      final bool isShuffleActive =
+                                          currentSongProvider.isShuffling;
+                                      return Container(
+                                        decoration: BoxDecoration(
                                           borderRadius:
                                               BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: isShuffleActive
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withValues(alpha: 0.8)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.3),
+                                            width: 1.5,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: (isShuffleActive
+                                                      ? Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                      : Colors.white)
+                                                  .withValues(alpha: 0.1),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                    ),
+                                        child: IconButton(
+                                          onPressed: hasTracks
+                                              ? _toggleShuffleMode
+                                              : null,
+                                          icon: Icon(
+                                            isShuffleActive
+                                                ? Icons.shuffle
+                                                : Icons.shuffle_outlined,
+                                            size: 20,
+                                            color: isShuffleActive
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                : Colors.white,
+                                          ),
+                                          style: IconButton.styleFrom(
+                                            backgroundColor: isShuffleActive
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withValues(alpha: 0.1)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.05),
+                                            padding: const EdgeInsets.all(12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                   if (hasTracks) ...[
                                     const SizedBox(width: 12),
