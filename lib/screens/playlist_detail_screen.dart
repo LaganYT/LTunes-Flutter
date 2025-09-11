@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import '../services/api_service.dart'; // Import ApiService
-import 'song_detail_screen.dart';
+import 'song_detail_screen.dart'; // Import for AddToPlaylistDialog
 import '../widgets/playbar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -316,37 +316,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
                 // List<Song> updatedPlaylistSongs = List.from(widget.playlist.songs); // Use currentPlaylist
 
-                if (wasPlayingRemovedSong) {
-                  if (updatedPlaylistSongs.isEmpty) {
-                    currentSongProvider.setQueue([], initialIndex: 0);
-                  } else {
-                    int newPlayIndex = originalIndexInPlaylist;
-                    if (newPlayIndex >= updatedPlaylistSongs.length) {
-                      newPlayIndex = 0;
-                    }
-                    if (newPlayIndex < 0) newPlayIndex = 0;
-                    currentSongProvider.setQueue(updatedPlaylistSongs,
-                        initialIndex: newPlayIndex);
-                    currentSongProvider
-                        .playSong(updatedPlaylistSongs[newPlayIndex]);
-                  }
-                } else {
-                  Song? songThatWasPlaying = currentlyPlayingSong;
-                  int newIndexOfSongThatWasPlaying = -1;
-                  if (songThatWasPlaying != null) {
-                    // Use ID for matching
-                    newIndexOfSongThatWasPlaying = updatedPlaylistSongs
-                        .indexWhere((s) => s.id == songThatWasPlaying.id);
-                  }
-
-                  if (newIndexOfSongThatWasPlaying != -1) {
-                    currentSongProvider.setQueue(updatedPlaylistSongs,
-                        initialIndex: newIndexOfSongThatWasPlaying);
-                  } else {
-                    currentSongProvider.setQueue(updatedPlaylistSongs,
-                        initialIndex: 0);
-                  }
-                }
+                // Remove the song from the queue without triggering playback
+                currentSongProvider.processSongLibraryRemoval(songToRemove.id);
                 Navigator.of(dialogContext).pop(); // Close the dialog
               },
             ),
@@ -1215,22 +1186,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                           children: [
                             SlidableAction(
                               onPressed: (context) {
-                                currentSongProvider.addToQueue(song);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content:
-                                        Text('${song.title} added to queue'),
-                                    behavior: SnackBarBehavior.floating,
-                                    margin:
-                                        const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                                  ),
+                                showDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return AddToPlaylistDialog(song: song);
+                                  },
                                 );
                               },
                               backgroundColor:
                                   Theme.of(context).colorScheme.primary,
                               foregroundColor:
                                   Theme.of(context).colorScheme.onPrimary,
-                              icon: Icons.queue,
+                              icon: Icons.playlist_add,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             SlidableAction(
