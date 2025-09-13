@@ -10,6 +10,9 @@
 
 ## UI & Display Features
 - Before the artist name on a song show an explicit marker and a downloaded marker on the song lists
+- On library screen let the user hold on a song/playlist/album icon to show a menu with related options
+- Add an imported songs section under songs area
+- Allow users to export playlists
 
 ## Development & Infrastructure
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
