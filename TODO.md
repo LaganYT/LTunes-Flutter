@@ -20,3 +20,7 @@
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
 
 -- Test all audio features on phone --
+
+Add a way for it to handle the queue being long and preventing loading for a while
+
+When the app opens have it initialize an audio session
