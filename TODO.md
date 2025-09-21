@@ -26,3 +26,5 @@
 Add a way for it to handle the queue being long and preventing loading for a while
 
 When the app opens have it initialize an audio session
+
+For album individual songs don't show the album cover

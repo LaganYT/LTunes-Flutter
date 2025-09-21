@@ -565,7 +565,7 @@ class _AlbumScreenState extends State<AlbumScreen>
   }
 
   Widget _buildProminentAlbumArt(BuildContext context) {
-    // Consistent size with playlist prominent art
+    // Standard size for balanced layout
     final imageSize = 160.0;
 
     String imageUrl = '';
@@ -767,7 +767,8 @@ class _AlbumScreenState extends State<AlbumScreen>
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 390.0, // Adjusted to match playlist screen
+            expandedHeight:
+                420.0, // Adjusted for proper spacing without overflow
             pinned: true,
             stretch: true,
             // leading: IconButton for back button is implicitly handled by SliverAppBar
@@ -827,386 +828,287 @@ class _AlbumScreenState extends State<AlbumScreen>
                         .start, // Align content to the start (top) of the padded area
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Main album info card
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            width: 1,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                // Enhanced artwork with glow effect
-                                Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            Colors.white.withValues(alpha: 0.1),
-                                        blurRadius: 8,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                  child: _buildProminentAlbumArt(context),
+                      // Album content taking full area
+                      Column(
+                        children: [
+                          // Centered album artwork with enhanced styling
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  blurRadius: 12,
+                                  spreadRadius: 3,
                                 ),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      // Album name with better styling
-                                      Text(
-                                        widget.album.title,
-                                        style: const TextStyle(
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                          letterSpacing: -0.5,
-                                          shadows: [
-                                            Shadow(
-                                              blurRadius: 4,
-                                              color: Colors.black,
-                                              offset: Offset(0, 2),
-                                            )
-                                          ],
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      // Artist name with icon
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.person,
-                                            size: 16,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.8),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            widget.album.artistName,
-                                            style: TextStyle(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.9),
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w500,
-                                                shadows: const [
-                                                  Shadow(
-                                                      blurRadius: 2,
-                                                      color: Colors.black54)
-                                                ]),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      // Stats row with icons
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.queue_music,
-                                            size: 16,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.8),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '${widget.album.tracks.length} songs',
-                                            style: TextStyle(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.9),
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w500,
-                                                shadows: const [
-                                                  Shadow(
-                                                      blurRadius: 2,
-                                                      color: Colors.black54)
-                                                ]),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.access_time,
-                                            size: 16,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.8),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _formatDuration(
-                                                _calculateTotalDuration()),
-                                            style: TextStyle(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.8),
-                                                fontSize: 14,
-                                                shadows: const [
-                                                  Shadow(
-                                                      blurRadius: 1,
-                                                      color: Colors.black54)
-                                                ]),
-                                          ),
-                                        ],
-                                      ),
-                                      if (_areAllTracksDownloaded &&
-                                          hasTracks) ...[
-                                        const SizedBox(height: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                Colors.greenAccent
-                                                    .withValues(alpha: 0.3),
-                                                Colors.green
-                                                    .withValues(alpha: 0.2),
-                                              ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                            border: Border.all(
-                                              color: Colors.greenAccent
-                                                  .withValues(alpha: 0.5),
-                                              width: 1.5,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.greenAccent
-                                                    .withValues(alpha: 0.2),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.offline_pin,
-                                                  color: Colors.greenAccent,
-                                                  size: 16),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Downloaded',
-                                                style: TextStyle(
-                                                    color: Colors.greenAccent,
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w700,
-                                                    shadows: const [
-                                                      Shadow(
-                                                        blurRadius: 1,
-                                                        color: Colors.black54,
-                                                      ),
-                                                    ]),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 20,
+                                  spreadRadius: -5,
+                                  offset: const Offset(0, 8),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
-                            // Action buttons row - positioned inside the album card
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // Play All button
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: SizedBox(
+                                width: 160,
+                                height: 160,
+                                child: _buildProminentAlbumArt(context),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Album information in centered layout
+                          Column(
+                            children: [
+                              // Album name with better styling
+                              Text(
+                                widget.album.title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: -0.5,
+                                  shadows: [
+                                    Shadow(
+                                      blurRadius: 4,
+                                      color: Colors.black,
+                                      offset: Offset(0, 2),
+                                    )
+                                  ],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Artist name with icon
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.person,
+                                    size: 16,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    widget.album.artistName,
+                                    style: TextStyle(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.9),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      shadows: const [
+                                        Shadow(
+                                          blurRadius: 2,
+                                          color: Colors.black54,
+                                        )
+                                      ],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Stats row with icons
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Song count
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.queue_music,
+                                        size: 14,
+                                        color:
+                                            Colors.white.withValues(alpha: 0.8),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${widget.album.tracks.length} songs',
+                                        style: TextStyle(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.8),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          shadows: const [
+                                            Shadow(
+                                              blurRadius: 2,
+                                              color: Colors.black54,
+                                            )
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Duration
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 14,
+                                        color:
+                                            Colors.white.withValues(alpha: 0.8),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _formatDuration(
+                                            _calculateTotalDuration()),
+                                        style: TextStyle(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.8),
+                                          fontSize: 14,
+                                          shadows: const [
+                                            Shadow(
+                                              blurRadius: 1,
+                                              color: Colors.black54,
+                                            )
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+
+                              // Downloaded status badge
+                              if (_areAllTracksDownloaded && hasTracks) ...[
+                                const SizedBox(height: 12),
                                 Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        Theme.of(context).colorScheme.primary,
-                                        Theme.of(context)
-                                            .colorScheme
-                                            .primary
-                                            .withValues(alpha: 0.8),
+                                        Colors.greenAccent
+                                            .withValues(alpha: 0.3),
+                                        Colors.green.withValues(alpha: 0.2),
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
                                     borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.greenAccent
+                                          .withValues(alpha: 0.5),
+                                      width: 1.5,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary
-                                            .withValues(alpha: 0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 4),
+                                        color: Colors.greenAccent
+                                            .withValues(alpha: 0.2),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
                                       ),
                                     ],
                                   ),
-                                  child: IconButton(
-                                    onPressed: hasTracks ? _playAlbum : null,
-                                    icon: const Icon(Icons.play_arrow,
-                                        size: 20, color: Colors.white),
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      padding: const EdgeInsets.all(12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.offline_pin,
+                                        color: Colors.greenAccent,
+                                        size: 16,
                                       ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Downloaded',
+                                        style: TextStyle(
+                                          color: Colors.greenAccent,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          shadows: const [
+                                            Shadow(
+                                              blurRadius: 1,
+                                              color: Colors.black54,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          // Action buttons row - positioned inside the album card
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Play All button
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Theme.of(context).colorScheme.primary,
+                                      Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                          .withValues(alpha: 0.8),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                          .withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  onPressed: hasTracks ? _playAlbum : null,
+                                  icon: const Icon(Icons.play_arrow,
+                                      size: 20, color: Colors.white),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    padding: const EdgeInsets.all(12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                // Shuffle button with sync to queue shuffle state
-                                Consumer<CurrentSongProvider>(
-                                  builder:
-                                      (context, currentSongProvider, child) {
-                                    final bool isShuffleActive =
-                                        currentSongProvider.isShuffling;
-                                    return Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: isShuffleActive
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withValues(alpha: 0.8)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.3),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: (isShuffleActive
-                                                    ? Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                    : Colors.white)
-                                                .withValues(alpha: 0.1),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: IconButton(
-                                        onPressed: hasTracks
-                                            ? _toggleShuffleMode
-                                            : null,
-                                        icon: Icon(
-                                          isShuffleActive
-                                              ? Icons.shuffle
-                                              : Icons.shuffle_outlined,
-                                          size: 20,
-                                          color: isShuffleActive
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                              : Colors.white,
-                                        ),
-                                        style: IconButton.styleFrom(
-                                          backgroundColor: isShuffleActive
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withValues(alpha: 0.1)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.05),
-                                          padding: const EdgeInsets.all(12),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                if (hasTracks) ...[
-                                  const SizedBox(width: 12),
-                                  // Download/All Downloaded button
-                                  Container(
+                              ),
+                              const SizedBox(width: 12),
+                              // Shuffle button with sync to queue shuffle state
+                              Consumer<CurrentSongProvider>(
+                                builder: (context, currentSongProvider, child) {
+                                  final bool isShuffleActive =
+                                      currentSongProvider.isShuffling;
+                                  return Container(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: _areAllTracksDownloaded
-                                            ? Colors.red.withValues(alpha: 0.3)
-                                            : Colors.white
-                                                .withValues(alpha: 0.2),
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: (_areAllTracksDownloaded
-                                                  ? Colors.red
-                                                  : Colors.white)
-                                              .withValues(alpha: 0.1),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: IconButton(
-                                      onPressed: _areAllTracksDownloaded
-                                          ? _removeDownloadsFromAlbum
-                                          : _downloadAlbum,
-                                      icon: Icon(
-                                          _areAllTracksDownloaded
-                                              ? Icons.remove_circle
-                                              : Icons.download,
-                                          size: 20,
-                                          color: _areAllTracksDownloaded
-                                              ? Colors.red
-                                                  .withValues(alpha: 0.9)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.9)),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: _areAllTracksDownloaded
-                                            ? Colors.red.withValues(alpha: 0.1)
-                                            : Colors.white
-                                                .withValues(alpha: 0.05),
-                                        padding: const EdgeInsets.all(12),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  // Save/Remove button
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: _isSaved
+                                        color: isShuffleActive
                                             ? Theme.of(context)
                                                 .colorScheme
-                                                .error
-                                                .withValues(alpha: 0.3)
+                                                .primary
+                                                .withValues(alpha: 0.8)
                                             : Colors.white
-                                                .withValues(alpha: 0.2),
+                                                .withValues(alpha: 0.3),
                                         width: 1.5,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: (_isSaved
+                                          color: (isShuffleActive
                                                   ? Theme.of(context)
                                                       .colorScheme
-                                                      .error
+                                                      .primary
                                                   : Colors.white)
                                               .withValues(alpha: 0.1),
                                           blurRadius: 4,
@@ -1215,24 +1117,24 @@ class _AlbumScreenState extends State<AlbumScreen>
                                       ],
                                     ),
                                     child: IconButton(
-                                      onPressed: _toggleSaveAlbum,
+                                      onPressed:
+                                          hasTracks ? _toggleShuffleMode : null,
                                       icon: Icon(
-                                          _isSaved
-                                              ? Icons.bookmark_remove
-                                              : Icons.bookmark_add,
-                                          size: 20,
-                                          color: _isSaved
-                                              ? Theme.of(context)
-                                                  .colorScheme
-                                                  .error
-                                                  .withValues(alpha: 0.9)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.9)),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: _isSaved
+                                        isShuffleActive
+                                            ? Icons.shuffle
+                                            : Icons.shuffle_outlined,
+                                        size: 20,
+                                        color: isShuffleActive
                                             ? Theme.of(context)
                                                 .colorScheme
-                                                .error
+                                                .primary
+                                            : Colors.white,
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: isShuffleActive
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
                                                 .withValues(alpha: 0.1)
                                             : Colors.white
                                                 .withValues(alpha: 0.05),
@@ -1243,12 +1145,117 @@ class _AlbumScreenState extends State<AlbumScreen>
                                         ),
                                       ),
                                     ),
+                                  );
+                                },
+                              ),
+                              if (hasTracks) ...[
+                                const SizedBox(width: 12),
+                                // Download/All Downloaded button
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: _areAllTracksDownloaded
+                                          ? Colors.red.withValues(alpha: 0.3)
+                                          : Colors.white.withValues(alpha: 0.2),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (_areAllTracksDownloaded
+                                                ? Colors.red
+                                                : Colors.white)
+                                            .withValues(alpha: 0.1),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                  child: IconButton(
+                                    onPressed: _areAllTracksDownloaded
+                                        ? _removeDownloadsFromAlbum
+                                        : _downloadAlbum,
+                                    icon: Icon(
+                                        _areAllTracksDownloaded
+                                            ? Icons.remove_circle
+                                            : Icons.download,
+                                        size: 20,
+                                        color: _areAllTracksDownloaded
+                                            ? Colors.red.withValues(alpha: 0.9)
+                                            : Colors.white
+                                                .withValues(alpha: 0.9)),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: _areAllTracksDownloaded
+                                          ? Colors.red.withValues(alpha: 0.1)
+                                          : Colors.white
+                                              .withValues(alpha: 0.05),
+                                      padding: const EdgeInsets.all(12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Save/Remove button
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: _isSaved
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .error
+                                              .withValues(alpha: 0.3)
+                                          : Colors.white.withValues(alpha: 0.2),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (_isSaved
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .error
+                                                : Colors.white)
+                                            .withValues(alpha: 0.1),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: IconButton(
+                                    onPressed: _toggleSaveAlbum,
+                                    icon: Icon(
+                                        _isSaved
+                                            ? Icons.bookmark_remove
+                                            : Icons.bookmark_add,
+                                        size: 20,
+                                        color: _isSaved
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .error
+                                                .withValues(alpha: 0.9)
+                                            : Colors.white
+                                                .withValues(alpha: 0.9)),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: _isSaved
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .error
+                                              .withValues(alpha: 0.1)
+                                          : Colors.white
+                                              .withValues(alpha: 0.05),
+                                      padding: const EdgeInsets.all(12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
