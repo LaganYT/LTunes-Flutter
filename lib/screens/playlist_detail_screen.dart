@@ -712,7 +712,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           body: CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 420.0,
+                expandedHeight: 90.0, // Much smaller since artwork is moved
                 pinned: true,
                 stretch: true,
                 flexibleSpace: FlexibleSpaceBar(
@@ -756,381 +756,330 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     );
                   }),
                   centerTitle: true,
-                  titlePadding: const EdgeInsets.only(
-                      bottom: 16.0, left: 48.0, right: 48.0),
+                  titlePadding: const EdgeInsets.only(left: 48.0, right: 48.0),
                   background: Container(
                     color: Theme.of(context).colorScheme.surface,
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        top: systemTopPadding +
-                            kToolbarHeight +
-                            5, // Minimal space for status bar, app bar
-                        left: 16.0,
-                        right: 16.0,
-                        bottom:
-                            0.0, // No padding at the bottom of the content area
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment
-                            .start, // Align content to the start (top) of the padded area
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Playlist content taking full area
-                          Column(
-                            children: [
-                              // Centered playlist artwork with enhanced styling
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.15),
-                                      blurRadius: 12,
-                                      spreadRadius: 3,
-                                    ),
-                                    BoxShadow(
-                                      color:
-                                          Colors.black.withValues(alpha: 0.3),
-                                      blurRadius: 20,
-                                      spreadRadius: -5,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: SizedBox(
-                                    width: 160,
-                                    height: 160,
-                                    child: _buildProminentPlaylistArt(
-                                        uniqueAlbumArtUrls, 160.0),
-                                  ),
-                                ),
+                  ),
+                ),
+              ),
+              // Playlist details and action buttons - moved outside FlexibleSpaceBar
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                      left: 16.0, right: 16.0, bottom: 16.0),
+                  child: Column(
+                    children: [
+                      // Playlist artwork
+                      Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 12,
+                                spreadRadius: 2,
                               ),
-                              const SizedBox(height: 20),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 20,
+                                spreadRadius: -5,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: SizedBox(
+                              width: 200,
+                              height: 200,
+                              child: _buildProminentPlaylistArt(
+                                  uniqueAlbumArtUrls, 200.0),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      // Playlist information
+                      Column(
+                        children: [
+                          // Playlist name
+                          Text(
+                            currentPlaylist.name,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.onSurface,
+                              letterSpacing: -0.5,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 12),
 
-                              // Playlist information in centered layout
-                              Column(
+                          // Stats row with icons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Song count
+                              Row(
                                 children: [
-                                  // Playlist name with better styling
-                                  Text(
-                                    currentPlaylist.name,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                      letterSpacing: -0.5,
-                                      shadows: [
-                                        Shadow(
-                                          blurRadius: 4,
-                                          color: Colors.black,
-                                          offset: Offset(0, 2),
-                                        )
-                                      ],
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                  Icon(
+                                    Icons.queue_music,
+                                    size: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
                                   ),
-                                  const SizedBox(height: 12),
-
-                                  // Stats row with icons
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      // Song count
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.queue_music,
-                                            size: 14,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.8),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '${currentPlaylist.songs.length} songs',
-                                            style: TextStyle(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.8),
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              shadows: const [
-                                                Shadow(
-                                                  blurRadius: 2,
-                                                  color: Colors.black54,
-                                                )
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 16),
-                                      // Duration
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.access_time,
-                                            size: 14,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.8),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _calculateAndFormatPlaylistDuration(
-                                                currentPlaylist),
-                                            style: TextStyle(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.8),
-                                              fontSize: 14,
-                                              shadows: const [
-                                                Shadow(
-                                                  blurRadius: 1,
-                                                  color: Colors.black54,
-                                                )
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${currentPlaylist.songs.length} songs',
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.7),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 24),
-                              // Action buttons row - positioned inside the playlist card
+                              const SizedBox(width: 16),
+                              // Duration
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Play All button
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Theme.of(context).colorScheme.primary,
-                                          Theme.of(context)
-                                              .colorScheme
-                                              .primary
-                                              .withValues(alpha: 0.8),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary
-                                              .withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: IconButton(
-                                      onPressed: hasSongs
-                                          ? () async {
-                                              await currentSongProvider
-                                                  .playAllWithContext(
-                                                      currentPlaylist.songs);
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const FullScreenPlayer()),
-                                              );
-                                            }
-                                          : null,
-                                      icon: const Icon(Icons.play_arrow,
-                                          size: 20, color: Colors.white),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        padding: const EdgeInsets.all(12),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                      ),
+                                  Icon(
+                                    Icons.access_time,
+                                    size: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _calculateAndFormatPlaylistDuration(
+                                        currentPlaylist),
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.7),
+                                      fontSize: 14,
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  // Shuffle button with sync to queue shuffle state
-                                  Consumer<CurrentSongProvider>(
-                                    builder: (context, songProvider, child) {
-                                      final bool isShuffleActive =
-                                          songProvider.isShuffling;
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                            color: isShuffleActive
-                                                ? Theme.of(context)
-                                                    .colorScheme
-                                                    .primary
-                                                    .withValues(alpha: 0.8)
-                                                : Colors.white
-                                                    .withValues(alpha: 0.3),
-                                            width: 1.5,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: (isShuffleActive
-                                                      ? Theme.of(context)
-                                                          .colorScheme
-                                                          .primary
-                                                      : Colors.white)
-                                                  .withValues(alpha: 0.1),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: IconButton(
-                                          onPressed: hasSongs
-                                              ? _toggleShuffleMode
-                                              : null,
-                                          icon: Icon(
-                                            isShuffleActive
-                                                ? Icons.shuffle
-                                                : Icons.shuffle_outlined,
-                                            size: 20,
-                                            color: isShuffleActive
-                                                ? Theme.of(context)
-                                                    .colorScheme
-                                                    .primary
-                                                : Colors.white,
-                                          ),
-                                          style: IconButton.styleFrom(
-                                            backgroundColor: isShuffleActive
-                                                ? Theme.of(context)
-                                                    .colorScheme
-                                                    .primary
-                                                    .withValues(alpha: 0.1)
-                                                : Colors.white
-                                                    .withValues(alpha: 0.05),
-                                            padding: const EdgeInsets.all(12),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  if (hasSongs) ...[
-                                    const SizedBox(width: 12),
-                                    // Download/Remove Downloads button
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: isFullyDownloaded
-                                              ? Colors.red
-                                                  .withValues(alpha: 0.3)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.2),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: (isFullyDownloaded
-                                                    ? Colors.red
-                                                    : Colors.white)
-                                                .withValues(alpha: 0.1),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: IconButton(
-                                        onPressed: isFullyDownloaded
-                                            ? () =>
-                                                _removeDownloadsFromPlaylist(
-                                                    currentPlaylist)
-                                            : () => _downloadAllSongs(
-                                                currentPlaylist),
-                                        icon: Icon(
-                                            isFullyDownloaded
-                                                ? Icons.remove_circle
-                                                : Icons.download,
-                                            size: 20,
-                                            color: isFullyDownloaded
-                                                ? Colors.red
-                                                    .withValues(alpha: 0.9)
-                                                : Colors.white
-                                                    .withValues(alpha: 0.9)),
-                                        style: IconButton.styleFrom(
-                                          backgroundColor: isFullyDownloaded
-                                              ? Colors.red
-                                                  .withValues(alpha: 0.1)
-                                              : Colors.white
-                                                  .withValues(alpha: 0.05),
-                                          padding: const EdgeInsets.all(12),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Delete Playlist button
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .error
-                                              .withValues(alpha: 0.3),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .error
-                                                .withValues(alpha: 0.1),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: IconButton(
-                                        onPressed: () =>
-                                            _showDeletePlaylistDialog(
-                                                currentPlaylist),
-                                        icon: Icon(Icons.playlist_remove,
-                                            size: 20,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .error
-                                                .withValues(alpha: 0.9)),
-                                        style: IconButton.styleFrom(
-                                          backgroundColor: Theme.of(context)
-                                              .colorScheme
-                                              .error
-                                              .withValues(alpha: 0.1),
-                                          padding: const EdgeInsets.all(12),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ],
                               ),
                             ],
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 32),
+                      // Action buttons row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Play All button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: hasSongs
+                                  ? () async {
+                                      await currentSongProvider
+                                          .playAllWithContext(
+                                              currentPlaylist.songs);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const FullScreenPlayer()),
+                                      );
+                                    }
+                                  : null,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Theme.of(context).colorScheme.primary,
+                                      Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                          .withValues(alpha: 0.8),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                          .withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Icon(Icons.play_arrow,
+                                      size: 20, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Shuffle button with sync to queue shuffle state
+                          Consumer<CurrentSongProvider>(
+                            builder: (context, songProvider, child) {
+                              final bool isShuffleActive =
+                                  songProvider.isShuffling;
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(20),
+                                  onTap: hasSongs ? _toggleShuffleMode : null,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: isShuffleActive
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                                .withValues(alpha: 0.8)
+                                            : Colors.white
+                                                .withValues(alpha: 0.3),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (isShuffleActive
+                                                  ? Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                  : Colors.white)
+                                              .withValues(alpha: 0.1),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Icon(
+                                        isShuffleActive
+                                            ? Icons.shuffle
+                                            : Icons.shuffle_outlined,
+                                        size: 20,
+                                        color: isShuffleActive
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          if (hasSongs) ...[
+                            const SizedBox(width: 12),
+                            // Download/Remove Downloads button
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: isFullyDownloaded
+                                    ? () => _removeDownloadsFromPlaylist(
+                                        currentPlaylist)
+                                    : () => _downloadAllSongs(currentPlaylist),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isFullyDownloaded
+                                          ? Colors.red.withValues(alpha: 0.3)
+                                          : Colors.white.withValues(alpha: 0.2),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (isFullyDownloaded
+                                                ? Colors.red
+                                                : Colors.white)
+                                            .withValues(alpha: 0.1),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Icon(
+                                        isFullyDownloaded
+                                            ? Icons.remove_circle
+                                            : Icons.download,
+                                        size: 20,
+                                        color: isFullyDownloaded
+                                            ? Colors.red.withValues(alpha: 0.9)
+                                            : Colors.white
+                                                .withValues(alpha: 0.9)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Delete Playlist button
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () =>
+                                    _showDeletePlaylistDialog(currentPlaylist),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .error
+                                          .withValues(alpha: 0.3),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .error
+                                            .withValues(alpha: 0.1),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Icon(Icons.playlist_remove,
+                                        size: 20,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .error
+                                            .withValues(alpha: 0.9)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),

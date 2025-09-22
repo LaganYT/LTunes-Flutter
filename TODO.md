@@ -23,6 +23,7 @@
 
 -- Test all audio features on phone --
 
-Add a way for it to handle the queue being long and preventing loading for a while
-
 When the app opens have it initialize an audio session
+
+Fix the add to playlist dialog not working a lot of the time
+Make the height of the navbar shorter and make the navbar everywhere the playbar is
