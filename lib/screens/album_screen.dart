@@ -1347,70 +1347,21 @@ class _AlbumScreenState extends State<AlbumScreen>
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16.0, vertical: 8.0),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              width: 50,
-                              height: 50,
-                              color: Colors.grey[700],
-                              child: track.albumArtUrl.isNotEmpty
-                                  ? track.albumArtUrl.startsWith('http')
-                                      ? Image.network(
-                                          track.albumArtUrl,
-                                          width: 50,
-                                          height: 50,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  Icon(
-                                            Icons.music_note,
-                                            size: 30,
-                                            color: Colors.white70,
-                                          ),
-                                        )
-                                      : FutureBuilder<String>(
-                                          future: () async {
-                                            final directory =
-                                                await getApplicationDocumentsDirectory();
-                                            final fileName =
-                                                p.basename(track.albumArtUrl);
-                                            final fullPath = p.join(
-                                                directory.path, fileName);
-                                            return await File(fullPath).exists()
-                                                ? fullPath
-                                                : '';
-                                          }(),
-                                          builder: (context, snapshot) {
-                                            if (snapshot.connectionState ==
-                                                    ConnectionState.done &&
-                                                snapshot.hasData &&
-                                                snapshot.data!.isNotEmpty) {
-                                              return Image.file(
-                                                File(snapshot.data!),
-                                                width: 50,
-                                                height: 50,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error,
-                                                        stackTrace) =>
-                                                    Icon(
-                                                  Icons.music_note,
-                                                  size: 30,
-                                                  color: Colors.white70,
-                                                ),
-                                              );
-                                            }
-                                            return Icon(
-                                              Icons.music_note,
-                                              size: 30,
-                                              color: Colors.white70,
-                                            );
-                                          },
-                                        )
-                                  : Icon(
-                                      Icons.music_note,
-                                      size: 30,
-                                      color: Colors.white70,
-                                    ),
+                          leading: Container(
+                            width: 50,
+                            height: 50,
+                            child: Center(
+                              child: Text(
+                                '${_filteredTracks.indexOf(track) + 1}',
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.6),
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 14,
+                                ),
+                              ),
                             ),
                           ),
                           title: Text(
