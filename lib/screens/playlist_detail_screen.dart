@@ -36,6 +36,34 @@ class PlaylistDetailScreen extends StatefulWidget {
 class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   final PlaylistManagerService _playlistManager = PlaylistManagerService();
 
+  // Helper function to safely create TextStyle with valid fontSize
+  TextStyle _safeTextStyle(
+    TextStyle? baseStyle, {
+    Color? color,
+    FontWeight? fontWeight,
+    List<Shadow>? shadows,
+    double? fallbackFontSize,
+  }) {
+    // Check if base style has valid fontSize
+    if (baseStyle != null &&
+        baseStyle.fontSize != null &&
+        baseStyle.fontSize!.isFinite) {
+      return baseStyle.copyWith(
+        color: color,
+        fontWeight: fontWeight,
+        shadows: shadows,
+      );
+    }
+
+    // Use fallback with safe fontSize
+    return TextStyle(
+      color: color,
+      fontWeight: fontWeight,
+      shadows: shadows,
+      fontSize: fallbackFontSize ?? 16.0,
+    );
+  }
+
   // Cache Future objects to prevent art flashing
   final Map<String, Future<String>> _localArtFutureCache =
       {}; // For deleting playlist
@@ -684,7 +712,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           body: CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 360.0,
+                expandedHeight: 420.0,
                 pinned: true,
                 stretch: true,
                 flexibleSpace: FlexibleSpaceBar(
@@ -692,47 +720,36 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     final settings = context.dependOnInheritedWidgetOfExactType<
                         FlexibleSpaceBarSettings>();
                     if (settings == null) return const SizedBox.shrink();
-
-                    // Calculate how "collapsed" the bar is.
-                    // currentExtent goes from maxExtent down to minExtent.
-                    // We want the title to appear when currentExtent is very close to minExtent.
-                    // Calculate opacity for title fade-in, safely guarding division by zero
                     final double delta =
                         settings.maxExtent - settings.minExtent;
                     final double collapseThreshold = delta * 0.1;
-                    final double extentDelta =
-                        settings.currentExtent - settings.minExtent;
-                    double opacity;
-                    if (collapseThreshold > 0) {
-                      // Fade in when within threshold of collapse
-                      opacity = extentDelta < collapseThreshold
-                          ? (1.0 - (extentDelta / collapseThreshold))
-                              .clamp(0.0, 1.0)
-                          : 0.0;
-                    } else {
-                      // If no scroll range, show only when fully collapsed
-                      opacity = (settings.currentExtent == settings.minExtent)
-                          ? 1.0
-                          : 0.0;
+                    double opacity = 0.0;
+                    if (delta > 0) {
+                      if ((settings.currentExtent - settings.minExtent) <
+                          collapseThreshold) {
+                        opacity = 1.0 -
+                            ((settings.currentExtent - settings.minExtent) /
+                                collapseThreshold);
+                        opacity = opacity.clamp(0.0, 1.0);
+                      }
+                    } else if (settings.currentExtent == settings.minExtent) {
+                      opacity = 1.0;
                     }
-
+                    final theme = Theme.of(context);
+                    final textTheme = theme.textTheme;
                     return Opacity(
                       opacity: opacity,
                       child: Text(
-                        currentPlaylist.name, // Use currentPlaylist
-                        style: const TextStyle(
-                          fontSize: 16.0,
-                          color: Colors
-                              .white, // Ensure text color is set for visibility
-                          shadows: [
-                            // Optional: add a slight shadow for better readability
-                            Shadow(
-                              blurRadius: 1.0,
-                              color: Colors.black54,
-                              offset: Offset(0.5, 0.5),
-                            ),
-                          ],
-                        ),
+                        currentPlaylist.name,
+                        style: _safeTextStyle(textTheme.headlineSmall,
+                            color: Colors.white,
+                            shadows: const [
+                              Shadow(
+                                  blurRadius: 1.0,
+                                  color: Colors.black54,
+                                  offset: Offset(0.5, 0.5))
+                            ],
+                            fallbackFontSize: 16.0),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -741,244 +758,320 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   centerTitle: true,
                   titlePadding: const EdgeInsets.only(
                       bottom: 16.0, left: 48.0, right: 48.0),
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      flexibleSpaceBackground,
-                      Positioned.fill(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-                          child: Container(
-                            color: Colors.black.withValues(alpha: 0.6),
-                          ),
-                        ),
+                  background: Container(
+                    color: Theme.of(context).colorScheme.surface,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        top: systemTopPadding +
+                            kToolbarHeight +
+                            5, // Minimal space for status bar, app bar
+                        left: 16.0,
+                        right: 16.0,
+                        bottom:
+                            0.0, // No padding at the bottom of the content area
                       ),
-                      // Use Padding to position the content column correctly
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: systemTopPadding +
-                              kToolbarHeight +
-                              5, // Minimal space for status bar, app bar
-                          left: 16.0,
-                          right: 16.0,
-                          bottom:
-                              0.0, // No padding at the bottom of the content area
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment
-                              .start, // Align content to the start (top) of the padded area
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Main playlist info card
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.3),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  width: 1,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment
+                            .start, // Align content to the start (top) of the padded area
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Playlist content taking full area
+                          Column(
+                            children: [
+                              // Centered playlist artwork with enhanced styling
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.15),
+                                      blurRadius: 12,
+                                      spreadRadius: 3,
+                                    ),
+                                    BoxShadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.3),
+                                      blurRadius: 20,
+                                      spreadRadius: -5,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: SizedBox(
+                                    width: 160,
+                                    height: 160,
+                                    child: _buildProminentPlaylistArt(
+                                        uniqueAlbumArtUrls, 160.0),
+                                  ),
                                 ),
                               ),
-                              child: Column(
+                              const SizedBox(height: 20),
+
+                              // Playlist information in centered layout
+                              Column(
                                 children: [
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      // Enhanced artwork with glow effect
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.1),
-                                              blurRadius: 8,
-                                              spreadRadius: 2,
-                                            ),
-                                          ],
-                                        ),
-                                        child: _buildProminentPlaylistArt(
-                                            uniqueAlbumArtUrls,
-                                            prominentArtSize),
-                                      ),
-                                      const SizedBox(width: 20),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            // Playlist name with better styling
-                                            Text(
-                                              currentPlaylist.name,
-                                              style: const TextStyle(
-                                                fontSize: 26,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
-                                                letterSpacing: -0.5,
-                                                shadows: [
-                                                  Shadow(
-                                                    blurRadius: 4,
-                                                    color: Colors.black,
-                                                    offset: Offset(0, 2),
-                                                  )
-                                                ],
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 12),
-                                            // Stats row with icons
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.queue_music,
-                                                  size: 16,
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.8),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  '${currentPlaylist.songs.length} songs',
-                                                  style: TextStyle(
-                                                      color: Colors.white
-                                                          .withValues(
-                                                              alpha: 0.9),
-                                                      fontSize: 15,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      shadows: const [
-                                                        Shadow(
-                                                            blurRadius: 2,
-                                                            color:
-                                                                Colors.black54)
-                                                      ]),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.access_time,
-                                                  size: 16,
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.8),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  _calculateAndFormatPlaylistDuration(
-                                                      currentPlaylist),
-                                                  style: TextStyle(
-                                                      color: Colors.white
-                                                          .withValues(
-                                                              alpha: 0.8),
-                                                      fontSize: 14,
-                                                      shadows: const [
-                                                        Shadow(
-                                                            blurRadius: 1,
-                                                            color:
-                                                                Colors.black54)
-                                                      ]),
-                                                ),
-                                              ],
-                                            ),
-                                            if (isFullyDownloaded &&
-                                                hasSongs) ...[
-                                              const SizedBox(height: 8),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.greenAccent
-                                                      .withValues(alpha: 0.2),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                  border: Border.all(
-                                                    color: Colors.greenAccent
-                                                        .withValues(alpha: 0.3),
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(Icons.offline_pin,
-                                                        color:
-                                                            Colors.greenAccent,
-                                                        size: 14),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      'Downloaded',
-                                                      style: TextStyle(
-                                                          color: Colors
-                                                              .greenAccent,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                  // Playlist name with better styling
+                                  Text(
+                                    currentPlaylist.name,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      letterSpacing: -0.5,
+                                      shadows: [
+                                        Shadow(
+                                          blurRadius: 4,
+                                          color: Colors.black,
+                                          offset: Offset(0, 2),
+                                        )
+                                      ],
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 16),
-                                  // Action buttons row - positioned inside the playlist card
+                                  const SizedBox(height: 12),
+
+                                  // Stats row with icons
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      // Play All button
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withValues(alpha: 0.8),
-                                            ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
+                                      // Song count
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.queue_music,
+                                            size: 14,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.8),
                                           ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${currentPlaylist.songs.length} songs',
+                                            style: TextStyle(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.8),
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              shadows: const [
+                                                Shadow(
+                                                  blurRadius: 2,
+                                                  color: Colors.black54,
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Duration
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.access_time,
+                                            size: 14,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.8),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _calculateAndFormatPlaylistDuration(
+                                                currentPlaylist),
+                                            style: TextStyle(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.8),
+                                              fontSize: 14,
+                                              shadows: const [
+                                                Shadow(
+                                                  blurRadius: 1,
+                                                  color: Colors.black54,
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Downloaded status badge
+                                  if (isFullyDownloaded && hasSongs) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.greenAccent
+                                                .withValues(alpha: 0.3),
+                                            Colors.green.withValues(alpha: 0.2),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: Colors.greenAccent
+                                              .withValues(alpha: 0.5),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.greenAccent
+                                                .withValues(alpha: 0.2),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.offline_pin,
+                                            color: Colors.greenAccent,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Downloaded',
+                                            style: TextStyle(
+                                              color: Colors.greenAccent,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              shadows: const [
+                                                Shadow(
+                                                  blurRadius: 1,
+                                                  color: Colors.black54,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              // Action buttons row - positioned inside the playlist card
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Play All button
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Theme.of(context).colorScheme.primary,
+                                          Theme.of(context)
+                                              .colorScheme
+                                              .primary
+                                              .withValues(alpha: 0.8),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary
+                                              .withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: IconButton(
+                                      onPressed: hasSongs
+                                          ? () async {
+                                              await currentSongProvider
+                                                  .playAllWithContext(
+                                                      currentPlaylist.songs);
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        const FullScreenPlayer()),
+                                              );
+                                            }
+                                          : null,
+                                      icon: const Icon(Icons.play_arrow,
+                                          size: 20, color: Colors.white),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        padding: const EdgeInsets.all(12),
+                                        shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(20),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Shuffle button with sync to queue shuffle state
+                                  Consumer<CurrentSongProvider>(
+                                    builder: (context, songProvider, child) {
+                                      final bool isShuffleActive =
+                                          songProvider.isShuffling;
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: isShuffleActive
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withValues(alpha: 0.8)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.3),
+                                            width: 1.5,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withValues(alpha: 0.3),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 4),
+                                              color: (isShuffleActive
+                                                      ? Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                      : Colors.white)
+                                                  .withValues(alpha: 0.1),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
                                             ),
                                           ],
                                         ),
                                         child: IconButton(
                                           onPressed: hasSongs
-                                              ? () async {
-                                                  await currentSongProvider
-                                                      .playAllWithContext(
-                                                          currentPlaylist
-                                                              .songs);
-                                                }
+                                              ? _toggleShuffleMode
                                               : null,
-                                          icon: const Icon(Icons.play_arrow,
-                                              size: 20, color: Colors.white),
+                                          icon: Icon(
+                                            isShuffleActive
+                                                ? Icons.shuffle
+                                                : Icons.shuffle_outlined,
+                                            size: 20,
+                                            color: isShuffleActive
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                : Colors.white,
+                                          ),
                                           style: IconButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
+                                            backgroundColor: isShuffleActive
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withValues(alpha: 0.1)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.05),
                                             padding: const EdgeInsets.all(12),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
@@ -986,230 +1079,139 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      // Shuffle button with sync to queue shuffle state
-                                      Consumer<CurrentSongProvider>(
-                                        builder:
-                                            (context, songProvider, child) {
-                                          final bool isShuffleActive =
-                                              songProvider.isShuffling;
-                                          return Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: isShuffleActive
-                                                    ? Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                        .withValues(alpha: 0.8)
-                                                    : Colors.white
-                                                        .withValues(alpha: 0.3),
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: (isShuffleActive
-                                                          ? Theme.of(context)
-                                                              .colorScheme
-                                                              .primary
-                                                          : Colors.white)
-                                                      .withValues(alpha: 0.1),
-                                                  blurRadius: 4,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: IconButton(
-                                              onPressed: hasSongs
-                                                  ? _toggleShuffleMode
-                                                  : null,
-                                              icon: Icon(
-                                                isShuffleActive
-                                                    ? Icons.shuffle
-                                                    : Icons.shuffle_outlined,
-                                                size: 20,
-                                                color: isShuffleActive
-                                                    ? Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                    : Colors.white,
-                                              ),
-                                              style: IconButton.styleFrom(
-                                                backgroundColor: isShuffleActive
-                                                    ? Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                        .withValues(alpha: 0.1)
-                                                    : Colors.white.withValues(
-                                                        alpha: 0.05),
-                                                padding:
-                                                    const EdgeInsets.all(12),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                      if (hasSongs) ...[
-                                        const SizedBox(width: 12),
-                                        // Download/Remove Downloads button
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                            border: Border.all(
-                                              color: isFullyDownloaded
-                                                  ? Colors.red
-                                                      .withValues(alpha: 0.3)
-                                                  : Colors.white
-                                                      .withValues(alpha: 0.2),
-                                              width: 1.5,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: (isFullyDownloaded
-                                                        ? Colors.red
-                                                        : Colors.white)
-                                                    .withValues(alpha: 0.1),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: IconButton(
-                                            onPressed: isFullyDownloaded
-                                                ? () =>
-                                                    _removeDownloadsFromPlaylist(
-                                                        currentPlaylist)
-                                                : () => _downloadAllSongs(
-                                                    currentPlaylist),
-                                            icon: Icon(
-                                                isFullyDownloaded
-                                                    ? Icons.remove_circle
-                                                    : Icons.download,
-                                                size: 20,
-                                                color: isFullyDownloaded
-                                                    ? Colors.red
-                                                        .withValues(alpha: 0.9)
-                                                    : Colors.white.withValues(
-                                                        alpha: 0.9)),
-                                            style: IconButton.styleFrom(
-                                              backgroundColor: isFullyDownloaded
-                                                  ? Colors.red
-                                                      .withValues(alpha: 0.1)
-                                                  : Colors.white
-                                                      .withValues(alpha: 0.05),
-                                              padding: const EdgeInsets.all(12),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        // Delete Playlist button
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                            border: Border.all(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .error
-                                                  .withValues(alpha: 0.3),
-                                              width: 1.5,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .error
-                                                    .withValues(alpha: 0.1),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: IconButton(
-                                            onPressed: () =>
-                                                _showDeletePlaylistDialog(
-                                                    currentPlaylist),
-                                            icon: Icon(Icons.playlist_remove,
-                                                size: 20,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .error
-                                                    .withValues(alpha: 0.9)),
-                                            style: IconButton.styleFrom(
-                                              backgroundColor: Theme.of(context)
-                                                  .colorScheme
-                                                  .error
-                                                  .withValues(alpha: 0.1),
-                                              padding: const EdgeInsets.all(12),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
+                                      );
+                                    },
                                   ),
+                                  if (hasSongs) ...[
+                                    const SizedBox(width: 12),
+                                    // Download/Remove Downloads button
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: isFullyDownloaded
+                                              ? Colors.red
+                                                  .withValues(alpha: 0.3)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.2),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (isFullyDownloaded
+                                                    ? Colors.red
+                                                    : Colors.white)
+                                                .withValues(alpha: 0.1),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: IconButton(
+                                        onPressed: isFullyDownloaded
+                                            ? () =>
+                                                _removeDownloadsFromPlaylist(
+                                                    currentPlaylist)
+                                            : () => _downloadAllSongs(
+                                                currentPlaylist),
+                                        icon: Icon(
+                                            isFullyDownloaded
+                                                ? Icons.remove_circle
+                                                : Icons.download,
+                                            size: 20,
+                                            color: isFullyDownloaded
+                                                ? Colors.red
+                                                    .withValues(alpha: 0.9)
+                                                : Colors.white
+                                                    .withValues(alpha: 0.9)),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: isFullyDownloaded
+                                              ? Colors.red
+                                                  .withValues(alpha: 0.1)
+                                              : Colors.white
+                                                  .withValues(alpha: 0.05),
+                                          padding: const EdgeInsets.all(12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Delete Playlist button
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error
+                                              .withValues(alpha: 0.3),
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error
+                                                .withValues(alpha: 0.1),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: IconButton(
+                                        onPressed: () =>
+                                            _showDeletePlaylistDialog(
+                                                currentPlaylist),
+                                        icon: Icon(Icons.playlist_remove,
+                                            size: 20,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .error
+                                                .withValues(alpha: 0.9)),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: Theme.of(context)
+                                              .colorScheme
+                                              .error
+                                              .withValues(alpha: 0.1),
+                                          padding: const EdgeInsets.all(12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-              if (!hasSongs)
-                SliverFillRemaining(
-                  // Use SliverFillRemaining for empty state
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              if (hasSongs) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                        left: 16.0, right: 16.0, top: 24.0, bottom: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(Icons.music_off_outlined,
-                            size: 60,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
-                        const SizedBox(height: 16),
-                        Text(
-                          'This playlist is empty.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Add some songs from your library.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant),
-                        ),
+                        Text('Songs',
+                            style: _safeTextStyle(
+                                Theme.of(context).textTheme.titleLarge,
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fallbackFontSize: 22.0)),
                       ],
                     ),
                   ),
-                )
-              else
+                ),
                 SliverReorderableList(
                   itemBuilder: (context, index) {
                     final song =
@@ -1265,7 +1267,70 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 horizontal: 16.0, vertical: 8.0),
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: listItemLeading,
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                color: Colors.grey[700],
+                                child: song.albumArtUrl.isNotEmpty
+                                    ? song.albumArtUrl.startsWith('http')
+                                        ? Image.network(
+                                            song.albumArtUrl,
+                                            width: 50,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    Icon(
+                                              Icons.music_note,
+                                              size: 30,
+                                              color: Colors.white70,
+                                            ),
+                                          )
+                                        : FutureBuilder<String>(
+                                            future: () async {
+                                              final directory =
+                                                  await getApplicationDocumentsDirectory();
+                                              final fileName =
+                                                  p.basename(song.albumArtUrl);
+                                              final fullPath = p.join(
+                                                  directory.path, fileName);
+                                              return await File(fullPath)
+                                                      .exists()
+                                                  ? fullPath
+                                                  : '';
+                                            }(),
+                                            builder: (context, snapshot) {
+                                              if (snapshot.connectionState ==
+                                                      ConnectionState.done &&
+                                                  snapshot.hasData &&
+                                                  snapshot.data!.isNotEmpty) {
+                                                return Image.file(
+                                                  File(snapshot.data!),
+                                                  width: 50,
+                                                  height: 50,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error,
+                                                          stackTrace) =>
+                                                      Icon(
+                                                    Icons.music_note,
+                                                    size: 30,
+                                                    color: Colors.white70,
+                                                  ),
+                                                );
+                                              }
+                                              return Icon(
+                                                Icons.music_note,
+                                                size: 30,
+                                                color: Colors.white70,
+                                              );
+                                            },
+                                          )
+                                    : Icon(
+                                        Icons.music_note,
+                                        size: 30,
+                                        color: Colors.white70,
+                                      ),
+                              ),
                             ),
                             title: Text(
                               song.title,
@@ -1291,6 +1356,17 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                Text(
+                                  song.duration != null
+                                      ? '${song.duration!.inMinutes}:${(song.duration!.inSeconds % 60).toString().padLeft(2, '0')}'
+                                      : '-:--',
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.5)),
+                                ),
+                                const SizedBox(width: 8),
                                 Icon(Icons.drag_handle,
                                     color: Theme.of(context)
                                         .colorScheme
@@ -1301,6 +1377,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             onTap: () async {
                               await currentSongProvider.smartPlayWithContext(
                                   currentPlaylist.songs, song);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        const FullScreenPlayer()),
+                              );
                             },
                           ),
                         ),
@@ -1397,6 +1479,41 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     });
                   },
                 ),
+              ] else ...[
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.music_off_outlined,
+                            size: 60,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
+                        const SizedBox(height: 16),
+                        Text(
+                          'This playlist is empty.',
+                          style: _safeTextStyle(
+                              Theme.of(context).textTheme.titleMedium,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              fallbackFontSize: 16.0),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add some songs from your library.',
+                          style: _safeTextStyle(
+                              Theme.of(context).textTheme.bodyMedium,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              fallbackFontSize: 14.0),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              ],
             ],
           ),
           bottomNavigationBar: const Padding(
