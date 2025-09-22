@@ -977,67 +977,6 @@ class _AlbumScreenState extends State<AlbumScreen>
                                   ),
                                 ],
                               ),
-
-                              // Downloaded status badge
-                              if (_areAllTracksDownloaded && hasTracks) ...[
-                                const SizedBox(height: 12),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.greenAccent
-                                            .withValues(alpha: 0.3),
-                                        Colors.green.withValues(alpha: 0.2),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.greenAccent
-                                          .withValues(alpha: 0.5),
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.greenAccent
-                                            .withValues(alpha: 0.2),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.offline_pin,
-                                        color: Colors.greenAccent,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Downloaded',
-                                        style: TextStyle(
-                                          color: Colors.greenAccent,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          shadows: const [
-                                            Shadow(
-                                              blurRadius: 1,
-                                              color: Colors.black54,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                           const SizedBox(height: 24),
