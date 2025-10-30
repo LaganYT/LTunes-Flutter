@@ -27,4 +27,4 @@
 
 -- Test all audio features on phone --
 
-When the app opens have it initialize an audio session
+When on ios and the app is in the background and you skip a song it ends the audio session, fix this.
