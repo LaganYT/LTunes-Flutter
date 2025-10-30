@@ -772,7 +772,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         if (mounted) setState(() {});
       },
       onTimerExpired: () {
-        if (context.mounted) {
+        if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text('Sleep timer expired. Playback stopped.')),

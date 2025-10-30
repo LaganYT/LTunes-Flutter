@@ -21,9 +21,14 @@
 ## Development & Infrastructure
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
 
--- Test all audio features on phone --
+-- Test all audio features on phone -- ✅
 
-When the app opens have it initialize an audio session
+When the app opens have it initialize an audio session ✅
 
-Fix the add to playlist dialog not working a lot of the time
-Make the height of the navbar shorter and make the navbar everywhere the playbar is
+Fix the add to playlist dialog not working a lot of the time ✅
+Make the height of the navbar shorter and make the navbar everywhere the playbar is ✅
+
+## Bug Fixes Completed
+- Fixed memory leak in background continuity timer (session restoration timer not being cancelled)
+- Fixed inconsistent mounted checks in full screen player sleep timer callbacks
+- Added proper timer management for iOS background playback continuity

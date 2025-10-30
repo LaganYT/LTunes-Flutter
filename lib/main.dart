@@ -130,6 +130,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   Timer? _backgroundContinuityTimer;
   Timer? _intensiveBackgroundTimer;
   int _backgroundContinuityCount = 0;
+  Timer? _sessionRestorationTimer;
 
   // Widget list is now built dynamically in the build method
   // static final List<Widget> _widgetOptions = <Widget>[
@@ -187,7 +188,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     });
 
     // Also add a timer for audio session restoration every 30 seconds
-    Timer.periodic(const Duration(seconds: 30), (timer) {
+    _sessionRestorationTimer =
+        Timer.periodic(const Duration(seconds: 30), (timer) {
       _audioHandler.customAction('restoreAudioSession', {});
     });
 
@@ -200,6 +202,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     _backgroundContinuityTimer = null;
     _intensiveBackgroundTimer?.cancel();
     _intensiveBackgroundTimer = null;
+    _sessionRestorationTimer?.cancel();
+    _sessionRestorationTimer = null;
     _backgroundContinuityCount = 0;
   }
 
@@ -520,6 +524,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             onTap: _onItemTapped,
             showUnselectedLabels:
                 true, // Ensure labels are visible for all items
+            // Make navbar shorter as requested in TODO
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
           ),
         ],
       ),
