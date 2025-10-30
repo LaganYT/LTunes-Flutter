@@ -25,9 +25,6 @@
 
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
 
--- Test all audio features on phone -- ✅
+-- Test all audio features on phone --
 
-When the app opens have it initialize an audio session ✅
-
-Fix the add to playlist dialog not working a lot of the time ✅
-Make the height of the navbar shorter and make the navbar everywhere the playbar is ✅
+When the app opens have it initialize an audio session

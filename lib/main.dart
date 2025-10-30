@@ -498,21 +498,19 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             child: Playbar(),
           ),
           BottomNavigationBar(
-            type: BottomNavigationBarType
-                .fixed, // Ensure icons and labels align properly
+            type: BottomNavigationBarType.fixed,
             items: const <BottomNavigationBarItem>[
               BottomNavigationBarItem(
                 icon: Icon(Icons.search, size: 28),
-                label: 'Search',
+                label: '',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.library_music, size: 28),
-                label: 'Library',
+                label: '',
               ),
               BottomNavigationBarItem(
-                icon:
-                    Icon(Icons.settings, size: 28), // Keep settings at the end
-                label: 'Settings',
+                icon: Icon(Icons.settings, size: 28),
+                label: '',
               ),
             ],
             currentIndex: _selectedIndex,
@@ -522,8 +520,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             unselectedItemColor:
                 Colors.grey, // Add unselected color for better contrast
             onTap: _onItemTapped,
-            showUnselectedLabels:
-                true, // Ensure labels are visible for all items
+            showUnselectedLabels: false,
             selectedFontSize: 12,
             unselectedFontSize: 12,
           ),
