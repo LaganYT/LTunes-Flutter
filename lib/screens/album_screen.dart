@@ -808,8 +808,7 @@ class _AlbumScreenState extends State<AlbumScreen>
                 );
               }),
               centerTitle: true,
-              titlePadding:
-                  const EdgeInsets.only(left: 48.0, right: 48.0),
+              titlePadding: const EdgeInsets.only(left: 48.0, right: 48.0),
               background: Container(
                 color: colorScheme.surface,
               ),
@@ -818,8 +817,8 @@ class _AlbumScreenState extends State<AlbumScreen>
           // Album details and action buttons - moved outside FlexibleSpaceBar
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(
-                  left: 16.0, right: 16.0, bottom: 16.0),
+              padding:
+                  const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
               child: Column(
                 children: [
                   // Album artwork
@@ -883,18 +882,21 @@ class _AlbumScreenState extends State<AlbumScreen>
                                 .withValues(alpha: 0.7),
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            widget.album.artistName,
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withValues(alpha: 0.8),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
+                          Flexible(
+                            child: Text(
+                              widget.album.artistName,
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.8),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              softWrap: false,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
