@@ -997,7 +997,8 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   Future<void> _ensureAudioSessionInitialized() async {
-    debugPrint("AudioHandler: Ensuring audio session is initialized when app opens");
+    debugPrint(
+        "AudioHandler: Ensuring audio session is initialized when app opens");
     await _initializeAudioSession();
     if (_isIOS) {
       await _ensureAudioSessionActive();
@@ -1158,14 +1159,16 @@ class AudioPlayerHandler extends BaseAudioHandler
       // If we're not playing, any position is acceptable (usually 0)
       if (!actualIsPlaying) {
         stablePosition = currentPos;
-        debugPrint("AudioHandler: Not playing, using position ${currentPos.inSeconds}s");
+        debugPrint(
+            "AudioHandler: Not playing, using position ${currentPos.inSeconds}s");
         break;
       }
 
       // If position is reasonable (> 0), use it
       if (currentPos > Duration.zero) {
         stablePosition = currentPos;
-        debugPrint("AudioHandler: Found reasonable position ${currentPos.inSeconds}s");
+        debugPrint(
+            "AudioHandler: Found reasonable position ${currentPos.inSeconds}s");
         break;
       }
 
@@ -1175,14 +1178,17 @@ class AudioPlayerHandler extends BaseAudioHandler
           lastKnownPos > Duration.zero &&
           actualIsPlaying &&
           attempt < 5) {
-        debugPrint("AudioHandler: Position is 0 but should be playing, trying again...");
+        debugPrint(
+            "AudioHandler: Position is 0 but should be playing, trying again...");
         continue;
       }
 
       // On final attempt, use last known position if available, otherwise use current
       if (attempt == 5) {
-        stablePosition = lastKnownPos > Duration.zero ? lastKnownPos : currentPos;
-        debugPrint("AudioHandler: Final attempt, using position ${stablePosition.inSeconds}s");
+        stablePosition =
+            lastKnownPos > Duration.zero ? lastKnownPos : currentPos;
+        debugPrint(
+            "AudioHandler: Final attempt, using position ${stablePosition.inSeconds}s");
       }
     }
 
