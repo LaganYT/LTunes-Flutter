@@ -16,25 +16,25 @@ dependencies:
   shared_preferences: ^2.5.3
   dart_tags: ^0.4.1
   audio_metadata_reader: ^1.4.2
-  file_picker: ^10.3.2
+  file_picker: ^10.3.3
   path: ^1.9.1
   uuid: ^4.5.1
   url_launcher: ^6.3.2
-  package_info_plus: ^8.3.1
+  package_info_plus: ^9.0.0
   just_audio: ^0.9.46
-  resumable_downloader: ^0.0.35
+  resumable_downloader: ^0.0.37
   palette_generator: ^0.3.3+7
   scrollable_positioned_list: ^0.3.8
   cached_network_image: ^3.4.1
-  wakelock_plus: ^1.3.2
+  wakelock_plus: ^1.4.0
   audio_session: ^0.1.25
-  flutter_local_notifications: ^19.4.1
-  fl_chart: ^1.1.0
-  syncfusion_flutter_xlsio: ^30.2.7
+  flutter_local_notifications: ^19.5.0
+  fl_chart: ^1.1.1
+  syncfusion_flutter_xlsio: ^31.2.4
   excel:
     path: excel
-  flutter_slidable: ^4.0.1
-  share_plus: ^11.1.0
+  flutter_slidable: ^4.0.3
+  share_plus: ^12.0.1
 
 dev_dependencies:
   flutter_test:
