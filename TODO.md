@@ -32,8 +32,5 @@ When the app opens have it initialize an audio session ✅
 Fix the add to playlist dialog not working a lot of the time ✅
 Make the height of the navbar shorter and make the navbar everywhere the playbar is ✅
 
-## Bug Fixes Completed
-
-- Fixed memory leak in background continuity timer (session restoration timer not being cancelled)
-- Fixed inconsistent mounted checks in full screen player sleep timer callbacks
-- Added proper timer management for iOS background playback continuity
+combine that bottom navbar in the main.dart file with the playbar file to make them both appear in the places the playbar appears
+Fix any text overflow errors by adding a scroll overflow, like spotify (marquee effect)

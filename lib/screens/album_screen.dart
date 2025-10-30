@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1235,7 +1234,7 @@ class _AlbumScreenState extends State<AlbumScreen>
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16.0, vertical: 8.0),
-                          leading: Container(
+                          leading: SizedBox(
                             width: 50,
                             height: 50,
                             child: Center(

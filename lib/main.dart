@@ -524,7 +524,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             onTap: _onItemTapped,
             showUnselectedLabels:
                 true, // Ensure labels are visible for all items
-            // Make navbar shorter as requested in TODO
             selectedFontSize: 12,
             unselectedFontSize: 12,
           ),
