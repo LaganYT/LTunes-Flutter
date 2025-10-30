@@ -143,6 +143,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeVersionAndCheckForUpdates();
+
+    // Ensure audio session is initialized when app opens
+    _audioHandler.customAction('ensureAudioSessionInitialized', {});
   }
 
   @override
@@ -255,25 +258,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         case AppLifecycleState.inactive:
         case AppLifecycleState.hidden:
           // For iOS, ensure background playback is immediately configured
-          // This helps prevent audio session from being deactivated
+          // The background continuity timer handles ongoing session management
           _audioHandler.customAction('ensureBackgroundPlayback', {});
-
-          // Add a single session activation check after 5 seconds
-          Future.delayed(const Duration(seconds: 5), () {
-            _audioHandler.customAction('forceSessionActivation', {});
-          });
-
-          // Add audio session restoration check after 15 seconds
-          Future.delayed(const Duration(seconds: 15), () {
-            _audioHandler.customAction('restoreAudioSession', {});
-          });
-
-          // Add background playback continuity check after 30 seconds
-          Future.delayed(const Duration(seconds: 30), () {
-            _audioHandler
-                .customAction('ensureBackgroundPlaybackContinuity', {});
-          });
-
           break;
         default:
           break;

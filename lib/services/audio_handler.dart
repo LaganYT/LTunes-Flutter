@@ -996,6 +996,14 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
   }
 
+  Future<void> _ensureAudioSessionInitialized() async {
+    debugPrint("AudioHandler: Ensuring audio session is initialized when app opens");
+    await _initializeAudioSession();
+    if (_isIOS) {
+      await _ensureAudioSessionActive();
+    }
+  }
+
   Future<void> _ensureBackgroundPlaybackContinuity() async {
     if (!_isIOS || _audioSession == null) return;
 
@@ -1137,32 +1145,44 @@ class AudioPlayerHandler extends BaseAudioHandler
     final actualIsPlaying =
         _audioPlayer.playing; // Get fresh playing state after session check
 
-    // Try multiple readings with delays to find stable position
-    for (int attempt = 0; attempt < 5; attempt++) {
-      await Future.delayed(Duration(milliseconds: 100 + (attempt * 100)));
+    // Try multiple readings with longer delays to find stable position
+    // iOS audio player may take longer to stabilize after foreground
+    for (int attempt = 0; attempt < 6; attempt++) {
+      // Use longer delays: 200ms, 400ms, 600ms, 800ms, 1000ms, 1200ms
+      await Future.delayed(Duration(milliseconds: 200 + (attempt * 200)));
       final currentPos = _audioPlayer.position;
 
       debugPrint(
-          "AudioHandler: Foreground position attempt ${attempt + 1}: ${currentPos.inSeconds}s");
+          "AudioHandler: Foreground position attempt ${attempt + 1}: ${currentPos.inSeconds}s (last known: ${lastKnownPos.inSeconds}s, playing: $actualIsPlaying)");
 
-      // If position is 0 but we were previously at a different position and still playing,
-      // this is likely an incorrect reading - keep trying
-      if (currentPos == Duration.zero &&
-          lastKnownPos > Duration.zero &&
-          actualIsPlaying &&
-          attempt < 4) {
-        continue;
-      }
-
-      // If we get a reasonable position (not 0 or close to last known), use it
-      if (currentPos > Duration.zero || !actualIsPlaying) {
+      // If we're not playing, any position is acceptable (usually 0)
+      if (!actualIsPlaying) {
         stablePosition = currentPos;
+        debugPrint("AudioHandler: Not playing, using position ${currentPos.inSeconds}s");
         break;
       }
 
-      // On final attempt, use whatever we get
-      if (attempt == 4) {
+      // If position is reasonable (> 0), use it
+      if (currentPos > Duration.zero) {
         stablePosition = currentPos;
+        debugPrint("AudioHandler: Found reasonable position ${currentPos.inSeconds}s");
+        break;
+      }
+
+      // If position is 0 but we have a last known position and are playing,
+      // this might be an incorrect reading - continue trying
+      if (currentPos == Duration.zero &&
+          lastKnownPos > Duration.zero &&
+          actualIsPlaying &&
+          attempt < 5) {
+        debugPrint("AudioHandler: Position is 0 but should be playing, trying again...");
+        continue;
+      }
+
+      // On final attempt, use last known position if available, otherwise use current
+      if (attempt == 5) {
+        stablePosition = lastKnownPos > Duration.zero ? lastKnownPos : currentPos;
+        debugPrint("AudioHandler: Final attempt, using position ${stablePosition.inSeconds}s");
       }
     }
 
@@ -1195,16 +1215,16 @@ class AudioPlayerHandler extends BaseAudioHandler
           AudioProcessingState.idle,
     ));
 
-    // Final verification after everything stabilizes
-    Future.delayed(const Duration(milliseconds: 1000), () async {
+    // Final verification after everything stabilizes - only check for critical issues
+    Future.delayed(const Duration(milliseconds: 1500), () async {
       final verifyPosition = _audioPlayer.position;
       final verifyPlaying = _audioPlayer.playing;
 
-      // Check for position drift
+      // Only check for significant position drift (> 5 seconds) to avoid UI flickering
       if (verifyPosition > Duration.zero &&
-          (verifyPosition - finalPosition).abs() > const Duration(seconds: 2)) {
+          (verifyPosition - finalPosition).abs() > const Duration(seconds: 5)) {
         debugPrint(
-            "AudioHandler: Final position verification - updating from ${finalPosition.inSeconds}s to ${verifyPosition.inSeconds}s");
+            "AudioHandler: Significant position drift detected - updating from ${finalPosition.inSeconds}s to ${verifyPosition.inSeconds}s");
         _lastKnownPosition = verifyPosition;
         playbackState
             .add(playbackState.value.copyWith(updatePosition: verifyPosition));
@@ -1213,7 +1233,7 @@ class AudioPlayerHandler extends BaseAudioHandler
       // Check for playing state drift (critical for the bug fix)
       if (verifyPlaying != actualIsPlaying) {
         debugPrint(
-            "AudioHandler: Final playing state verification - correcting from $actualIsPlaying to $verifyPlaying");
+            "AudioHandler: Playing state drift detected - correcting from $actualIsPlaying to $verifyPlaying");
         playbackState.add(playbackState.value.copyWith(playing: verifyPlaying));
       }
     });
@@ -1511,6 +1531,10 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       case 'ensureBackgroundPlaybackContinuity':
         await _ensureBackgroundPlaybackContinuity();
+        break;
+
+      case 'ensureAudioSessionInitialized':
+        await _ensureAudioSessionInitialized();
         break;
 
       case 'handleAppForeground':

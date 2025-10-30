@@ -1559,6 +1559,7 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
   final PlaylistManagerService _playlistManagerService =
       PlaylistManagerService();
   final TextEditingController _searchController = TextEditingController();
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -1581,6 +1582,7 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
       setState(() {
         _allPlaylists = List<Playlist>.from(_playlistManagerService.playlists);
         _filteredPlaylists = List<Playlist>.from(_allPlaylists);
+        _isLoading = false;
         // _sortPlaylists(); // Initial sort // Removed
       });
     }
@@ -1711,18 +1713,36 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: _filteredPlaylists.isEmpty
+              child: _isLoading
                   ? Center(
-                      child: Text(
-                        _searchController.text.isNotEmpty
-                            ? 'No playlists found.'
-                            : 'No playlists available.',
-                        style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Loading playlists...',
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant),
+                          ),
+                        ],
                       ),
                     )
-                  : ListView.builder(
+                  : _filteredPlaylists.isEmpty
+                      ? Center(
+                          child: Text(
+                            _searchController.text.isNotEmpty
+                                ? 'No playlists found.'
+                                : 'No playlists available.',
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant),
+                          ),
+                        )
+                      : ListView.builder(
                       shrinkWrap: true,
                       itemCount: _filteredPlaylists.length,
                       itemBuilder: (BuildContext context, int index) {
