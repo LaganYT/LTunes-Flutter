@@ -31,5 +31,3 @@ When the app opens have it initialize an audio session ✅
 
 Fix the add to playlist dialog not working a lot of the time ✅
 Make the height of the navbar shorter and make the navbar everywhere the playbar is ✅
-
-Replace the playbar with bottom_navigation_bar in all files where playbar is used
