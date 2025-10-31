@@ -531,7 +531,7 @@ class _AlbumScreenState extends State<AlbumScreen>
 
         // Notify services
         currentSongProvider.updateSongDetails(updatedTrack);
-        PlaylistManagerService().updateSongInPlaylists(updatedTrack);
+        await PlaylistManagerService().updateSongInPlaylists(updatedTrack);
         await AlbumManagerService().updateSongInAlbums(updatedTrack);
 
         removedCount++;

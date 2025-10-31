@@ -18,6 +18,7 @@ import 'services/download_notification_service.dart'; // Import DownloadNotifica
 import 'services/metadata_history_service.dart'; // Import MetadataHistoryService
 import 'services/animation_service.dart'; // Import AnimationService
 import 'services/bug_report_service.dart'; // Import BugReportService
+import 'services/artwork_service.dart'; // Import ArtworkService
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
@@ -153,6 +154,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopBackgroundContinuityTimer();
+
+    // Perform memory cleanup when TabView is disposed
+    _performMemoryCleanup();
     super.dispose();
   }
 
@@ -165,59 +169,43 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     _sessionRestorationTimer?.cancel();
     _backgroundContinuityCount = 0;
 
-    // Start a much less aggressive timer for background continuity
-    // Only check every 30 seconds instead of every 3 seconds
-    _intensiveBackgroundTimer =
-        Timer.periodic(const Duration(seconds: 30), (timer) {
+    // Single consolidated timer for all background operations
+    // Start with moderate frequency and gradually reduce
+    _backgroundContinuityTimer =
+        Timer.periodic(const Duration(seconds: 60), (timer) {
       _backgroundContinuityCount++;
+
+      // Perform continuity check
       _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
 
-      // After 10 minutes, switch to even less frequent monitoring (every 60 seconds)
-      if (_backgroundContinuityCount >= 20) {
-        // 20 * 30s = 10 minutes
-        timer.cancel();
-        _intensiveBackgroundTimer = null;
-
-        // Start the regular timer (every 60 seconds)
-        _backgroundContinuityTimer =
-            Timer.periodic(const Duration(seconds: 60), (regularTimer) {
-          _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
-        });
-
-        debugPrint(
-            "Main: Switched to regular background continuity timer (60s intervals)");
+      // Every 10 minutes, also check session restoration (every 10th iteration)
+      if (_backgroundContinuityCount % 10 == 0) {
+        _audioHandler.customAction('restoreAudioSession', {});
       }
-    });
 
-    // Session restoration timer - much less frequent (every 2 minutes)
-    _sessionRestorationTimer =
-        Timer.periodic(const Duration(minutes: 2), (timer) {
-      _audioHandler.customAction('restoreAudioSession', {});
-
-      // After 15 minutes, reduce frequency to every 5 minutes
+      // After 30 minutes, reduce frequency to every 5 minutes
       if (_backgroundContinuityCount >= 30) {
-        // ~15 minutes at 30s intervals
         timer.cancel();
-        _sessionRestorationTimer =
-            Timer.periodic(const Duration(minutes: 5), (newTimer) {
-          _audioHandler.customAction('restoreAudioSession', {});
+        _backgroundContinuityTimer =
+            Timer.periodic(const Duration(minutes: 5), (regularTimer) {
+          _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+          // Check session every other time (every 10 minutes)
+          if (_backgroundContinuityCount % 2 == 0) {
+            _audioHandler.customAction('restoreAudioSession', {});
+          }
         });
         debugPrint(
-            "Main: Reduced session restoration frequency to 5 minute intervals");
+            "Main: Reduced background continuity timer to 5 minute intervals");
       }
     });
 
     debugPrint(
-        "Main: Started gentle background continuity timer for iOS background playback (30s intervals)");
+        "Main: Started optimized background continuity timer (60s intervals)");
   }
 
   void _stopBackgroundContinuityTimer() {
     _backgroundContinuityTimer?.cancel();
     _backgroundContinuityTimer = null;
-    _intensiveBackgroundTimer?.cancel();
-    _intensiveBackgroundTimer = null;
-    _sessionRestorationTimer?.cancel();
-    _sessionRestorationTimer = null;
     _backgroundContinuityCount = 0;
   }
 
@@ -247,6 +235,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
         _startBackgroundContinuityTimer();
+
+        // Perform light memory cleanup when going to background
+        artworkService.clearCacheForLowMemory();
         break;
       case AppLifecycleState.detached:
         // App is being terminated, ensure background playback is configured
@@ -255,6 +246,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
         _stopBackgroundContinuityTimer();
+
+        // Memory cleanup on app termination
+        _performMemoryCleanup();
         // MetadataHistoryService().clearHistory(); // Removed: never clear metadata history
         break;
       case AppLifecycleState.hidden:
@@ -484,6 +478,22 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         );
       },
     );
+  }
+
+  void _performMemoryCleanup() {
+    try {
+      // Clear artwork caches to free memory
+      artworkService.clearCacheForLowMemory();
+
+      // Cancel any pending timers
+      _backgroundContinuityTimer?.cancel();
+      _intensiveBackgroundTimer?.cancel();
+      _sessionRestorationTimer?.cancel();
+
+      debugPrint("Main: Performed memory cleanup on app termination");
+    } catch (e) {
+      debugPrint("Main: Error during memory cleanup: $e");
+    }
   }
 
   void _onItemTapped(int index) {

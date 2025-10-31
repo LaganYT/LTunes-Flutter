@@ -297,7 +297,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
         // Notify services
         currentSongProvider.updateSongDetails(updatedSong);
-        PlaylistManagerService().updateSongInPlaylists(updatedSong);
+        await PlaylistManagerService().updateSongInPlaylists(updatedSong);
         await AlbumManagerService().updateSongInAlbums(updatedSong);
 
         removedCount++;

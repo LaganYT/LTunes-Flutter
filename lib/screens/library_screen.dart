@@ -1699,7 +1699,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
 
       // notify provider and refresh
       currentSongProvider.updateSongDetails(updatedSong);
-      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+      await PlaylistManagerService().updateSongInPlaylists(updatedSong);
 
       // If the deleted song was playing, the audio_handler's queue update (via updateSongDetails)
       // should handle transitioning playback or stopping.

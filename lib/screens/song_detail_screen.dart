@@ -281,7 +281,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       // Notify services if the widget is still mounted.
       if (mounted) {
         // Notify PlaylistManagerService
-        PlaylistManagerService().updateSongInPlaylists(updatedSong);
+        await PlaylistManagerService().updateSongInPlaylists(updatedSong);
 
         // Notify AlbumManagerService to update album download status
         await AlbumManagerService().updateSongInAlbums(updatedSong);

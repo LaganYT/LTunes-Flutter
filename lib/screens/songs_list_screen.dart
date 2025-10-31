@@ -29,10 +29,25 @@ class SongsScreenState extends State<SongsScreen> {
   List<Song> _songs = [];
   final _playlistManager = PlaylistManagerService();
   final Uuid _uuid = const Uuid(); // For generating unique IDs
+
+  // Pagination support
+  final ScrollController _scrollController = ScrollController();
+  static const int _pageSize = 50;
+  bool _isLoading = false;
+  bool _hasMoreSongs = true;
+  int _currentPage = 0;
+  List<Song> _allSongs = []; // Keep all songs in memory for filtering
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _refreshSongs(); // Changed from _load()
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshSongs() async {
@@ -154,7 +169,54 @@ class SongsScreenState extends State<SongsScreen> {
 
     if (mounted) {
       setState(() {
-        _songs = songsToDisplay;
+        _allSongs = songsToDisplay;
+        _currentPage = 0;
+        _hasMoreSongs = true;
+        _songs = _loadNextPage();
+      });
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        _hasMoreSongs) {
+      _loadMoreSongs();
+    }
+  }
+
+  List<Song> _loadNextPage() {
+    final startIndex = _currentPage * _pageSize;
+    final endIndex = startIndex + _pageSize;
+    final nextPageSongs = _allSongs.sublist(
+      startIndex,
+      endIndex > _allSongs.length ? _allSongs.length : endIndex,
+    );
+
+    if (endIndex >= _allSongs.length) {
+      _hasMoreSongs = false;
+    }
+
+    _currentPage++;
+    return nextPageSongs;
+  }
+
+  Future<void> _loadMoreSongs() async {
+    if (_isLoading || !_hasMoreSongs) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Simulate async operation for smooth UX
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    if (mounted) {
+      final nextPageSongs = _loadNextPage();
+      setState(() {
+        _songs.addAll(nextPageSongs);
+        _isLoading = false;
       });
     }
   }
@@ -480,13 +542,19 @@ class SongsScreenState extends State<SongsScreen> {
               onChanged: (query) {
                 setState(() {
                   if (query.isEmpty) {
-                    _refreshSongs(); // Refresh the songs list when query is empty
+                    // Reset to show all songs with pagination
+                    _currentPage = 0;
+                    _hasMoreSongs = true;
+                    _songs = _loadNextPage();
                   } else {
-                    _songs = _songs
+                    // Filter from all songs and show results immediately (no pagination for search)
+                    final filteredSongs = _allSongs
                         .where((song) => song.title
                             .toLowerCase()
                             .contains(query.toLowerCase()))
                         .toList();
+                    _songs = filteredSongs;
+                    _hasMoreSongs = false; // Disable pagination during search
                   }
                 });
               },
@@ -497,10 +565,19 @@ class SongsScreenState extends State<SongsScreen> {
       body: _songs.isEmpty
           ? const Center(child: Text('No songs found.'))
           : ListView.builder(
+              controller: _scrollController,
               padding:
                   const EdgeInsets.only(bottom: 80), // Add padding for playbar
-              itemCount: _songs.length,
+              itemCount: _songs.length + (_isLoading ? 1 : 0),
               itemBuilder: (c, i) {
+                // Show loading indicator at the bottom
+                if (i == _songs.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
                 final s = _songs[i];
                 return Slidable(
                   key: Key(s.id),

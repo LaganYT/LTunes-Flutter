@@ -73,6 +73,11 @@ class AudioPlayerHandler extends BaseAudioHandler
   static const int _maxConsecutiveErrors = 3;
   Timer? _errorRecoveryTimer;
 
+  // Audio session optimization
+  DateTime? _lastSessionConfig;
+  static const Duration _sessionConfigThrottle =
+      Duration(seconds: 10); // Don't reconfigure too often
+
   // Track loop reset state
   bool _justResetForLoop = false;
 
@@ -81,8 +86,18 @@ class AudioPlayerHandler extends BaseAudioHandler
   int _localFileCompletionCount = 0;
   static const int _maxLocalFileCompletions = 3;
 
+  // Throttling for background continuity checks
+  DateTime? _lastContinuityCheck;
+  static const Duration _continuityCheckThrottle = Duration(seconds: 5);
+
+  // Gapless playback settings
+  bool _gaplessModeEnabled = true; // Enable by default for better UX
+  static const Duration _gaplessTransitionDelay =
+      Duration(milliseconds: 10); // Minimal delay
+
   AudioPlayerHandler() {
     _initializeAudioSession();
+    _configureAudioPlayer(); // Configure player for optimal playback
     _notifyAudioHandlerAboutPlaybackEvents();
     _initializeAudioEffects();
   }
@@ -96,6 +111,23 @@ class AudioPlayerHandler extends BaseAudioHandler
       playbackState.add(playbackState.value.copyWith(playing: false));
     }
   }
+
+  /// Configure audio player for optimal playback performance
+  void _configureAudioPlayer() {
+    // Configure player settings for better performance
+    // Note: Most audio player optimizations are handled by just_audio automatically
+    // but we can add any app-specific configurations here
+  }
+
+  /// Enable or disable gapless playback mode
+  void setGaplessMode(bool enabled) {
+    _gaplessModeEnabled = enabled;
+    debugPrint(
+        "AudioHandler: Gapless mode ${enabled ? 'enabled' : 'disabled'}");
+  }
+
+  /// Get current gapless mode status
+  bool get gaplessModeEnabled => _gaplessModeEnabled;
 
   Duration get currentPosition => _audioPlayer.position;
 
@@ -147,6 +179,12 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   Future<void> _ensureAudioSessionActive() async {
     if (!_isIOS || _audioSession == null || !_audioSessionConfigured) return;
+
+    // OPTIMIZED: Skip session activation if we're not playing and not in background mode
+    // This reduces unnecessary session operations
+    if (!_audioPlayer.playing && !_isBackgroundMode) {
+      return;
+    }
 
     final now = DateTime.now();
     if (_lastSessionActivation != null &&
@@ -360,16 +398,21 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       await _audioPlayer.setAudioSource(source);
 
-      // Wait for ready state with timeout
+      // OPTIMIZED: Wait for ready state with reduced timeout and smaller delays
       int attempts = 0;
+      const int maxAttempts = 20; // Reduced from 30
+      const Duration checkInterval =
+          Duration(milliseconds: 50); // Reduced from 100ms
+
       while (_audioPlayer.processingState != ProcessingState.ready &&
-          attempts < 30) {
-        await Future.delayed(const Duration(milliseconds: 100));
+          attempts < maxAttempts) {
+        await Future.delayed(checkInterval);
         attempts++;
       }
 
       if (_audioPlayer.processingState != ProcessingState.ready) {
-        throw Exception("Audio player failed to become ready");
+        throw Exception(
+            "Audio player failed to become ready within ${maxAttempts * checkInterval.inMilliseconds}ms");
       }
 
       playbackState
@@ -1075,9 +1118,21 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> _ensureBackgroundPlaybackContinuity() async {
     if (!_isIOS || _audioSession == null) return;
 
+    // Throttle continuity checks to prevent excessive operations
+    final now = DateTime.now();
+    if (_lastContinuityCheck != null &&
+        now.difference(_lastContinuityCheck!) < _continuityCheckThrottle) {
+      return;
+    }
+    _lastContinuityCheck = now;
+
     try {
-      // Gently ensure audio session is active
-      await _ensureAudioSessionActive();
+      // Only ensure audio session active if we haven't checked recently
+      if (_lastSessionActivation == null ||
+          now.difference(_lastSessionActivation!) >
+              const Duration(seconds: 30)) {
+        await _ensureAudioSessionActive();
+      }
 
       // If we're in background mode and have a playlist, ensure continuity
       if (_isBackgroundMode && _playlist.isNotEmpty) {
@@ -1093,9 +1148,6 @@ class AudioPlayerHandler extends BaseAudioHandler
             _currentIndex >= 0 &&
             _currentIndex < _playlist.length) {
           final repeatMode = playbackState.value.repeatMode;
-
-          // Before any transition, ensure session is active
-          await _ensureAudioSessionActive();
 
           // If repeat is on or we're not at the last song, continue to next
           if (repeatMode == AudioServiceRepeatMode.all ||
@@ -1113,26 +1165,14 @@ class AudioPlayerHandler extends BaseAudioHandler
           }
         }
 
-        // Also check if we're stuck in a loading state in the background
-        if (currentState == ProcessingState.loading ||
-            currentState == ProcessingState.buffering) {
-          // If stuck loading for too long in background, try to recover
-          debugPrint(
-              "AudioHandler: Detected stuck loading state in background, attempting recovery (local: $isLocalFile)");
-          if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-            await _prepareToPlay(_currentIndex);
-            if (playbackState.value.playing) {
-              await _audioPlayer.play();
-              await _syncMetadata();
-            }
-          }
-        }
-
         // Special handling for local files that might not report completion properly
+        // Only check this every few continuity checks to reduce overhead
         if (isLocalFile &&
             currentState == ProcessingState.ready &&
             _audioPlayer.playing &&
-            currentItem?.duration != null) {
+            currentItem?.duration != null &&
+            now.second % 3 == 0) {
+          // Only check every 3rd second
           final position = _audioPlayer.position;
           final duration = currentItem!.duration!;
 
@@ -1325,39 +1365,18 @@ class AudioPlayerHandler extends BaseAudioHandler
     final songId = currentItem?.extras?['songId'] as String?;
 
     debugPrint(
-        "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile, Background: $_isBackgroundMode");
+        "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
 
-    // CRITICAL FIX: Always ensure audio session is active before handling completion
-    // This prevents the bug where audio session becomes inactive during transitions
-    await _ensureAudioSessionActive();
-
-    // CRITICAL FIX: Enhanced background mode session management
-    // When in background mode, we need to be extra aggressive about keeping the session active
-    // and ensure it remains active throughout the entire transition process
-    if (_isBackgroundMode && _isIOS && _audioSession != null) {
-      try {
-        // Force the audio session to stay active with explicit options
-        await _audioSession!.configure(const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playback,
-          avAudioSessionCategoryOptions:
-              AVAudioSessionCategoryOptions.allowAirPlay,
-          avAudioSessionMode: AVAudioSessionMode.defaultMode,
-          avAudioSessionRouteSharingPolicy:
-              AVAudioSessionRouteSharingPolicy.defaultPolicy,
-        ));
-        await _audioSession!.setActive(true);
-        _isSessionActive = true;
-
-        debugPrint(
-            "AudioHandler: Background audio session reinforced and reconfigured during completion");
-      } catch (e) {
-        debugPrint(
-            "AudioHandler: Failed to reinforce background session during completion: $e");
-        // If we can't maintain the session, we need to recover
-        _isSessionActive = false;
-        await _ensureAudioSessionActive();
-      }
+    // OPTIMIZED: Single session check at start of completion handling
+    // Only do extra session management in background mode when necessary
+    if (_isBackgroundMode) {
+      await _ensureAudioSessionActive();
     }
+
+    // OPTIMIZED: Throttle session reconfiguration to prevent excessive operations
+    final now = DateTime.now();
+    final needsReconfig = _lastSessionConfig == null ||
+        now.difference(_lastSessionConfig!) > _sessionConfigThrottle;
 
     // For local files, check if we're stuck in a completion loop
     if (isLocalFile && songId != null) {
@@ -1479,10 +1498,57 @@ class AudioPlayerHandler extends BaseAudioHandler
           return;
         }
       } else {
-        // Move to next song
-        debugPrint("AudioHandler: Moving to next song (local: $isLocalFile)");
-        await skipToNext();
+        // OPTIMIZED: Direct transition to next song to minimize gap
+        debugPrint("AudioHandler: Direct transition to next song");
+        await _transitionToNextSong();
       }
+    }
+  }
+
+  /// OPTIMIZED: Direct transition to next song with minimal overhead
+  Future<void> _transitionToNextSong() async {
+    if (_playlist.isEmpty) return;
+
+    int newIndex = _currentIndex + 1;
+    if (newIndex >= _playlist.length) {
+      if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+        newIndex = 0;
+      } else {
+        // End of queue - let completion handler deal with this
+        return;
+      }
+    }
+
+    debugPrint(
+        "AudioHandler: Direct transition from $_currentIndex to $newIndex");
+
+    // Streamlined version of skipToQueueItem optimized for gapless playback
+    try {
+      if (_audioPlayer.processingState == ProcessingState.completed) {
+        await _audioPlayer.stop();
+        // Use minimal delay in gapless mode for seamless transitions
+        await Future.delayed(_gaplessModeEnabled
+            ? _gaplessTransitionDelay
+            : const Duration(milliseconds: 50));
+      }
+
+      await _prepareToPlay(newIndex);
+
+      // Start playing immediately without extra session checks
+      if (_shouldBePaused) {
+        _shouldBePaused = false;
+      }
+
+      if (_audioPlayer.volume == 0.0) {
+        await _audioPlayer.setVolume(1.0);
+      }
+
+      await _audioPlayer.play();
+      await _syncMetadata();
+    } catch (e) {
+      debugPrint("AudioHandler: Error in direct transition: $e");
+      // Fallback to regular skipToNext
+      await skipToNext();
     }
   }
 
@@ -1787,6 +1853,14 @@ class AudioPlayerHandler extends BaseAudioHandler
           debugPrint("AudioHandler: Error detecting audio session bug: $e");
           return {'bugDetected': false, 'fixed': false, 'error': e.toString()};
         }
+
+      case 'setGaplessMode':
+        final enabled = extras?['enabled'] as bool? ?? true;
+        setGaplessMode(enabled);
+        return {'gaplessMode': enabled};
+
+      case 'getGaplessMode':
+        return {'gaplessMode': _gaplessModeEnabled};
     }
     return null;
   }

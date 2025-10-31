@@ -1208,7 +1208,7 @@ class CurrentSongProvider with ChangeNotifier {
               : song.albumArtUrl,
         );
         await _persistSongMetadata(effectiveSong);
-        PlaylistManagerService().updateSongInPlaylists(effectiveSong);
+        await PlaylistManagerService().updateSongInPlaylists(effectiveSong);
       }
     }
 
@@ -1305,7 +1305,7 @@ class CurrentSongProvider with ChangeNotifier {
           song.copyWith(isDownloaded: false, localFilePath: null);
       await _persistSongMetadata(updatedSong);
       updateSongDetails(updatedSong);
-      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+      await PlaylistManagerService().updateSongInPlaylists(updatedSong);
       if (!song.isImported) {
         await redownloadSong(updatedSong);
       }
@@ -2565,7 +2565,7 @@ class CurrentSongProvider with ChangeNotifier {
                   );
                   await _persistSongMetadata(updatedSong);
                   updateSongDetails(updatedSong);
-                  PlaylistManagerService().updateSongInPlaylists(updatedSong);
+                  await PlaylistManagerService().updateSongInPlaylists(updatedSong);
                   unmarkedSongs.add(song);
                 } else {
                   // File exists, check if corrupted
@@ -2616,7 +2616,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       await _persistSongMetadata(resetSong);
       updateSongDetails(resetSong);
-      PlaylistManagerService().updateSongInPlaylists(resetSong);
+      await PlaylistManagerService().updateSongInPlaylists(resetSong);
 
       if (song.localFilePath != null && song.localFilePath!.isNotEmpty) {
         final appDocDir = await getApplicationDocumentsDirectory();
@@ -2689,7 +2689,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       await _persistSongMetadata(songToProcess);
       updateSongDetails(songToProcess);
-      PlaylistManagerService().updateSongInPlaylists(songToProcess);
+      await PlaylistManagerService().updateSongInPlaylists(songToProcess);
 
       _downloadProgress[songToProcess.id] = 1.0;
       if (_activeDownloads.containsKey(songToProcess.id)) {
@@ -2896,7 +2896,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       await _persistSongMetadata(updatedSong);
       updateSongDetailsWithoutSwitchingCurrent(updatedSong);
-      PlaylistManagerService().updateSongInPlaylists(updatedSong);
+      await PlaylistManagerService().updateSongInPlaylists(updatedSong);
       debugPrint(
           'Download complete: ${updatedSong.title}. Lyrics fetched: ${lyricsData != null && (lyricsData.plainLyrics != null || lyricsData.syncedLyrics != null)}');
     } catch (e) {

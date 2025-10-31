@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist.dart';
@@ -16,6 +17,11 @@ class PlaylistManagerService with ChangeNotifier {
   List<Playlist> _playlists = [];
   bool _isLoading = false;
   bool _playlistsLoaded = false;
+
+  // Debounced save mechanism
+  Timer? _saveTimer;
+  static const Duration _saveDebounceDelay = Duration(milliseconds: 500);
+  bool _hasPendingSave = false;
 
   List<Playlist> get playlists => List.unmodifiable(_playlists);
   bool get isLoading => _isLoading;
@@ -81,6 +87,17 @@ class PlaylistManagerService with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _debouncedSave() async {
+    _hasPendingSave = true;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(_saveDebounceDelay, () async {
+      if (_hasPendingSave) {
+        await _savePlaylists();
+        _hasPendingSave = false;
+      }
+    });
+  }
+
   Future<void> savePlaylists() async {
     await _savePlaylists();
   }
@@ -89,20 +106,20 @@ class PlaylistManagerService with ChangeNotifier {
     // Ensure playlist with same ID doesn't already exist
     if (!_playlists.any((p) => p.id == playlist.id)) {
       _playlists.add(playlist);
-      await _savePlaylists();
+      await _debouncedSave();
     }
   }
 
   Future<void> removePlaylist(Playlist playlist) async {
     _playlists.removeWhere((p) => p.id == playlist.id);
-    await _savePlaylists();
+    await _debouncedSave();
   }
 
   Future<void> renamePlaylist(String id, String newName) async {
     final index = _playlists.indexWhere((p) => p.id == id);
     if (index != -1) {
       _playlists[index] = _playlists[index].copyWith(name: newName);
-      await _savePlaylists();
+      await _debouncedSave();
     }
   }
 
@@ -114,7 +131,7 @@ class PlaylistManagerService with ChangeNotifier {
       if (!existingPlaylist.songs.any((s) => s.id == song.id)) {
         List<Song> updatedSongs = List.from(existingPlaylist.songs)..add(song);
         _playlists[index] = existingPlaylist.copyWith(songs: updatedSongs);
-        await _savePlaylists();
+        await _debouncedSave();
       }
     }
   }
@@ -125,7 +142,7 @@ class PlaylistManagerService with ChangeNotifier {
       Playlist existingPlaylist = _playlists[index];
       List<Song> updatedSongs = List.from(existingPlaylist.songs)..removeWhere((s) => s.id == song.id);
       _playlists[index] = existingPlaylist.copyWith(songs: updatedSongs);
-      await _savePlaylists();
+      await _debouncedSave();
     }
   }
 
@@ -135,7 +152,7 @@ class PlaylistManagerService with ChangeNotifier {
       // Replace the old playlist with the updated one.
       // This is important for changes like song reordering.
       _playlists[index] = updatedPlaylist;
-      await _savePlaylists();
+      await _debouncedSave();
     } else {
       // Optionally handle the case where the playlist to update is not found.
       // For example, add it as a new playlist or log an error.
@@ -164,7 +181,7 @@ class PlaylistManagerService with ChangeNotifier {
     return null;
   }
 
-  void updateSongInPlaylists(Song updatedSong) {
+  Future<void> updateSongInPlaylists(Song updatedSong) async {
     bool changed = false;
     for (int i = 0; i < _playlists.length; i++) {
       Playlist p = _playlists[i];
@@ -189,8 +206,7 @@ class PlaylistManagerService with ChangeNotifier {
       }
     }
     if (changed) {
-      _savePlaylists();
-      notifyListeners();
+      await _debouncedSave();
     }
   }
 
@@ -207,7 +223,13 @@ class PlaylistManagerService with ChangeNotifier {
       }
     }
     if (changed) {
-      await _savePlaylists();
+      await _debouncedSave();
     }
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    super.dispose();
   }
 }

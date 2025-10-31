@@ -923,7 +923,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
 
       // Update playlists that contain this song
       final playlistManager = PlaylistManagerService();
-      playlistManager.updateSongInPlaylists(nativeSong);
+      await playlistManager.updateSongInPlaylists(nativeSong);
 
       // Refresh the list
       await _loadLocalSongs();
@@ -970,7 +970,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       final playlistManager = PlaylistManagerService();
       final originalSong =
           Song.fromJson(jsonDecode(historyEntry.originalSongData));
-      playlistManager.updateSongInPlaylists(originalSong);
+      await playlistManager.updateSongInPlaylists(originalSong);
 
       // Refresh the list
       await _loadLocalSongs();

@@ -23,6 +23,11 @@ class AudioEffectsService {
   Timer? _debounceTimer;
   static const Duration _debounceDelay = Duration(milliseconds: 100);
 
+  // Performance optimizations
+  double _lastAppliedVolume = 1.0;
+  final Map<String, double> _lastEffectValues = {};
+  static const double _effectChangeThreshold = 0.01; // Only apply if change > 1%
+
   final List<String> _equalizerPresets = [
     'Flat',
     'Bass Boost',
@@ -219,8 +224,19 @@ class AudioEffectsService {
     try {
       if (!_isEnabled) {
         // Reset to base volume when disabled
-        _audioPlayer?.setVolume(_baseVolume);
+        if (_lastAppliedVolume != _baseVolume) {
+          _audioPlayer?.setVolume(_baseVolume);
+          _lastAppliedVolume = _baseVolume;
+        }
         return;
+      }
+
+      // OPTIMIZED: Check if effects have changed significantly before recalculating
+      final currentEffectHash = _calculateEffectHash();
+      final lastEffectHash = _lastEffectValues['hash'] ?? 0.0;
+
+      if ((currentEffectHash - lastEffectHash).abs() < _effectChangeThreshold) {
+        return; // No significant change, skip recalculation
       }
 
       // Calculate combined effect multiplier
@@ -250,11 +266,27 @@ class AudioEffectsService {
       // Clamp volume multiplier to safe range
       volumeMultiplier = volumeMultiplier.clamp(0.1, 2.0);
 
-      _audioPlayer?.setVolume(volumeMultiplier);
+      // OPTIMIZED: Only apply volume if it changed significantly
+      if ((volumeMultiplier - _lastAppliedVolume).abs() >= _effectChangeThreshold) {
+        _audioPlayer?.setVolume(volumeMultiplier);
+        _lastAppliedVolume = volumeMultiplier;
+        _lastEffectValues['hash'] = currentEffectHash;
+      }
     } catch (e) {
       // Fallback to base volume if effects fail
-      _audioPlayer?.setVolume(_baseVolume);
+      if (_lastAppliedVolume != _baseVolume) {
+        _audioPlayer?.setVolume(_baseVolume);
+        _lastAppliedVolume = _baseVolume;
+      }
     }
+  }
+
+  /// Calculate a hash of current effect values to detect changes
+  double _calculateEffectHash() {
+    return _bassBoost * 1 +
+           _reverb * 10 +
+           (_is8DMode ? _eightDIntensity * 100 : 0) +
+           _equalizerBands.fold<double>(0, (sum, band) => sum + band * 1000);
   }
 
   double _calculateBassBoostEffect() {

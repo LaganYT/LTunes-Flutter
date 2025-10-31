@@ -75,6 +75,15 @@ class UnifiedSearchService extends ChangeNotifier {
   final Map<String, List<SearchResult>> _searchCache = {};
   static const int _maxCacheSize = 100;
 
+  // Incremental loading state
+  final Map<String, List<SearchResult>> _incrementalResults = {};
+  final Map<String, bool> _searchInProgress = {};
+  final Map<String, int> _loadedCounts = {};
+
+  // Pagination settings
+  static const int _pageSize = 50;
+  static const int _maxResults = 200;
+
   // Search weights for different fields
   static const Map<String, double> _fieldWeights = {
     'title': 1.0,
@@ -88,55 +97,115 @@ class UnifiedSearchService extends ChangeNotifier {
     'playCount': 0.3,
   };
 
-  /// Perform unified search across all library items
-  Future<List<SearchResult>> search(String query) async {
+  /// Perform unified search across all library items with incremental loading
+  Future<List<SearchResult>> search(String query, {int maxResults = _maxResults}) async {
     if (query.trim().isEmpty) {
       return [];
     }
 
     final normalizedQuery = query.toLowerCase().trim();
-    
+
     // Check cache first
     if (_searchCache.containsKey(normalizedQuery)) {
       return _searchCache[normalizedQuery]!;
     }
 
+    // Check if incremental search is already in progress
+    if (_searchInProgress[normalizedQuery] == true) {
+      // Return current results if search is in progress
+      return _incrementalResults[normalizedQuery] ?? [];
+    }
+
+    // Start incremental search
+    _searchInProgress[normalizedQuery] = true;
+    _incrementalResults[normalizedQuery] = [];
+    _loadedCounts[normalizedQuery] = 0;
+
     try {
       final results = <SearchResult>[];
-      
-      // Search songs
-      final songs = await _loadDownloadedSongs();
-      debugPrint('Loaded ${songs.length} songs for search');
-      results.addAll(_searchSongs(songs, normalizedQuery));
-      
-      // Search albums
-      final albums = await _loadSavedAlbums();
-      debugPrint('Loaded ${albums.length} albums for search');
-      results.addAll(_searchAlbums(albums, normalizedQuery));
-      
-      // Search playlists
-      final playlists = await _loadPlaylists();
-      debugPrint('Loaded ${playlists.length} playlists for search');
-      results.addAll(_searchPlaylists(playlists, normalizedQuery));
-      
-      // Search radio stations
-      final radioStations = await _loadRecentRadioStations();
-      debugPrint('Loaded ${radioStations.length} radio stations for search');
-      results.addAll(_searchRadioStations(radioStations, normalizedQuery));
+
+      // Search different data types incrementally
+      await _searchIncrementally(normalizedQuery, results, maxResults);
 
       debugPrint('Found ${results.length} total search results for query: "$normalizedQuery"');
 
       // Sort by relevance score
       results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
 
+      // Limit results
+      final limitedResults = results.take(maxResults).toList();
+
       // Cache results
-      _cacheResults(normalizedQuery, results);
-      
-      return results;
+      _cacheResults(normalizedQuery, limitedResults);
+
+      // Clean up incremental state
+      _incrementalResults.remove(normalizedQuery);
+      _searchInProgress.remove(normalizedQuery);
+      _loadedCounts.remove(normalizedQuery);
+
+      return limitedResults;
     } catch (e) {
       debugPrint('Error in unified search: $e');
+      // Clean up on error
+      _incrementalResults.remove(normalizedQuery);
+      _searchInProgress.remove(normalizedQuery);
+      _loadedCounts.remove(normalizedQuery);
       return [];
     }
+  }
+
+  /// Get current incremental results for a query (useful for progressive UI updates)
+  List<SearchResult> getIncrementalResults(String query) {
+    final normalizedQuery = query.toLowerCase().trim();
+    final results = _incrementalResults[normalizedQuery] ?? [];
+    // Return sorted results
+    final sorted = List<SearchResult>.from(results);
+    sorted.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+    return sorted.take(_maxResults).toList();
+  }
+
+  /// Check if search is in progress for a query
+  bool isSearchInProgress(String query) {
+    return _searchInProgress[query.toLowerCase().trim()] == true;
+  }
+
+  /// Perform incremental search across data sources
+  Future<void> _searchIncrementally(String query, List<SearchResult> results, int maxResults) async {
+    // Load and search songs first (most common search target)
+    final songs = await _loadDownloadedSongs();
+    debugPrint('Loaded ${songs.length} songs for incremental search');
+    results.addAll(_searchSongs(songs, query));
+
+    // If we have enough results, return early
+    if (results.length >= maxResults) {
+      results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+      return;
+    }
+
+    // Load and search albums
+    final albums = await _loadSavedAlbums();
+    debugPrint('Loaded ${albums.length} albums for incremental search');
+    results.addAll(_searchAlbums(albums, query));
+
+    if (results.length >= maxResults) {
+      results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+      return;
+    }
+
+    // Load and search playlists
+    final playlists = await _loadPlaylists();
+    debugPrint('Loaded ${playlists.length} playlists for incremental search');
+    results.addAll(_searchPlaylists(playlists, query));
+
+    if (results.length >= maxResults) {
+      results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
+      return;
+    }
+
+    // Load and search radio stations (lowest priority)
+    final radioStations = await _loadRecentRadioStations();
+    debugPrint('Loaded ${radioStations.length} radio stations for incremental search');
+    results.addAll(_searchRadioStations(radioStations, query));
   }
 
   /// Search songs by metadata

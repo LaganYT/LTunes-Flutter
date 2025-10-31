@@ -375,7 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final playlistManager = PlaylistManagerService();
       for (final song in songsToUpdateInProvider) {
         currentSongProvider.updateSongDetails(song); // Notifies and saves state
-        playlistManager.updateSongInPlaylists(song);
+        await playlistManager.updateSongInPlaylists(song);
         await AlbumManagerService()
             .updateSongInAlbums(song); // Update album download status
       }
