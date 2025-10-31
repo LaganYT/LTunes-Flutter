@@ -129,7 +129,8 @@ class AudioPlayerHandler extends BaseAudioHandler
           await _audioSession!.setActive(true);
           _isSessionActive = true;
         } catch (e) {
-          debugPrint("Initial audio session activation failed (non-critical): $e");
+          debugPrint(
+              "Initial audio session activation failed (non-critical): $e");
           _isSessionActive = false;
         }
       } else {
@@ -156,7 +157,8 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     // Don't try to activate if we have too many consecutive errors
     if (_consecutiveErrors >= _maxConsecutiveErrors) {
-      debugPrint("AudioHandler: Too many consecutive errors, skipping activation");
+      debugPrint(
+          "AudioHandler: Too many consecutive errors, skipping activation");
       return;
     }
 
@@ -169,12 +171,14 @@ class AudioPlayerHandler extends BaseAudioHandler
         debugPrint("AudioHandler: Audio session activated successfully");
       } catch (e) {
         final errorMessage = e.toString();
-        debugPrint("AudioHandler: Error activating audio session: $errorMessage");
+        debugPrint(
+            "AudioHandler: Error activating audio session: $errorMessage");
         _consecutiveErrors++;
 
         // Check for -50 error (paramErr) which indicates the session is in a bad state
         if (errorMessage.contains('-50') || errorMessage.contains('paramErr')) {
-          debugPrint("AudioHandler: Detected paramErr (-50), marking session as invalid");
+          debugPrint(
+              "AudioHandler: Detected paramErr (-50), marking session as invalid");
           _isSessionActive = false;
           _audioSessionConfigured = false; // Force re-initialization
         }
@@ -190,7 +194,8 @@ class AudioPlayerHandler extends BaseAudioHandler
         debugPrint("AudioHandler: Background audio session verified as active");
       } catch (e) {
         final errorMessage = e.toString();
-        debugPrint("AudioHandler: Background session verification failed: $errorMessage");
+        debugPrint(
+            "AudioHandler: Background session verification failed: $errorMessage");
 
         // For -50 errors, mark session as invalid
         if (errorMessage.contains('-50') || errorMessage.contains('paramErr')) {
@@ -217,10 +222,12 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   void _scheduleErrorRecovery() {
-    if (_consecutiveErrors >= _maxConsecutiveErrors && _errorRecoveryTimer == null) {
+    if (_consecutiveErrors >= _maxConsecutiveErrors &&
+        _errorRecoveryTimer == null) {
       _errorRecoveryTimer?.cancel();
       _errorRecoveryTimer = Timer(const Duration(seconds: 10), () async {
-        debugPrint("AudioHandler: Attempting comprehensive audio session recovery");
+        debugPrint(
+            "AudioHandler: Attempting comprehensive audio session recovery");
         _errorRecoveryTimer = null;
 
         try {
@@ -240,11 +247,13 @@ class AudioPlayerHandler extends BaseAudioHandler
             try {
               // Only attempt recovery if we should be playing
               if (playbackState.value.playing) {
-                debugPrint("AudioHandler: Restoring playback after session recovery");
+                debugPrint(
+                    "AudioHandler: Restoring playback after session recovery");
                 await _ensureBackgroundPlaybackContinuity();
               }
             } catch (e) {
-              debugPrint("AudioHandler: Error during background playback recovery: $e");
+              debugPrint(
+                  "AudioHandler: Error during background playback recovery: $e");
             }
           }
         } catch (e) {
