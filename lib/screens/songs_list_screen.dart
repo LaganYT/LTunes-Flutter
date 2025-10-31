@@ -20,7 +20,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 
 class SongsScreen extends StatefulWidget {
   final String? artistFilter;
-  const SongsScreen({super.key, this.artistFilter});
+  final bool importedSongsOnly;
+  const SongsScreen({super.key, this.artistFilter, this.importedSongsOnly = false});
   @override
   SongsScreenState createState() => SongsScreenState();
 }
@@ -37,6 +38,7 @@ class SongsScreenState extends State<SongsScreen> {
   bool _hasMoreSongs = true;
   int _currentPage = 0;
   List<Song> _allSongs = []; // Keep all songs in memory for filtering
+  List<Song> _importedSongs = []; // Keep imported songs in memory for filtering
   @override
   void initState() {
     super.initState();
@@ -48,6 +50,111 @@ class SongsScreenState extends State<SongsScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Widget _buildSongTile(Song s) {
+    return Slidable(
+      key: Key(s.id),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.32, // enough for two square buttons
+        children: [
+          SlidableAction(
+            onPressed: (context) {
+              final currentSongProvider =
+                  Provider.of<CurrentSongProvider>(context, listen: false);
+              currentSongProvider.addToQueue(s);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${s.title} added to queue')),
+              );
+            },
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            icon: Icons.playlist_add,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          SlidableAction(
+            onPressed: (context) {
+              showDialog(
+                context: context,
+                builder: (BuildContext dialogContext) {
+                  return AddToPlaylistDialog(song: s);
+                },
+              );
+            },
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            foregroundColor: Theme.of(context).colorScheme.onSecondary,
+            icon: Icons.library_add,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8.0),
+          child: s.albumArtUrl.isNotEmpty
+              ? (s.albumArtUrl.startsWith('http')
+                  ? Image.network(
+                      s.albumArtUrl,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.album, size: 40);
+                      },
+                    )
+                  : FutureBuilder<String>(
+                      future: () async {
+                        final dir = await getApplicationDocumentsDirectory();
+                        final fname = p.basename(s.albumArtUrl);
+                        final path = p.join(dir.path, fname);
+                        return await File(path).exists() ? path : '';
+                      }(),
+                      builder: (_, snap) {
+                        if (snap.connectionState == ConnectionState.done &&
+                            snap.hasData &&
+                            snap.data!.isNotEmpty) {
+                          return Image.file(
+                            File(snap.data!),
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(Icons.album, size: 40);
+                            },
+                          );
+                        }
+                        return const Icon(Icons.album, size: 40);
+                      },
+                    ))
+              : const Icon(Icons.album, size: 40),
+        ),
+        title: Text(s.title),
+        subtitle: Text(s.artist),
+        onTap: () async {
+          final prov = Provider.of<CurrentSongProvider>(context, listen: false);
+          // If the song is downloaded, has a network album art URL, and is missing local art, try to download it
+          bool needsArtDownload = s.isDownloaded &&
+              s.albumArtUrl.isNotEmpty &&
+              s.albumArtUrl.startsWith('http');
+          bool isOnline = true;
+          try {
+            final result = await InternetAddress.lookup('example.com');
+            isOnline = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+          } catch (_) {
+            isOnline = false;
+          }
+          if (needsArtDownload && isOnline) {
+            await prov.updateMissingMetadata(s);
+          }
+          await prov.smartPlayWithContext([s], s); // Use single song context for imported songs
+        },
+        trailing: IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: () => _deleteSong(s),
+        ),
+      ),
+    );
   }
 
   Future<void> _refreshSongs() async {
@@ -156,23 +263,39 @@ class SongsScreenState extends State<SongsScreen> {
       }
     }
 
+    // Separate imported and non-imported songs
+    List<Song> nonImportedSongs = allValidSongs.where((s) => !s.isImported).toList();
+    List<Song> importedSongs = allValidSongs.where((s) => s.isImported).toList();
+
     // Apply artist filter if present
-    List<Song> songsToDisplay = allValidSongs;
     if (widget.artistFilter != null) {
-      songsToDisplay =
-          allValidSongs.where((s) => s.artist == widget.artistFilter).toList();
+      nonImportedSongs = nonImportedSongs.where((s) => s.artist == widget.artistFilter).toList();
+      importedSongs = importedSongs.where((s) => s.artist == widget.artistFilter).toList();
     }
 
-    // Sort songs alphabetically by title
-    songsToDisplay
-        .sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    // Sort both lists alphabetically by title
+    nonImportedSongs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    importedSongs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
     if (mounted) {
       setState(() {
-        _allSongs = songsToDisplay;
-        _currentPage = 0;
-        _hasMoreSongs = true;
-        _songs = _loadNextPage();
+        if (widget.importedSongsOnly) {
+          // Show only imported songs
+          _allSongs = [];
+          _importedSongs = importedSongs;
+          _songs = importedSongs; // Show all imported songs directly
+          _hasMoreSongs = false; // No pagination for imported songs only
+        } else {
+          // Combine all songs into a single sorted list
+          List<Song> allSongs = [...nonImportedSongs, ...importedSongs];
+          allSongs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+
+          _allSongs = allSongs;
+          _importedSongs = importedSongs;
+          _currentPage = 0;
+          _hasMoreSongs = true;
+          _songs = _loadNextPage();
+        }
       });
     }
   }
@@ -562,142 +685,35 @@ class SongsScreenState extends State<SongsScreen> {
           ),
         ),
       ),
-      body: _songs.isEmpty
-          ? const Center(child: Text('No songs found.'))
-          : ListView.builder(
-              controller: _scrollController,
-              padding:
-                  const EdgeInsets.only(bottom: 80), // Add padding for playbar
-              itemCount: _songs.length + (_isLoading ? 1 : 0),
-              itemBuilder: (c, i) {
-                // Show loading indicator at the bottom
-                if (i == _songs.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
+      body: widget.importedSongsOnly
+          ? (_songs.isEmpty
+              ? const Center(child: Text('No imported songs found.'))
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemCount: _songs.length,
+                  itemBuilder: (c, i) {
+                    return _buildSongTile(_songs[i]);
+                  },
+                ))
+          : _songs.isEmpty
+              ? const Center(child: Text('No songs found.'))
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.only(bottom: 80), // Add padding for playbar
+                  itemCount: _songs.length + (_isLoading ? 1 : 0),
+                  itemBuilder: (c, i) {
+                    // Show loading indicator at the bottom
+                    if (i == _songs.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
 
-                final s = _songs[i];
-                return Slidable(
-                  key: Key(s.id),
-                  endActionPane: ActionPane(
-                    motion: const DrawerMotion(),
-                    extentRatio: 0.32, // enough for two square buttons
-                    children: [
-                      SlidableAction(
-                        onPressed: (context) {
-                          final currentSongProvider =
-                              Provider.of<CurrentSongProvider>(context,
-                                  listen: false);
-                          currentSongProvider.addToQueue(s);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text('${s.title} added to queue')),
-                          );
-                        },
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
-                        icon: Icons.playlist_add,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      SlidableAction(
-                        onPressed: (context) {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext dialogContext) {
-                              return AddToPlaylistDialog(song: s);
-                            },
-                          );
-                        },
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onSecondary,
-                        icon: Icons.library_add,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ],
-                  ),
-                  child: ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: s.albumArtUrl.isNotEmpty
-                          ? (s.albumArtUrl.startsWith('http')
-                              ? Image.network(
-                                  s.albumArtUrl,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(Icons.album, size: 40);
-                                  },
-                                )
-                              : FutureBuilder<String>(
-                                  future: () async {
-                                    final dir =
-                                        await getApplicationDocumentsDirectory();
-                                    final fname = p.basename(s.albumArtUrl);
-                                    final path = p.join(dir.path, fname);
-                                    return await File(path).exists()
-                                        ? path
-                                        : '';
-                                  }(),
-                                  builder: (_, snap) {
-                                    if (snap.connectionState ==
-                                            ConnectionState.done &&
-                                        snap.hasData &&
-                                        snap.data!.isNotEmpty) {
-                                      return Image.file(
-                                        File(snap.data!),
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return const Icon(Icons.album,
-                                              size: 40);
-                                        },
-                                      );
-                                    }
-                                    return const Icon(Icons.album, size: 40);
-                                  },
-                                ))
-                          : const Icon(Icons.album, size: 40),
-                    ),
-                    title: Text(s.title),
-                    subtitle: Text(s.artist),
-                    onTap: () async {
-                      final prov = Provider.of<CurrentSongProvider>(context,
-                          listen: false);
-                      final song = _songs[i];
-                      // If the song is downloaded, has a network album art URL, and is missing local art, try to download it
-                      bool needsArtDownload = song.isDownloaded &&
-                          song.albumArtUrl.isNotEmpty &&
-                          song.albumArtUrl.startsWith('http');
-                      bool isOnline = true;
-                      try {
-                        final result =
-                            await InternetAddress.lookup('example.com');
-                        isOnline = result.isNotEmpty &&
-                            result[0].rawAddress.isNotEmpty;
-                      } catch (_) {
-                        isOnline = false;
-                      }
-                      if (needsArtDownload && isOnline) {
-                        await prov.updateMissingMetadata(song);
-                      }
-                      await prov.smartPlayWithContext(_songs, song);
-                    },
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteSong(s),
-                    ),
-                  ),
-                );
-              },
-            ),
+                    return _buildSongTile(_songs[i]);
+                  },
+                ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
         child: const Hero(

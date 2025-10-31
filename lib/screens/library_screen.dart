@@ -265,6 +265,7 @@ class ModernLibraryScreen extends StatefulWidget {
 class ModernLibraryScreenState extends State<ModernLibraryScreen>
     with AutomaticKeepAliveClientMixin {
   List<Song> _songs = [];
+  List<Song> _importedSongs = []; // New list for imported songs
   List<Playlist> _playlists = [];
   List<Album> _savedAlbums = []; // New list for saved albums
   List<RadioStation> _recentStations = []; // New list for recent stations
@@ -1143,6 +1144,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
       final prefs = await SharedPreferences.getInstance();
       final Set<String> keys = prefs.getKeys();
       final List<Song> loadedSongs = [];
+      final List<Song> loadedImportedSongs = [];
       final appDocDir = await getApplicationDocumentsDirectory();
       const String downloadsSubDir = 'ltunes_downloads';
 
@@ -1215,7 +1217,11 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                 final checkFile = File(p.join(
                     appDocDir.path, downloadsSubDir, song.localFilePath!));
                 if (await checkFile.exists()) {
-                  loadedSongs.add(song);
+                  if (song.isImported) {
+                    loadedImportedSongs.add(song);
+                  } else {
+                    loadedSongs.add(song);
+                  }
                 }
               }
             } catch (e) {
@@ -1229,6 +1235,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
       if (mounted) {
         setState(() {
           _songs = loadedSongs;
+          _importedSongs = loadedImportedSongs;
           _isLoadingSongs = false;
         });
       }
@@ -1236,6 +1243,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
       debugPrint('Error loading downloaded songs: $e');
       if (mounted) {
         setState(() {
+          _songs = [];
+          _importedSongs = [];
           _isLoadingSongs = false;
         });
       }
@@ -2502,6 +2511,22 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                     MaterialPageRoute(builder: (_) => const SongsScreen()),
                   ),
                 ),
+                if (_importedSongs.isNotEmpty)
+                  ListTile(
+                    leading: Icon(Icons.file_upload_outlined,
+                        color: Theme.of(context).colorScheme.primary),
+                    title: Text('Imported Songs (${_importedSongs.length})'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SongsScreen(
+                          // Pass a filter to show only imported songs
+                          importedSongsOnly: true,
+                        ),
+                      ),
+                    ),
+                  ),
                 Consumer<CurrentSongProvider>(
                   builder: (context, provider, child) {
                     final active = provider.activeDownloadTasks.length;
