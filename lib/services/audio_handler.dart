@@ -115,7 +115,6 @@ class AudioPlayerHandler extends BaseAudioHandler
           avAudioSessionMode: AVAudioSessionMode.defaultMode,
           avAudioSessionRouteSharingPolicy:
               AVAudioSessionRouteSharingPolicy.defaultPolicy,
-          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
         ));
 
         // Set up event listeners
@@ -1345,7 +1344,6 @@ class AudioPlayerHandler extends BaseAudioHandler
           avAudioSessionMode: AVAudioSessionMode.defaultMode,
           avAudioSessionRouteSharingPolicy:
               AVAudioSessionRouteSharingPolicy.defaultPolicy,
-          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
         ));
         await _audioSession!.setActive(true);
         _isSessionActive = true;
