@@ -115,12 +115,13 @@ class AudioPlayerHandler extends BaseAudioHandler
         _audioSession!.becomingNoisyEventStream
             .listen((_) => _handleBecomingNoisy());
 
-        // Simplified iOS configuration
+        // Enhanced iOS configuration for background playback
         try {
-          await _audioSession!.configure(const AudioSessionConfiguration(
+          await _audioSession!.configure(AudioSessionConfiguration(
             avAudioSessionCategory: AVAudioSessionCategory.playback,
             avAudioSessionCategoryOptions:
-                AVAudioSessionCategoryOptions.allowBluetooth,
+                AVAudioSessionCategoryOptions.allowBluetooth |
+                    AVAudioSessionCategoryOptions.allowAirPlay,
             avAudioSessionMode: AVAudioSessionMode.defaultMode,
             avAudioSessionRouteSharingPolicy:
                 AVAudioSessionRouteSharingPolicy.defaultPolicy,
@@ -190,21 +191,61 @@ class AudioPlayerHandler extends BaseAudioHandler
   void _scheduleErrorRecovery() {
     if (_consecutiveErrors >= _maxConsecutiveErrors) {
       _errorRecoveryTimer?.cancel();
-      _errorRecoveryTimer = Timer(const Duration(seconds: 5), () {
-        debugPrint("Attempting audio session recovery");
+      _errorRecoveryTimer = Timer(const Duration(seconds: 5), () async {
+        debugPrint(
+            "AudioHandler: Attempting comprehensive audio session recovery");
         _isSessionActive = false;
         _consecutiveErrors = 0;
-        _ensureAudioSessionActive();
 
-        // If we're in background mode, also try to restore playback
-        if (_isBackgroundMode && _playlist.isNotEmpty && _currentIndex >= 0) {
-          Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          // Step 1: Full audio session reconfiguration
+          if (_isIOS && _audioSession != null) {
+            try {
+              await _audioSession!.configure(AudioSessionConfiguration(
+                avAudioSessionCategory: AVAudioSessionCategory.playback,
+                avAudioSessionCategoryOptions:
+                    AVAudioSessionCategoryOptions.allowBluetooth |
+                        AVAudioSessionCategoryOptions.allowAirPlay,
+                avAudioSessionMode: AVAudioSessionMode.defaultMode,
+                avAudioSessionRouteSharingPolicy:
+                    AVAudioSessionRouteSharingPolicy.defaultPolicy,
+                avAudioSessionSetActiveOptions:
+                    AVAudioSessionSetActiveOptions.none,
+              ));
+              debugPrint(
+                  "AudioHandler: Audio session reconfigured during recovery");
+            } catch (e) {
+              debugPrint(
+                  "AudioHandler: Failed to reconfigure audio session: $e");
+            }
+          }
+
+          // Step 2: Force session activation
+          await _ensureAudioSessionActive();
+
+          // Step 3: If we're in background mode, restore playback continuity
+          if (_isBackgroundMode && _playlist.isNotEmpty && _currentIndex >= 0) {
+            await Future.delayed(const Duration(seconds: 2));
             try {
               await _ensureBackgroundPlaybackContinuity();
+
+              // Additional step: Verify audio player is still in correct state
+              if (_audioPlayer.processingState == ProcessingState.idle &&
+                  playbackState.value.playing) {
+                debugPrint(
+                    "AudioHandler: Audio player idle but should be playing, restarting");
+                await skipToQueueItem(_currentIndex);
+              }
             } catch (e) {
-              debugPrint("Error during background playback recovery: $e");
+              debugPrint(
+                  "AudioHandler: Error during background playback recovery: $e");
             }
-          });
+          }
+        } catch (e) {
+          debugPrint("AudioHandler: Comprehensive recovery failed: $e");
+          // Last resort: Force a complete reset
+          _consecutiveErrors =
+              _maxConsecutiveErrors + 1; // Prevent further recovery attempts
         }
       });
     }
@@ -787,6 +828,17 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (_isBackgroundMode) {
       await _ensureAudioSessionActive();
       debugPrint("AudioHandler: Background session verified before skipToNext");
+
+      // ADDITIONAL FIX: Extra aggressive session verification for iOS
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint(
+              "AudioHandler: Extra iOS session activation before skipToNext");
+        } catch (e) {
+          debugPrint("AudioHandler: Extra iOS session activation failed: $e");
+        }
+      }
     }
 
     int newIndex = _currentIndex + 1;
@@ -813,6 +865,17 @@ class AudioPlayerHandler extends BaseAudioHandler
       await _ensureAudioSessionActive();
       debugPrint(
           "AudioHandler: Background session verified before skipToPrevious");
+
+      // ADDITIONAL FIX: Extra aggressive session verification for iOS
+      if (_isIOS && _audioSession != null) {
+        try {
+          await _audioSession!.setActive(true);
+          debugPrint(
+              "AudioHandler: Extra iOS session activation before skipToPrevious");
+        } catch (e) {
+          debugPrint("AudioHandler: Extra iOS session activation failed: $e");
+        }
+      }
     }
 
     int newIndex = _currentIndex - 1;
@@ -841,6 +904,30 @@ class AudioPlayerHandler extends BaseAudioHandler
       // CRITICAL FIX: Ensure audio session is active before any transition
       // This prevents the bug where audio session becomes inactive during song changes
       await _ensureAudioSessionActive();
+
+      // ADDITIONAL FIX: In background mode, be extra aggressive with session activation
+      if (_isBackgroundMode && _isIOS && _audioSession != null) {
+        try {
+          // Force immediate session activation and configuration
+          await _audioSession!.configure(AudioSessionConfiguration(
+            avAudioSessionCategory: AVAudioSessionCategory.playback,
+            avAudioSessionCategoryOptions:
+                AVAudioSessionCategoryOptions.allowBluetooth |
+                    AVAudioSessionCategoryOptions.allowAirPlay,
+            avAudioSessionMode: AVAudioSessionMode.defaultMode,
+            avAudioSessionRouteSharingPolicy:
+                AVAudioSessionRouteSharingPolicy.defaultPolicy,
+            avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+          ));
+          await _audioSession!.setActive(true);
+          _isSessionActive = true;
+          debugPrint(
+              "AudioHandler: Aggressive background session activation before skipToQueueItem");
+        } catch (e) {
+          debugPrint("AudioHandler: Failed aggressive session activation: $e");
+          // Continue anyway - don't fail the entire operation
+        }
+      }
 
       if (_audioPlayer.processingState == ProcessingState.completed) {
         await _audioPlayer.stop();
