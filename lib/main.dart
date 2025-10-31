@@ -165,49 +165,50 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     _sessionRestorationTimer?.cancel();
     _backgroundContinuityCount = 0;
 
-    // Start an intensive timer for the first 3 minutes (most critical period)
-    // This is when audio session is most likely to become inactive after song transitions
+    // Start a much less aggressive timer for background continuity
+    // Only check every 30 seconds instead of every 3 seconds
     _intensiveBackgroundTimer =
-        Timer.periodic(const Duration(seconds: 3), (timer) {
+        Timer.periodic(const Duration(seconds: 30), (timer) {
       _backgroundContinuityCount++;
       _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
 
-      // After 3 minutes (60 * 3 seconds), switch to less frequent monitoring
-      if (_backgroundContinuityCount >= 60) {
+      // After 10 minutes, switch to even less frequent monitoring (every 60 seconds)
+      if (_backgroundContinuityCount >= 20) {
+        // 20 * 30s = 10 minutes
         timer.cancel();
         _intensiveBackgroundTimer = null;
 
-        // Start the regular timer (every 12 seconds)
+        // Start the regular timer (every 60 seconds)
         _backgroundContinuityTimer =
-            Timer.periodic(const Duration(seconds: 12), (regularTimer) {
+            Timer.periodic(const Duration(seconds: 60), (regularTimer) {
           _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
         });
 
         debugPrint(
-            "Main: Switched to regular background continuity timer (12s intervals)");
+            "Main: Switched to regular background continuity timer (60s intervals)");
       }
     });
 
-    // Enhanced session restoration timer - more frequent initially
+    // Session restoration timer - much less frequent (every 2 minutes)
     _sessionRestorationTimer =
-        Timer.periodic(const Duration(seconds: 20), (timer) {
+        Timer.periodic(const Duration(minutes: 2), (timer) {
       _audioHandler.customAction('restoreAudioSession', {});
 
-      // After 5 minutes, reduce frequency to every 45 seconds
-      if (_backgroundContinuityCount >= 100) {
-        // ~5 minutes at 3s intervals
+      // After 15 minutes, reduce frequency to every 5 minutes
+      if (_backgroundContinuityCount >= 30) {
+        // ~15 minutes at 30s intervals
         timer.cancel();
         _sessionRestorationTimer =
-            Timer.periodic(const Duration(seconds: 45), (newTimer) {
+            Timer.periodic(const Duration(minutes: 5), (newTimer) {
           _audioHandler.customAction('restoreAudioSession', {});
         });
         debugPrint(
-            "Main: Reduced session restoration frequency to 45s intervals");
+            "Main: Reduced session restoration frequency to 5 minute intervals");
       }
     });
 
     debugPrint(
-        "Main: Started enhanced intensive background continuity timer for iOS background playback (3s intervals for first 3 minutes)");
+        "Main: Started gentle background continuity timer for iOS background playback (30s intervals)");
   }
 
   void _stopBackgroundContinuityTimer() {

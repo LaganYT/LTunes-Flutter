@@ -25,4 +25,4 @@
 
 - Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
 
-Go through the audio handler and current song provider and make sure it is as compatiable as possible, I have issues with background audio playback on my ios device sometimes, fix this
+- Go through the audio handler and current song provider and make sure it is as compatiable as possible, I have issues with background audio playback on my ios device sometimes, fix this
