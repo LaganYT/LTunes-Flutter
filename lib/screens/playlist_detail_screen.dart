@@ -1265,12 +1265,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                             onTap: () async {
                               await currentSongProvider.smartPlayWithContext(
                                   currentPlaylist.songs, song);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) =>
-                                        const FullScreenPlayer()),
-                              );
                             },
                           ),
                         ),

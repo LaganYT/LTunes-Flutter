@@ -673,10 +673,6 @@ class _AlbumScreenState extends State<AlbumScreen>
             final currentSongProvider =
                 Provider.of<CurrentSongProvider>(context, listen: false);
             currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks[index]);
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-            );
           },
           onLongPress: () {
             Navigator.push(
@@ -1290,16 +1286,9 @@ class _AlbumScreenState extends State<AlbumScreen>
                             final currentSongProvider =
                                 Provider.of<CurrentSongProvider>(context,
                                     listen: false);
-                            final navigator =
-                                Navigator.of(context); // Capture before async
                             await currentSongProvider.smartPlayWithContext(
                                 widget.album.tracks,
                                 widget.album.tracks[index]);
-                            navigator.push(
-                              MaterialPageRoute(
-                                  builder: (context) =>
-                                      const FullScreenPlayer()),
-                            );
                           },
                           onLongPress: () {
                             Navigator.push(

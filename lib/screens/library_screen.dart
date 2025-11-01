@@ -2576,10 +2576,6 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                           final prov = Provider.of<CurrentSongProvider>(context,
                               listen: false);
                           prov.smartPlayWithContext(recentSongs, recentSongs[i]);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-                          );
                         },
                         child: Container(
                           width: 140,

@@ -429,10 +429,6 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                       onTap: () {
                         // queue all liked songs and play starting at this one
                         provider.smartPlayWithContext(_likedSongs, _likedSongs[i]);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-                        );
                       },
                     ),
                   );

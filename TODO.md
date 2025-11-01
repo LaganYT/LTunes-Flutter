@@ -33,4 +33,3 @@ Fix versions of songs not being downloaded nor being counted as different songs 
 When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
 Make the liked songs section of the library only show up if at least 1 song is liked
 Add dev, beta, and stable release channels, let the user choose which to use.
-When you click on a song it should change the playbar but not open the full screen player
