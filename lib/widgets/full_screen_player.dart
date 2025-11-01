@@ -55,7 +55,7 @@ class _QueueBottomSheetContent extends StatefulWidget {
 class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
   static const double itemHeight = 72.0;
   final Map<String, String> _artPathCache = {};
-  bool _loading = true;
+  bool _loading = false; // Start with loading false to show queue immediately
   final ScrollController _scrollController = ScrollController();
   String? _lastSongId; // Track last song ID for scroll logic
   bool _hasAutoScrolled = false; // Only scroll on first open
@@ -70,18 +70,35 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
   Future<void> _precacheArtPaths() async {
     final provider = Provider.of<CurrentSongProvider>(context, listen: false);
     final queue = List<Song>.from(provider.queue);
+
+    // Initialize cache with empty paths first to avoid loading state
     for (final song in queue) {
-      if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http')) {
-        final path = await _resolveLocalArtPath(song.albumArtUrl);
-        _artPathCache[song.id] = path;
-      } else {
+      if (!_artPathCache.containsKey(song.id)) {
         _artPathCache[song.id] = '';
       }
     }
+
+    // Set loading to false immediately so queue can be displayed
     if (mounted) {
       setState(() {
         _loading = false;
       });
+    }
+
+    // Now cache art paths asynchronously in the background
+    for (final song in queue) {
+      if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http') && mounted) {
+        try {
+          final path = await _resolveLocalArtPath(song.albumArtUrl);
+          if (mounted) {
+            setState(() {
+              _artPathCache[song.id] = path;
+            });
+          }
+        } catch (e) {
+          debugPrint('Error resolving art path for ${song.title}: $e');
+        }
+      }
     }
   }
 
@@ -116,8 +133,8 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
         final queue = List<Song>.from(currentSongProvider.queue);
         final currentSong = currentSongProvider.currentSong;
         final currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
-        if (_artPathCache.length != queue.length && !_loading) {
-          _loading = true;
+        // Only trigger background caching if queue changed significantly and we're not already loading
+        if (_artPathCache.length < queue.length * 0.8 && !_loading && queue.length > 10) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _precacheArtPaths();
           });

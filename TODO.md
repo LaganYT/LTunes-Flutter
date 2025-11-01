@@ -34,4 +34,3 @@ When you scroll a certain amount past the current lyric have it not auto scroll 
 Make the liked songs section of the library only show up if at least 1 song is liked
 Add dev, beta, and stable release channels, let the user choose which to use.
 When you click on a song it should change the playbar but not open the full screen player
-Fix the queue stuck loading when a queue is too long

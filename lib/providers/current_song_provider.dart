@@ -158,8 +158,7 @@ class CurrentSongProvider with ChangeNotifier {
       // If we have a current song and queue, ensure the audio handler is properly set up
       if (_currentSongFromAppLogic != null && _queue.isNotEmpty) {
         // Update the audio handler's queue if needed
-        final mediaItems =
-            await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+        final mediaItems = await _prepareMediaItemsBatched(_queue);
         await _audioHandler.updateQueue(mediaItems);
 
         // Set the correct queue index
@@ -333,8 +332,7 @@ class CurrentSongProvider with ChangeNotifier {
 
       notifyListeners();
 
-      final mediaItems =
-          await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+      final mediaItems = await _prepareMediaItemsBatched(_queue);
       await _audioHandler.updateQueue(mediaItems);
       if (_currentIndexInAppQueue != -1) {
         await _audioHandler
@@ -416,8 +414,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     try {
-      final mediaItems = await Future.wait(
-          _queue.map((s) async => _prepareMediaItem(s)).toList());
+      final mediaItems = await _prepareMediaItemsBatched(_queue);
       await _audioHandler.updateQueue(mediaItems);
 
       if (_currentSongFromAppLogic != null && _currentIndexInAppQueue != -1) {
@@ -1127,8 +1124,7 @@ class CurrentSongProvider with ChangeNotifier {
   Future<void> _updateAudioHandlerQueue() async {
     if (_queue.isEmpty) return;
 
-    final mediaItems =
-        await Future.wait(_queue.map((s) => _prepareMediaItem(s)).toList());
+    final mediaItems = await _prepareMediaItemsBatched(_queue);
     await _audioHandler.updateQueue(mediaItems);
 
     if (_currentIndexInAppQueue != -1) {
@@ -1186,6 +1182,41 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   // Essential missing methods
+
+  /// Prepare media items in batches to avoid overwhelming the system with long queues
+  Future<List<MediaItem>> _prepareMediaItemsBatched(List<Song> songs,
+      {int batchSize = 10, int? playRequest}) async {
+    if (songs.isEmpty) return [];
+
+    final List<MediaItem> mediaItems = [];
+    final int totalBatches = (songs.length / batchSize).ceil();
+
+    debugPrint(
+        "CurrentSongProvider: Preparing ${songs.length} media items in $totalBatches batches of $batchSize");
+
+    for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      final int startIndex = batchIndex * batchSize;
+      final int endIndex = (startIndex + batchSize).clamp(0, songs.length);
+      final List<Song> batch = songs.sublist(startIndex, endIndex);
+
+      try {
+        final batchMediaItems = await Future.wait(batch
+            .map((s) async => _prepareMediaItem(s, playRequest: playRequest))
+            .toList());
+        mediaItems.addAll(batchMediaItems);
+
+        debugPrint(
+            "CurrentSongProvider: Completed batch ${batchIndex + 1}/$totalBatches (${mediaItems.length}/${songs.length} items prepared)");
+      } catch (e) {
+        debugPrint("CurrentSongProvider: Error in batch ${batchIndex + 1}: $e");
+        // Continue with other batches even if one fails
+        rethrow;
+      }
+    }
+
+    return mediaItems;
+  }
+
   Future<MediaItem> _prepareMediaItem(Song song, {int? playRequest}) async {
     Song effectiveSong = song;
 
@@ -2565,7 +2596,8 @@ class CurrentSongProvider with ChangeNotifier {
                   );
                   await _persistSongMetadata(updatedSong);
                   updateSongDetails(updatedSong);
-                  await PlaylistManagerService().updateSongInPlaylists(updatedSong);
+                  await PlaylistManagerService()
+                      .updateSongInPlaylists(updatedSong);
                   unmarkedSongs.add(song);
                 } else {
                   // File exists, check if corrupted
