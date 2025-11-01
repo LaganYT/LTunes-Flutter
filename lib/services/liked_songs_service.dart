@@ -6,7 +6,10 @@ import '../models/song.dart';
 class LikedSongsService with ChangeNotifier {
   static final LikedSongsService _instance = LikedSongsService._internal();
   factory LikedSongsService() => _instance;
-  LikedSongsService._internal();
+  LikedSongsService._internal() {
+    // Load data asynchronously in the background
+    Future.microtask(() => loadLikedSongs());
+  }
 
   static const String _likedSongsKey = 'liked_songs';
   List<Song> _likedSongs = [];

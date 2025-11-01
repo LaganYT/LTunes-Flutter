@@ -31,5 +31,4 @@ Fix music in the background randomly stopping playing after a few songs
 Maybe try replacing audio session/audio service with just audio background (compare them first)
 Fix versions of songs not being downloaded nor being counted as different songs (ex. Song about you and Song about you - acoustic)
 When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
-Make the liked songs section of the library only show up if at least 1 song is liked
 Add dev, beta, and stable release channels, let the user choose which to use.

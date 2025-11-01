@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/unified_search_service.dart';
 import '../services/error_handler_service.dart';
 import '../services/album_manager_service.dart';
+import '../services/liked_songs_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -279,7 +280,6 @@ class _SearchScreenState extends State<SearchScreen>
   final Map<String, Song> _songDownloadStatusCache = {};
 
   // Liked songs tracking
-  Set<String> _likedSongIds = {};
 
   // Radio tab visibility
   bool _showRadioTab = true;
@@ -295,7 +295,6 @@ class _SearchScreenState extends State<SearchScreen>
 
     _loadRadioTabSetting();
     _albumManager.addListener(_onAlbumManagerStateChanged);
-    _loadLikedSongIds();
     _loadInitialContent();
 
     // Listen for setting changes
@@ -366,25 +365,6 @@ class _SearchScreenState extends State<SearchScreen>
     super.dispose();
   }
 
-  Future<void> _loadLikedSongIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('liked_songs') ?? [];
-    final ids = raw
-        .map((s) {
-          try {
-            return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
-          } catch (_) {
-            return null;
-          }
-        })
-        .whereType<String>()
-        .toSet();
-    if (mounted) {
-      setState(() {
-        _likedSongIds = ids;
-      });
-    }
-  }
 
   Future<void> _loadInitialContent() async {
     if (_searchQuery.isEmpty) {
@@ -628,31 +608,18 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Future<void> _toggleLike(Song song) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('liked_songs') ?? [];
-    final isLiked = _likedSongIds.contains(song.id);
+    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final wasLiked = await likedSongsService.toggleLike(song);
 
-    if (isLiked) {
-      raw.removeWhere((s) {
-        try {
-          return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
-        } catch (_) {
-          return false;
-        }
-      });
-      _likedSongIds.remove(song.id);
-    } else {
-      raw.add(jsonEncode(song.toJson()));
-      _likedSongIds.add(song.id);
+    // If song was just liked (not unliked), check for auto-download
+    if (!wasLiked) {
+      final prefs = await SharedPreferences.getInstance();
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        Provider.of<CurrentSongProvider>(context, listen: false)
-            .queueSongForDownload(song);
+        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+        provider.queueSongForDownload(song);
       }
     }
-
-    await prefs.setStringList('liked_songs', raw);
-    setState(() {});
   }
 
   Future<void> _toggleAlbumSave(Album album) async {
@@ -879,16 +846,17 @@ class _SearchScreenState extends State<SearchScreen>
                   if (songWithStatus.isDownloaded)
                     const Icon(Icons.download_done,
                         color: Colors.green, size: 20),
-                  IconButton(
-                    icon: Icon(
-                      _likedSongIds.contains(songWithStatus.id)
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: _likedSongIds.contains(songWithStatus.id)
-                          ? Colors.red
-                          : null,
-                    ),
-                    onPressed: () => _toggleLike(songWithStatus),
+                  Consumer<LikedSongsService>(
+                    builder: (context, likedSongsService, child) {
+                      final isLiked = likedSongsService.isLiked(songWithStatus.id);
+                      return IconButton(
+                        icon: Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                          color: isLiked ? Colors.red : null,
+                        ),
+                        onPressed: () => _toggleLike(songWithStatus),
+                      );
+                    },
                   ),
                 ],
               ),

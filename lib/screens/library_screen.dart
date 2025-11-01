@@ -2461,15 +2461,22 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 // main categories
-                ListTile(
-                  leading: Icon(Icons.favorite,
-                      color: Theme.of(context).colorScheme.primary),
-                  title: const Text('Liked Songs'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LikedSongsScreen()),
-                  ),
+                Consumer<LikedSongsService>(
+                  builder: (context, likedSongsService, child) {
+                    if (!likedSongsService.isLoaded || likedSongsService.likedSongs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return ListTile(
+                      leading: Icon(Icons.favorite,
+                          color: Theme.of(context).colorScheme.primary),
+                      title: const Text('Liked Songs'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LikedSongsScreen()),
+                      ),
+                    );
+                  },
                 ),
                 ListTile(
                   leading: Icon(Icons.playlist_play,

@@ -90,7 +90,6 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   bool _isPreloadingArtist = false;
   String? _cachedAlbumId;
 
-  Set<String> _likedSongIds = {};
 
   ImageProvider? _currentArtProvider;
   String? _currentArtKey;
@@ -143,7 +142,6 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     _preloadAlbumData();
     _preloadLyricsData();
     _preloadArtistData();
-    _loadLikedSongIds();
   }
 
   Future<void> _updateArtProvider(String artUrl) async {
@@ -590,56 +588,19 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
-  Future<void> _loadLikedSongIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('liked_songs') ?? [];
-    final ids = raw
-        .map((s) {
-          try {
-            return (jsonDecode(s) as Map<String, dynamic>)['id'] as String;
-          } catch (_) {
-            return null;
-          }
-        })
-        .whereType<String>()
-        .toSet();
-    if (mounted) {
-      setState(() {
-        _likedSongIds = ids;
-      });
-    }
-  }
 
   Future<void> _toggleLike(Song song) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList('liked_songs') ?? [];
-    final isLiked = _likedSongIds.contains(song.id);
+    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final wasLiked = await likedSongsService.toggleLike(song);
 
-    if (isLiked) {
-      // unlike, remove from list
-      raw.removeWhere((s) {
-        try {
-          return (jsonDecode(s) as Map<String, dynamic>)['id'] == song.id;
-        } catch (_) {
-          return false;
-        }
-      });
-      _likedSongIds.remove(song.id);
-    } else {
-      // like and queue if auto-download enabled
-      raw.add(jsonEncode(song.toJson()));
-      _likedSongIds.add(song.id);
+    // If song was just liked (not unliked), check for auto-download
+    if (!wasLiked) {
+      final prefs = await SharedPreferences.getInstance();
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        final provider =
-            Provider.of<CurrentSongProvider>(context, listen: false);
+        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
         provider.queueSongForDownload(song);
       }
-    }
-
-    await prefs.setStringList('liked_songs', raw);
-    if (mounted) {
-      setState(() {});
     }
   }
 
@@ -762,12 +723,17 @@ class SongDetailScreenState extends State<SongDetailScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           actions: [
-            IconButton(
-              icon: _likedSongIds.contains(widget.song.id)
-                  ? Icon(Icons.favorite,
-                      color: Theme.of(context).colorScheme.secondary)
-                  : const Icon(Icons.favorite_border),
-              onPressed: () => _toggleLike(widget.song),
+            Consumer<LikedSongsService>(
+              builder: (context, likedSongsService, child) {
+                final isLiked = likedSongsService.isLiked(widget.song.id);
+                return IconButton(
+                  icon: isLiked
+                      ? Icon(Icons.favorite,
+                          color: Theme.of(context).colorScheme.secondary)
+                      : const Icon(Icons.favorite_border),
+                  onPressed: () => _toggleLike(widget.song),
+                );
+              },
             ),
           ],
         ),

@@ -19,6 +19,7 @@ import 'services/metadata_history_service.dart'; // Import MetadataHistoryServic
 import 'services/animation_service.dart'; // Import AnimationService
 import 'services/bug_report_service.dart'; // Import BugReportService
 import 'services/artwork_service.dart'; // Import ArtworkService
+import 'services/liked_songs_service.dart'; // Import LikedSongsService
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
@@ -89,6 +90,8 @@ Future<void> main() async {
         ChangeNotifierProvider(
             create: (context) =>
                 AnimationService.instance), // Add AnimationService
+        ChangeNotifierProvider(
+            create: (context) => LikedSongsService()), // Add LikedSongsService
       ],
       child: const LTunesApp(),
     ),

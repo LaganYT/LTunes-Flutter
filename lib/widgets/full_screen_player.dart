@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // For SharedPrefer
 import 'package:palette_generator/palette_generator.dart'; // Added for color extraction
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
 import '../services/api_service.dart';
+import '../services/liked_songs_service.dart';
 import '../services/lyrics_service.dart';
 import '../screens/song_detail_screen.dart'; // For AddToPlaylistDialog
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // Import for synced lyrics
@@ -636,7 +637,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   final bool _lyricsWidgetError =
       false; // Track if there was an error with the lyrics widget
 
-  bool _isLiked = false;
   Future<String>? _localArtPathFuture;
 
   // New state for seek bar
@@ -822,7 +822,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     });
 
     _currentSongProvider.addListener(_onSongChanged);
-    _loadLikeState(); // load initial like state
 
     // Add listener for lyrics scroll positions to track when lyrics are close to top
     _lyricsPositionsListenerCallback = () {
@@ -1223,7 +1222,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           _slideOffsetX = 0.0;
         });
       }
-      _loadLikeState();
     }
 
     // Check if playing state changed and update dots animation accordingly
@@ -2190,49 +2188,21 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     await _currentSongProvider.seek(Duration(milliseconds: value.round()));
   }
 
-  Future<void> _loadLikeState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final liked = prefs.getStringList('liked_songs') ?? [];
-    final id = _currentSongProvider.currentSong?.id;
-    setState(() {
-      _isLiked = id != null &&
-          liked.any((s) {
-            try {
-              return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id ==
-                  id;
-            } catch (_) {
-              return false;
-            }
-          });
-    });
-  }
 
   Future<void> _toggleLike() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('liked_songs') ?? [];
     final song = _currentSongProvider.currentSong!;
-    final jsonStr = jsonEncode(song.toJson());
-    if (_isLiked) {
-      // unlike: just remove from liked list
-      list.removeWhere((s) {
-        try {
-          return Song.fromJson(jsonDecode(s) as Map<String, dynamic>).id ==
-              song.id;
-        } catch (_) {
-          return false;
-        }
-      });
-    } else {
-      // like: add and queue if auto-download enabled
-      list.add(jsonStr);
+    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final wasLiked = await likedSongsService.toggleLike(song);
+
+    // If song was just liked (not unliked), check for auto-download
+    if (!wasLiked) {
+      final prefs = await SharedPreferences.getInstance();
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL && mounted && context.mounted) {
         Provider.of<CurrentSongProvider>(context, listen: false)
             .queueSongForDownload(song);
       }
     }
-    await prefs.setStringList('liked_songs', list);
-    setState(() => _isLiked = !_isLiked);
   }
 
   @override
@@ -2748,17 +2718,23 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                   colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
                             // Like button
-                            IconButton(
-                              icon: Icon(_isLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border),
-                              onPressed: _toggleLike,
-                              tooltip: _isLiked ? 'Unlike' : 'Like',
-                              iconSize: 26.0,
-                              color: _isLiked
-                                  ? colorScheme.secondary
-                                  : colorScheme.onSurface
-                                      .withValues(alpha: 0.7),
+                            Consumer<LikedSongsService>(
+                              builder: (context, likedSongsService, child) {
+                                final isLiked = currentSong != null &&
+                                    likedSongsService.isLiked(currentSong.id);
+                                return IconButton(
+                                  icon: Icon(isLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border),
+                                  onPressed: _toggleLike,
+                                  tooltip: isLiked ? 'Unlike' : 'Like',
+                                  iconSize: 26.0,
+                                  color: isLiked
+                                      ? colorScheme.secondary
+                                      : colorScheme.onSurface
+                                          .withValues(alpha: 0.7),
+                                );
+                              },
                             ),
                             // Lyrics toggle
                             IconButton(
