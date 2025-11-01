@@ -15,6 +15,7 @@ import '../services/unified_search_service.dart';
 import '../services/liked_songs_service.dart';
 import 'playlist_detail_screen.dart'; // Import for navigation
 import 'album_screen.dart'; // Import AlbumScreen for navigation
+import '../widgets/full_screen_player.dart'; // For navigation to player
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart'; // Required for getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // Required for path manipulation
@@ -2574,7 +2575,11 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                         onTap: () {
                           final prov = Provider.of<CurrentSongProvider>(context,
                               listen: false);
-                          prov.setQueue(recentSongs, initialIndex: i);
+                          prov.smartPlayWithContext(recentSongs, recentSongs[i]);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+                          );
                         },
                         child: Container(
                           width: 140,

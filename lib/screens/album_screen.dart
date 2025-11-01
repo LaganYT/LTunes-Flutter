@@ -672,9 +672,7 @@ class _AlbumScreenState extends State<AlbumScreen>
           onTap: () {
             final currentSongProvider =
                 Provider.of<CurrentSongProvider>(context, listen: false);
-            currentSongProvider.setQueue(widget.album.tracks,
-                initialIndex: index);
-            currentSongProvider.playSong(widget.album.tracks[index]);
+            currentSongProvider.smartPlayWithContext(widget.album.tracks, widget.album.tracks[index]);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const FullScreenPlayer()),

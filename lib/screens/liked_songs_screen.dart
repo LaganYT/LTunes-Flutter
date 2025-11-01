@@ -10,6 +10,7 @@ import '../models/song.dart';
 import '../services/artwork_service.dart'; // Import centralized artwork service
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
+import '../widgets/full_screen_player.dart'; // For navigation to player
 import '../widgets/playbar.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
@@ -427,7 +428,11 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                       ),
                       onTap: () {
                         // queue all liked songs and play starting at this one
-                        provider.setQueue(_likedSongs, initialIndex: i);
+                        provider.smartPlayWithContext(_likedSongs, _likedSongs[i]);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
+                        );
                       },
                     ),
                   );
