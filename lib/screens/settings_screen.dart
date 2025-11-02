@@ -9,7 +9,9 @@ import 'package:package_info_plus/package_info_plus.dart'; // Import package_inf
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 import '../services/api_service.dart'; // Import ApiService
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
+import '../services/release_channel_service.dart'; // Import ReleaseChannelService
 import '../models/update_info.dart'; // Import UpdateInfo
+import '../models/release_channel.dart'; // Import ReleaseChannel
 import 'package:path_provider/path_provider.dart'; // For getApplicationDocumentsDirectory
 import 'package:path/path.dart' as p; // For path joining
 import '../providers/current_song_provider.dart'; // Import CurrentSongProvider
@@ -63,6 +65,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ValueNotifier<Map<AnimationType, bool>>({}); // NEW
   final ValueNotifier<bool?> switchContextWithoutInterruptionNotifier =
       ValueNotifier<bool?>(null); // NEW
+  final ValueNotifier<ReleaseChannel?> selectedReleaseChannelNotifier =
+      ValueNotifier<ReleaseChannel?>(null); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -183,11 +187,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         prefs.getBool('switch_context_without_interruption') ?? true;
     switchContextWithoutInterruptionNotifier.value =
         switchContextWithoutInterruption;
+
+    // Load Selected Release Channel setting
+    final releaseChannelService = ReleaseChannelService();
+    final selectedChannel = await releaseChannelService.getSelectedChannel();
+    selectedReleaseChannelNotifier.value = selectedChannel;
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('usRadioOnly', value);
+  }
+
+  Future<void> _saveSelectedReleaseChannelSetting(ReleaseChannel channel) async {
+    final releaseChannelService = ReleaseChannelService();
+    await releaseChannelService.setSelectedChannel(channel);
+    selectedReleaseChannelNotifier.value = channel;
   }
 
   Future<void> _saveShowRadioTabSetting(bool value) async {
@@ -2405,6 +2420,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       }
                     }
+                  },
+                ),
+                ValueListenableBuilder<ReleaseChannel?>(
+                  valueListenable: selectedReleaseChannelNotifier,
+                  builder: (context, selectedChannel, _) {
+                    if (selectedChannel == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.update),
+                        title: Text('Release Channel'),
+                        subtitle: Text('Choose which updates to receive'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+
+                    return ListTile(
+                      leading: const Icon(Icons.update),
+                      title: const Text('Release Channel'),
+                      subtitle: Text(selectedChannel.description),
+                      trailing: Text(
+                        selectedChannel.displayName,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      onTap: () async {
+                        final releaseChannelService = ReleaseChannelService();
+                        final channels = releaseChannelService.getAvailableChannels();
+
+                        if (!mounted) return;
+
+                        final selected = await showDialog<ReleaseChannel>(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: const Text('Select Release Channel'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: channels.map((channel) {
+                                  return RadioListTile<ReleaseChannel>(
+                                    title: Text(channel.displayName),
+                                    subtitle: Text(channel.description),
+                                    value: channel,
+                                    groupValue: selectedChannel,
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        Navigator.of(context).pop(value);
+                                      }
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (selected != null && selected != selectedChannel) {
+                          await _saveSelectedReleaseChannelSetting(selected);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Switched to ${selected.displayName} channel. Updates will be checked from this channel.'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    );
                   },
                 ),
                 ValueListenableBuilder<bool?>(

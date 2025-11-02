@@ -28,4 +28,3 @@
 
 Fix music in the background randomly stopping playing after a few songs
 When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
-Add dev, beta, and stable release channels, let the user choose which to use.

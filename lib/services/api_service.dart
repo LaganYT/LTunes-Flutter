@@ -9,6 +9,7 @@ import '../models/lyrics_data.dart'; // Import LyricsData
 import 'error_handler_service.dart';
 import 'version_service.dart'; // Import VersionService
 import 'bug_report_service.dart'; // Import BugReportService
+import 'release_channel_service.dart'; // Import ReleaseChannelService
 import 'dart:async';
 
 // Performance: Cache entry with TTL
@@ -45,8 +46,6 @@ class ApiService {
 
   static const String baseUrl = 'https://apiv2.ltunes.app/api/';
   static const String originalBaseUrl = 'https://ltn-api.vercel.app/api/';
-  static const String updateUrl =
-      'https://ltn-api.vercel.app/updates/update.json';
 
   // Performance: Enhanced caching with TTL
   final Map<String, _CacheEntry<List<Song>>> _songCache = {};
@@ -726,6 +725,9 @@ class ApiService {
 
   Future<UpdateInfo?> checkForUpdate(String currentAppVersion) async {
     try {
+      final releaseChannelService = ReleaseChannelService();
+      final updateUrl = await releaseChannelService.getCurrentUpdateUrl();
+
       final response = await http.get(Uri.parse(updateUrl));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
