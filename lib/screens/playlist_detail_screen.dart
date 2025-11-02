@@ -1145,70 +1145,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                 horizontal: 16.0, vertical: 8.0),
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                width: 50,
-                                height: 50,
-                                color: Colors.grey[700],
-                                child: song.albumArtUrl.isNotEmpty
-                                    ? song.albumArtUrl.startsWith('http')
-                                        ? Image.network(
-                                            song.albumArtUrl,
-                                            width: 50,
-                                            height: 50,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    Icon(
-                                              Icons.music_note,
-                                              size: 30,
-                                              color: Colors.white70,
-                                            ),
-                                          )
-                                        : FutureBuilder<String>(
-                                            future: () async {
-                                              final directory =
-                                                  await getApplicationDocumentsDirectory();
-                                              final fileName =
-                                                  p.basename(song.albumArtUrl);
-                                              final fullPath = p.join(
-                                                  directory.path, fileName);
-                                              return await File(fullPath)
-                                                      .exists()
-                                                  ? fullPath
-                                                  : '';
-                                            }(),
-                                            builder: (context, snapshot) {
-                                              if (snapshot.connectionState ==
-                                                      ConnectionState.done &&
-                                                  snapshot.hasData &&
-                                                  snapshot.data!.isNotEmpty) {
-                                                return Image.file(
-                                                  File(snapshot.data!),
-                                                  width: 50,
-                                                  height: 50,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error,
-                                                          stackTrace) =>
-                                                      Icon(
-                                                    Icons.music_note,
-                                                    size: 30,
-                                                    color: Colors.white70,
-                                                  ),
-                                                );
-                                              }
-                                              return Icon(
-                                                Icons.music_note,
-                                                size: 30,
-                                                color: Colors.white70,
-                                              );
-                                            },
-                                          )
-                                    : Icon(
-                                        Icons.music_note,
-                                        size: 30,
-                                        color: Colors.white70,
-                                      ),
-                              ),
+                              child: listItemLeading,
                             ),
                             title: Text(
                               song.title,
