@@ -548,8 +548,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                 Colors.grey, // Add unselected color for better contrast
             onTap: _onItemTapped,
             showUnselectedLabels: false,
-            selectedFontSize: 12,
-            unselectedFontSize: 12,
+            selectedFontSize: 0,
+            unselectedFontSize: 0,
           ),
         ],
       ),
