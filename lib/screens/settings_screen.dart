@@ -1363,6 +1363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         key: const PageStorageKey('settings_list'),
         controller: _scrollController,
         physics: const BouncingScrollPhysics(),
+        cacheExtent: 1000.0,
         children: [
           _buildSectionTitle(context, 'Content & Discovery'),
           ValueListenableBuilder<int>(
@@ -2327,6 +2328,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ValueListenableBuilder<int>(
+                  key: const ValueKey('app_version_tile'),
                   valueListenable: _versionRefreshNotifier,
                   builder: (context, _, __) {
                     final currentVersion = currentAppVersionNotifier.value;
@@ -2337,6 +2339,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         latestVersion != currentVersion;
 
                     return ListTile(
+                      key: const ValueKey('version_list_tile'),
                       leading: const Icon(Icons.info),
                       title: const Text('Version'),
                       subtitle: Text(
@@ -2359,15 +2362,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               ),
                             )
-                          : null,
+                          : const SizedBox(width: 0, height: 0),
                     );
                   },
                 ),
                 ValueListenableBuilder<ReleaseChannel?>(
+                  key: const ValueKey('release_channel_tile'),
                   valueListenable: selectedReleaseChannelNotifier,
                   builder: (context, selectedChannel, _) {
                     if (selectedChannel == null) {
                       return const ListTile(
+                        key: ValueKey('release_channel_list_tile'),
                         leading: Icon(Icons.update),
                         title: Text('Release Channel'),
                         subtitle: Text('Choose which updates to receive'),
@@ -2382,6 +2387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
 
                     return ListTile(
+                      key: const ValueKey('release_channel_list_tile'),
                       leading: const Icon(Icons.update),
                       title: const Text('Release Channel'),
                       subtitle: Text(selectedChannel.description),
@@ -2446,10 +2452,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ValueListenableBuilder<bool?>(
+                  key: const ValueKey('auto_check_updates_tile'),
                   valueListenable: autoCheckForUpdatesNotifier,
                   builder: (context, autoCheckForUpdates, _) {
                     if (autoCheckForUpdates == null) {
                       return const ListTile(
+                        key: ValueKey('auto_check_updates_list_tile'),
                         leading: Icon(Icons.system_update),
                         title: Text('Auto Check for Updates'),
                         subtitle:
@@ -2464,6 +2472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                     return ListTile(
+                      key: const ValueKey('auto_check_updates_list_tile'),
                       leading: const Icon(Icons.system_update),
                       title: const Text('Auto Check for Updates'),
                       subtitle: const Text(
