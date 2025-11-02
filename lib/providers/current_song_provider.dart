@@ -18,6 +18,7 @@ import 'package:resumable_downloader/resumable_downloader.dart';
 import 'package:http/http.dart' as http;
 import '../services/download_notification_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/version_service.dart';
 
 // Define LoopMode enum
 enum LoopMode { none, queue, song }
@@ -1091,8 +1092,8 @@ class CurrentSongProvider with ChangeNotifier {
 
   // Helper methods
   bool _areSongsEquivalent(Song song1, Song song2) {
-    return song1.title.toLowerCase().trim() ==
-            song2.title.toLowerCase().trim() &&
+    return song1.baseTitle.toLowerCase().trim() ==
+            song2.baseTitle.toLowerCase().trim() &&
         song1.artist.toLowerCase().trim() == song2.artist.toLowerCase().trim();
   }
 
@@ -2044,7 +2045,7 @@ class CurrentSongProvider with ChangeNotifier {
                 jsonDecode(songJson) as Map<String, dynamic>;
             Song songCandidate = Song.fromJson(songMap);
 
-            // Check for exact match first
+            // Check for exact title match (including versions - different versions are different songs)
             if (songCandidate.isDownloaded &&
                 songCandidate.localFilePath != null &&
                 songCandidate.localFilePath!.isNotEmpty &&
@@ -2064,16 +2065,8 @@ class CurrentSongProvider with ChangeNotifier {
             if (songCandidate.isImported &&
                 songCandidate.localFilePath != null &&
                 songCandidate.localFilePath!.isNotEmpty &&
-                _areSongsEquivalent(
-                    songCandidate,
-                    Song(
-                      id: '',
-                      title: title,
-                      artist: artist,
-                      artistId: '',
-                      albumArtUrl: '',
-                      audioUrl: '',
-                    ))) {
+                songCandidate.title.toLowerCase() == title.toLowerCase() &&
+                songCandidate.artist.toLowerCase() == artist.toLowerCase()) {
               final fullPath = p.join(appDocDir.path, downloadsSubDir,
                   songCandidate.localFilePath!);
               if (await File(fullPath).exists()) {

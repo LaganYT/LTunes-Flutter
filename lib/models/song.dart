@@ -121,8 +121,14 @@ class Song {
   factory Song.fromJson(Map<String, dynamic> json) {
     try {
       // Use helpers for safer parsing - handle both API v2 and original API field names
-      final title = _asString(
+      String title = _asString(
           json['title'] ?? json['name'] ?? json['SNG_TITLE'], 'Unknown Title');
+
+      // Append version to title if VERSION field exists (Deezer API format)
+      final version = _asNullableString(json['VERSION']);
+      if (version != null && version.isNotEmpty) {
+        title = '$title $version';
+      }
       final id = _asString(json['id'] ?? json['SNG_ID'],
           DateTime.now().millisecondsSinceEpoch.toString());
 
@@ -362,7 +368,13 @@ class Song {
       String albumArtistName) {
     final String songId = trackJson['SNG_ID']?.toString() ??
         DateTime.now().millisecondsSinceEpoch.toString();
-    final String title = trackJson['SNG_TITLE']?.toString() ?? 'Unknown Track';
+    String title = trackJson['SNG_TITLE']?.toString() ?? 'Unknown Track';
+
+    // Append version to title if VERSION field exists (Deezer API format)
+    final version = trackJson['VERSION']?.toString();
+    if (version != null && version.isNotEmpty) {
+      title = '$title $version';
+    }
     final String artist = trackJson['ART_NAME']?.toString() ?? albumArtistName;
     final String artistId =
         trackJson['ART_ID']?.toString() ?? ''; // Parse ART_ID for artistId

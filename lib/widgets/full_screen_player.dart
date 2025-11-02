@@ -2720,8 +2720,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             // Like button
                             Consumer<LikedSongsService>(
                               builder: (context, likedSongsService, child) {
-                                final isLiked = currentSong != null &&
-                                    likedSongsService.isLiked(currentSong.id);
+                                final isLiked = likedSongsService.isLiked(currentSong.id);
                                 return IconButton(
                                   icon: Icon(isLiked
                                       ? Icons.favorite
