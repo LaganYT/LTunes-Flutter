@@ -1102,6 +1102,10 @@ class CurrentSongProvider with ChangeNotifier {
 
   // Helper methods
   bool _areSongsEquivalent(Song song1, Song song2) {
+    // First check if they're the same song by ID
+    if (song1.id == song2.id) return true;
+
+    // Then check if they have the same title and artist (for compatibility with existing logic)
     return song1.baseTitle.toLowerCase().trim() ==
             song2.baseTitle.toLowerCase().trim() &&
         song1.artist.toLowerCase().trim() == song2.artist.toLowerCase().trim();
