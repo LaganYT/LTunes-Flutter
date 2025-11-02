@@ -12,7 +12,6 @@ import '../services/playlist_manager_service.dart'; // Import PlaylistManagerSer
 import '../services/api_service.dart'; // Import ApiService
 import 'song_detail_screen.dart'; // Import for AddToPlaylistDialog
 import '../widgets/playbar.dart';
-import '../widgets/full_screen_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/album_manager_service.dart';
@@ -108,9 +107,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         currentSongProvider.toggleShuffle();
       }
       await currentSongProvider.playAllWithContext(currentPlaylist.songs);
-      navigator.push(
-        MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-      );
     } else {
       scaffoldMessenger.showSnackBar(
         const SnackBar(
@@ -892,12 +888,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                                       await currentSongProvider
                                           .playAllWithContext(
                                               currentPlaylist.songs);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (context) =>
-                                                const FullScreenPlayer()),
-                                      );
                                     }
                                   : null,
                               child: Container(

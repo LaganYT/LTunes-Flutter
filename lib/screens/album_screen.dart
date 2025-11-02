@@ -8,7 +8,6 @@ import '../models/song.dart';
 import '../providers/current_song_provider.dart';
 import '../services/album_manager_service.dart';
 import '../services/api_service.dart'; // Import ApiService
-import '../widgets/full_screen_player.dart'; // For navigation to player
 import '../screens/song_detail_screen.dart'; // For navigation to song details
 import '../widgets/playbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -258,9 +257,6 @@ class _AlbumScreenState extends State<AlbumScreen>
         }
       }
       await currentSongProvider.playAllWithContext(widget.album.tracks);
-      navigator.push(
-        MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-      );
     } else {
       scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('This album has no tracks to play.')),
@@ -280,9 +276,6 @@ class _AlbumScreenState extends State<AlbumScreen>
         currentSongProvider.toggleShuffle();
       }
       await currentSongProvider.playAllWithContext(widget.album.tracks);
-      navigator.push(
-        MaterialPageRoute(builder: (context) => const FullScreenPlayer()),
-      );
     } else {
       scaffoldMessenger.showSnackBar(
         const SnackBar(
