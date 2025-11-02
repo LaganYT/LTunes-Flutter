@@ -13,7 +13,6 @@
 ## UI & Display Features
 
 - Before the artist name on a song show an explicit marker and a downloaded marker on the song lists
-- On library screen let the user hold on a song/playlist/album icon to show a menu with related options
 - Allow users to export playlists
 - Allow users to export settings
 - Allow users to export all data

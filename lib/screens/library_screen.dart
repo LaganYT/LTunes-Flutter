@@ -27,7 +27,8 @@ import 'artists_list_screen.dart';
 import 'albums_list_screen.dart';
 import 'songs_list_screen.dart';
 import 'liked_songs_screen.dart'; // new import
-import 'song_detail_screen.dart';
+import 'song_detail_screen.dart'; // Import for AddToPlaylistDialog
+import 'artist_screen.dart'; // Import for ArtistScreen navigation
 import 'dart:async';
 import '../widgets/library_search_widget.dart';
 import 'package:http/http.dart' as http; // Added import for http
@@ -122,6 +123,699 @@ class RadioStation {
       'imageUrl': imageUrl,
       'streamUrl': streamUrl,
     };
+  }
+}
+
+// Context menu for library items
+class LibraryItemContextMenu extends StatelessWidget {
+  final Widget child;
+  final dynamic item; // Can be Song, Playlist, or Album
+  final String itemType; // 'song', 'playlist', 'album'
+
+  const LibraryItemContextMenu({
+    super.key,
+    required this.child,
+    required this.item,
+    required this.itemType,
+  });
+
+  void _showContextMenu(BuildContext context, LongPressStartDetails details) {
+    showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext bc) {
+        return _ContextMenuBottomSheet(
+          item: item,
+          itemType: itemType,
+          onSelection: (value) => _handleMenuSelection(context, value),
+        );
+      },
+    );
+  }
+
+  void _handleMenuSelection(BuildContext context, String value) {
+    switch (itemType) {
+      case 'song':
+        _handleSongMenuSelection(context, value);
+        break;
+      case 'playlist':
+        _handlePlaylistMenuSelection(context, value);
+        break;
+      case 'album':
+        _handleAlbumMenuSelection(context, value);
+        break;
+    }
+  }
+
+  void _handleSongMenuSelection(BuildContext context, String value) {
+    final song = item as Song;
+    final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+
+    switch (value) {
+      case 'play':
+        provider.smartPlayWithContext([song], song);
+        break;
+      case 'details':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SongDetailScreen(song: song),
+          ),
+        );
+        break;
+      case 'add_to_playlist':
+        _showAddToPlaylistDialog(context, song);
+        break;
+      case 'view_album':
+        if (song.album?.isNotEmpty == true) {
+          // Navigate to album screen - we'll need to implement this
+          _navigateToAlbum(context, song);
+        }
+        break;
+      case 'view_artist':
+        if (song.artist.isNotEmpty) {
+          final artistQuery =
+              song.artistId.isNotEmpty ? song.artistId : song.artist;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ArtistScreen(
+                artistId: artistQuery,
+                artistName: song.artist,
+              ),
+            ),
+          );
+        }
+        break;
+    }
+  }
+
+  void _handlePlaylistMenuSelection(BuildContext context, String value) {
+    final playlist = item as Playlist;
+
+    switch (value) {
+      case 'play':
+        final provider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
+        if (playlist.songs.isNotEmpty) {
+          provider.smartPlayWithContext(playlist.songs, playlist.songs.first);
+        }
+        break;
+      case 'details':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlaylistDetailScreen(playlist: playlist),
+          ),
+        );
+        break;
+      case 'rename':
+        _showRenamePlaylistDialog(context, playlist);
+        break;
+      case 'delete':
+        _showDeletePlaylistDialog(context, playlist);
+        break;
+    }
+  }
+
+  void _handleAlbumMenuSelection(BuildContext context, String value) {
+    final album = item as Album;
+
+    switch (value) {
+      case 'play':
+        final provider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
+        if (album.tracks.isNotEmpty) {
+          provider.smartPlayWithContext(album.tracks, album.tracks.first);
+        }
+        break;
+      case 'details':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AlbumScreen(album: album),
+          ),
+        );
+        break;
+      case 'view_artist':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ArtistScreen(
+              artistId: album.artistName,
+              artistName: album.artistName,
+            ),
+          ),
+        );
+        break;
+    }
+  }
+
+  void _showAddToPlaylistDialog(BuildContext context, Song song) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AddToPlaylistDialog(song: song);
+      },
+    );
+  }
+
+  void _showDeletePlaylistDialog(BuildContext context, Playlist playlist) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Playlist'),
+        content: Text('Are you sure you want to delete "${playlist.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final playlistManager =
+                  Provider.of<PlaylistManagerService>(context, listen: false);
+              playlistManager.removePlaylist(playlist);
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Deleted ${playlist.name}')),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenamePlaylistDialog(BuildContext context, Playlist playlist) {
+    final TextEditingController nameController =
+        TextEditingController(text: playlist.name);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Playlist'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(
+            labelText: 'Playlist Name',
+            hintText: 'Enter new playlist name',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final newName = nameController.text.trim();
+              if (newName.isNotEmpty && newName != playlist.name) {
+                final playlistManager =
+                    Provider.of<PlaylistManagerService>(context, listen: false);
+                playlistManager.renamePlaylist(playlist.id, newName);
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Renamed playlist to "$newName"')),
+                );
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToAlbum(BuildContext context, Song song) {
+    if (song.album == null || song.album!.isEmpty) {
+      // No album info available, go to albums list
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
+      );
+      return;
+    }
+
+    // Try to find the specific album for this song
+    final albumManager =
+        Provider.of<AlbumManagerService>(context, listen: false);
+    Album? matchingAlbum;
+    try {
+      matchingAlbum = albumManager.savedAlbums.firstWhere(
+        (album) =>
+            album.title.toLowerCase() == song.album!.toLowerCase() &&
+            album.artistName.toLowerCase() == song.artist.toLowerCase(),
+      );
+    } catch (e) {
+      matchingAlbum = null;
+    }
+
+    if (matchingAlbum != null) {
+      // Found the album, navigate to it
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AlbumScreen(album: matchingAlbum!),
+        ),
+      );
+    } else {
+      // Album not found in saved albums, go to albums list
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPressStart: (details) => _showContextMenu(context, details),
+      child: child,
+    );
+  }
+}
+
+// Bottom sheet for context menu options
+class _ContextMenuBottomSheet extends StatelessWidget {
+  final dynamic item;
+  final String itemType;
+  final Function(String) onSelection;
+
+  const _ContextMenuBottomSheet({
+    required this.item,
+    required this.itemType,
+    required this.onSelection,
+  });
+
+  List<Map<String, dynamic>> _buildMenuOptions() {
+    switch (itemType) {
+      case 'song':
+        return _buildSongMenuOptions();
+      case 'playlist':
+        return _buildPlaylistMenuOptions();
+      case 'album':
+        return _buildAlbumMenuOptions();
+      default:
+        return [];
+    }
+  }
+
+  List<Map<String, dynamic>> _buildSongMenuOptions() {
+    final song = item as Song;
+    return [
+      {
+        'value': 'play',
+        'icon': Icons.play_arrow,
+        'title': 'Play',
+      },
+      {
+        'value': 'details',
+        'icon': Icons.info,
+        'title': 'View Details',
+      },
+      {
+        'value': 'add_to_playlist',
+        'icon': Icons.playlist_add,
+        'title': 'Add to Playlist',
+      },
+      if (song.album?.isNotEmpty == true)
+        {
+          'value': 'view_album',
+          'icon': Icons.album,
+          'title': 'View Album',
+        },
+      if (song.artist.isNotEmpty)
+        {
+          'value': 'view_artist',
+          'icon': Icons.person,
+          'title': 'View Artist',
+        },
+    ];
+  }
+
+  List<Map<String, dynamic>> _buildPlaylistMenuOptions() {
+    return [
+      {
+        'value': 'play',
+        'icon': Icons.play_arrow,
+        'title': 'Play Playlist',
+      },
+      {
+        'value': 'details',
+        'icon': Icons.info,
+        'title': 'View Details',
+      },
+      {
+        'value': 'rename',
+        'icon': Icons.edit,
+        'title': 'Rename Playlist',
+      },
+      {
+        'value': 'delete',
+        'icon': Icons.delete,
+        'title': 'Delete Playlist',
+        'color': Colors.red,
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> _buildAlbumMenuOptions() {
+    return [
+      {
+        'value': 'play',
+        'icon': Icons.play_arrow,
+        'title': 'Play Album',
+      },
+      {
+        'value': 'details',
+        'icon': Icons.info,
+        'title': 'View Details',
+      },
+      {
+        'value': 'view_artist',
+        'icon': Icons.person,
+        'title': 'View Artist',
+      },
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final menuOptions = _buildMenuOptions();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.5,
+      minChildSize: 0.3,
+      maxChildSize: 0.7,
+      builder: (_, controller) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurface.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Title
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20.0, 8.0, 20.0, 16.0),
+                child: Row(
+                  children: [
+                    // Item artwork/thumbnail
+                    _buildItemThumbnail(context),
+                    const SizedBox(width: 16),
+
+                    // Item info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _getItemTitle(),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onSurface,
+                                ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (_getItemSubtitle().isNotEmpty)
+                            Text(
+                              _getItemSubtitle(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Menu options
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  itemCount: menuOptions.length,
+                  itemBuilder: (context, index) {
+                    final option = menuOptions[index];
+                    return ListTile(
+                      leading: Icon(
+                        option['icon'],
+                        color: option['color'] ??
+                            colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                      title: Text(
+                        option['title'],
+                        style: TextStyle(
+                          color: option['color'] ?? colorScheme.onSurface,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).pop(option['value']);
+                        onSelection(option['value']);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildItemThumbnail(BuildContext context) {
+    const double thumbnailSize = 48.0;
+
+    switch (itemType) {
+      case 'song':
+        final song = item as Song;
+        if (song.albumArtUrl.isNotEmpty) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: song.albumArtUrl.startsWith('http')
+                ? Image.network(
+                    song.albumArtUrl,
+                    width: thumbnailSize,
+                    height: thumbnailSize,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildDefaultThumbnail(),
+                  )
+                : FutureBuilder<String>(
+                    future: _getCachedLocalArtFuture(song.albumArtUrl),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        return Image.file(
+                          File(snapshot.data!),
+                          width: thumbnailSize,
+                          height: thumbnailSize,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _buildDefaultThumbnail(),
+                        );
+                      }
+                      return _buildDefaultThumbnail();
+                    },
+                  ),
+          );
+        }
+        return _buildDefaultThumbnail();
+
+      case 'playlist':
+        final playlist = item as Playlist;
+        List<String> uniqueAlbumArtUrls = playlist.songs
+            .map((song) => song.albumArtUrl)
+            .where((artUrl) => artUrl.isNotEmpty)
+            .toSet()
+            .toList();
+
+        if (uniqueAlbumArtUrls.isNotEmpty) {
+          if (uniqueAlbumArtUrls.length == 1) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: _buildPlaylistArtWidget(
+                  uniqueAlbumArtUrls.first, thumbnailSize, context),
+            );
+          } else {
+            // Multiple albums - show grid
+            List<Widget> gridImages = uniqueAlbumArtUrls
+                .take(4)
+                .map((artUrl) =>
+                    _buildPlaylistArtWidget(artUrl, thumbnailSize / 2, context))
+                .toList();
+
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                width: thumbnailSize,
+                height: thumbnailSize,
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 1,
+                  crossAxisSpacing: 1,
+                  padding: EdgeInsets.zero,
+                  children: gridImages,
+                ),
+              ),
+            );
+          }
+        }
+        return _buildDefaultThumbnail();
+
+      case 'album':
+        final album = item as Album;
+        if (album.fullAlbumArtUrl.isNotEmpty) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.network(
+              album.fullAlbumArtUrl,
+              width: thumbnailSize,
+              height: thumbnailSize,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildDefaultThumbnail(),
+            ),
+          );
+        }
+        return _buildDefaultThumbnail();
+
+      default:
+        return _buildDefaultThumbnail();
+    }
+  }
+
+  Widget _buildDefaultThumbnail() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(
+        itemType == 'song'
+            ? Icons.music_note
+            : itemType == 'playlist'
+                ? Icons.playlist_play
+                : Icons.album,
+        size: 24,
+        color: Colors.white70,
+      ),
+    );
+  }
+
+  String _getItemTitle() {
+    switch (itemType) {
+      case 'song':
+        return (item as Song).title;
+      case 'playlist':
+        return (item as Playlist).name;
+      case 'album':
+        return (item as Album).title;
+      default:
+        return '';
+    }
+  }
+
+  String _getItemSubtitle() {
+    switch (itemType) {
+      case 'song':
+        final song = item as Song;
+        return song.artist.isNotEmpty ? song.artist : 'Unknown Artist';
+      case 'playlist':
+        final playlist = item as Playlist;
+        return '${playlist.songs.length} songs';
+      case 'album':
+        return (item as Album).artistName;
+      default:
+        return '';
+    }
+  }
+
+  Future<String> _getCachedLocalArtFuture(String fileName) async {
+    if (fileName.isEmpty || fileName.startsWith('http')) return '';
+    return await artworkService.resolveLocalArtPath(fileName);
+  }
+
+  Widget _buildPlaylistArtWidget(
+      String artUrl, double size, BuildContext context) {
+    Widget placeholder = Icon(Icons.music_note,
+        size: size * 0.7,
+        color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: artUrl.startsWith('http')
+          ? Image.network(
+              artUrl,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => placeholder,
+            )
+          : FutureBuilder<String>(
+              future: _getCachedLocalArtFuture(artUrl),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.hasData &&
+                    snapshot.data!.isNotEmpty) {
+                  return Image.file(
+                    File(snapshot.data!),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => placeholder,
+                  );
+                }
+                return placeholder;
+              },
+            ),
+    );
   }
 }
 
@@ -2463,7 +3157,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                 // main categories
                 Consumer<LikedSongsService>(
                   builder: (context, likedSongsService, child) {
-                    if (!likedSongsService.isLoaded || likedSongsService.likedSongs.isEmpty) {
+                    if (!likedSongsService.isLoaded ||
+                        likedSongsService.likedSongs.isEmpty) {
                       return const SizedBox.shrink();
                     }
                     return ListTile(
@@ -2473,7 +3168,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const LikedSongsScreen()),
+                        MaterialPageRoute(
+                            builder: (_) => const LikedSongsScreen()),
                       ),
                     );
                   },
@@ -2578,64 +3274,73 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                     itemCount: recentSongs.length,
                     itemBuilder: (context, i) {
                       final song = recentSongs[i];
-                      return GestureDetector(
-                        onTap: () {
-                          final prov = Provider.of<CurrentSongProvider>(context,
-                              listen: false);
-                          prov.smartPlayWithContext(recentSongs, recentSongs[i]);
-                        },
-                        child: Container(
-                          width: 140,
-                          margin: EdgeInsets.only(
-                              right: i == recentSongs.length - 1 ? 0 : 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // artwork
-                              SizedBox(
-                                width: 140,
-                                height: 140,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: song.albumArtUrl.isNotEmpty
-                                      ? (song.albumArtUrl.startsWith('http')
-                                          ? Image.network(song.albumArtUrl,
-                                              fit: BoxFit.cover)
-                                          : FutureBuilder<String>(
-                                              future: _getCachedLocalArtFuture(
-                                                  song.albumArtUrl),
-                                              key: ValueKey<String>(
-                                                  'recent_song_art_${song.id}'),
-                                              builder: (_, snap) => (snap
-                                                          .hasData &&
-                                                      snap.data!.isNotEmpty)
-                                                  ? Image.file(File(snap.data!),
-                                                      fit: BoxFit.cover)
-                                                  : Container(
-                                                      color: Colors.grey[800]),
-                                            ))
-                                      : Container(color: Colors.grey[800]),
+                      return LibraryItemContextMenu(
+                        item: song,
+                        itemType: 'song',
+                        child: GestureDetector(
+                          onTap: () {
+                            final prov = Provider.of<CurrentSongProvider>(
+                                context,
+                                listen: false);
+                            prov.smartPlayWithContext(
+                                recentSongs, recentSongs[i]);
+                          },
+                          child: Container(
+                            width: 140,
+                            margin: EdgeInsets.only(
+                                right: i == recentSongs.length - 1 ? 0 : 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // artwork
+                                SizedBox(
+                                  width: 140,
+                                  height: 140,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: song.albumArtUrl.isNotEmpty
+                                        ? (song.albumArtUrl.startsWith('http')
+                                            ? Image.network(song.albumArtUrl,
+                                                fit: BoxFit.cover)
+                                            : FutureBuilder<String>(
+                                                future:
+                                                    _getCachedLocalArtFuture(
+                                                        song.albumArtUrl),
+                                                key: ValueKey<String>(
+                                                    'recent_song_art_${song.id}'),
+                                                builder: (_, snap) => (snap
+                                                            .hasData &&
+                                                        snap.data!.isNotEmpty)
+                                                    ? Image.file(
+                                                        File(snap.data!),
+                                                        fit: BoxFit.cover)
+                                                    : Container(
+                                                        color:
+                                                            Colors.grey[800]),
+                                              ))
+                                        : Container(color: Colors.grey[800]),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              // title & artist
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyLarge,
-                                textAlign: TextAlign.center,
-                              ),
-                              Text(
-                                song.artist.isNotEmpty
-                                    ? song.artist
-                                    : 'Unknown Artist',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                // title & artist
+                                Text(
+                                  song.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  song.artist.isNotEmpty
+                                      ? song.artist
+                                      : 'Unknown Artist',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -2720,45 +3425,51 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                           );
                         }
 
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    PlaylistDetailScreen(playlist: playlist),
+                        return LibraryItemContextMenu(
+                          item: playlist,
+                          itemType: 'playlist',
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PlaylistDetailScreen(playlist: playlist),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 140, // Width of the entire card
+                              margin: EdgeInsets.only(
+                                  right:
+                                      i == recentPlaylists.length - 1 ? 0 : 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height:
+                                        itemArtSize, // Fixed height for the art part
+                                    child: leadingWidget,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    playlist.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.bodyLarge,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  Text(
+                                    '${playlist.songs.length} songs',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
-                            );
-                          },
-                          child: Container(
-                            width: 140, // Width of the entire card
-                            margin: EdgeInsets.only(
-                                right:
-                                    i == recentPlaylists.length - 1 ? 0 : 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  height:
-                                      itemArtSize, // Fixed height for the art part
-                                  child: leadingWidget,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  playlist.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                                Text(
-                                  '${playlist.songs.length} songs',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
                             ),
                           ),
                         );
@@ -2829,47 +3540,55 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                           );
                         }
 
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AlbumScreen(album: album),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 140, // Width of the entire card
-                            margin: EdgeInsets.only(
-                                right:
-                                    i == recentSavedAlbums.length - 1 ? 0 : 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  height:
-                                      itemArtSize, // Fixed height for the art part
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: albumArtWidget,
+                        return LibraryItemContextMenu(
+                          item: album,
+                          itemType: 'album',
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      AlbumScreen(album: album),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 140, // Width of the entire card
+                              margin: EdgeInsets.only(
+                                  right: i == recentSavedAlbums.length - 1
+                                      ? 0
+                                      : 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height:
+                                        itemArtSize, // Fixed height for the art part
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: albumArtWidget,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  album.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                                Text(
-                                  album.artistName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    album.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.bodyLarge,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  Text(
+                                    album.artistName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
