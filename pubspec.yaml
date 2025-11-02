@@ -1,7 +1,7 @@
 name: ltunes
 description: An advanced music player for Android and iOS, built with Flutter.
 publish_to: 'none'
-version: beta-2025.11.02
+version: 2025.11.02.beta
 repository: https://github.com/laganyt/ltunes-flutter
 
 
