@@ -26,7 +26,6 @@
 
 - Go through the audio handler and current song provider and make sure it is as compatiable as possible, I have issues with background audio playback on my ios device sometimes, fix this
 
-Fix songs not always switching when clicking on them
 Fix music in the background randomly stopping playing after a few songs
 When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
 Add dev, beta, and stable release channels, let the user choose which to use.

@@ -1014,12 +1014,22 @@ class CurrentSongProvider with ChangeNotifier {
         'current_unshuffled_queue_v2', unshuffledQueueJson);
   }
 
-  Future<void> switchContext(List<Song> newContext) async {
+  Future<void> switchContext(List<Song> newContext, [Song? targetSong]) async {
     if (_currentSongFromAppLogic == null) return;
 
     int newIndex = newContext
         .indexWhere((s) => _areSongsEquivalent(s, _currentSongFromAppLogic!));
-    if (newIndex == -1) return;
+    if (newIndex == -1) {
+      // If we can't find the current song in the new context, fall back to playing
+      // the target song (if provided) or the first equivalent song in the new context
+      debugPrint("CurrentSongProvider: Could not find current song in new context, falling back to playWithContext");
+      final songToPlay = targetSong ?? newContext.firstWhere(
+        (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
+        orElse: () => newContext.first,
+      );
+      await playWithContext(newContext, songToPlay, playImmediately: _isPlaying);
+      return;
+    }
 
     if (!_switchContextWithoutInterruption) {
       await playWithContext(newContext, _currentSongFromAppLogic!,
@@ -1063,7 +1073,7 @@ class CurrentSongProvider with ChangeNotifier {
       {bool playImmediately = true}) async {
     if (_currentSongFromAppLogic != null &&
         _areSongsEquivalent(_currentSongFromAppLogic!, song)) {
-      await switchContext(context);
+      await switchContext(context, song);
     } else {
       await playWithContext(context, song, playImmediately: playImmediately);
     }
