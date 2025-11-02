@@ -40,11 +40,16 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final ScrollController _scrollController = ScrollController();
   final ValueNotifier<int> _refreshNotifier = ValueNotifier<int>(0);
   final ValueNotifier<bool?> usRadioOnlyNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> showRadioTabNotifier = ValueNotifier<bool?>(null);
   final ValueNotifier<bool?> autoDownloadLikedSongsNotifier =
       ValueNotifier<bool?>(null);
+
+  // Combined notifiers for grouped rebuilds
+  late final ValueNotifier<int> _contentDiscoveryRefreshNotifier;
+  late final ValueNotifier<int> _versionRefreshNotifier;
   final ValueNotifier<List<double>> customSpeedPresetsNotifier =
       ValueNotifier<List<double>>([]);
   final ValueNotifier<bool> listeningStatsEnabledNotifier =
@@ -73,6 +78,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _contentDiscoveryRefreshNotifier = ValueNotifier<int>(0);
+    _versionRefreshNotifier = ValueNotifier<int>(0);
     _loadSettings();
     _loadAppVersion();
     _loadListeningStatsEnabled();
@@ -114,6 +121,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
+    _contentDiscoveryRefreshNotifier.dispose();
+    _versionRefreshNotifier.dispose();
     // Don't dispose the sleep timer service - it should persist across screen navigation
     // Just remove the callbacks for this instance
     _sleepTimerService.clearCallbacks();
@@ -127,6 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         currentAppVersionNotifier.value = packageInfo.version;
         latestKnownVersionNotifier.value =
             packageInfo.version; // Initially set to current version
+        _versionRefreshNotifier.value++;
       }
     } catch (e) {
       debugPrint('Error loading app version: $e');
@@ -199,7 +210,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('usRadioOnly', value);
   }
 
-  Future<void> _saveSelectedReleaseChannelSetting(ReleaseChannel channel) async {
+  Future<void> _saveSelectedReleaseChannelSetting(
+      ReleaseChannel channel) async {
     final releaseChannelService = ReleaseChannelService();
     await releaseChannelService.setSelectedChannel(channel);
     selectedReleaseChannelNotifier.value = channel;
@@ -772,66 +784,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Scrollable content
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children: AnimationType.values
-                              .where((type) => type != AnimationType.all)
-                              .map((type) {
-                            String title;
-                            String subtitle;
-                            IconData icon;
+                    // Animation settings list
+                    Expanded(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: AnimationType.values
+                            .where((type) => type != AnimationType.all)
+                            .map((type) {
+                          String title;
+                          String subtitle;
+                          IconData icon;
 
-                            switch (type) {
-                              case AnimationType.pageTransitions:
-                                title = 'Page Transitions';
-                                subtitle =
-                                    'Screen transitions and navigation animations';
-                                icon = Icons.swap_horiz;
-                                break;
-                              case AnimationType.equalizerAnimations:
-                                title = 'Equalizer Animations';
-                                subtitle = 'Moving bars in the equalizer';
-                                icon = Icons.graphic_eq;
-                                break;
-                              case AnimationType.songChangeAnimations:
-                                title = 'Song Change Animations';
-                                subtitle = 'Animations when switching songs';
-                                icon = Icons.music_note;
-                                break;
-                              case AnimationType.uiAnimations:
-                                title = 'UI Animations';
-                                subtitle =
-                                    'Buttons, switches, and interface animations';
-                                icon = Icons.touch_app;
-                                break;
-                              case AnimationType.lyricsAnimations:
-                                title = 'Lyrics Animations';
-                                subtitle = 'Lyrics scrolling and highlighting';
-                                icon = Icons.text_fields;
-                                break;
-                              default:
-                                title = type.name;
-                                subtitle = '';
-                                icon = Icons.settings;
-                            }
+                          switch (type) {
+                            case AnimationType.pageTransitions:
+                              title = 'Page Transitions';
+                              subtitle =
+                                  'Screen transitions and navigation animations';
+                              icon = Icons.swap_horiz;
+                              break;
+                            case AnimationType.equalizerAnimations:
+                              title = 'Equalizer Animations';
+                              subtitle = 'Moving bars in the equalizer';
+                              icon = Icons.graphic_eq;
+                              break;
+                            case AnimationType.songChangeAnimations:
+                              title = 'Song Change Animations';
+                              subtitle = 'Animations when switching songs';
+                              icon = Icons.music_note;
+                              break;
+                            case AnimationType.uiAnimations:
+                              title = 'UI Animations';
+                              subtitle =
+                                  'Buttons, switches, and interface animations';
+                              icon = Icons.touch_app;
+                              break;
+                            case AnimationType.lyricsAnimations:
+                              title = 'Lyrics Animations';
+                              subtitle = 'Lyrics scrolling and highlighting';
+                              icon = Icons.text_fields;
+                              break;
+                            default:
+                              title = type.name;
+                              subtitle = '';
+                              icon = Icons.settings;
+                          }
 
-                            return ListTile(
-                              leading: Icon(icon),
-                              title: Text(title),
-                              subtitle: Text(subtitle),
-                              trailing: Switch(
-                                value: currentSettings[type] ?? true,
-                                onChanged: (value) {
-                                  setState(() {
-                                    currentSettings[type] = value;
-                                  });
-                                },
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                          return ListTile(
+                            leading: Icon(icon),
+                            title: Text(title),
+                            subtitle: Text(subtitle),
+                            trailing: Switch(
+                              value: currentSettings[type] ?? true,
+                              onChanged: (value) {
+                                setState(() {
+                                  currentSettings[type] = value;
+                                });
+                              },
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
                     // Actions
@@ -1163,34 +1174,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   SizedBox(height: 16),
                   // Content
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'A critical update is required to continue using the app.',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'A critical update is required to continue using the app.',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Text(
+                              updateInfo.message,
+                              style: TextStyle(fontSize: 14),
                             ),
                           ),
-                          SizedBox(height: 12),
-                          Text(
-                            updateInfo.message,
-                            style: TextStyle(fontSize: 14),
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'You must update the app to continue.',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                          SizedBox(height: 12),
-                          Text(
-                            'You must update the app to continue.',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   SizedBox(height: 20),
@@ -1259,6 +1272,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
         latestKnownVersionNotifier.value =
             updateInfo.version; // Only update the notifier
+        _versionRefreshNotifier.value++;
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1267,6 +1281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
         latestKnownVersionNotifier.value =
             currentAppVersion; // Only update the notifier
+        _versionRefreshNotifier.value++;
       }
     } catch (e) {
       if (context.mounted) {
@@ -1277,6 +1292,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       debugPrint("Error performing update check: $e");
       // Optionally, reset _latestKnownVersion or indicate error
       latestKnownVersionNotifier.value = 'Error';
+      _versionRefreshNotifier.value++;
     }
   }
 
@@ -1303,6 +1319,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildContentDiscoverySetting({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required ValueNotifier<bool?> notifier,
+    required Future<void> Function(bool) onChanged,
+  }) {
+    final value = notifier.value;
+    if (value == null) {
+      return ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: const SizedBox(
+          width: 50,
+          height: 30,
+          child: Center(
+            child: CircularProgressIndicator(strokeWidth: 2.0),
+          ),
+        ),
+      );
+    }
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Switch(
+        value: value,
+        onChanged: onChanged,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1312,114 +1361,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         key: const PageStorageKey('settings_list'),
-        physics: const ClampingScrollPhysics(),
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(),
         children: [
           _buildSectionTitle(context, 'Content & Discovery'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24.0),
-            ),
-            elevation: 2,
-            child: Column(
-              children: [
-                ValueListenableBuilder<bool?>(
-                  valueListenable: usRadioOnlyNotifier,
-                  builder: (context, usRadioOnly, _) {
-                    if (usRadioOnly == null) {
-                      return const ListTile(
-                        leading: Icon(Icons.radio),
-                        title: Text('US Radio Only'),
-                        subtitle: Text('Show only US radio stations'),
-                        trailing: SizedBox(
-                          width: 50,
-                          height: 30,
-                          child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
-                        ),
-                      );
-                    }
-                    return ListTile(
-                      leading: const Icon(Icons.radio),
-                      title: const Text('US Radio Only'),
-                      subtitle: const Text('Show only US radio stations'),
-                      trailing: Switch(
-                        value: usRadioOnly,
-                        onChanged: (bool value) async {
-                          usRadioOnlyNotifier.value = value;
-                          await _saveUSRadioOnlySetting(value);
-                        },
-                      ),
-                    );
-                  },
+          ValueListenableBuilder<int>(
+            valueListenable: _contentDiscoveryRefreshNotifier,
+            builder: (context, _, __) {
+              return Card(
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24.0),
                 ),
-                ValueListenableBuilder<bool?>(
-                  valueListenable: showRadioTabNotifier,
-                  builder: (context, showRadioTab, _) {
-                    if (showRadioTab == null) {
-                      return const ListTile(
-                        leading: Icon(Icons.tab),
-                        title: Text('Show Radio Tab'),
-                        subtitle: Text('Display radio tab in navigation'),
-                        trailing: SizedBox(
-                          width: 50,
-                          height: 30,
-                          child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
-                        ),
-                      );
-                    }
-                    return ListTile(
-                      leading: const Icon(Icons.tab),
-                      title: const Text('Show Radio Tab'),
-                      subtitle: const Text('Display radio tab in navigation'),
-                      trailing: Switch(
-                        value: showRadioTab,
-                        onChanged: (bool value) async {
-                          showRadioTabNotifier.value = value;
-                          await _saveShowRadioTabSetting(value);
-                        },
-                      ),
-                    );
-                  },
+                elevation: 2,
+                child: Column(
+                  children: [
+                    _buildContentDiscoverySetting(
+                      icon: Icons.radio,
+                      title: 'US Radio Only',
+                      subtitle: 'Show only US radio stations',
+                      notifier: usRadioOnlyNotifier,
+                      onChanged: (value) async {
+                        usRadioOnlyNotifier.value = value;
+                        await _saveUSRadioOnlySetting(value);
+                        _contentDiscoveryRefreshNotifier.value++;
+                      },
+                    ),
+                    _buildContentDiscoverySetting(
+                      icon: Icons.tab,
+                      title: 'Show Radio Tab',
+                      subtitle: 'Display radio tab in navigation',
+                      notifier: showRadioTabNotifier,
+                      onChanged: (value) async {
+                        showRadioTabNotifier.value = value;
+                        await _saveShowRadioTabSetting(value);
+                        _contentDiscoveryRefreshNotifier.value++;
+                      },
+                    ),
+                    _buildContentDiscoverySetting(
+                      icon: Icons.filter_alt,
+                      title: 'Show Only Saved Songs in Albums',
+                      subtitle:
+                          'Only show your downloaded/saved songs in saved albums',
+                      notifier: showOnlySavedSongsInAlbumsNotifier,
+                      onChanged: (value) async {
+                        showOnlySavedSongsInAlbumsNotifier.value = value;
+                        await _saveShowOnlySavedSongsInAlbumsSetting(value);
+                        _contentDiscoveryRefreshNotifier.value++;
+                      },
+                    ),
+                  ],
                 ),
-                ValueListenableBuilder<bool?>(
-                  valueListenable: showOnlySavedSongsInAlbumsNotifier,
-                  builder: (context, showOnlySaved, _) {
-                    if (showOnlySaved == null) {
-                      return const ListTile(
-                        leading: Icon(Icons.filter_alt),
-                        title: Text('Show Only Saved Songs in Albums'),
-                        subtitle: Text(
-                            'Only show your downloaded/saved songs in saved albums'),
-                        trailing: SizedBox(
-                          width: 50,
-                          height: 30,
-                          child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
-                        ),
-                      );
-                    }
-                    return ListTile(
-                      leading: const Icon(Icons.filter_alt),
-                      title: const Text('Show Only Saved Songs in Albums'),
-                      subtitle: const Text(
-                          'Only show your downloaded/saved songs in saved albums'),
-                      trailing: Switch(
-                        value: showOnlySaved,
-                        onChanged: (bool value) async {
-                          showOnlySavedSongsInAlbumsNotifier.value = value;
-                          await _saveShowOnlySavedSongsInAlbumsSetting(value);
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+              );
+            },
           ),
           _buildSectionTitle(context, 'Downloads & Storage'),
           Card(
@@ -2331,95 +2326,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
             elevation: 2,
             child: Column(
               children: [
-                ListTile(
-                  leading: const Icon(Icons.info),
-                  title: const Text('Version'),
-                  subtitle: ValueListenableBuilder<String>(
-                    valueListenable: currentAppVersionNotifier,
-                    builder: (context, currentVersion, _) {
-                      return ValueListenableBuilder<String>(
-                        valueListenable: latestKnownVersionNotifier,
-                        builder: (context, latestVersion, __) {
-                          return Text(
-                              'Current: $currentVersion\nLatest: $latestVersion');
-                        },
-                      );
-                    },
-                  ),
-                  trailing: ValueListenableBuilder<String>(
-                    valueListenable: latestKnownVersionNotifier,
-                    builder: (context, latestVersion, _) {
-                      if (latestVersion != currentAppVersionNotifier.value) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Update Available',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      } else {
-                        return const SizedBox.shrink();
-                      }
-                    },
-                  ),
-                  onTap: () async {
-                    try {
-                      final apiService = ApiService();
-                      final updateInfo = await apiService
-                          .checkForUpdate(currentAppVersionNotifier.value);
+                ValueListenableBuilder<int>(
+                  valueListenable: _versionRefreshNotifier,
+                  builder: (context, _, __) {
+                    final currentVersion = currentAppVersionNotifier.value;
+                    final latestVersion = latestKnownVersionNotifier.value;
+                    final hasUpdate = currentVersion != 'Loading...' &&
+                        latestVersion != 'N/A' &&
+                        latestVersion != 'Error' &&
+                        latestVersion != currentVersion;
 
-                      if (!mounted) return;
-
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('App Version'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                    'Current Version: ${currentAppVersionNotifier.value}'),
-                                ValueListenableBuilder<String>(
-                                  valueListenable: latestKnownVersionNotifier,
-                                  builder: (context, latestVersion, _) {
-                                    return Text(
-                                        'Latest Version: $latestVersion');
-                                  },
-                                ),
-                                if (updateInfo != null) ...[
-                                  const SizedBox(height: 8),
-                                  Text('What\'s New: ${updateInfo.message}'),
-                                ],
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Close'),
+                    return ListTile(
+                      leading: const Icon(Icons.info),
+                      title: const Text('Version'),
+                      subtitle: Text(
+                          'Current: $currentVersion\nLatest: $latestVersion'),
+                      trailing: hasUpdate
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ],
-                          );
-                        },
-                      );
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Error fetching update info: $e')),
-                        );
-                      }
-                    }
+                              child: Text(
+                                'Update Available',
+                                style: TextStyle(
+                                  color:
+                                      Theme.of(context).colorScheme.onPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : null,
+                    );
                   },
                 ),
                 ValueListenableBuilder<ReleaseChannel?>(
@@ -2453,7 +2394,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       onTap: () async {
                         final releaseChannelService = ReleaseChannelService();
-                        final channels = releaseChannelService.getAvailableChannels();
+                        final channels =
+                            releaseChannelService.getAvailableChannels();
 
                         if (!mounted) return;
 
