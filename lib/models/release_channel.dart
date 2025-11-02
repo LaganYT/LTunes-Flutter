@@ -1,9 +1,6 @@
 /// Enum representing different release channels for app updates
 enum ReleaseChannel {
-  /// Development channel - gets the latest builds, may be unstable
-  dev('dev'),
-
-  /// Beta channel - gets beta releases, more stable than dev but not final
+  /// Beta channel - gets beta releases, tested but may contain minor bugs
   beta('beta'),
 
   /// Stable channel - gets only stable, production-ready releases
@@ -17,8 +14,6 @@ enum ReleaseChannel {
   /// Display name for the UI
   String get displayName {
     switch (this) {
-      case ReleaseChannel.dev:
-        return 'Development';
       case ReleaseChannel.beta:
         return 'Beta';
       case ReleaseChannel.stable:
@@ -29,10 +24,8 @@ enum ReleaseChannel {
   /// Description for the UI
   String get description {
     switch (this) {
-      case ReleaseChannel.dev:
-        return 'Get the latest features and updates, but may contain bugs';
       case ReleaseChannel.beta:
-        return 'Get beta releases that are more stable than development';
+        return 'Get beta releases that are tested but may contain minor bugs';
       case ReleaseChannel.stable:
         return 'Get only stable, production-ready releases';
     }

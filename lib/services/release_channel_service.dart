@@ -32,8 +32,6 @@ class ReleaseChannelService {
     const baseUrl = 'https://ltn-api.vercel.app/updates/';
 
     switch (channel) {
-      case ReleaseChannel.dev:
-        return '${baseUrl}dev.json';
       case ReleaseChannel.beta:
         return '${baseUrl}beta.json';
       case ReleaseChannel.stable:
@@ -52,9 +50,8 @@ class ReleaseChannelService {
   Future<bool> isChannelMoreAdvanced(ReleaseChannel channel) async {
     final currentChannel = await getSelectedChannel();
 
-    // Priority order: dev > beta > stable
+    // Priority order: beta > stable
     final channelPriority = {
-      ReleaseChannel.dev: 3,
       ReleaseChannel.beta: 2,
       ReleaseChannel.stable: 1,
     };
