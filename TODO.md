@@ -1,16 +1,10 @@
 # TODO
 
-## Audio & Playback Features
-
 - Podcasts
 - Audiobooks
 
-## Lyrics Features
-
 - Allow users to add/edit lyrics for their local songs and display them during playback.
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
-
-## UI & Display Features
 
 - Before the artist name on a song show an explicit marker and a downloaded marker on the song lists
 - Allow users to export playlists
@@ -19,11 +13,4 @@
 - Let users change their default tab
 - let users re-arange their tabs
 
-## Development & Infrastructure
-
-- Have the most accurate match for everything be shown first, instead of showing in order of how they are returned from the api
-
-- Go through the audio handler and current song provider and make sure it is as compatiable as possible, I have issues with background audio playback on my ios device sometimes, fix this
-
-Fix music in the background randomly stopping playing after a few songs
-When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
+- When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
