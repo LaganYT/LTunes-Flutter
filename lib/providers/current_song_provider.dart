@@ -55,6 +55,12 @@ class CurrentSongProvider with ChangeNotifier {
 
   // Queue reordering flag to prevent unwanted current song changes
   bool _isReorderingQueue = false;
+
+  // Prevent sync loops when provider initiates queue changes
+  DateTime? _lastProviderInitiatedQueueChange;
+
+  // Prevent syncing during queue updates
+  bool _isUpdatingAudioHandlerQueue = false;
   final Map<String, Timer> _retryTimers = {};
   static const int _maxDownloadRetries = 3;
   static const Duration _baseRetryDelay = Duration(seconds: 2);
@@ -419,7 +425,7 @@ class CurrentSongProvider with ChangeNotifier {
       await _audioHandler.updateQueue(mediaItems);
 
       if (_currentSongFromAppLogic != null && _currentIndexInAppQueue != -1) {
-        await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+        await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
       } else if (_queue.isEmpty) {
         await _audioHandler.stop();
       }
@@ -430,7 +436,7 @@ class CurrentSongProvider with ChangeNotifier {
         try {
           final mediaItem = await _prepareMediaItem(_currentSongFromAppLogic!);
           await _audioHandler.updateQueue([mediaItem]);
-          await _audioHandler.skipToQueueItem(0);
+          await _skipToQueueItemWithFlag(0);
         } catch (fallbackError) {
           debugPrint('Fallback queue setting also failed: $fallbackError');
         }
@@ -754,7 +760,7 @@ class CurrentSongProvider with ChangeNotifier {
     try {
       // Update audio handler queue and skip to the new song
       await _updateAudioHandlerQueue();
-      await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+      await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
       debugPrint(
           "CurrentSongProvider: Successfully moved to next shuffled song");
     } catch (e) {
@@ -821,7 +827,7 @@ class CurrentSongProvider with ChangeNotifier {
     try {
       // Update audio handler queue and skip to the new song
       await _updateAudioHandlerQueue();
-      await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+      await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
       debugPrint(
           "CurrentSongProvider: Successfully moved to previous shuffled song");
     } catch (e) {
@@ -907,7 +913,7 @@ class CurrentSongProvider with ChangeNotifier {
           await _audioHandler.updateQueue([mediaItem]);
         }
         if (currentPlayRequest != _playRequestCounter) return;
-        await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+        await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
       }
 
       if (currentPlayRequest != _playRequestCounter) return;
@@ -974,7 +980,7 @@ class CurrentSongProvider with ChangeNotifier {
     );
 
     await _audioHandler.updateQueue([mediaItem]);
-    await _audioHandler.skipToQueueItem(0);
+    await _skipToQueueItemWithFlag(0);
 
     if (currentPlayRequest != _playRequestCounter) return;
 
@@ -1002,7 +1008,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     await _updateAudioHandlerQueue();
-    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+    await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
     notifyListeners();
     _saveCurrentSongToStorage();
 
@@ -1022,11 +1028,11 @@ class CurrentSongProvider with ChangeNotifier {
     if (newIndex == -1) {
       // If we can't find the current song in the new context, fall back to playing
       // the target song (if provided) or the first equivalent song in the new context
-      debugPrint("CurrentSongProvider: Could not find current song in new context, falling back to playWithContext");
-      final songToPlay = targetSong ?? newContext.firstWhere(
-        (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
-        orElse: () => newContext.first,
-      );
+      final songToPlay = targetSong ??
+          newContext.firstWhere(
+            (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
+            orElse: () => newContext.first,
+          );
       await playWithContext(newContext, songToPlay, playImmediately: _isPlaying);
       return;
     }
@@ -1052,7 +1058,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     await _updateAudioHandlerQueue();
-    await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+    await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
 
     if (wasPlaying && currentPosition > Duration.zero) {
       await _audioHandler.seek(currentPosition);
@@ -1101,6 +1107,11 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   // Helper methods
+  Future<void> _skipToQueueItemWithFlag(int index) async {
+    _lastProviderInitiatedQueueChange = DateTime.now();
+    await _audioHandler.skipToQueueItem(index);
+  }
+
   bool _areSongsEquivalent(Song song1, Song song2) {
     // First check if they're the same song by ID
     if (song1.id == song2.id) return true;
@@ -1139,12 +1150,17 @@ class CurrentSongProvider with ChangeNotifier {
   Future<void> _updateAudioHandlerQueue() async {
     if (_queue.isEmpty) return;
 
-    final mediaItems = await _prepareMediaItemsBatched(_queue);
-    await _audioHandler.updateQueue(mediaItems);
+    _isUpdatingAudioHandlerQueue = true;
+    try {
+      final mediaItems = await _prepareMediaItemsBatched(_queue);
+      await _audioHandler.updateQueue(mediaItems);
 
-    if (_currentIndexInAppQueue != -1) {
-      await _audioHandler
-          .customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+      if (_currentIndexInAppQueue != -1) {
+        await _audioHandler
+            .customAction('setQueueIndex', {'index': _currentIndexInAppQueue});
+      }
+    } finally {
+      _isUpdatingAudioHandlerQueue = false;
     }
   }
 
@@ -1660,8 +1676,16 @@ class CurrentSongProvider with ChangeNotifier {
 
       // Sync queue index from audio handler, but NOT when shuffle is enabled
       // When shuffle is on, the provider handles navigation and should be the source of truth
+      // Also don't sync if provider recently initiated a queue change to prevent loops
       final audioHandlerQueueIndex = playbackState.queueIndex;
+      final recentlyChangedByProvider =
+          _lastProviderInitiatedQueueChange != null &&
+              DateTime.now().difference(_lastProviderInitiatedQueueChange!) <
+                  const Duration(milliseconds: 500);
+
       if (!_isShuffling && // CRITICAL FIX: Don't sync when shuffling
+          !recentlyChangedByProvider && // Don't sync if provider just changed it
+          !_isUpdatingAudioHandlerQueue && // Don't sync while updating queue
           audioHandlerQueueIndex != null &&
           audioHandlerQueueIndex != _currentIndexInAppQueue &&
           audioHandlerQueueIndex >= 0 &&
@@ -1677,8 +1701,6 @@ class CurrentSongProvider with ChangeNotifier {
           final newCurrentSong = _queue[_currentIndexInAppQueue];
           if (_currentSongFromAppLogic?.id != newCurrentSong.id) {
             _currentSongFromAppLogic = newCurrentSong;
-            debugPrint(
-                "CurrentSongProvider: Current song updated to: ${newCurrentSong.title}");
           }
         }
       } else if (_isShuffling &&
@@ -1864,6 +1886,12 @@ class CurrentSongProvider with ChangeNotifier {
         }
 
         // Sync the provider's queue with the audio handler's queue
+        // But don't sync if we're currently updating the audio handler queue
+        if (_isUpdatingAudioHandlerQueue) {
+          debugPrint("CurrentSongProvider: Skipping queue sync - currently updating audio handler queue");
+          return;
+        }
+
         bool queueChanged = false;
 
         // Check if the queue length changed
@@ -3201,7 +3229,7 @@ class CurrentSongProvider with ChangeNotifier {
         if (_currentSongFromAppLogic == null && _queue.isNotEmpty) {
           _currentIndexInAppQueue = 0;
           _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
-          await _audioHandler.skipToQueueItem(_currentIndexInAppQueue);
+          await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
         } else if (_queue.isEmpty) {
           _currentIndexInAppQueue = -1;
           await _audioHandler.stop();

@@ -88,7 +88,9 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
 
     // Now cache art paths asynchronously in the background
     for (final song in queue) {
-      if (song.albumArtUrl.isNotEmpty && !song.albumArtUrl.startsWith('http') && mounted) {
+      if (song.albumArtUrl.isNotEmpty &&
+          !song.albumArtUrl.startsWith('http') &&
+          mounted) {
         try {
           final path = await _resolveLocalArtPath(song.albumArtUrl);
           if (mounted) {
@@ -135,7 +137,9 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
         final currentSong = currentSongProvider.currentSong;
         final currentIndex = queue.indexWhere((s) => s.id == currentSong?.id);
         // Only trigger background caching if queue changed significantly and we're not already loading
-        if (_artPathCache.length < queue.length * 0.8 && !_loading && queue.length > 10) {
+        if (_artPathCache.length < queue.length * 0.8 &&
+            !_loading &&
+            queue.length > 10) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _precacheArtPaths();
           });
@@ -2188,10 +2192,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     await _currentSongProvider.seek(Duration(milliseconds: value.round()));
   }
 
-
   Future<void> _toggleLike() async {
     final song = _currentSongProvider.currentSong!;
-    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final likedSongsService =
+        Provider.of<LikedSongsService>(context, listen: false);
     final wasLiked = await likedSongsService.toggleLike(song);
 
     // If song was just liked (not unliked), check for auto-download
@@ -2720,7 +2724,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             // Like button
                             Consumer<LikedSongsService>(
                               builder: (context, likedSongsService, child) {
-                                final isLiked = likedSongsService.isLiked(currentSong.id);
+                                final isLiked =
+                                    likedSongsService.isLiked(currentSong.id);
                                 return IconButton(
                                   icon: Icon(isLiked
                                       ? Icons.favorite
