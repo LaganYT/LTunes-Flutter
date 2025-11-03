@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../models/album.dart';
 import '../services/album_manager_service.dart';
 import '../models/playlist.dart';
@@ -9,6 +10,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../providers/current_song_provider.dart';
 
 double _getSafeIconSize(double? width) {
   // Ensure we have a safe, finite icon size
@@ -226,6 +228,33 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
         return Wrap(
           children: [
             ListTile(
+              leading: const Icon(Icons.play_arrow),
+              title: const Text('Play Album'),
+              onTap: () {
+                Navigator.pop(context);
+                _playAlbum(album);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('View Details'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AlbumScreen(album: album)),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('View Artist'),
+              onTap: () {
+                Navigator.pop(context);
+                _viewArtist(album);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.playlist_add),
               title: const Text('Add to Playlist'),
               onTap: () async {
@@ -406,6 +435,22 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
     setState(() => _albums.removeWhere((a) => a.id == album.id));
     scaffoldMessenger.showSnackBar(
       SnackBar(content: Text('Album unsaved: ${album.title}')),
+    );
+  }
+
+  void _playAlbum(Album album) {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    if (album.tracks.isNotEmpty) {
+      currentSongProvider.smartPlayWithContext(album.tracks, album.tracks.first);
+    }
+  }
+
+  void _viewArtist(Album album) {
+    // Navigate to artist screen - for now, we'll just show a placeholder
+    // since the app doesn't seem to have a dedicated artist screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Artist: ${album.artistName}')),
     );
   }
 }

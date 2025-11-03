@@ -233,6 +233,9 @@ class LibraryItemContextMenu extends StatelessWidget {
       case 'rename':
         _showRenamePlaylistDialog(context, playlist);
         break;
+      case 'add_to_queue':
+        _addPlaylistToQueue(context, playlist);
+        break;
       case 'delete':
         _showDeletePlaylistDialog(context, playlist);
         break;
@@ -268,6 +271,12 @@ class LibraryItemContextMenu extends StatelessWidget {
             ),
           ),
         );
+        break;
+      case 'add_to_playlist':
+        _showAddAlbumToPlaylistDialog(context, album);
+        break;
+      case 'unsave_album':
+        _showUnsaveAlbumDialog(context, album);
         break;
     }
   }
@@ -309,6 +318,19 @@ class LibraryItemContextMenu extends StatelessWidget {
     );
   }
 
+  void _addPlaylistToQueue(BuildContext context, Playlist playlist) {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    for (final song in playlist.songs) {
+      currentSongProvider.addToQueue(song);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(
+              'Added ${playlist.songs.length} songs from "${playlist.name}" to queue')),
+    );
+  }
+
   void _showRenamePlaylistDialog(BuildContext context, Playlist playlist) {
     final TextEditingController nameController =
         TextEditingController(text: playlist.name);
@@ -346,6 +368,158 @@ class LibraryItemContextMenu extends StatelessWidget {
               }
             },
             child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddAlbumToPlaylistDialog(BuildContext context, Album album) {
+    final playlistManager = PlaylistManagerService();
+    final playlists = playlistManager.playlists;
+    final TextEditingController searchController = TextEditingController();
+    List<Playlist> filteredPlaylists = List.from(playlists);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Center(child: Text('Add to playlist')),
+              contentPadding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 0),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 0.0),
+                      child: TextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Find playlist',
+                          prefixIcon: Icon(Icons.search,
+                              color: Theme.of(context)
+                                  .iconTheme
+                                  .color
+                                  ?.withValues(alpha: 0.7)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24.0),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0, horizontal: 16),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            filteredPlaylists = playlists
+                                .where((playlist) => playlist.name
+                                    .toLowerCase()
+                                    .contains(value.toLowerCase()))
+                                .toList();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: filteredPlaylists.isEmpty
+                          ? Center(
+                              child: Text(
+                                searchController.text.isNotEmpty
+                                    ? 'No playlists found.'
+                                    : 'No playlists available.',
+                                style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filteredPlaylists.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                final playlist = filteredPlaylists[index];
+                                return ListTile(
+                                  leading: SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4.0),
+                                      child: Container(
+                                          color: Colors.grey),
+                                    ),
+                                  ),
+                                  title: Text(playlist.name),
+                                  subtitle:
+                                      Text('${playlist.songs.length} songs'),
+                                  onTap: () async {
+                                    final navigator = Navigator.of(context);
+                                    final scaffoldMessenger =
+                                        ScaffoldMessenger.of(context);
+                                    for (final track in album.tracks) {
+                                      await playlistManager.addSongToPlaylist(
+                                          playlist, track);
+                                    }
+                                    navigator.pop();
+                                    scaffoldMessenger.showSnackBar(
+                                      SnackBar(
+                                          content: Text(
+                                              'Added album to playlist: ${playlist.name}')),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showUnsaveAlbumDialog(BuildContext context, Album album) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unsave Album'),
+        content: Text('Are you sure you want to unsave "${album.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final albumManager = AlbumManagerService();
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              await albumManager.removeSavedAlbum(album.id);
+              Navigator.of(context).pop();
+              scaffoldMessenger.showSnackBar(
+                SnackBar(content: Text('Album unsaved: ${album.title}')),
+              );
+            },
+            child: Text('Unsave',
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
@@ -478,6 +652,11 @@ class _ContextMenuBottomSheet extends StatelessWidget {
         'title': 'Rename Playlist',
       },
       {
+        'value': 'add_to_queue',
+        'icon': Icons.queue_music,
+        'title': 'Add to Queue',
+      },
+      {
         'value': 'delete',
         'icon': Icons.delete,
         'title': 'Delete Playlist',
@@ -502,6 +681,17 @@ class _ContextMenuBottomSheet extends StatelessWidget {
         'value': 'view_artist',
         'icon': Icons.person,
         'title': 'View Artist',
+      },
+      {
+        'value': 'add_to_playlist',
+        'icon': Icons.playlist_add,
+        'title': 'Add to Playlist',
+      },
+      {
+        'value': 'unsave_album',
+        'icon': Icons.delete,
+        'title': 'Unsave Album',
+        'color': Colors.red,
       },
     ];
   }

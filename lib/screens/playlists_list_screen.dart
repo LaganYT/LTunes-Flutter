@@ -389,6 +389,26 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
         return Wrap(
           children: <Widget>[
             ListTile(
+              leading: const Icon(Icons.play_arrow),
+              title: const Text('Play Playlist'),
+              onTap: () {
+                Navigator.pop(context);
+                _playPlaylist(playlist);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('View Details'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => PlaylistDetailScreen(playlist: playlist)),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('Rename Playlist'),
               onTap: () {
@@ -482,6 +502,14 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           content: Text(
               'Added ${playlist.songs.length} songs from "${playlist.name}" to queue')),
     );
+  }
+
+  void _playPlaylist(Playlist playlist) {
+    final currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+    if (playlist.songs.isNotEmpty) {
+      currentSongProvider.smartPlayWithContext(playlist.songs, playlist.songs.first);
+    }
   }
 
   Future<void> _importPlaylistFromXLSX(ImportJob job) async {
