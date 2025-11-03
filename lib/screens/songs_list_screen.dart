@@ -21,7 +21,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 class SongsScreen extends StatefulWidget {
   final String? artistFilter;
   final bool importedSongsOnly;
-  const SongsScreen({super.key, this.artistFilter, this.importedSongsOnly = false});
+  const SongsScreen(
+      {super.key, this.artistFilter, this.importedSongsOnly = false});
   @override
   SongsScreenState createState() => SongsScreenState();
 }
@@ -147,7 +148,8 @@ class SongsScreenState extends State<SongsScreen> {
           if (needsArtDownload && isOnline) {
             await prov.updateMissingMetadata(s);
           }
-          await prov.smartPlayWithContext([s], s); // Use single song context for imported songs
+          await prov.smartPlayWithContext(
+              widget.importedSongsOnly ? _importedSongs : _allSongs, s);
         },
         trailing: IconButton(
           icon: const Icon(Icons.delete, color: Colors.red),
@@ -264,18 +266,25 @@ class SongsScreenState extends State<SongsScreen> {
     }
 
     // Separate imported and non-imported songs
-    List<Song> nonImportedSongs = allValidSongs.where((s) => !s.isImported).toList();
-    List<Song> importedSongs = allValidSongs.where((s) => s.isImported).toList();
+    List<Song> nonImportedSongs =
+        allValidSongs.where((s) => !s.isImported).toList();
+    List<Song> importedSongs =
+        allValidSongs.where((s) => s.isImported).toList();
 
     // Apply artist filter if present
     if (widget.artistFilter != null) {
-      nonImportedSongs = nonImportedSongs.where((s) => s.artist == widget.artistFilter).toList();
-      importedSongs = importedSongs.where((s) => s.artist == widget.artistFilter).toList();
+      nonImportedSongs = nonImportedSongs
+          .where((s) => s.artist == widget.artistFilter)
+          .toList();
+      importedSongs =
+          importedSongs.where((s) => s.artist == widget.artistFilter).toList();
     }
 
     // Sort both lists alphabetically by title
-    nonImportedSongs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-    importedSongs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    nonImportedSongs
+        .sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    importedSongs
+        .sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
     if (mounted) {
       setState(() {
@@ -288,7 +297,8 @@ class SongsScreenState extends State<SongsScreen> {
         } else {
           // Combine all songs into a single sorted list
           List<Song> allSongs = [...nonImportedSongs, ...importedSongs];
-          allSongs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+          allSongs.sort(
+              (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
           _allSongs = allSongs;
           _importedSongs = importedSongs;
@@ -302,7 +312,7 @@ class SongsScreenState extends State<SongsScreen> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200 &&
+            _scrollController.position.maxScrollExtent - 200 &&
         !_isLoading &&
         _hasMoreSongs) {
       _loadMoreSongs();
@@ -700,7 +710,8 @@ class SongsScreenState extends State<SongsScreen> {
               ? const Center(child: Text('No songs found.'))
               : ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.only(bottom: 80), // Add padding for playbar
+                  padding: const EdgeInsets.only(
+                      bottom: 80), // Add padding for playbar
                   itemCount: _songs.length + (_isLoading ? 1 : 0),
                   itemBuilder: (c, i) {
                     // Show loading indicator at the bottom
