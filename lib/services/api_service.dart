@@ -707,12 +707,21 @@ class ApiService {
     _httpClient.close();
   }
 
-  // Method to compare versions (e.g., "1.0.1" vs "1.0.0")
+  // Method to compare versions (e.g., "1.0.1" vs "1.0.0" or "2025.11.02-beta")
   // Returns > 0 if v1 is greater, < 0 if v2 is greater, 0 if equal
   int _compareVersions(String v1, String v2) {
-    List<int> v1Parts = v1.split('.').map(int.parse).toList();
-    List<int> v2Parts = v2.split('.').map(int.parse).toList();
+    // Extract numeric version by removing beta suffix
+    String v1Numeric = v1.replaceAll('-beta', '');
+    String v2Numeric = v2.replaceAll('-beta', '');
 
+    // Check if versions are beta
+    bool v1IsBeta = v1.contains('-beta');
+    bool v2IsBeta = v2.contains('-beta');
+
+    List<int> v1Parts = v1Numeric.split('.').map(int.parse).toList();
+    List<int> v2Parts = v2Numeric.split('.').map(int.parse).toList();
+
+    // Compare numeric parts first
     for (int i = 0; i < v1Parts.length || i < v2Parts.length; i++) {
       int part1 = (i < v1Parts.length) ? v1Parts[i] : 0;
       int part2 = (i < v2Parts.length) ? v2Parts[i] : 0;
@@ -720,6 +729,11 @@ class ApiService {
       if (part1 < part2) return -1;
       if (part1 > part2) return 1;
     }
+
+    // If numeric versions are equal, stable versions are greater than beta versions
+    if (v1IsBeta && !v2IsBeta) return -1;
+    if (!v1IsBeta && v2IsBeta) return 1;
+
     return 0;
   }
 
