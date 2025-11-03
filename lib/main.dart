@@ -134,6 +134,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   Timer? _backgroundContinuityTimer;
   Timer? _intensiveBackgroundTimer;
   int _backgroundContinuityCount = 0;
+  int _longIntervalTimerCount = 0;
   Timer? _sessionRestorationTimer;
 
   // Widget list is now built dynamically in the build method
@@ -171,6 +172,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     _intensiveBackgroundTimer?.cancel();
     _sessionRestorationTimer?.cancel();
     _backgroundContinuityCount = 0;
+    _longIntervalTimerCount = 0;
 
     // Single consolidated timer for all background operations
     // Start with moderate frequency and gradually reduce
@@ -197,7 +199,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         // After 30 minutes, reduce frequency to every 5 minutes
         if (_backgroundContinuityCount >= 30) {
           timer.cancel();
-          _backgroundContinuityCount = 0; // Reset counter for new timer
+          _longIntervalTimerCount = 0;
           _backgroundContinuityTimer =
               Timer.periodic(const Duration(minutes: 5), (regularTimer) {
             try {
@@ -207,12 +209,12 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                 return;
               }
 
-              _backgroundContinuityCount++;
+              _longIntervalTimerCount++;
 
               _audioHandler
                   .customAction('ensureBackgroundPlaybackContinuity', {});
-              // Check session every other time (every 10 minutes)
-              if (_backgroundContinuityCount % 2 == 0) {
+              // Check session restoration every other iteration (every 10 minutes)
+              if (_longIntervalTimerCount % 2 == 0) {
                 _audioHandler.customAction('restoreAudioSession', {});
               }
             } catch (e) {
@@ -240,6 +242,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     _sessionRestorationTimer?.cancel();
     _sessionRestorationTimer = null;
     _backgroundContinuityCount = 0;
+    _longIntervalTimerCount = 0;
   }
 
   @override
