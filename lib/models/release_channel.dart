@@ -1,10 +1,10 @@
 /// Enum representing different release channels for app updates
 enum ReleaseChannel {
-  /// Beta channel - gets beta releases, tested but may contain minor bugs
-  beta('beta'),
-
   /// Stable channel - gets only stable, production-ready releases
-  stable('stable');
+  stable('stable'),
+
+  /// Beta channel - gets beta releases, tested but may contain minor bugs
+  beta('beta');
 
   const ReleaseChannel(this.value);
 

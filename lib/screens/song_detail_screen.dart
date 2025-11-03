@@ -90,10 +90,12 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   bool _isPreloadingArtist = false;
   String? _cachedAlbumId;
 
-
   ImageProvider? _currentArtProvider;
   String? _currentArtKey;
   bool _artLoading = false;
+
+  // Store provider reference to avoid unsafe context access in dispose
+  CurrentSongProvider? _currentSongProvider;
 
   // Helper function to safely create TextStyle with valid fontSize
   TextStyle _safeTextStyle(
@@ -123,10 +125,14 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Store provider reference to avoid unsafe context access in dispose
+    _currentSongProvider =
+        Provider.of<CurrentSongProvider>(context, listen: false);
+
     // Listen to download progress changes for the specific song
-    Provider.of<CurrentSongProvider>(context, listen: false).addListener(() {
-      final currentSong =
-          Provider.of<CurrentSongProvider>(context, listen: false).currentSong;
+    _currentSongProvider!.addListener(() {
+      final currentSong = _currentSongProvider!.currentSong;
       // Check if the current song in the provider is the same as the one in this widget
       if (currentSong?.id == widget.song.id && mounted) {
         setState(() {
@@ -193,9 +199,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
   @override
   void dispose() {
-    // Remove listener on dispose
-    Provider.of<CurrentSongProvider>(context, listen: false)
-        .removeListener(() {});
+    // Remove listener on dispose using stored provider reference
+    _currentSongProvider?.removeListener(() {});
     super.dispose();
   }
 
@@ -588,9 +593,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
-
   Future<void> _toggleLike(Song song) async {
-    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final likedSongsService =
+        Provider.of<LikedSongsService>(context, listen: false);
     final wasLiked = await likedSongsService.toggleLike(song);
 
     // If song was just liked (not unliked), check for auto-download
@@ -598,7 +603,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
       final prefs = await SharedPreferences.getInstance();
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+        final provider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
         provider.queueSongForDownload(song);
       }
     }
@@ -1709,43 +1715,45 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                           ),
                         )
                       : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _filteredPlaylists.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final playlist = _filteredPlaylists[index];
-                        return ListTile(
-                          leading: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4.0),
-                              child: _buildPlaylistArt(playlist, context),
-                            ),
-                          ),
-                          title: Text(playlist.name),
-                          subtitle: Text('${playlist.songs.length} songs'),
-                          onTap: () {
-                            if (!playlist.songs
-                                .any((s) => s.id == widget.song.id)) {
-                              _playlistManagerService.addSongToPlaylist(
-                                  playlist, widget.song);
-                              // _playlistManagerService.savePlaylists(); // savePlaylists is called within addSongToPlaylist
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text('Added to ${playlist.name}')),
-                              );
-                            } else {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Song already in playlist')),
-                              );
-                            }
+                          shrinkWrap: true,
+                          itemCount: _filteredPlaylists.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final playlist = _filteredPlaylists[index];
+                            return ListTile(
+                              leading: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4.0),
+                                  child: _buildPlaylistArt(playlist, context),
+                                ),
+                              ),
+                              title: Text(playlist.name),
+                              subtitle: Text('${playlist.songs.length} songs'),
+                              onTap: () {
+                                if (!playlist.songs
+                                    .any((s) => s.id == widget.song.id)) {
+                                  _playlistManagerService.addSongToPlaylist(
+                                      playlist, widget.song);
+                                  // _playlistManagerService.savePlaylists(); // savePlaylists is called within addSongToPlaylist
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('Added to ${playlist.name}')),
+                                  );
+                                } else {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('Song already in playlist')),
+                                  );
+                                }
+                              },
+                            );
                           },
-                        );
-                      },
-                    ),
+                        ),
             ),
           ],
         ),
