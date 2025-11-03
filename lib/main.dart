@@ -21,7 +21,6 @@ import 'services/bug_report_service.dart'; // Import BugReportService
 import 'services/artwork_service.dart'; // Import ArtworkService
 import 'services/liked_songs_service.dart'; // Import LikedSongsService
 import 'dart:io'; // Import for Platform
-import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
 import 'package:flutter/services.dart'; // For MethodChannel
 
@@ -49,26 +48,22 @@ Future<void> main() async {
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
       androidNotificationIcon: 'mipmap/ic_launcher',
-      // Enhanced iOS specific configuration for background playback
       fastForwardInterval: Duration(seconds: 10),
       rewindInterval: Duration(seconds: 10),
       androidNotificationClickStartsActivity: true,
       artDownscaleWidth: 300,
       artDownscaleHeight: 300,
-      // Enhanced iOS background audio configuration
       androidNotificationChannelDescription: 'LTunes audio playback controls',
       notificationColor: Color(0xFF2196F3),
     ),
   );
 
-  // Add Bluetooth event MethodChannel listener
+  // Simplified Bluetooth event MethodChannel listener
   const bluetoothChannel = MethodChannel('bluetooth_events');
   bluetoothChannel.setMethodCallHandler((call) async {
     if (call.method == 'bluetooth_connected') {
-      // Re-activate audio session on Bluetooth reconnect
-      await _audioHandler.customAction('forceSessionActivation', {});
+      debugPrint('Bluetooth connected');
     } else if (call.method == 'bluetooth_disconnected') {
-      // Optionally handle disconnect
       debugPrint('Bluetooth disconnected');
     }
   });
@@ -77,21 +72,17 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        // Provide the _audioHandler instance to CurrentSongProvider
         ChangeNotifierProvider(
           create: (context) => CurrentSongProvider(_audioHandler),
         ),
         ChangeNotifierProvider(
-            create: (context) =>
-                PlaylistManagerService()), // Assuming this was already here or needed
+            create: (context) => PlaylistManagerService()),
         ChangeNotifierProvider(
-            create: (context) =>
-                AlbumManagerService()), // Add AlbumManagerService
+            create: (context) => AlbumManagerService()),
         ChangeNotifierProvider(
-            create: (context) =>
-                AnimationService.instance), // Add AnimationService
+            create: (context) => AnimationService.instance),
         ChangeNotifierProvider(
-            create: (context) => LikedSongsService()), // Add LikedSongsService
+            create: (context) => LikedSongsService()),
       ],
       child: const LTunesApp(),
     ),
@@ -131,212 +122,45 @@ class TabView extends StatefulWidget {
 
 class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   int _selectedIndex = 0;
-  Timer? _backgroundContinuityTimer;
-  int _backgroundContinuityCount = 0;
-  bool _isTimerActive = false;
-
-  // Widget list is now built dynamically in the build method
-  // static final List<Widget> _widgetOptions = <Widget>[
-  //   const SearchScreen(),
-  //   const LibraryScreen(),
-  //   const SettingsScreen(),
-  // ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeVersionAndCheckForUpdates();
-
-    // Ensure audio session is initialized when app opens
-    _audioHandler.customAction('ensureAudioSessionInitialized', {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _stopBackgroundContinuityTimer();
-
-    // Perform memory cleanup when TabView is disposed
     _performMemoryCleanup();
     super.dispose();
-  }
-
-  void _startBackgroundContinuityTimer() {
-    if (!Platform.isIOS || _isTimerActive) return;
-
-    // Safely cancel any existing timer before creating a new one
-    _stopBackgroundContinuityTimer();
-    _backgroundContinuityCount = 0;
-    _isTimerActive = true;
-
-    // Start with 60-second intervals for the first 30 minutes
-    _backgroundContinuityTimer =
-        Timer.periodic(const Duration(seconds: 60), (timer) {
-      try {
-        _backgroundContinuityCount++;
-
-        // Perform continuity check with error handling
-        _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {}).catchError((error) {
-          debugPrint('Background continuity check failed: $error');
-        });
-
-        // Every 10 minutes, also check session restoration (every 10th iteration)
-        if (_backgroundContinuityCount % 10 == 0) {
-          _audioHandler.customAction('restoreAudioSession', {}).catchError((error) {
-            debugPrint('Session restoration failed: $error');
-          });
-        }
-
-        // After 30 minutes, reduce frequency to every 5 minutes
-        if (_backgroundContinuityCount >= 30) {
-          _transitionToReducedFrequencyTimer();
-        }
-      } catch (e) {
-        debugPrint('Error in background continuity timer: $e');
-        // Don't crash the app, just log the error
-      }
-    });
-
-    debugPrint(
-        "Main: Started optimized background continuity timer (60s intervals)");
-  }
-
-  void _transitionToReducedFrequencyTimer() {
-    if (!_isTimerActive) return;
-    
-    // Safely cancel the current timer
-    _backgroundContinuityTimer?.cancel();
-    _backgroundContinuityTimer = null;
-    
-    // Create the new timer with reduced frequency
-    _backgroundContinuityTimer =
-        Timer.periodic(const Duration(minutes: 5), (regularTimer) {
-      try {
-        if (!_isTimerActive) {
-          regularTimer.cancel();
-          return;
-        }
-        
-        _backgroundContinuityCount++;
-        
-        _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {}).catchError((error) {
-          debugPrint('Background continuity check failed: $error');
-        });
-        
-        // Check session every other time (every 10 minutes)
-        if (_backgroundContinuityCount % 2 == 0) {
-          _audioHandler.customAction('restoreAudioSession', {}).catchError((error) {
-            debugPrint('Session restoration failed: $error');
-          });
-        }
-      } catch (e) {
-        debugPrint('Error in reduced frequency timer: $e');
-        // Don't crash the app, just log the error
-      }
-    });
-    
-    debugPrint(
-        "Main: Reduced background continuity timer to 5 minute intervals");
-  }
-
-  void _stopBackgroundContinuityTimer() {
-    _isTimerActive = false;
-    _backgroundContinuityTimer?.cancel();
-    _backgroundContinuityTimer = null;
-    _backgroundContinuityCount = 0;
-    debugPrint("Main: Stopped background continuity timer");
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Enhanced app lifecycle handling for iOS background playback
+    // Simplified lifecycle handling - just save state and set background flag
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is coming back to foreground - handle audio first, then provider
-        _audioHandler.customAction('handleAppForeground', {}).then((_) {
-          // Then sync position and check for stuck loading states in the CurrentSongProvider
-          Provider.of<CurrentSongProvider>(context, listen: false)
-              .handleAppForeground()
-              .then((_) {
-            debugPrint("Main: App resumed - audio handler and provider synced");
-          });
-        }).catchError((error) {
-          debugPrint('Error handling app foreground: $error');
-        });
-        _stopBackgroundContinuityTimer();
-        break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-        // App is going to background, ensure audio session stays active
-        _audioHandler.customAction('handleAppBackground', {}).catchError((error) {
-          debugPrint('Error handling app background: $error');
-        });
-        // Save current state before going to background
-        Provider.of<CurrentSongProvider>(context, listen: false)
-            .saveStateToStorage();
-        _startBackgroundContinuityTimer();
-
-        // Perform light memory cleanup when going to background
-        artworkService.clearCacheForLowMemory();
-        break;
-      case AppLifecycleState.detached:
-        // App is being terminated, ensure background playback is configured
-        _audioHandler.customAction('ensureBackgroundPlayback', {}).catchError((error) {
-          debugPrint('Error ensuring background playback on detach: $error');
-        });
-        // Save current state before app termination
-        Provider.of<CurrentSongProvider>(context, listen: false)
-            .saveStateToStorage();
-        _stopBackgroundContinuityTimer();
-
-        // Memory cleanup on app termination
-        _performMemoryCleanup();
-        // MetadataHistoryService().clearHistory(); // Removed: never clear metadata history
-        break;
-      case AppLifecycleState.hidden:
-        // App is hidden (iOS specific), ensure background playback
-        _audioHandler.customAction('handleAppBackground', {}).catchError((error) {
-          debugPrint('Error handling app background on hidden: $error');
-        });
-        // Save current state before going to background
-        Provider.of<CurrentSongProvider>(context, listen: false)
-            .saveStateToStorage();
-        _startBackgroundContinuityTimer();
-        break;
-    }
-
-    debugPrint("App lifecycle state changed to: $state");
-
-    // Additional iOS-specific handling for background playback
-    if (Platform.isIOS) {
-      switch (state) {
-        case AppLifecycleState.paused:
-        case AppLifecycleState.inactive:
-        case AppLifecycleState.hidden:
-          // For iOS, ensure background playback is immediately configured
-          // The background continuity timer handles ongoing session management
-          _audioHandler.customAction('ensureBackgroundPlayback', {}).catchError((error) {
-            debugPrint('Error ensuring background playback: $error');
-          });
-          break;
-        default:
-          break;
-      }
-    }
-
-    // Set global background/foreground state for download notifications
-    switch (state) {
-      case AppLifecycleState.resumed:
+        debugPrint("App resumed");
         CurrentSongProvider.isAppInBackground = false;
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        debugPrint("App went to background/inactive state: $state");
+        // Save current state before going to background
+        Provider.of<CurrentSongProvider>(context, listen: false)
+            .saveStateToStorage();
         CurrentSongProvider.isAppInBackground = true;
+        
+        // Perform light memory cleanup when going to background
+        if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+          artworkService.clearCacheForLowMemory();
+        }
         break;
     }
   }
@@ -533,11 +357,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     try {
       // Clear artwork caches to free memory
       artworkService.clearCacheForLowMemory();
-
-      // Cancel any pending timers
-      _stopBackgroundContinuityTimer();
-
-      debugPrint("Main: Performed memory cleanup on app termination");
+      debugPrint("Main: Performed memory cleanup");
     } catch (e) {
       debugPrint("Main: Error during memory cleanup: $e");
     }
