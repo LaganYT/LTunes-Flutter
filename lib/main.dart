@@ -158,7 +158,11 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         CurrentSongProvider.isAppInBackground = true;
         
         // Perform light memory cleanup when going to background
-        if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+        // Perform light memory cleanup for all non-resumed states to align with background flag
+        if (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.detached ||
+            state == AppLifecycleState.hidden) {
           artworkService.clearCacheForLowMemory();
         }
         break;
