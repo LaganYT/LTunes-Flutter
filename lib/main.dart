@@ -235,6 +235,10 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void _stopBackgroundContinuityTimer() {
     _backgroundContinuityTimer?.cancel();
     _backgroundContinuityTimer = null;
+    _intensiveBackgroundTimer?.cancel();
+    _intensiveBackgroundTimer = null;
+    _sessionRestorationTimer?.cancel();
+    _sessionRestorationTimer = null;
     _backgroundContinuityCount = 0;
   }
 
