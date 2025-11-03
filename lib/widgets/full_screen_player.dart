@@ -1298,7 +1298,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
     setState(() {
       _lyricsLoading = true;
-      _isLyricsWidgetAttached = false; // Reset attachment state during lyrics loading
+      _isLyricsWidgetAttached =
+          false; // Reset attachment state during lyrics loading
       _parsedLyrics = [];
       _currentLyricIndex = -1;
       _areLyricsSynced = false;
@@ -1384,7 +1385,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     if (mounted && _currentSongProvider.currentSong?.id == songIdForLyrics) {
       setState(() {
         _lyricsChanging = true; // Mark lyrics as changing during update
-        _isLyricsWidgetAttached = false; // Reset attachment state when sync state changes
+        _isLyricsWidgetAttached =
+            false; // Reset attachment state when sync state changes
         _parsedLyrics = tempParsedLyrics;
         _areLyricsSynced = tempAreLyricsSynced;
         _lastLyricsType = newLyricsType; // Update lyrics type tracking
