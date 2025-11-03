@@ -176,29 +176,55 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     // Start with moderate frequency and gradually reduce
     _backgroundContinuityTimer =
         Timer.periodic(const Duration(seconds: 60), (timer) {
-      _backgroundContinuityCount++;
+      // Add error handling to prevent crashes
+      try {
+        // Check if widget is still mounted before proceeding
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
 
-      // Perform continuity check
-      _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
+        _backgroundContinuityCount++;
 
-      // Every 10 minutes, also check session restoration (every 10th iteration)
-      if (_backgroundContinuityCount % 10 == 0) {
-        _audioHandler.customAction('restoreAudioSession', {});
-      }
+        // Perform continuity check
+        _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
 
-      // After 30 minutes, reduce frequency to every 5 minutes
-      if (_backgroundContinuityCount >= 30) {
-        timer.cancel();
-        _backgroundContinuityTimer =
-            Timer.periodic(const Duration(minutes: 5), (regularTimer) {
-          _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
-          // Check session every other time (every 10 minutes)
-          if (_backgroundContinuityCount % 2 == 0) {
-            _audioHandler.customAction('restoreAudioSession', {});
-          }
-        });
-        debugPrint(
-            "Main: Reduced background continuity timer to 5 minute intervals");
+        // Every 10 minutes, also check session restoration (every 10th iteration)
+        if (_backgroundContinuityCount % 10 == 0) {
+          _audioHandler.customAction('restoreAudioSession', {});
+        }
+
+        // After 30 minutes, reduce frequency to every 5 minutes
+        if (_backgroundContinuityCount >= 30) {
+          timer.cancel();
+          _backgroundContinuityCount = 0; // Reset counter for new timer
+          _backgroundContinuityTimer =
+              Timer.periodic(const Duration(minutes: 5), (regularTimer) {
+            try {
+              // Check if widget is still mounted before proceeding
+              if (!mounted) {
+                regularTimer.cancel();
+                return;
+              }
+
+              _backgroundContinuityCount++;
+
+              _audioHandler
+                  .customAction('ensureBackgroundPlaybackContinuity', {});
+              // Check session every other time (every 10 minutes)
+              if (_backgroundContinuityCount % 2 == 0) {
+                _audioHandler.customAction('restoreAudioSession', {});
+              }
+            } catch (e) {
+              debugPrint(
+                  "Main: Error in background continuity timer (5min): $e");
+            }
+          });
+          debugPrint(
+              "Main: Reduced background continuity timer to 5 minute intervals");
+        }
+      } catch (e) {
+        debugPrint("Main: Error in background continuity timer (60s): $e");
       }
     });
 
