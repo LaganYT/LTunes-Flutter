@@ -165,9 +165,19 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
           ),
         );
       }
-      if (arts.length == 1) {
-        return robustArtwork(arts.first, width: size);
+      if (arts.length < 4) {
+        // Find the first artwork by playlist order (first song that has artwork)
+        String? firstArtworkByOrder;
+        for (final song in playlist.songs) {
+          if (song.albumArtUrl.isNotEmpty) {
+            firstArtworkByOrder = song.albumArtUrl;
+            break;
+          }
+        }
+        final artworkToShow = firstArtworkByOrder ?? arts.first;
+        return robustArtwork(artworkToShow, width: size);
       }
+      // Display a 2x2 grid only when there are 4 or more unique artworks
       final grid = arts
           .take(4)
           .map((url) => robustArtwork(url, width: size / 2))
@@ -508,7 +518,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     final currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
     if (playlist.songs.isNotEmpty) {
-      currentSongProvider.smartPlayWithContext(playlist.songs, playlist.songs.first);
+      currentSongProvider.smartPlayWithContext(
+          playlist.songs, playlist.songs.first);
     }
   }
 

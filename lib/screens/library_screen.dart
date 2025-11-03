@@ -863,14 +863,23 @@ class _ContextMenuBottomSheet extends StatelessWidget {
             .toList();
 
         if (uniqueAlbumArtUrls.isNotEmpty) {
-          if (uniqueAlbumArtUrls.length == 1) {
+          if (uniqueAlbumArtUrls.length < 4) {
+            // Find the first artwork by playlist order (first song that has artwork)
+            String? firstArtworkByOrder;
+            for (final song in playlist.songs) {
+              if (song.albumArtUrl.isNotEmpty) {
+                firstArtworkByOrder = song.albumArtUrl;
+                break;
+              }
+            }
+            final artworkToShow = firstArtworkByOrder ?? uniqueAlbumArtUrls.first;
             return ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: _buildPlaylistArtWidget(
-                  uniqueAlbumArtUrls.first, thumbnailSize, context),
+                  artworkToShow, thumbnailSize, context),
             );
           } else {
-            // Multiple albums - show grid
+            // Display a 2x2 grid only when there are 4 or more unique artworks
             List<Widget> gridImages = uniqueAlbumArtUrls
                 .take(4)
                 .map((artUrl) =>

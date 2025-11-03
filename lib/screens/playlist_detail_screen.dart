@@ -505,7 +505,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   Widget _buildProminentPlaylistArt(
-      List<String> artUrls, double containerSize) {
+      List<String> artUrls, String? firstArtworkByOrder, double containerSize) {
     if (artUrls.isEmpty) {
       return Container(
         width: containerSize,
@@ -528,10 +528,31 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     }
 
     if (artUrls.length < 4) {
-      // Display first art as a single image
+      // Display the first artwork by playlist order as a single image
+      final artworkToShow = firstArtworkByOrder ?? (artUrls.isNotEmpty ? artUrls.first : '');
+      if (artworkToShow.isEmpty) {
+        return Container(
+          width: containerSize,
+          height: containerSize,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                Theme.of(context).colorScheme.primaryContainer,
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Icon(Icons.music_note,
+              color: Colors.white.withValues(alpha: 0.7),
+              size: containerSize * 0.5),
+        );
+      }
       return ClipRRect(
         borderRadius: BorderRadius.circular(8.0),
-        child: robustArtwork(artUrls.first,
+        child: robustArtwork(artworkToShow,
             width: containerSize, height: containerSize),
       );
     } else {
@@ -651,11 +672,21 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         final bool hasSongs = currentPlaylist.songs.isNotEmpty;
         final bool isFullyDownloaded = currentPlaylist.isFullyDownloaded;
 
+        // Get unique album art URLs for grid display, and first artwork by playlist order for single display
         List<String> uniqueAlbumArtUrls = currentPlaylist.songs
             .map((song) => song.albumArtUrl)
             .where((artUrl) => artUrl.isNotEmpty)
             .toSet()
             .toList();
+
+        // Find the first artwork by playlist order (first song that has artwork)
+        String? firstArtworkByOrder;
+        for (final song in currentPlaylist.songs) {
+          if (song.albumArtUrl.isNotEmpty) {
+            firstArtworkByOrder = song.albumArtUrl;
+            break;
+          }
+        }
 
         Widget flexibleSpaceBackground;
         if (uniqueAlbumArtUrls.isNotEmpty) {
@@ -789,7 +820,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               width: 200,
                               height: 200,
                               child: _buildProminentPlaylistArt(
-                                  uniqueAlbumArtUrls, 200.0),
+                                  uniqueAlbumArtUrls, firstArtworkByOrder, 200.0),
                             ),
                           ),
                         ),
