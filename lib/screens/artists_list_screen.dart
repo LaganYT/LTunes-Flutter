@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
-import '../widgets/playbar.dart';
 import 'songs_list_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io' as io;
@@ -134,7 +133,7 @@ class ArtistsListScreenState extends State<ArtistsListScreen> {
           _artists.isEmpty
               ? const Center(child: Text('No artists found.'))
               : GridView.builder(
-                  padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 88), // Add bottom padding for playbar
+                  padding: const EdgeInsets.all(8),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
@@ -178,15 +177,6 @@ class ArtistsListScreenState extends State<ArtistsListScreen> {
                     );
                   },
                 ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: const Hero(
-              tag: 'global-playbar-hero',
-              child: Playbar(),
-            ),
-          ),
         ],
       ),
     );

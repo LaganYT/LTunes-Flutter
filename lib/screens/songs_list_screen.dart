@@ -13,7 +13,6 @@ import '../providers/current_song_provider.dart';
 import '../services/playlist_manager_service.dart';
 import '../services/auto_fetch_service.dart';
 import '../services/liked_songs_service.dart';
-import '../widgets/playbar.dart';
 import 'song_detail_screen.dart';
 import '../services/album_manager_service.dart'; // Import for AlbumManagerService
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -725,13 +724,6 @@ class SongsScreenState extends State<SongsScreen> {
                     return _buildSongTile(_songs[i]);
                   },
                 ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: const Hero(
-          tag: 'global-playbar-hero',
-          child: Playbar(),
-        ),
-      ),
     );
   }
 }

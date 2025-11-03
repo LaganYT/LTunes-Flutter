@@ -9,7 +9,6 @@ import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart';
 import 'song_detail_screen.dart';
 import 'album_screen.dart';
-import '../widgets/playbar.dart';
 import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import '../services/liked_songs_service.dart';
@@ -632,13 +631,6 @@ class _ArtistScreenState extends State<ArtistScreen>
               _buildAlbums(),
             ],
           ),
-        ),
-      ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: Hero(
-          tag: 'global-playbar-hero',
-          child: Playbar(),
         ),
       ),
     );

@@ -9,7 +9,6 @@ import '../providers/current_song_provider.dart';
 import '../services/album_manager_service.dart';
 import '../services/api_service.dart'; // Import ApiService
 import '../screens/song_detail_screen.dart'; // For navigation to song details
-import '../widgets/playbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/playlist_manager_service.dart';
@@ -1322,13 +1321,6 @@ class _AlbumScreenState extends State<AlbumScreen>
             )
           ],
         ],
-      ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: Hero(
-          tag: 'global-playbar-hero',
-          child: Playbar(),
-        ),
       ),
     );
   }

@@ -10,7 +10,6 @@ import '../models/song.dart';
 import '../services/playlist_manager_service.dart';
 import 'playlist_detail_screen.dart';
 import '../providers/current_song_provider.dart';
-import '../widgets/playbar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import '../services/api_service.dart';
@@ -346,13 +345,6 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
               onPressed: _createPlaylist,
               tooltip: 'Create Playlist',
               child: const Icon(Icons.add),
-            ),
-            bottomNavigationBar: const Padding(
-              padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-              child: Hero(
-                tag: 'global-playbar-hero',
-                child: Playbar(),
-              ),
             ),
           );
         },

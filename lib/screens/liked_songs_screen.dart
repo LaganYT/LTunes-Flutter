@@ -11,7 +11,6 @@ import '../services/artwork_service.dart'; // Import centralized artwork service
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
 import '../widgets/full_screen_player.dart'; // For navigation to player
-import '../widgets/playbar.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class LikedSongsScreen extends StatefulWidget {
@@ -438,13 +437,6 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
             ),
           ],
         ],
-      ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-        child: Hero(
-          tag: 'global-playbar-hero',
-          child: Playbar(),
-        ),
       ),
     );
   }

@@ -21,7 +21,6 @@ import '../services/lyrics_service.dart';
 import 'album_screen.dart';
 import 'lyrics_screen.dart';
 import 'artist_screen.dart'; // Import artist screen
-import '../widgets/playbar.dart'; // Add import for Playbar
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   // Use centralized artwork service for consistent handling
@@ -1414,13 +1413,6 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
               const SizedBox(height: 24),
             ],
-          ),
-        ),
-        bottomNavigationBar: Container(
-          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-          child: const Hero(
-            tag: 'global-playbar-hero',
-            child: Playbar(),
           ),
         ),
       ),

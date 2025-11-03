@@ -11,7 +11,6 @@ import 'package:path/path.dart' as p; // Added import
 import '../services/playlist_manager_service.dart'; // Import PlaylistManagerService
 import '../services/api_service.dart'; // Import ApiService
 import 'song_detail_screen.dart'; // Import for AddToPlaylistDialog
-import '../widgets/playbar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/album_manager_service.dart';
@@ -1324,13 +1323,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 )
               ],
             ],
-          ),
-          bottomNavigationBar: const Padding(
-            padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 32.0),
-            child: Hero(
-              tag: 'global-playbar-hero',
-              child: Playbar(),
-            ),
           ),
         );
       },
