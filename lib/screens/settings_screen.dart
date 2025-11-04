@@ -1378,38 +1378,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 elevation: 2,
                 child: Column(
                   children: [
-                    _buildContentDiscoverySetting(
-                      icon: Icons.radio,
-                      title: 'US Radio Only',
-                      subtitle: 'Show only US radio stations',
-                      notifier: usRadioOnlyNotifier,
-                      onChanged: (value) async {
-                        usRadioOnlyNotifier.value = value;
-                        await _saveUSRadioOnlySetting(value);
-                        _contentDiscoveryRefreshNotifier.value++;
+                    ValueListenableBuilder<bool?>(
+                      valueListenable: usRadioOnlyNotifier,
+                      builder: (context, usRadioOnly, _) {
+                        if (usRadioOnly == null) {
+                          return const ListTile(
+                            leading: Icon(Icons.radio),
+                            title: Text('US Radio Only'),
+                            subtitle: Text('Show only US radio stations'),
+                            trailing: SizedBox(
+                              width: 50,
+                              height: 30,
+                              child: Center(
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2.0)),
+                            ),
+                          );
+                        }
+                        return ListTile(
+                          leading: const Icon(Icons.radio),
+                          title: const Text('US Radio Only'),
+                          subtitle: const Text('Show only US radio stations'),
+                          trailing: Switch(
+                            value: usRadioOnly,
+                            onChanged: (bool value) async {
+                              usRadioOnlyNotifier.value = value;
+                              await _saveUSRadioOnlySetting(value);
+                              _contentDiscoveryRefreshNotifier.value++;
+                            },
+                          ),
+                        );
                       },
                     ),
-                    _buildContentDiscoverySetting(
-                      icon: Icons.tab,
-                      title: 'Show Radio Tab',
-                      subtitle: 'Display radio tab in navigation',
-                      notifier: showRadioTabNotifier,
-                      onChanged: (value) async {
-                        showRadioTabNotifier.value = value;
-                        await _saveShowRadioTabSetting(value);
-                        _contentDiscoveryRefreshNotifier.value++;
+                    ValueListenableBuilder<bool?>(
+                      valueListenable: showRadioTabNotifier,
+                      builder: (context, showRadioTab, _) {
+                        if (showRadioTab == null) {
+                          return const ListTile(
+                            leading: Icon(Icons.tab),
+                            title: Text('Show Radio Tab'),
+                            subtitle: Text('Display radio tab in navigation'),
+                            trailing: SizedBox(
+                              width: 50,
+                              height: 30,
+                              child: Center(
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2.0)),
+                            ),
+                          );
+                        }
+                        return ListTile(
+                          leading: const Icon(Icons.tab),
+                          title: const Text('Show Radio Tab'),
+                          subtitle:
+                              const Text('Display radio tab in navigation'),
+                          trailing: Switch(
+                            value: showRadioTab,
+                            onChanged: (bool value) async {
+                              showRadioTabNotifier.value = value;
+                              await _saveShowRadioTabSetting(value);
+                              _contentDiscoveryRefreshNotifier.value++;
+                            },
+                          ),
+                        );
                       },
                     ),
-                    _buildContentDiscoverySetting(
-                      icon: Icons.filter_alt,
-                      title: 'Show Only Saved Songs in Albums',
-                      subtitle:
-                          'Only show your downloaded/saved songs in saved albums',
-                      notifier: showOnlySavedSongsInAlbumsNotifier,
-                      onChanged: (value) async {
-                        showOnlySavedSongsInAlbumsNotifier.value = value;
-                        await _saveShowOnlySavedSongsInAlbumsSetting(value);
-                        _contentDiscoveryRefreshNotifier.value++;
+                    ValueListenableBuilder<bool?>(
+                      valueListenable: showOnlySavedSongsInAlbumsNotifier,
+                      builder: (context, showOnlySavedSongsInAlbums, _) {
+                        if (showOnlySavedSongsInAlbums == null) {
+                          return const ListTile(
+                            leading: Icon(Icons.filter_alt),
+                            title: Text('Show Only Saved Songs in Albums'),
+                            subtitle: Text(
+                                'Only show your downloaded/saved songs in saved albums'),
+                            trailing: SizedBox(
+                              width: 50,
+                              height: 30,
+                              child: Center(
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2.0)),
+                            ),
+                          );
+                        }
+                        return ListTile(
+                          leading: const Icon(Icons.filter_alt),
+                          title: const Text('Show Only Saved Songs in Albums'),
+                          subtitle: const Text(
+                              'Only show your downloaded/saved songs in saved albums'),
+                          trailing: Switch(
+                            value: showOnlySavedSongsInAlbums,
+                            onChanged: (bool value) async {
+                              showOnlySavedSongsInAlbumsNotifier.value = value;
+                              await _saveShowOnlySavedSongsInAlbumsSetting(
+                                  value);
+                              _contentDiscoveryRefreshNotifier.value++;
+                            },
+                          ),
+                        );
                       },
                     ),
                   ],
