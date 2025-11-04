@@ -132,9 +132,8 @@ class TabView extends StatefulWidget {
 class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   Timer? _backgroundContinuityTimer;
-  Timer? _intensiveBackgroundTimer;
   int _backgroundContinuityCount = 0;
-  Timer? _sessionRestorationTimer;
+  bool _isTimerActive = false;
 
   // Widget list is now built dynamically in the build method
   // static final List<Widget> _widgetOptions = <Widget>[
@@ -164,41 +163,38 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   }
 
   void _startBackgroundContinuityTimer() {
-    if (!Platform.isIOS) return;
+    if (!Platform.isIOS || _isTimerActive) return;
 
-    // Cancel existing timers if any
-    _backgroundContinuityTimer?.cancel();
-    _intensiveBackgroundTimer?.cancel();
-    _sessionRestorationTimer?.cancel();
+    // Safely cancel any existing timer before creating a new one
+    _stopBackgroundContinuityTimer();
     _backgroundContinuityCount = 0;
+    _isTimerActive = true;
 
-    // Single consolidated timer for all background operations
-    // Start with moderate frequency and gradually reduce
+    // Start with 60-second intervals for the first 30 minutes
     _backgroundContinuityTimer =
         Timer.periodic(const Duration(seconds: 60), (timer) {
-      _backgroundContinuityCount++;
+      try {
+        _backgroundContinuityCount++;
 
-      // Perform continuity check
-      _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
-
-      // Every 10 minutes, also check session restoration (every 10th iteration)
-      if (_backgroundContinuityCount % 10 == 0) {
-        _audioHandler.customAction('restoreAudioSession', {});
-      }
-
-      // After 30 minutes, reduce frequency to every 5 minutes
-      if (_backgroundContinuityCount >= 30) {
-        timer.cancel();
-        _backgroundContinuityTimer =
-            Timer.periodic(const Duration(minutes: 5), (regularTimer) {
-          _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {});
-          // Check session every other time (every 10 minutes)
-          if (_backgroundContinuityCount % 2 == 0) {
-            _audioHandler.customAction('restoreAudioSession', {});
-          }
+        // Perform continuity check with error handling
+        _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {}).catchError((error) {
+          debugPrint('Background continuity check failed: $error');
         });
-        debugPrint(
-            "Main: Reduced background continuity timer to 5 minute intervals");
+
+        // Every 10 minutes, also check session restoration (every 10th iteration)
+        if (_backgroundContinuityCount % 10 == 0) {
+          _audioHandler.customAction('restoreAudioSession', {}).catchError((error) {
+            debugPrint('Session restoration failed: $error');
+          });
+        }
+
+        // After 30 minutes, reduce frequency to every 5 minutes
+        if (_backgroundContinuityCount >= 30) {
+          _transitionToReducedFrequencyTimer();
+        }
+      } catch (e) {
+        debugPrint('Error in background continuity timer: $e');
+        // Don't crash the app, just log the error
       }
     });
 
@@ -206,10 +202,50 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         "Main: Started optimized background continuity timer (60s intervals)");
   }
 
+  void _transitionToReducedFrequencyTimer() {
+    if (!_isTimerActive) return;
+    
+    // Safely cancel the current timer
+    _backgroundContinuityTimer?.cancel();
+    _backgroundContinuityTimer = null;
+    
+    // Create the new timer with reduced frequency
+    _backgroundContinuityTimer =
+        Timer.periodic(const Duration(minutes: 5), (regularTimer) {
+      try {
+        if (!_isTimerActive) {
+          regularTimer.cancel();
+          return;
+        }
+        
+        _backgroundContinuityCount++;
+        
+        _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {}).catchError((error) {
+          debugPrint('Background continuity check failed: $error');
+        });
+        
+        // Check session every other time (every 10 minutes)
+        if (_backgroundContinuityCount % 2 == 0) {
+          _audioHandler.customAction('restoreAudioSession', {}).catchError((error) {
+            debugPrint('Session restoration failed: $error');
+          });
+        }
+      } catch (e) {
+        debugPrint('Error in reduced frequency timer: $e');
+        // Don't crash the app, just log the error
+      }
+    });
+    
+    debugPrint(
+        "Main: Reduced background continuity timer to 5 minute intervals");
+  }
+
   void _stopBackgroundContinuityTimer() {
+    _isTimerActive = false;
     _backgroundContinuityTimer?.cancel();
     _backgroundContinuityTimer = null;
     _backgroundContinuityCount = 0;
+    debugPrint("Main: Stopped background continuity timer");
   }
 
   @override
@@ -227,13 +263,17 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
               .then((_) {
             debugPrint("Main: App resumed - audio handler and provider synced");
           });
+        }).catchError((error) {
+          debugPrint('Error handling app foreground: $error');
         });
         _stopBackgroundContinuityTimer();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
         // App is going to background, ensure audio session stays active
-        _audioHandler.customAction('handleAppBackground', {});
+        _audioHandler.customAction('handleAppBackground', {}).catchError((error) {
+          debugPrint('Error handling app background: $error');
+        });
         // Save current state before going to background
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
@@ -244,7 +284,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         break;
       case AppLifecycleState.detached:
         // App is being terminated, ensure background playback is configured
-        _audioHandler.customAction('ensureBackgroundPlayback', {});
+        _audioHandler.customAction('ensureBackgroundPlayback', {}).catchError((error) {
+          debugPrint('Error ensuring background playback on detach: $error');
+        });
         // Save current state before app termination
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
@@ -256,7 +298,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         break;
       case AppLifecycleState.hidden:
         // App is hidden (iOS specific), ensure background playback
-        _audioHandler.customAction('handleAppBackground', {});
+        _audioHandler.customAction('handleAppBackground', {}).catchError((error) {
+          debugPrint('Error handling app background on hidden: $error');
+        });
         // Save current state before going to background
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
@@ -274,7 +318,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         case AppLifecycleState.hidden:
           // For iOS, ensure background playback is immediately configured
           // The background continuity timer handles ongoing session management
-          _audioHandler.customAction('ensureBackgroundPlayback', {});
+          _audioHandler.customAction('ensureBackgroundPlayback', {}).catchError((error) {
+            debugPrint('Error ensuring background playback: $error');
+          });
           break;
         default:
           break;
@@ -489,9 +535,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       artworkService.clearCacheForLowMemory();
 
       // Cancel any pending timers
-      _backgroundContinuityTimer?.cancel();
-      _intensiveBackgroundTimer?.cancel();
-      _sessionRestorationTimer?.cancel();
+      _stopBackgroundContinuityTimer();
 
       debugPrint("Main: Performed memory cleanup on app termination");
     } catch (e) {
