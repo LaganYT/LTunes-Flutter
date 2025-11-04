@@ -2524,7 +2524,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (autoCheckForUpdates == null) {
                       return const ListTile(
                         key: ValueKey('auto_check_updates_list_tile'),
-                        leading: Icon(Icons.system_update),
+                        leading: Icon(Icons.sync),
                         title: Text('Auto Check for Updates'),
                         subtitle:
                             Text('Automatically check for updates on app open'),
@@ -2539,7 +2539,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                     return ListTile(
                       key: const ValueKey('auto_check_updates_list_tile'),
-                      leading: const Icon(Icons.system_update),
+                      leading: const Icon(Icons.sync),
                       title: const Text('Auto Check for Updates'),
                       subtitle: const Text(
                           'Automatically check for updates on app open'),
