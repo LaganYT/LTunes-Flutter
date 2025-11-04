@@ -14,7 +14,7 @@
 
 When releasing a non beta update have the beta.json file change to the stable release info and also delete old beta builds from the GitHub
 When scrolling down the song list, fix the icons flickering
-When a new song is added to a downloaded playlist have that song auto download
+When a new song is added to a downloaded playlist have that song auto download - rework how downloaded playlists are handled to achieve this
 When you click on an online song and you don’t have signal skip to the next song in context automatically
 Fix it so when the device is offline it’ll still play a playlist with a song that isn’t downloaded just skip that song when it comes up
 Add touch haptics (disable-able)

@@ -1033,7 +1033,8 @@ class CurrentSongProvider with ChangeNotifier {
             (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
             orElse: () => newContext.first,
           );
-      await playWithContext(newContext, songToPlay, playImmediately: _isPlaying);
+      await playWithContext(newContext, songToPlay,
+          playImmediately: _isPlaying);
       return;
     }
 
@@ -1888,7 +1889,8 @@ class CurrentSongProvider with ChangeNotifier {
         // Sync the provider's queue with the audio handler's queue
         // But don't sync if we're currently updating the audio handler queue
         if (_isUpdatingAudioHandlerQueue) {
-          debugPrint("CurrentSongProvider: Skipping queue sync - currently updating audio handler queue");
+          debugPrint(
+              "CurrentSongProvider: Skipping queue sync - currently updating audio handler queue");
           return;
         }
 
