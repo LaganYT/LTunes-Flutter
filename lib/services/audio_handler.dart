@@ -113,12 +113,13 @@ class AudioPlayerHandler extends BaseAudioHandler
         // Basic activation
         await _audioSession!.setActive(true);
         _isSessionActive = true;
+        _audioSessionConfigured = true;
       } else {
         // Android configuration
         await _audioSession!.configure(const AudioSessionConfiguration.music());
+        _audioSessionConfigured = true;
       }
 
-      _audioSessionConfigured = true;
       debugPrint("AudioHandler: Audio session initialized successfully");
     } catch (e) {
       debugPrint("Error configuring audio session: $e");
