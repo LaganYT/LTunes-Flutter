@@ -396,11 +396,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         badgeText = 'Beta';
         badgeIcon = Icons.science;
         break;
-      case 'alpha':
-        badgeColor = Colors.red;
-        badgeText = 'Alpha';
-        badgeIcon = Icons.warning;
-        break;
       default:
         badgeColor = Colors.grey;
         badgeText = 'Unknown';
