@@ -134,6 +134,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   Timer? _backgroundContinuityTimer;
   int _backgroundContinuityCount = 0;
   bool _isTimerActive = false;
+  String _currentAppVersion = '';
 
   // Widget list is now built dynamically in the build method
   // static final List<Widget> _widgetOptions = <Widget>[
@@ -344,6 +345,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   Future<void> _initializeVersionAndCheckForUpdates() async {
     PackageInfo packageInfo = await PackageInfo.fromPlatform();
     String version = packageInfo.version;
+    _currentAppVersion = version;
 
     if (mounted) {
       _checkForUpdates(version);
@@ -368,7 +370,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
           // If auto check is disabled, don't proceed for non-mandatory updates
           if (autoCheckForUpdates) {
-            _showUpdateDialog(updateInfo);
+            _showModernUpdateDialog(updateInfo);
           }
         }
       }
@@ -376,6 +378,334 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       errorHandler.logError(e, context: 'checkForUpdates');
       // Don't show error to user for update checks as they're not critical
     }
+  }
+
+  Widget _buildReleaseChannelBadge(UpdateInfo updateInfo) {
+    Color badgeColor;
+    String badgeText;
+    IconData badgeIcon;
+
+    switch (updateInfo.channel.value) {
+      case 'stable':
+        badgeColor = Colors.green;
+        badgeText = 'Stable';
+        badgeIcon = Icons.verified;
+        break;
+      case 'beta':
+        badgeColor = Colors.orange;
+        badgeText = 'Beta';
+        badgeIcon = Icons.science;
+        break;
+      case 'alpha':
+        badgeColor = Colors.red;
+        badgeText = 'Alpha';
+        badgeIcon = Icons.warning;
+        break;
+      default:
+        badgeColor = Colors.grey;
+        badgeText = 'Unknown';
+        badgeIcon = Icons.help;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: badgeColor, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(badgeIcon, size: 14, color: badgeColor),
+          const SizedBox(width: 4),
+          Text(
+            badgeText,
+            style: TextStyle(
+              color: badgeColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showModernUpdateDialog(UpdateInfo updateInfo) async {
+    if (!mounted) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with gradient background
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primaryContainer,
+                        colorScheme.primaryContainer.withOpacity(0.7),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              Icons.system_update,
+                              color: colorScheme.onPrimary,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Update Available',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                _buildReleaseChannelBadge(updateInfo),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Version info
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Current Version',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colorScheme.onSurface.withOpacity(0.6),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _currentAppVersion,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward,
+                              color: colorScheme.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    'New Version',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colorScheme.onSurface.withOpacity(0.6),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    updateInfo.version,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Content area with scrollable message
+                Flexible(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'What\'s New',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceVariant.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: colorScheme.outline.withOpacity(0.2),
+                                ),
+                              ),
+                              child: Text(
+                                updateInfo.message,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Action buttons
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            side: BorderSide(color: colorScheme.outline),
+                          ),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: Text(
+                            'Maybe Later',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: colorScheme.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            final Uri url = Uri.parse(updateInfo.url);
+                            if (await canLaunchUrl(url)) {
+                              await launchUrl(url, mode: LaunchMode.externalApplication);
+                            } else {
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('Could not launch ${updateInfo.url}'),
+                                  backgroundColor: colorScheme.error,
+                                ),
+                              );
+                            }
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.download,
+                                size: 20,
+                                color: colorScheme.onPrimary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Update Now',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
