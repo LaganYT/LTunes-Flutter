@@ -136,13 +136,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   bool _isTimerActive = false;
   String _currentAppVersion = '';
 
-  // Widget list is now built dynamically in the build method
-  // static final List<Widget> _widgetOptions = <Widget>[
-  //   const SearchScreen(),
-  //   const LibraryScreen(),
-  //   const SettingsScreen(),
-  // ];
-
   @override
   void initState() {
     super.initState();
@@ -166,36 +159,30 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void _startBackgroundContinuityTimer() {
     if (!Platform.isIOS || _isTimerActive) return;
 
-    // Safely cancel any existing timer before creating a new one
     _stopBackgroundContinuityTimer();
     _backgroundContinuityCount = 0;
     _isTimerActive = true;
 
-    // Start with 60-second intervals for the first 30 minutes
     _backgroundContinuityTimer =
         Timer.periodic(const Duration(seconds: 60), (timer) {
       try {
         _backgroundContinuityCount++;
 
-        // Perform continuity check with error handling
         _audioHandler.customAction('ensureBackgroundPlaybackContinuity', {}).catchError((error) {
           debugPrint('Background continuity check failed: $error');
         });
 
-        // Every 10 minutes, also check session restoration (every 10th iteration)
         if (_backgroundContinuityCount % 10 == 0) {
           _audioHandler.customAction('restoreAudioSession', {}).catchError((error) {
             debugPrint('Session restoration failed: $error');
           });
         }
 
-        // After 30 minutes, reduce frequency to every 5 minutes
         if (_backgroundContinuityCount >= 30) {
           _transitionToReducedFrequencyTimer();
         }
       } catch (e) {
         debugPrint('Error in background continuity timer: $e');
-        // Don't crash the app, just log the error
       }
     });
 
@@ -206,11 +193,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void _transitionToReducedFrequencyTimer() {
     if (!_isTimerActive) return;
     
-    // Safely cancel the current timer
     _backgroundContinuityTimer?.cancel();
     _backgroundContinuityTimer = null;
     
-    // Create the new timer with reduced frequency
     _backgroundContinuityTimer =
         Timer.periodic(const Duration(minutes: 5), (regularTimer) {
       try {
@@ -225,7 +210,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
           debugPrint('Background continuity check failed: $error');
         });
         
-        // Check session every other time (every 10 minutes)
         if (_backgroundContinuityCount % 2 == 0) {
           _audioHandler.customAction('restoreAudioSession', {}).catchError((error) {
             debugPrint('Session restoration failed: $error');
@@ -233,7 +217,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         }
       } catch (e) {
         debugPrint('Error in reduced frequency timer: $e');
-        // Don't crash the app, just log the error
       }
     });
     
@@ -253,12 +236,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Enhanced app lifecycle handling for iOS background playback
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is coming back to foreground - handle audio first, then provider
         _audioHandler.customAction('handleAppForeground', {}).then((_) {
-          // Then sync position and check for stuck loading states in the CurrentSongProvider
           Provider.of<CurrentSongProvider>(context, listen: false)
               .handleAppForeground()
               .then((_) {
@@ -271,38 +251,27 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        // App is going to background, ensure audio session stays active
         _audioHandler.customAction('handleAppBackground', {}).catchError((error) {
           debugPrint('Error handling app background: $error');
         });
-        // Save current state before going to background
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
         _startBackgroundContinuityTimer();
-
-        // Perform light memory cleanup when going to background
         artworkService.clearCacheForLowMemory();
         break;
       case AppLifecycleState.detached:
-        // App is being terminated, ensure background playback is configured
         _audioHandler.customAction('ensureBackgroundPlayback', {}).catchError((error) {
           debugPrint('Error ensuring background playback on detach: $error');
         });
-        // Save current state before app termination
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
         _stopBackgroundContinuityTimer();
-
-        // Memory cleanup on app termination
         _performMemoryCleanup();
-        // MetadataHistoryService().clearHistory(); // Removed: never clear metadata history
         break;
       case AppLifecycleState.hidden:
-        // App is hidden (iOS specific), ensure background playback
         _audioHandler.customAction('handleAppBackground', {}).catchError((error) {
           debugPrint('Error handling app background on hidden: $error');
         });
-        // Save current state before going to background
         Provider.of<CurrentSongProvider>(context, listen: false)
             .saveStateToStorage();
         _startBackgroundContinuityTimer();
@@ -311,14 +280,11 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
     debugPrint("App lifecycle state changed to: $state");
 
-    // Additional iOS-specific handling for background playback
     if (Platform.isIOS) {
       switch (state) {
         case AppLifecycleState.paused:
         case AppLifecycleState.inactive:
         case AppLifecycleState.hidden:
-          // For iOS, ensure background playback is immediately configured
-          // The background continuity timer handles ongoing session management
           _audioHandler.customAction('ensureBackgroundPlayback', {}).catchError((error) {
             debugPrint('Error ensuring background playback: $error');
           });
@@ -328,7 +294,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
       }
     }
 
-    // Set global background/foreground state for download notifications
     switch (state) {
       case AppLifecycleState.resumed:
         CurrentSongProvider.isAppInBackground = false;
@@ -359,24 +324,20 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     try {
       final updateInfo = await apiService.checkForUpdate(currentAppVersion);
       if (updateInfo != null && mounted) {
-        // Always show mandatory updates regardless of auto-check setting
         if (updateInfo.mandatory) {
           _showMandatoryUpdateDialog(updateInfo);
         } else {
-          // For non-mandatory updates, check if auto update checking is enabled
           final prefs = await SharedPreferences.getInstance();
           final autoCheckForUpdates =
               prefs.getBool('autoCheckForUpdates') ?? true;
 
-          // If auto check is disabled, don't proceed for non-mandatory updates
           if (autoCheckForUpdates) {
-            _showModernUpdateDialog(updateInfo);
+            _showUpdateDialog(updateInfo);
           }
         }
       }
     } catch (e) {
       errorHandler.logError(e, context: 'checkForUpdates');
-      // Don't show error to user for update checks as they're not critical
     }
   }
 
@@ -427,7 +388,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _showModernUpdateDialog(UpdateInfo updateInfo) async {
+  Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final colorScheme = Theme.of(context).colorScheme;
@@ -448,7 +409,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header with gradient background
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
@@ -504,7 +464,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Version info
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -574,7 +533,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                   ),
                 ),
                 
-                // Content area with scrollable message
                 Flexible(
                   child: Container(
                     width: double.infinity,
@@ -619,7 +577,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                   ),
                 ),
                 
-                // Action buttons
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
@@ -703,58 +660,17 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
-    if (!mounted) return;
-    final scaffoldMessenger =
-        ScaffoldMessenger.of(context); // Capture before async gap
-    showDialog(
-      context: context,
-      barrierDismissible: false, // User must interact with the dialog
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Update Available'),
-          content: Text(updateInfo.message),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Later'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Update Now'),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                final Uri url = Uri.parse(updateInfo.url);
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                } else {
-                  // Use captured scaffoldMessenger instead of context after async
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                        content: Text('Could not launch ${updateInfo.url}')),
-                  );
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _showMandatoryUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
     final scaffoldMessenger =
-        ScaffoldMessenger.of(context); // Capture before async gap
+        ScaffoldMessenger.of(context);
 
-    // Show a non-dismissible dialog for mandatory updates
     showDialog(
       context: context,
-      barrierDismissible: false, // Cannot be dismissed by tapping outside
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return PopScope(
-          canPop: false, // Prevent back button from closing dialog
+          canPop: false,
           child: Dialog(
             child: Container(
               constraints: BoxConstraints(
@@ -766,7 +682,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title with warning icon
                   Row(
                     children: [
                       Icon(Icons.warning, color: Colors.orange, size: 24),
@@ -783,7 +698,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                     ],
                   ),
                   SizedBox(height: 16),
-                  // Content
                   Flexible(
                     child: SingleChildScrollView(
                       child: Column(
@@ -815,7 +729,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                     ),
                   ),
                   SizedBox(height: 20),
-                  // Action button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -835,7 +748,6 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                           await launchUrl(url,
                               mode: LaunchMode.externalApplication);
                         } else {
-                          // Use captured scaffoldMessenger instead of context after async
                           scaffoldMessenger.showSnackBar(
                             SnackBar(
                                 content:
@@ -856,12 +768,8 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   void _performMemoryCleanup() {
     try {
-      // Clear artwork caches to free memory
       artworkService.clearCacheForLowMemory();
-
-      // Cancel any pending timers
       _stopBackgroundContinuityTimer();
-
       debugPrint("Main: Performed memory cleanup on app termination");
     } catch (e) {
       debugPrint("Main: Error during memory cleanup: $e");
@@ -912,9 +820,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
             currentIndex: _selectedIndex,
             selectedItemColor: Theme.of(context)
                 .colorScheme
-                .primary, // Use theme's primary color
+                .primary,
             unselectedItemColor:
-                Colors.grey, // Add unselected color for better contrast
+                Colors.grey,
             onTap: _onItemTapped,
             showUnselectedLabels: false,
             selectedFontSize: 0,
