@@ -955,6 +955,9 @@ class AudioPlayerHandler extends BaseAudioHandler
       return;
     }
 
+    // Publish target index early for better UI responsiveness
+    playbackState.add(playbackState.value.copyWith(queueIndex: index));
+
     try {
       // Ensure audio session is active before any transition
       await _ensureAudioSessionActive();
@@ -1045,6 +1048,15 @@ class AudioPlayerHandler extends BaseAudioHandler
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
+    final enable = shuffleMode != AudioServiceShuffleMode.none;
+    try {
+      await _audioPlayer.setShuffleModeEnabled(enable);
+      if (enable) {
+        await _audioPlayer.shuffle();
+      }
+    } catch (e) {
+      debugPrint("AudioHandler: Error setting shuffle mode: $e");
+    }
   }
 
   Future<void> setPlaybackSpeed(double speed) async {
@@ -1165,22 +1177,16 @@ class AudioPlayerHandler extends BaseAudioHandler
           }
         }
 
-        // Special handling for local files that might not report completion properly
-        // Only check this every few continuity checks to reduce overhead
+        // Special handling for local files near end (force completion)
         if (isLocalFile &&
             currentState == ProcessingState.ready &&
             _audioPlayer.playing &&
             currentItem?.duration != null &&
             now.second % 3 == 0) {
-          // Only check every 3rd second
           final position = _audioPlayer.position;
           final duration = currentItem!.duration!;
-
-          // If we're very close to the end of a local file, force completion
           if (position > Duration.zero &&
               (duration - position).inMilliseconds <= 50) {
-            debugPrint(
-                "AudioHandler: Local file near end, forcing completion check");
             if (!_isHandlingCompletion) {
               _isHandlingCompletion = true;
               await _handleSongCompletion();
@@ -1197,107 +1203,67 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> handleAppForeground() async {
     _isBackgroundMode = false;
 
-    // CRITICAL FIX: Always ensure audio session is active when coming to foreground
-    // This prevents the bug where audio stops but UI shows as playing
+    // Ensure audio session is active when coming to foreground
     if (_isIOS && _audioSession != null) {
       await _ensureAudioSessionActive();
     }
 
     // Enhanced position sync when app comes to foreground
-    // The audio player often reports 0 immediately after foreground, so we need to be smart about this
-
     final isPlaying = _audioPlayer.playing;
     final processingState = _audioPlayer.processingState;
 
-    // CRITICAL FIX: Check for audio session inconsistency during transitions
-    // If we think we're playing but audio session is not active, fix the state
     if (isPlaying && _isIOS && _audioSession != null) {
       try {
-        // Test if audio session is actually active by trying to set it active
         await _audioSession!.setActive(true);
-        debugPrint(
-            "AudioHandler: Audio session verified as active during foreground");
       } catch (e) {
-        debugPrint(
-            "AudioHandler: Audio session was inactive during foreground, fixing state: $e");
-        // If audio session was inactive, we need to stop the "fake" playing state
         await _audioPlayer.pause();
         playbackState.add(playbackState.value.copyWith(playing: false));
-        // Don't return here - continue with position sync to get accurate state
       }
     }
 
-    // Get multiple position readings to find the stable one
     Duration? stablePosition;
     final lastKnownPos = _lastKnownPosition ?? Duration.zero;
-    final actualIsPlaying =
-        _audioPlayer.playing; // Get fresh playing state after session check
+    final actualIsPlaying = _audioPlayer.playing;
 
-    // Try multiple readings with longer delays to find stable position
-    // iOS audio player may take longer to stabilize after foreground
     for (int attempt = 0; attempt < 6; attempt++) {
-      // Use longer delays: 200ms, 400ms, 600ms, 800ms, 1000ms, 1200ms
       await Future.delayed(Duration(milliseconds: 200 + (attempt * 200)));
       final currentPos = _audioPlayer.position;
 
-      debugPrint(
-          "AudioHandler: Foreground position attempt ${attempt + 1}: ${currentPos.inSeconds}s (last known: ${lastKnownPos.inSeconds}s, playing: $actualIsPlaying)");
-
-      // If we're not playing, any position is acceptable (usually 0)
       if (!actualIsPlaying) {
         stablePosition = currentPos;
-        debugPrint(
-            "AudioHandler: Not playing, using position ${currentPos.inSeconds}s");
         break;
       }
 
-      // If position is reasonable (> 0), use it
       if (currentPos > Duration.zero) {
         stablePosition = currentPos;
-        debugPrint(
-            "AudioHandler: Found reasonable position ${currentPos.inSeconds}s");
         break;
       }
 
-      // If position is 0 but we have a last known position and are playing,
-      // this might be an incorrect reading - continue trying
       if (currentPos == Duration.zero &&
           lastKnownPos > Duration.zero &&
           actualIsPlaying &&
           attempt < 5) {
-        debugPrint(
-            "AudioHandler: Position is 0 but should be playing, trying again...");
         continue;
       }
 
-      // On final attempt, use last known position if available, otherwise use current
       if (attempt == 5) {
         stablePosition =
             lastKnownPos > Duration.zero ? lastKnownPos : currentPos;
-        debugPrint(
-            "AudioHandler: Final attempt, using position ${stablePosition.inSeconds}s");
       }
     }
 
-    // Fall back to last known position if all readings were 0 and we were playing
     if (stablePosition == Duration.zero &&
         lastKnownPos > Duration.zero &&
         actualIsPlaying) {
-      debugPrint(
-          "AudioHandler: All position readings were 0, using last known position: ${lastKnownPos.inSeconds}s");
       stablePosition = lastKnownPos;
     }
 
     final finalPosition = stablePosition ?? Duration.zero;
     _lastKnownPosition = finalPosition;
 
-    debugPrint(
-        "AudioHandler: App foregrounded - Final Position: ${finalPosition.inSeconds}s, Playing: $actualIsPlaying, State: $processingState");
-
-    // Force comprehensive playback state update with stable position and corrected playing state
     playbackState.add(playbackState.value.copyWith(
       updatePosition: finalPosition,
-      playing: actualIsPlaying, // Use the corrected playing state
+      playing: actualIsPlaying,
       processingState: {
             ProcessingState.idle: AudioProcessingState.idle,
             ProcessingState.loading: AudioProcessingState.loading,
@@ -1307,35 +1273,11 @@ class AudioPlayerHandler extends BaseAudioHandler
           }[processingState] ??
           AudioProcessingState.idle,
     ));
-
-    // Final verification after everything stabilizes - only check for critical issues
-    Future.delayed(const Duration(milliseconds: 1500), () async {
-      final verifyPosition = _audioPlayer.position;
-      final verifyPlaying = _audioPlayer.playing;
-
-      // Only check for significant position drift (> 5 seconds) to avoid UI flickering
-      if (verifyPosition > Duration.zero &&
-          (verifyPosition - finalPosition).abs() > const Duration(seconds: 5)) {
-        debugPrint(
-            "AudioHandler: Significant position drift detected - updating from ${finalPosition.inSeconds}s to ${verifyPosition.inSeconds}s");
-        _lastKnownPosition = verifyPosition;
-        playbackState
-            .add(playbackState.value.copyWith(updatePosition: verifyPosition));
-      }
-
-      // Check for playing state drift (critical for the bug fix)
-      if (verifyPlaying != actualIsPlaying) {
-        debugPrint(
-            "AudioHandler: Playing state drift detected - correcting from $actualIsPlaying to $verifyPlaying");
-        playbackState.add(playbackState.value.copyWith(playing: verifyPlaying));
-      }
-    });
   }
 
   Future<void> handleAppBackground() async {
     _isBackgroundMode = true;
     if (_isIOS) {
-      // Gently ensure audio session is ready for background mode
       await _ensureAudioSessionActive();
     }
   }
@@ -1343,14 +1285,10 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> dispose() async {
     _errorRecoveryTimer?.cancel();
 
-    // If we're in background mode, ensure audio session stays active
     if (_isBackgroundMode && _isIOS && _audioSession != null) {
       try {
         await _audioSession!.setActive(true);
-        debugPrint("AudioHandler: Audio session maintained during disposal");
-      } catch (e) {
-        debugPrint("Error maintaining audio session during disposal: $e");
-      }
+      } catch (_) {}
     }
 
     await _audioPlayer.dispose();
@@ -1364,31 +1302,14 @@ class AudioPlayerHandler extends BaseAudioHandler
     final isLocalFile = currentItem?.extras?['isLocal'] as bool? ?? false;
     final songId = currentItem?.extras?['songId'] as String?;
 
-    debugPrint(
-        "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
-
-    // OPTIMIZED: Single session check at start of completion handling
-    // Only do extra session management in background mode when necessary
     if (_isBackgroundMode) {
       await _ensureAudioSessionActive();
     }
 
-    // OPTIMIZED: Throttle session reconfiguration to prevent excessive operations
-    final now = DateTime.now();
-    final needsReconfig = _lastSessionConfig == null ||
-        now.difference(_lastSessionConfig!) > _sessionConfigThrottle;
-
-    // For local files, check if we're stuck in a completion loop
     if (isLocalFile && songId != null) {
       if (_lastLocalFileCompleted == songId) {
         _localFileCompletionCount++;
-        debugPrint(
-            "AudioHandler: Local file completion count: $_localFileCompletionCount for song: $songId");
-
-        // If we've completed the same local file too many times, force move to next
         if (_localFileCompletionCount >= _maxLocalFileCompletions) {
-          debugPrint(
-              "AudioHandler: Too many completions for local file, forcing next song");
           _localFileCompletionCount = 0;
           _lastLocalFileCompleted = null;
 
@@ -1406,7 +1327,6 @@ class AudioPlayerHandler extends BaseAudioHandler
             await _syncMetadata();
             return;
           } else {
-            // Stop playback at end of queue
             await _audioPlayer.stop();
             playbackState.add(playbackState.value.copyWith(
               playing: false,
@@ -1423,12 +1343,9 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     if (repeatMode == AudioServiceRepeatMode.one) {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
-        debugPrint("AudioHandler: Repeating single song (local: $isLocalFile)");
         await _prepareToPlay(_currentIndex);
-        // Reset position to 0 when looping a single song
-        _justResetForLoop = true; // Set flag before seeking
+        _justResetForLoop = true;
         await _audioPlayer.seek(Duration.zero);
-        // Force position update to 0 for UI
         playbackState.add(playbackState.value.copyWith(
           updatePosition: Duration.zero,
           playing: true,
@@ -1438,18 +1355,10 @@ class AudioPlayerHandler extends BaseAudioHandler
         return;
       }
     } else {
-      // Check if we're at the end of the queue
       if (_currentIndex == _playlist.length - 1) {
         if (repeatMode == AudioServiceRepeatMode.all) {
-          // Loop to first song and continue playing
-          debugPrint(
-              "AudioHandler: Looping queue - moving from last song to first (local: $isLocalFile)");
-
-          // CRITICAL FIX: Ensure audio session stays active during queue loop in background
           if (_isBackgroundMode) {
             await _ensureAudioSessionActive();
-            debugPrint(
-                "AudioHandler: Background session verified during queue loop");
           }
 
           await _prepareToPlay(0);
@@ -1459,7 +1368,6 @@ class AudioPlayerHandler extends BaseAudioHandler
             playing: true,
           ));
 
-          // CRITICAL FIX: Additional session check before playing first song in loop
           if (_isBackgroundMode) {
             await _ensureAudioSessionActive();
           }
@@ -1467,28 +1375,14 @@ class AudioPlayerHandler extends BaseAudioHandler
           await _audioPlayer.play();
           await _syncMetadata();
         } else {
-          // When loop is off and we're at the last song, handle end of queue
-          debugPrint(
-              "AudioHandler: End of queue reached - handling end state (local: $isLocalFile, background: $_isBackgroundMode)");
-
-          // CRITICAL FIX: In background mode, stopping audio can deactivate the session
-          // Instead of stopping completely, pause to maintain the session
           if (_isBackgroundMode) {
-            debugPrint(
-                "AudioHandler: Background mode - pausing instead of stopping to maintain session");
             await _audioPlayer.pause();
             playbackState.add(playbackState.value.copyWith(
               playing: false,
-              processingState:
-                  AudioProcessingState.ready, // Keep as ready, not completed
+              processingState: AudioProcessingState.ready,
             ));
-
-            // Ensure the audio session stays active even though we're paused
             await _ensureAudioSessionActive();
-            debugPrint(
-                "AudioHandler: Background session maintained after queue end");
           } else {
-            // In foreground mode, it's safe to stop completely
             await _audioPlayer.stop();
             playbackState.add(playbackState.value.copyWith(
               playing: false,
@@ -1498,14 +1392,11 @@ class AudioPlayerHandler extends BaseAudioHandler
           return;
         }
       } else {
-        // OPTIMIZED: Direct transition to next song to minimize gap
-        debugPrint("AudioHandler: Direct transition to next song");
         await _transitionToNextSong();
       }
     }
   }
 
-  /// OPTIMIZED: Direct transition to next song with minimal overhead
   Future<void> _transitionToNextSong() async {
     if (_playlist.isEmpty) return;
 
@@ -1514,19 +1405,13 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
         newIndex = 0;
       } else {
-        // End of queue - let completion handler deal with this
         return;
       }
     }
 
-    debugPrint(
-        "AudioHandler: Direct transition from $_currentIndex to $newIndex");
-
-    // Streamlined version of skipToQueueItem optimized for gapless playback
     try {
       if (_audioPlayer.processingState == ProcessingState.completed) {
         await _audioPlayer.stop();
-        // Use minimal delay in gapless mode for seamless transitions
         await Future.delayed(_gaplessModeEnabled
             ? _gaplessTransitionDelay
             : const Duration(milliseconds: 50));
@@ -1534,7 +1419,6 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       await _prepareToPlay(newIndex);
 
-      // Start playing immediately without extra session checks
       if (_shouldBePaused) {
         _shouldBePaused = false;
       }
@@ -1546,8 +1430,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       await _audioPlayer.play();
       await _syncMetadata();
     } catch (e) {
-      debugPrint("AudioHandler: Error in direct transition: $e");
-      // Fallback to regular skipToNext
       await skipToNext();
     }
   }
@@ -1653,26 +1535,16 @@ class AudioPlayerHandler extends BaseAudioHandler
         break;
 
       case 'forcePositionSync':
-        // Enhanced position sync - always sync position regardless of playing state
         final currentPosition = _audioPlayer.position;
         final isPlaying = _audioPlayer.playing;
         final processingState = _audioPlayer.processingState;
-
-        debugPrint(
-            "AudioHandler: Force position sync - Position: ${currentPosition.inSeconds}s, Playing: $isPlaying");
-
-        // Use smart position logic - if we get 0 but have a last known position and are playing, use the last known
         Duration positionToSync = currentPosition;
         if (currentPosition == Duration.zero &&
             _lastKnownPosition != null &&
             _lastKnownPosition! > Duration.zero &&
             isPlaying) {
-          debugPrint(
-              "AudioHandler: Using last known position ${_lastKnownPosition!.inSeconds}s instead of 0");
           positionToSync = _lastKnownPosition!;
         }
-
-        // Comprehensive state update to ensure UI reflects current audio state
         playbackState.add(playbackState.value.copyWith(
           updatePosition: positionToSync,
           playing: isPlaying,
@@ -1708,9 +1580,7 @@ class AudioPlayerHandler extends BaseAudioHandler
         break;
 
       case 'forceNextSong':
-        // Force move to next song (useful for stuck local files)
         if (_playlist.isNotEmpty && _currentIndex >= 0) {
-          debugPrint("AudioHandler: Force next song requested");
           await skipToNext();
         }
         break;
@@ -1740,7 +1610,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       case 'getShouldBePaused':
         return shouldBePaused;
 
-      // Audio effects actions
       case 'setAudioEffectsEnabled':
         final enabled = extras?['enabled'] as bool?;
         if (enabled != null) await _audioEffectsService.setEnabled(enabled);
@@ -1803,45 +1672,24 @@ class AudioPlayerHandler extends BaseAudioHandler
         break;
 
       case 'detectAndFixAudioSessionBug':
-        // CRITICAL FIX: Detect and fix the specific bug where audio stops but UI shows as playing
-        // This happens when the app is opened from background during song transitions
         try {
           final isPlaying = _audioPlayer.playing;
           final processingState = _audioPlayer.processingState;
 
-          debugPrint(
-              "AudioHandler: Detecting audio session bug - Playing: $isPlaying, State: $processingState");
-
           if (isPlaying && _isIOS && _audioSession != null) {
-            // Test if audio session is actually active
             try {
               await _audioSession!.setActive(true);
-              debugPrint(
-                  "AudioHandler: Audio session is active, no bug detected");
               return {'bugDetected': false, 'fixed': false};
             } catch (e) {
-              debugPrint(
-                  "AudioHandler: Audio session bug detected! Audio session inactive while playing: $e");
-
-              // Fix the bug by stopping the fake playing state
               await _audioPlayer.pause();
               playbackState.add(playbackState.value.copyWith(playing: false));
-
-              debugPrint(
-                  "AudioHandler: Audio session bug fixed - stopped fake playing state");
               return {'bugDetected': true, 'fixed': true};
             }
           } else if (!isPlaying && processingState == ProcessingState.ready) {
-            // Another case: UI might show as not playing but audio session is active
-            // This is less critical but we can still verify
             if (_isIOS && _audioSession != null) {
               try {
                 await _audioSession!.setActive(true);
-                debugPrint(
-                    "AudioHandler: Audio session verified as active for paused state");
               } catch (e) {
-                debugPrint(
-                    "AudioHandler: Audio session issue in paused state: $e");
                 await _ensureAudioSessionActive();
               }
             }
@@ -1850,8 +1698,11 @@ class AudioPlayerHandler extends BaseAudioHandler
 
           return {'bugDetected': false, 'fixed': false};
         } catch (e) {
-          debugPrint("AudioHandler: Error detecting audio session bug: $e");
-          return {'bugDetected': false, 'fixed': false, 'error': e.toString()};
+          return {
+            'bugDetected': false,
+            'fixed': false,
+            'error': e.toString()
+          };
         }
 
       case 'setGaplessMode':
@@ -1863,5 +1714,26 @@ class AudioPlayerHandler extends BaseAudioHandler
         return {'gaplessMode': _gaplessModeEnabled};
     }
     return null;
+  }
+
+  @override
+  Future<void> click([MediaButton button = MediaButton.media]) async {
+    switch (button) {
+      case MediaButton.media:
+        if (playbackState.value.playing) {
+          await pause();
+        } else {
+          await play();
+        }
+        break;
+      case MediaButton.next:
+        await skipToNext();
+        break;
+      case MediaButton.previous:
+        await skipToPrevious();
+        break;
+      default:
+        break;
+    }
   }
 }
