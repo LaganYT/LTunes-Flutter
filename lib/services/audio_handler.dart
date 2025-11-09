@@ -416,6 +416,27 @@ class AudioPlayerHandler extends BaseAudioHandler
     } catch (e) {
       debugPrint("Error preparing audio source: $e");
       if (_isRadioStream) _showRadioErrorDialog(itemToPlay.title);
+      
+      // Auto-skip to next song if current song fails to load
+      if (_playlist.isNotEmpty && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+        debugPrint("AudioHandler: Auto-skipping to next song due to playback error");
+        try {
+          // Try to skip to next song
+          if (_currentIndex < _playlist.length - 1) {
+            await skipToNext();
+          } else if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+            // Loop to beginning if repeat is enabled
+            await skipToQueueItem(0);
+          } else {
+            // Stop playback if no more songs
+            await stop();
+          }
+        } catch (skipError) {
+          debugPrint("AudioHandler: Error skipping to next song: $skipError");
+          await stop();
+        }
+      }
+      
       rethrow;
     }
   }
