@@ -2805,9 +2805,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                     ? Icons.shuffle
                                     : Icons.shuffle_outlined,
                                 color: provider.isShuffling
-                                    ? colorScheme.secondary
+                                    ? colorScheme.primary
                                     : colorScheme.onSurface
-                                        .withValues(alpha: 0.7),
+                                        .withValues(alpha: 0.5),
                               ),
                               iconSize: 26,
                               onPressed: () => provider.toggleShuffle(),
@@ -2891,9 +2891,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                         ? Icons.repeat_outlined
                                         : Icons.repeat_one,
                                 color: provider.loopMode != LoopMode.none
-                                    ? colorScheme.secondary
+                                    ? colorScheme.primary
                                     : colorScheme.onSurface
-                                        .withValues(alpha: 0.7),
+                                        .withValues(alpha: 0.5),
                               ),
                               iconSize: 26,
                               onPressed: () => provider.toggleLoop(),
