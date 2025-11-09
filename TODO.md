@@ -24,8 +24,6 @@ Add touch haptics (disable-able)
 
 Fix bug: LTunes refuses to play a playlist if 1 song is not found, also make sure it doesn’t wait for any online songs to load before loading the current song of a playlist
 
-Remove audio effects: they don’t actually do anything but take more ram
-
 Redesign the sleep timer system, make it more integrated and show the countdown in the full screen player on the appbar section
 
 Synced lyrics shouldn’t change sizes

@@ -10,7 +10,6 @@ import 'package:audio_session/audio_session.dart';
 import '../screens/download_queue_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'audio_effects_service.dart';
 import 'bug_report_service.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
@@ -56,7 +55,6 @@ class AudioPlayerHandler extends BaseAudioHandler
   bool _isHandlingCompletion = false;
   Duration? _lastKnownPosition;
   bool _shouldBePaused = false;
-  final AudioEffectsService _audioEffectsService = AudioEffectsService();
 
   // Prevent duplicate completion handling
   DateTime? _lastCompletionTime;
@@ -99,7 +97,6 @@ class AudioPlayerHandler extends BaseAudioHandler
     _initializeAudioSession();
     _configureAudioPlayer(); // Configure player for optimal playback
     _notifyAudioHandlerAboutPlaybackEvents();
-    _initializeAudioEffects();
   }
 
   bool get shouldBePaused => _shouldBePaused;
@@ -328,11 +325,6 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (_audioPlayer.playing) _audioPlayer.pause();
   }
 
-  Future<void> _initializeAudioEffects() async {
-    _audioEffectsService.setAudioPlayer(_audioPlayer);
-    await _audioEffectsService.loadSettings();
-  }
-
   Future<void> _syncMetadata() async {
     final currentItem = mediaItem.value;
     if (currentItem != null) {
@@ -418,7 +410,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       playbackState
           .add(playbackState.value.copyWith(updatePosition: Duration.zero));
       mediaItem.add(itemToPlay);
-      _audioEffectsService.reapplyEffects();
 
       // Resolve artwork asynchronously
       _resolveArtworkAsync(itemToPlay);
@@ -1739,68 +1730,6 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       case 'getShouldBePaused':
         return shouldBePaused;
-
-      // Audio effects actions
-      case 'setAudioEffectsEnabled':
-        final enabled = extras?['enabled'] as bool?;
-        if (enabled != null) await _audioEffectsService.setEnabled(enabled);
-        break;
-
-      case 'setBassBoost':
-        final value = extras?['value'] as double?;
-        if (value != null) await _audioEffectsService.setBassBoost(value);
-        break;
-
-      case 'setReverb':
-        final value = extras?['value'] as double?;
-        if (value != null) await _audioEffectsService.setReverb(value);
-        break;
-
-      case 'set8DMode':
-        final enabled = extras?['enabled'] as bool?;
-        if (enabled != null) await _audioEffectsService.set8DMode(enabled);
-        break;
-
-      case 'set8DIntensity':
-        final value = extras?['value'] as double?;
-        if (value != null) await _audioEffectsService.set8DIntensity(value);
-        break;
-
-      case 'setEqualizerBand':
-        final band = extras?['band'] as int?;
-        final value = extras?['value'] as double?;
-        if (band != null && value != null) {
-          await _audioEffectsService.setEqualizerBand(band, value);
-        }
-        break;
-
-      case 'setEqualizerPreset':
-        final preset = extras?['preset'] as String?;
-        if (preset != null) {
-          await _audioEffectsService.setEqualizerPreset(preset);
-        }
-        break;
-
-      case 'resetAudioEffects':
-        _audioEffectsService.resetToDefaults();
-        break;
-
-      case 'getAudioEffectsState':
-        return {
-          'isEnabled': _audioEffectsService.isEnabled,
-          'bassBoost': _audioEffectsService.bassBoost,
-          'reverb': _audioEffectsService.reverb,
-          'is8DMode': _audioEffectsService.is8DMode,
-          'eightDIntensity': _audioEffectsService.eightDIntensity,
-          'equalizerBands': _audioEffectsService.equalizerBands,
-          'equalizerPresets': _audioEffectsService.equalizerPresets,
-          'frequencyBands': _audioEffectsService.frequencyBands,
-          'currentPreset': _audioEffectsService.getCurrentPresetName(),
-        };
-
-      case 'reapplyAudioEffects':
-        _audioEffectsService.reapplyEffects();
-        break;
 
       case 'detectAndFixAudioSessionBug':
         // CRITICAL FIX: Detect and fix the specific bug where audio stops but UI shows as playing

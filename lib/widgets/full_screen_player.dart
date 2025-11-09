@@ -19,7 +19,6 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart'; // 
 import 'dart:math' as math; // Added for min/max in lyrics scroll
 import 'package:cached_network_image/cached_network_image.dart'; // Added for CachedNetworkImageProvider
 import 'playbar.dart'; // Import Playbar to access its state
-import '../screens/audio_effects_screen.dart'; // Import AudioEffectsScreen
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../screens/album_screen.dart'; // Import AlbumScreen
 import '../screens/artist_screen.dart'; // Import ArtistScreen
@@ -2287,13 +2286,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                     _viewArtist(context, currentSong);
                   }
                   break;
-                case 'audio_effects':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const AudioEffectsScreen(),
-                    ),
-                  );
-                  break;
                 case 'sleep_timer':
                   _showSleepTimerDialog(context);
                   break;
@@ -2325,16 +2317,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                     ],
                   ),
                 ),
-              const PopupMenuItem<String>(
-                value: 'audio_effects',
-                child: Row(
-                  children: [
-                    Icon(Icons.graphic_eq),
-                    SizedBox(width: 8),
-                    Text('Audio Effects'),
-                  ],
-                ),
-              ),
               if (_sleepTimerService.sleepTimerEndTime == null)
                 const PopupMenuItem<String>(
                   value: 'sleep_timer',
