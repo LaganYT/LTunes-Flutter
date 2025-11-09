@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../services/version_service.dart';
 
 class Song {
@@ -114,6 +115,23 @@ class Song {
   static String? _asNullableString(dynamic value) {
     if (value is String) return value;
     if (value != null) return value.toString();
+    return null;
+  }
+
+  // Helper function to safely parse extras field
+  static Map<String, dynamic>? _parseExtras(dynamic value) {
+    if (value == null) return null;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is String) {
+      if (value.isEmpty) return null;
+      try {
+        final parsed = jsonDecode(value);
+        if (parsed is Map) return Map<String, dynamic>.from(parsed);
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
     return null;
   }
 
@@ -239,7 +257,7 @@ class Song {
             false, // Assuming isDownloaded is boolean
         localFilePath: _asNullableString(json[
             'localFilePath']), // Store as is; migration/usage logic handles interpretation
-        extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
+        extras: _parseExtras(json['extras']), // Added extras parsing with sanitization
         duration: parsedDuration, // Assign parsed duration
         isImported: isImported, // Assign parsed isImported
         plainLyrics: plainLyrics,
@@ -344,7 +362,7 @@ class Song {
             false, // Assuming isDownloaded is boolean
         localFilePath: _asNullableString(json[
             'localFilePath']), // Store as is; migration/usage logic handles interpretation
-        extras: json['extras'] as Map<String, dynamic>?, // Added extras parsing
+        extras: _parseExtras(json['extras']), // Added extras parsing with sanitization
         duration: parsedDuration, // Assign parsed duration
         isImported: isImported, // Assign parsed isImported
         plainLyrics: plainLyrics,

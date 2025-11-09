@@ -287,13 +287,52 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                             const Icon(Icons.error, size: 40),
                       );
                     } else {
-                      leadingWidget = Image.file(
-                        File(song.albumArtUrl),
-                        width: 40,
-                        height: 40,
-                        cacheWidth: 80,
-                        cacheHeight: 80,
-                        fit: BoxFit.cover,
+                      // Handle local file paths - check if file exists first
+                      leadingWidget = FutureBuilder<String?>(
+                        future: () async {
+                          try {
+                            final dir = await getApplicationDocumentsDirectory();
+                            File? file;
+                            
+                            // Check if it's a full path or just a filename
+                            if (song.albumArtUrl.contains(Platform.pathSeparator)) {
+                              // Full path
+                              file = File(song.albumArtUrl);
+                            } else {
+                              // Just a filename - check in documents directory first
+                              file = File(p.join(dir.path, song.albumArtUrl));
+                              if (!await file.exists()) {
+                                // Also check in downloads subdirectory
+                                file = File(p.join(dir.path, 'ltunes_downloads', song.albumArtUrl));
+                              }
+                            }
+                            
+                            if (await file.exists()) {
+                              return file.path;
+                            }
+                            return null;
+                          } catch (e) {
+                            return null;
+                          }
+                        }(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.done &&
+                              snapshot.hasData &&
+                              snapshot.data != null) {
+                            return Image.file(
+                              File(snapshot.data!),
+                              width: 40,
+                              height: 40,
+                              cacheWidth: 80,
+                              cacheHeight: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.album, size: 40),
+                            );
+                          }
+                          // File doesn't exist or error - show placeholder
+                          return const Icon(Icons.album, size: 40);
+                        },
                       );
                     }
 

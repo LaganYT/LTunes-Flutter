@@ -29,6 +29,7 @@ import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/animation_service.dart'; // Import AnimationService
 import '../widgets/bug_report_dialog.dart'; // Import BugReportDialog
 import '../services/bug_report_service.dart'; // Import BugReportService
+import '../services/data_export_import_service.dart'; // Import DataExportImportService
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -413,6 +414,157 @@ class _SettingsScreenState extends State<SettingsScreen> {
             content: Text('$deletedFilesCount downloaded song(s) deleted.')),
       );
       _refreshNotifier.value++; // Trigger refresh
+    }
+  }
+
+  Future<void> _exportData(BuildContext context) async {
+    try {
+      // Show loading indicator
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final exportService = DataExportImportService();
+      final filePath = await exportService.exportAllData();
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Close loading dialog
+
+      if (filePath == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to export data. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Show success dialog with option to share
+      if (!context.mounted) return;
+      final shouldShare = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Export Successful'),
+            content: const Text('Your data has been exported successfully. Would you like to share the file?'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+              ),
+              TextButton(
+                child: const Text('Share'),
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldShare == true) {
+        await exportService.shareExportedFile(filePath);
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Close loading dialog if still open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error exporting data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _importData(BuildContext context) async {
+    try {
+      // Show confirmation dialog
+      if (!context.mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Import Data'),
+            content: const Text(
+                'This will replace all existing data with the imported data. '
+                'Previously downloaded songs will be queued for redownload.\n\n'
+                'Are you sure you want to continue?'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+              ),
+              TextButton(
+                child: const Text('Import'),
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirmed != true) return;
+
+      // Show loading indicator
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final exportService = DataExportImportService();
+      final success = await exportService.importAllData(songProvider: _currentSongProvider);
+
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Close loading dialog
+
+      if (success) {
+        // Reload settings to reflect imported data
+        await _loadSettings();
+        
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data imported successfully! Previously downloaded songs are being redownloaded.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to import data. Please check the file format.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Close loading dialog if still open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error importing data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -2539,6 +2691,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Check for Updates'),
                   subtitle: const Text('Check for app updates'),
                   onTap: _performUpdateCheck,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.upload_file),
+                  title: const Text('Export All Data'),
+                  subtitle: const Text('Export playlists, albums, songs, and settings'),
+                  onTap: () => _exportData(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('Import All Data'),
+                  subtitle: const Text('Import data from a plist or xml file'),
+                  onTap: () => _importData(context),
                 ),
                 ListTile(
                   leading: const Icon(Icons.restore),
