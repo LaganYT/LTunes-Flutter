@@ -26,8 +26,6 @@ Fix bug: LTunes refuses to play a playlist if 1 song is not found, also make sur
 
 Redesign the sleep timer system, make it more integrated and show the countdown in the full screen player on the appbar section
 
-Synced lyrics shouldn’t change sizes
-
 When clicking on a song in the songs list it takes forever to start playing, to fix this make sure that the song can play while the rest of the queue  is still loading, have the queue load in segments that way it doesn’t await for the full queue to load
 
 Experiment with the queue just having song ids and the rest of the info loading dynamically

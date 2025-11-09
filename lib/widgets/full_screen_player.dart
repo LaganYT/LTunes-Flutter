@@ -3070,7 +3070,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                         lineAnimation ?? const AlwaysStoppedAnimation(1.0),
                     builder: (context, child) {
                       // Calculate animation values
-                      double scale = 1.0;
                       double opacity = 1.0;
                       Color textColor =
                           colorScheme.onSurface.withValues(alpha: 0.6);
@@ -3079,24 +3078,17 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
                       if (isCurrent) {
                         // Current line animations
-                        scale = 1.0 +
-                            (0.1 *
-                                (_lyricHighlightAnimation.value
-                                    .clamp(0.0, 1.0)));
                         opacity = 0.7 +
                             (0.3 *
                                 (_lyricHighlightAnimation.value
                                     .clamp(0.0, 1.0)));
                         textColor = Color.lerp(
                           colorScheme.onSurface.withValues(alpha: 0.7),
-                          colorScheme.secondary,
+                          colorScheme.primary,
                           _lyricHighlightAnimation.value,
                         )!;
                         fontWeight = FontWeight.bold;
-                        fontSize = 20.0 +
-                            (2.0 *
-                                (_lyricHighlightAnimation.value
-                                    .clamp(0.0, 1.0)));
+                        fontSize = 20.0; // Fixed font size for synced lyrics
                       } else if (wasCurrent &&
                           _lyricTransitionAnimation.value < 1.0) {
                         // Previously current line - fade out effect (only during animation)
@@ -3105,15 +3097,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                 (_lyricTransitionAnimation.value
                                     .clamp(0.0, 1.0)));
                         textColor = Color.lerp(
-                          colorScheme.secondary,
+                          colorScheme.primary,
                           colorScheme.onSurface.withValues(alpha: 0.4),
                           _lyricTransitionAnimation.value,
                         )!;
                         fontWeight = FontWeight.normal;
-                        fontSize = 22.0 -
-                            (2.0 *
-                                (_lyricTransitionAnimation.value
-                                    .clamp(0.0, 1.0)));
+                        fontSize = 20.0; // Fixed font size for synced lyrics
                       } else if (_areLyricsSynced &&
                           _currentLyricIndex >= 0 &&
                           index < _currentLyricIndex) {
@@ -3134,7 +3123,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                         fontSize = 20.0;
                       } else if (!_areLyricsSynced &&
                           _parsedLyrics.isNotEmpty) {
-                        scale = 1.0;
                         opacity = 1.0;
                         textColor = Color.lerp(
                           colorScheme.onSurface.withValues(alpha: 0.7),
@@ -3152,36 +3140,27 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                         fontSize = 20.0;
                       }
 
-                      // Apply line-specific animation
-                      if (lineAnimation != null) {
-                        scale *= (0.95 +
-                            (0.05 * (lineAnimation.value.clamp(0.0, 1.0))));
-                      }
-
-                      return Transform.scale(
-                        scale: scale,
-                        child: Opacity(
-                          opacity: opacity,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 8.0, horizontal: 16.0),
-                            child: line.type == LyricLineType.loadingDots
-                                ? _buildLoadingDots(textColor, fontSize, index)
-                                : Text(
-                                    line.text,
-                                    textAlign: TextAlign.center,
-                                    style: textTheme.titleLarge?.copyWith(
-                                          color: textColor,
-                                          fontWeight: fontWeight,
-                                          fontSize: fontSize,
-                                        ) ??
-                                        TextStyle(
-                                          color: textColor,
-                                          fontWeight: fontWeight,
-                                          fontSize: fontSize,
-                                        ),
-                                  ),
-                          ),
+                      return Opacity(
+                        opacity: opacity,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8.0, horizontal: 16.0),
+                          child: line.type == LyricLineType.loadingDots
+                              ? _buildLoadingDots(textColor, fontSize, index)
+                              : Text(
+                                  line.text,
+                                  textAlign: TextAlign.center,
+                                  style: textTheme.titleLarge?.copyWith(
+                                        color: textColor,
+                                        fontWeight: fontWeight,
+                                        fontSize: fontSize,
+                                      ) ??
+                                      TextStyle(
+                                        color: textColor,
+                                        fontWeight: fontWeight,
+                                        fontSize: fontSize,
+                                      ),
+                                ),
                         ),
                       );
                     },
