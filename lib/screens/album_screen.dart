@@ -124,10 +124,10 @@ class _AlbumScreenState extends State<AlbumScreen>
         // This track is marked as downloaded in its metadata,
         // but the provider doesn't show it as 100% complete yet,
         // and it's not an active download.
-        // Call queueSongForDownload to make the provider check the file.
+        // Call checkDownloadStatus to make the provider check the file.
         // If the file exists, the provider will update its progress to 1.0
         // and notify listeners, which will trigger _updateAllTracksDownloadedStatus.
-        currentSongProvider.queueSongForDownload(track);
+        currentSongProvider.checkDownloadStatus(track);
       }
     }
   }

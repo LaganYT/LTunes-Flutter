@@ -2711,6 +2711,57 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   // Download management methods (simplified)
+  // Check download status without triggering downloads
+  Future<void> checkDownloadStatus(Song song) async {
+    if (song.isImported) {
+      debugPrint('Song "${song.title}" is imported. Skipping download status check.');
+      if (_downloadProgress[song.id] != 1.0) {
+        _downloadProgress[song.id] = 1.0;
+        if (_activeDownloads.containsKey(song.id)) {
+          _activeDownloads.remove(song.id);
+        }
+        notifyListeners();
+      }
+      return;
+    }
+
+    final existingDownloadedSong =
+        await _findExistingDownloadedSongByTitleArtist(song.title, song.artist);
+    if (existingDownloadedSong != null) {
+      debugPrint(
+          "Song \"${song.title}\" by ${song.artist} is already downloaded. Updating metadata.");
+      String albumArtToUse = song.albumArtUrl;
+      if (existingDownloadedSong.albumArtUrl.isNotEmpty &&
+          !existingDownloadedSong.albumArtUrl.startsWith('http')) {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final localArtPath =
+            p.join(appDocDir.path, existingDownloadedSong.albumArtUrl);
+        if (await File(localArtPath).exists()) {
+          albumArtToUse = existingDownloadedSong.albumArtUrl;
+        }
+      }
+
+      final songToProcess = song.copyWith(
+        id: existingDownloadedSong.id,
+        isDownloaded: true,
+        localFilePath: existingDownloadedSong.localFilePath,
+        audioUrl: existingDownloadedSong.localFilePath,
+        duration: existingDownloadedSong.duration ?? song.duration,
+        albumArtUrl: albumArtToUse,
+      );
+
+      await _persistSongMetadata(songToProcess);
+      updateSongDetails(songToProcess);
+      await PlaylistManagerService().updateSongInPlaylists(songToProcess);
+
+      _downloadProgress[songToProcess.id] = 1.0;
+      if (_activeDownloads.containsKey(songToProcess.id)) {
+        _activeDownloads.remove(songToProcess.id);
+      }
+      notifyListeners();
+    }
+  }
+
   Future<void> queueSongForDownload(Song song) async {
     await _initializeDownloadManager();
     if (_downloadManager == null) {

@@ -1190,8 +1190,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
       final currentSong = provider.currentSong;
       if (currentSong != null) {
         // Check download status for all songs, not just those marked as downloaded
-        // This ensures the UI reflects the actual download state
-        provider.queueSongForDownload(currentSong);
+        // This ensures the UI reflects the actual download state without triggering downloads
+        provider.checkDownloadStatus(currentSong);
 
         // Also update missing metadata for downloaded songs
         // Use provider's download state to determine if song is actually downloaded
