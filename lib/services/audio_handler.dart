@@ -416,10 +416,13 @@ class AudioPlayerHandler extends BaseAudioHandler
     } catch (e) {
       debugPrint("Error preparing audio source: $e");
       if (_isRadioStream) _showRadioErrorDialog(itemToPlay.title);
-      
-      // Auto-skip to next song if current song fails to load
-      if (_playlist.isNotEmpty && _currentIndex >= 0 && _currentIndex < _playlist.length) {
-        debugPrint("AudioHandler: Auto-skipping to next song due to playback error");
+
+      // Only auto-skip if we're already playing and this is not the first song attempt
+      // For the first song in a new playback session, let the caller handle the error
+      final isFirstSongAttempt = !_audioPlayer.playing && playbackState.value.processingState == AudioProcessingState.idle;
+
+      if (!isFirstSongAttempt && _playlist.isNotEmpty && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+        debugPrint("AudioHandler: Auto-skipping to next song due to playback error (not first song)");
         try {
           // Try to skip to next song
           if (_currentIndex < _playlist.length - 1) {
@@ -436,7 +439,7 @@ class AudioPlayerHandler extends BaseAudioHandler
           await stop();
         }
       }
-      
+
       rethrow;
     }
   }

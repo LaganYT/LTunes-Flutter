@@ -711,9 +711,9 @@ class CurrentSongProvider with ChangeNotifier {
         "CurrentSongProvider: _handleShuffleNext from index $_currentIndexInAppQueue");
 
     // Find next available song starting from next index
-    final nextAvailableIndex = await _findNextAvailableSongIndex(
-        _currentIndexInAppQueue + 1, _queue);
-    
+    final nextAvailableIndex =
+        await _findNextAvailableSongIndex(_currentIndexInAppQueue + 1, _queue);
+
     if (nextAvailableIndex == null) {
       // No available songs found - check repeat mode
       final repeatMode = _audioHandler.playbackState.value.repeatMode;
@@ -722,7 +722,8 @@ class CurrentSongProvider with ChangeNotifier {
 
       if (repeatMode == AudioServiceRepeatMode.all) {
         // Try from beginning
-        final firstAvailableIndex = await _findNextAvailableSongIndex(0, _queue);
+        final firstAvailableIndex =
+            await _findNextAvailableSongIndex(0, _queue);
         if (firstAvailableIndex != null) {
           final previousIndex = _currentIndexInAppQueue;
           _currentIndexInAppQueue = firstAvailableIndex;
@@ -741,7 +742,7 @@ class CurrentSongProvider with ChangeNotifier {
           return;
         }
       }
-      
+
       // No repeat or no available songs - end playback
       debugPrint("CurrentSongProvider: No available songs, stopping playback");
       await _audioHandler.pause();
@@ -769,7 +770,8 @@ class CurrentSongProvider with ChangeNotifier {
       // Try to find next available song on error
       final nextAvailableOnError = await _findNextAvailableSongIndex(
           _currentIndexInAppQueue + 1, _queue);
-      if (nextAvailableOnError != null && nextAvailableOnError != _currentIndexInAppQueue) {
+      if (nextAvailableOnError != null &&
+          nextAvailableOnError != _currentIndexInAppQueue) {
         _currentIndexInAppQueue = nextAvailableOnError;
         _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
         try {
@@ -802,14 +804,15 @@ class CurrentSongProvider with ChangeNotifier {
     // We need to search backwards through the queue
     int? prevAvailableIndex;
     for (int i = 1; i <= _queue.length; i++) {
-      final checkIndex = (_currentIndexInAppQueue - i + _queue.length) % _queue.length;
+      final checkIndex =
+          (_currentIndexInAppQueue - i + _queue.length) % _queue.length;
       final song = _queue[checkIndex];
       if (await _isSongAvailable(song)) {
         prevAvailableIndex = checkIndex;
         break;
       }
     }
-    
+
     if (prevAvailableIndex == null) {
       // No available songs found - check repeat mode
       final repeatMode = _audioHandler.playbackState.value.repeatMode;
@@ -832,7 +835,8 @@ class CurrentSongProvider with ChangeNotifier {
             await _updateAudioHandlerQueue();
             await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
           } catch (e) {
-            debugPrint("CurrentSongProvider: Error in _handleShufflePrevious: $e");
+            debugPrint(
+                "CurrentSongProvider: Error in _handleShufflePrevious: $e");
             _currentIndexInAppQueue = previousIndex;
             _currentSongFromAppLogic = _queue[previousIndex];
           }
@@ -842,9 +846,10 @@ class CurrentSongProvider with ChangeNotifier {
           return;
         }
       }
-      
+
       // No repeat or no available songs - stay at current
-      debugPrint("CurrentSongProvider: No available songs going backwards, staying at current");
+      debugPrint(
+          "CurrentSongProvider: No available songs going backwards, staying at current");
       _isLoadingAudio = false;
       notifyListeners();
       return;
@@ -869,20 +874,23 @@ class CurrentSongProvider with ChangeNotifier {
       // Try to find previous available song on error
       int? prevAvailableOnError;
       for (int i = 1; i <= _queue.length; i++) {
-        final checkIndex = (_currentIndexInAppQueue - i + _queue.length) % _queue.length;
+        final checkIndex =
+            (_currentIndexInAppQueue - i + _queue.length) % _queue.length;
         if (await _isSongAvailable(_queue[checkIndex])) {
           prevAvailableOnError = checkIndex;
           break;
         }
       }
-      if (prevAvailableOnError != null && prevAvailableOnError != _currentIndexInAppQueue) {
+      if (prevAvailableOnError != null &&
+          prevAvailableOnError != _currentIndexInAppQueue) {
         _currentIndexInAppQueue = prevAvailableOnError;
         _currentSongFromAppLogic = _queue[_currentIndexInAppQueue];
         try {
           await _updateAudioHandlerQueue();
           await _skipToQueueItemWithFlag(_currentIndexInAppQueue);
         } catch (e2) {
-          debugPrint("CurrentSongProvider: Error retrying shuffle previous: $e2");
+          debugPrint(
+              "CurrentSongProvider: Error retrying shuffle previous: $e2");
           _currentIndexInAppQueue = previousIndex;
           _currentSongFromAppLogic = _queue[previousIndex];
         }
@@ -938,7 +946,7 @@ class CurrentSongProvider with ChangeNotifier {
       if (!isAvailable) {
         debugPrint(
             'Song "${songToPlay.title}" is not available (no network or not downloaded). Skipping...');
-        
+
         // If we have a queue, try to find the next available song
         if (_queue.isNotEmpty) {
           final currentIndex = _queue.indexWhere((s) => s.id == songToPlay.id);
@@ -954,11 +962,12 @@ class CurrentSongProvider with ChangeNotifier {
             }
           }
         }
-        
+
         // No available songs found
         _isLoadingAudio = false;
         _errorHandler.logError(
-            Exception('Song "${songToPlay.title}" is not available offline and requires network connection.'),
+            Exception(
+                'Song "${songToPlay.title}" is not available offline and requires network connection.'),
             context: 'playSong');
         notifyListeners();
         return;
@@ -987,7 +996,8 @@ class CurrentSongProvider with ChangeNotifier {
           }
 
           List<MediaItem> fullQueueMediaItems = await _prepareMediaItemsBatched(
-              _queue, playRequest: currentPlayRequest);
+              _queue,
+              playRequest: currentPlayRequest);
           if (currentPlayRequest != _playRequestCounter) return;
           await _audioHandler.updateQueue(fullQueueMediaItems);
         } else {
@@ -1016,14 +1026,15 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       if (currentPlayRequest == _playRequestCounter) {
         debugPrint('Error playing song "${songToPlay.title}": $e');
-        
+
         // Try to skip to next available song on error
         if (_queue.isNotEmpty) {
           final currentIndex = _queue.indexWhere((s) => s.id == songToPlay.id);
           if (currentIndex != -1) {
             final nextAvailableIndex =
                 await _findNextAvailableSongIndex(currentIndex + 1, _queue);
-            if (nextAvailableIndex != null && nextAvailableIndex != currentIndex) {
+            if (nextAvailableIndex != null &&
+                nextAvailableIndex != currentIndex) {
               debugPrint(
                   'Error playing song, skipping to next available at index $nextAvailableIndex');
               _isLoadingAudio = false;
@@ -1034,7 +1045,7 @@ class CurrentSongProvider with ChangeNotifier {
             }
           }
         }
-        
+
         _errorHandler.logError(e, context: 'playSong');
         _isLoadingAudio = false;
         notifyListeners();
@@ -1114,7 +1125,8 @@ class CurrentSongProvider with ChangeNotifier {
     if (availableSongs.isEmpty) {
       debugPrint('No available songs in context, cannot play');
       _errorHandler.logError(
-          Exception('No available songs in playlist. All songs require network connection or are not downloaded.'),
+          Exception(
+              'No available songs in playlist. All songs require network connection or are not downloaded.'),
           context: 'playWithContext');
       notifyListeners();
       return;
@@ -1157,8 +1169,8 @@ class CurrentSongProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error playing song in context: $e');
       // Try to find next available song
-      final nextAvailableIndex =
-          await _findNextAvailableSongIndex(_currentIndexInAppQueue + 1, _queue);
+      final nextAvailableIndex = await _findNextAvailableSongIndex(
+          _currentIndexInAppQueue + 1, _queue);
       if (nextAvailableIndex != null) {
         _currentIndexInAppQueue = nextAvailableIndex;
         _currentSongFromAppLogic = _queue[nextAvailableIndex];
@@ -1317,10 +1329,11 @@ class CurrentSongProvider with ChangeNotifier {
     try {
       // Prepare media items and track which songs were successfully prepared
       final mediaItems = await _prepareMediaItemsBatched(_queue);
-      
+
       // If some songs were skipped, we need to adjust the current index
       // Find the current song in the prepared media items
-      if (_currentIndexInAppQueue >= 0 && _currentIndexInAppQueue < _queue.length) {
+      if (_currentIndexInAppQueue >= 0 &&
+          _currentIndexInAppQueue < _queue.length) {
         final currentSong = _queue[_currentIndexInAppQueue];
         // Find the index of the current song in the prepared media items
         int mediaItemIndex = -1;
@@ -1331,7 +1344,7 @@ class CurrentSongProvider with ChangeNotifier {
             break;
           }
         }
-        
+
         // If current song is not in prepared items, find next available
         if (mediaItemIndex == -1) {
           final nextAvailableIndex = await _findNextAvailableSongIndex(
@@ -1349,9 +1362,9 @@ class CurrentSongProvider with ChangeNotifier {
             }
           }
         }
-        
+
         await _audioHandler.updateQueue(mediaItems);
-        
+
         if (mediaItemIndex != -1) {
           await _audioHandler
               .customAction('setQueueIndex', {'index': mediaItemIndex});
@@ -1573,8 +1586,10 @@ class CurrentSongProvider with ChangeNotifier {
     if (song.audioUrl.isNotEmpty &&
         (Uri.tryParse(song.audioUrl)?.isAbsolute ?? false) &&
         !song.audioUrl.startsWith('file:/')) {
-      // Check network availability by attempting a simple connectivity test
-      return await _checkNetworkAvailability();
+      // For streaming songs, be optimistic and assume network is available
+      // The audio player will handle connection failures gracefully
+      // Only do a network check as a last resort for very unreliable connections
+      return true;
     }
 
     // For imported songs, check if they have a local file
@@ -1603,7 +1618,8 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   /// Find the next available song in the queue starting from the given index
-  Future<int?> _findNextAvailableSongIndex(int startIndex, List<Song> songs) async {
+  Future<int?> _findNextAvailableSongIndex(
+      int startIndex, List<Song> songs) async {
     for (int i = 0; i < songs.length; i++) {
       final index = (startIndex + i) % songs.length;
       final song = songs[index];
@@ -2988,7 +3004,8 @@ class CurrentSongProvider with ChangeNotifier {
   // Check download status without triggering downloads
   Future<void> checkDownloadStatus(Song song) async {
     if (song.isImported) {
-      debugPrint('Song "${song.title}" is imported. Skipping download status check.');
+      debugPrint(
+          'Song "${song.title}" is imported. Skipping download status check.');
       if (_downloadProgress[song.id] != 1.0) {
         _downloadProgress[song.id] = 1.0;
         if (_activeDownloads.containsKey(song.id)) {
