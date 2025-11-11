@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io'; // Required for File operations
 import 'dart:convert'; // Required for jsonDecode
 import 'dart:math'; // Required for log and pow
+import 'dart:async'; // Required for StreamController
 import '../models/song.dart'; // Required for Song.fromJson
 import 'package:package_info_plus/package_info_plus.dart'; // Import package_info_plus
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
@@ -19,7 +20,6 @@ import 'library_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'local_metadata_screen.dart';
-import 'dart:async'; // Required for Timer
 import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
@@ -51,18 +51,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final ValueNotifier<int> _versionRefreshNotifier;
   final ValueNotifier<List<double>> customSpeedPresetsNotifier =
       ValueNotifier<List<double>>([]);
-  final ValueNotifier<bool> listeningStatsEnabledNotifier =
-      ValueNotifier<bool>(true); // <-- move here
-  final ValueNotifier<bool?> autoCheckForUpdatesNotifier =
-      ValueNotifier<bool?>(null);
-  final ValueNotifier<String> currentAppVersionNotifier =
-      ValueNotifier<String>('Loading...');
+  final ValueNotifier<bool> listeningStatsEnabledNotifier = ValueNotifier<bool>(
+    true,
+  ); // <-- move here
+  final ValueNotifier<bool?> autoCheckForUpdatesNotifier = ValueNotifier<bool?>(
+    null,
+  );
+  final ValueNotifier<String> currentAppVersionNotifier = ValueNotifier<String>(
+    'Loading...',
+  );
   final ValueNotifier<String> latestKnownVersionNotifier =
       ValueNotifier<String>('N/A');
   final ValueNotifier<bool?> showOnlySavedSongsInAlbumsNotifier =
       ValueNotifier<bool?>(null); // NEW
-  final ValueNotifier<int> maxConcurrentDownloadsNotifier =
-      ValueNotifier<int>(1); // NEW
+  final ValueNotifier<int> maxConcurrentDownloadsNotifier = ValueNotifier<int>(
+    1,
+  ); // NEW
   final ValueNotifier<int> maxConcurrentPlaylistMatchesNotifier =
       ValueNotifier<int>(5); // NEW
   final ValueNotifier<Map<AnimationType, bool>> animationSettingsNotifier =
@@ -91,8 +95,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Get the provider reference when dependencies change
-    _currentSongProvider =
-        Provider.of<CurrentSongProvider>(context, listen: false);
+    _currentSongProvider = Provider.of<CurrentSongProvider>(
+      context,
+      listen: false,
+    );
 
     // Initialize sleep timer service only if not already initialized
     if (!_sleepTimerService.isInitialized) {
@@ -111,7 +117,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Sleep timer expired. Playback stopped.')),
+              content: Text('Sleep timer expired. Playback stopped.'),
+            ),
           );
         }
       },
@@ -210,7 +217,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveSelectedReleaseChannelSetting(
-      ReleaseChannel channel) async {
+    ReleaseChannel channel,
+  ) async {
     final releaseChannelService = ReleaseChannelService();
     await releaseChannelService.setSelectedChannel(channel);
     selectedReleaseChannelNotifier.value = channel;
@@ -289,8 +297,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 song.localFilePath!.isNotEmpty) {
               final appDocDir = await getApplicationDocumentsDirectory();
               const String downloadsSubDir = 'ltunes_downloads';
-              final fullPath =
-                  p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+              final fullPath = p.join(
+                appDocDir.path,
+                downloadsSubDir,
+                song.localFilePath!,
+              );
               final file = File(fullPath);
               if (await file.exists()) {
                 count++;
@@ -322,8 +333,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (song.isDownloaded &&
                 song.localFilePath != null &&
                 song.localFilePath!.isNotEmpty) {
-              final fullPath =
-                  p.join(appDocDir.path, downloadsSubDir, song.localFilePath!);
+              final fullPath = p.join(
+                appDocDir.path,
+                downloadsSubDir,
+                song.localFilePath!,
+              );
               final file = File(fullPath);
               if (await file.exists()) {
                 totalBytes += await file.length();
@@ -331,7 +345,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }
           } catch (e) {
             debugPrint(
-                "Error processing song $key for storage calculation: $e");
+              "Error processing song $key for storage calculation: $e",
+            );
           }
         }
       }
@@ -366,8 +381,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 currentSongState.localFilePath!.isNotEmpty) {
               final String fileName = currentSongState.localFilePath!;
               // Correct path for deletion, including the subdirectory
-              final fullPath =
-                  p.join(appDocDir.path, downloadsSubDir, fileName);
+              final fullPath = p.join(
+                appDocDir.path,
+                downloadsSubDir,
+                fileName,
+              );
               final file = File(fullPath);
               if (await file.exists()) {
                 await file.delete();
@@ -377,7 +395,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Unconditionally update song metadata to mark as not downloaded
             // for all songs processed by this function.
             Song updatedSong = currentSongState.copyWith(
-                isDownloaded: false, localFilePath: null);
+              isDownloaded: false,
+              localFilePath: null,
+            );
             songsToUpdateInProvider.add(updatedSong);
             keysToUpdateInPrefs.add(key);
             updatedJsonStringsForPrefs.add(jsonEncode(updatedSong.toJson()));
@@ -391,19 +411,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Perform SharedPreferences updates
     for (int i = 0; i < keysToUpdateInPrefs.length; i++) {
       await prefs.setString(
-          keysToUpdateInPrefs[i], updatedJsonStringsForPrefs[i]);
+        keysToUpdateInPrefs[i],
+        updatedJsonStringsForPrefs[i],
+      );
     }
 
     // Notify CurrentSongProvider and PlaylistManagerService for each updated song
     if (mounted) {
-      final currentSongProvider =
-          Provider.of<CurrentSongProvider>(context, listen: false);
+      final currentSongProvider = Provider.of<CurrentSongProvider>(
+        context,
+        listen: false,
+      );
       final playlistManager = PlaylistManagerService();
       for (final song in songsToUpdateInProvider) {
         currentSongProvider.updateSongDetails(song); // Notifies and saves state
         await playlistManager.updateSongInPlaylists(song);
-        await AlbumManagerService()
-            .updateSongInAlbums(song); // Update album download status
+        await AlbumManagerService().updateSongInAlbums(
+          song,
+        ); // Update album download status
       }
     }
 
@@ -411,7 +436,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Check if the widget is still in the tree
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('$deletedFilesCount downloaded song(s) deleted.')),
+          content: Text('$deletedFilesCount downloaded song(s) deleted.'),
+        ),
       );
       _refreshNotifier.value++; // Trigger refresh
     }
@@ -419,27 +445,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _exportData(BuildContext context) async {
     try {
-      // Show loading indicator
+      // Show progress dialog with StreamBuilder for real-time updates
+      final progressController =
+          StreamController<
+            ({String operation, double progress, String message})
+          >.broadcast();
+      String lastError = '';
+
       if (!context.mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (dialogContext) =>
+            StreamBuilder<
+              ({String operation, double progress, String message})
+            >(
+              stream: progressController.stream,
+              initialData: (
+                operation: 'Initializing...',
+                progress: 0.0,
+                message: 'Preparing export...',
+              ),
+              builder: (context, snapshot) {
+                final data = snapshot.data!;
+                return AlertDialog(
+                  title: Text(data.operation),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LinearProgressIndicator(value: data.progress),
+                      const SizedBox(height: 16),
+                      Text(data.message, textAlign: TextAlign.center),
+                    ],
+                  ),
+                );
+              },
+            ),
       );
 
       final exportService = DataExportImportService();
-      final filePath = await exportService.exportAllData();
+      final filePath = await exportService.exportAllData(
+        onProgress: (operation, progress, message) {
+          progressController.add((
+            operation: operation,
+            progress: progress,
+            message: message ?? '',
+          ));
+          if (operation == 'Error') {
+            lastError = message ?? 'Unknown error';
+          }
+        },
+      );
+
+      await progressController.close();
 
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // Close loading dialog
+      Navigator.of(context).pop(); // Close progress dialog
 
       if (filePath == null) {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to export data. Please try again.'),
+          SnackBar(
+            content: Text(
+              lastError.isNotEmpty
+                  ? lastError
+                  : 'Failed to export data. Please try again.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -453,7 +524,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('Export Successful'),
-            content: const Text('Your data has been exported successfully. Would you like to share the file?'),
+            content: const Text(
+              'Your data has been exported successfully. Would you like to share the file?',
+            ),
             actions: <Widget>[
               TextButton(
                 child: const Text('Close'),
@@ -477,7 +550,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // Close loading dialog if still open
+      // Close any open dialogs
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error exporting data: $e'),
@@ -497,9 +571,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return AlertDialog(
             title: const Text('Import Data'),
             content: const Text(
-                'This will replace all existing data with the imported data. '
-                'Previously downloaded songs will be queued for redownload.\n\n'
-                'Are you sure you want to continue?'),
+              'This will replace all existing data with the imported data. '
+              'Previously downloaded songs will be queued for redownload.\n\n'
+              'Are you sure you want to continue?',
+            ),
             actions: <Widget>[
               TextButton(
                 child: const Text('Cancel'),
@@ -520,45 +595,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (confirmed != true) return;
 
-      // Show loading indicator
+      // Show progress dialog with StreamBuilder for real-time updates
+      final progressController =
+          StreamController<
+            ({String operation, double progress, String message})
+          >.broadcast();
+      String lastError = '';
+
       if (!context.mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (dialogContext) =>
+            StreamBuilder<
+              ({String operation, double progress, String message})
+            >(
+              stream: progressController.stream,
+              initialData: (
+                operation: 'Preparing import...',
+                progress: 0.0,
+                message: 'Initializing...',
+              ),
+              builder: (context, snapshot) {
+                final data = snapshot.data!;
+                return AlertDialog(
+                  title: Text(data.operation),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LinearProgressIndicator(value: data.progress),
+                      const SizedBox(height: 16),
+                      Text(data.message, textAlign: TextAlign.center),
+                    ],
+                  ),
+                );
+              },
+            ),
       );
 
       final exportService = DataExportImportService();
-      final success = await exportService.importAllData(songProvider: _currentSongProvider);
+      final success = await exportService.importAllData(
+        songProvider: _currentSongProvider,
+        onProgress: (operation, progress, message) {
+          progressController.add((
+            operation: operation,
+            progress: progress,
+            message: message ?? '',
+          ));
+          if (operation == 'Error') {
+            lastError = message ?? 'Unknown error';
+          }
+        },
+      );
+
+      await progressController.close();
 
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // Close loading dialog
+      Navigator.of(context).pop(); // Close progress dialog
 
       if (success) {
         // Reload settings to reflect imported data
         await _loadSettings();
-        
+
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Data imported successfully! Previously downloaded songs are being redownloaded.'),
+            content: Text(
+              'Data imported successfully! Previously downloaded songs are being redownloaded.',
+            ),
             backgroundColor: Colors.green,
           ),
         );
       } else {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to import data. Please check the file format.'),
+          SnackBar(
+            content: Text(
+              lastError.isNotEmpty
+                  ? lastError
+                  : 'Failed to import data. Please check the file format.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
       if (!context.mounted) return;
-      Navigator.of(context).pop(); // Close loading dialog if still open
+      // Close any open dialogs
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error importing data: $e'),
@@ -576,7 +700,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return AlertDialog(
           title: const Text('Reset Settings?'),
           content: const Text(
-              'Are you sure you want to reset all settings to their default values? This action cannot be undone.'),
+            'Are you sure you want to reset all settings to their default values? This action cannot be undone.',
+          ),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
@@ -585,8 +710,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             TextButton(
-              child: Text('Reset',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(
+                'Reset',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               onPressed: () {
                 Navigator.of(context).pop(true);
               },
@@ -642,7 +769,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults();
 
-
     if (context.mounted) {
       // Ensure mounted check before showing SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
@@ -652,19 +778,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showPrivacyPolicy(BuildContext context) {
-    Navigator.of(context).push(
-      createAnimatedPageRoute(
-        child: const PrivacyPolicyScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(createAnimatedPageRoute(child: const PrivacyPolicyScreen()));
   }
 
   void _showTermsOfService(BuildContext context) {
-    Navigator.of(context).push(
-      createAnimatedPageRoute(
-        child: const TermsOfServiceScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(createAnimatedPageRoute(child: const TermsOfServiceScreen()));
   }
 
   void _showCustomSpeedPresetsDialog(BuildContext context) {
@@ -695,7 +817,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: TextField(
                           controller: speedController,
                           keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
+                            decimal: true,
+                          ),
                           decoration: const InputDecoration(
                             labelText: 'Speed (e.g., 0.9)',
                             border: OutlineInputBorder(),
@@ -715,15 +838,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                    content:
-                                        Text('Speed preset already exists')),
+                                  content: Text('Speed preset already exists'),
+                                ),
                               );
                             }
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content: Text(
-                                      'Please enter a valid speed between 0.25 and 3.0')),
+                                content: Text(
+                                  'Please enter a valid speed between 0.25 and 3.0',
+                                ),
+                              ),
                             );
                           }
                         },
@@ -733,8 +858,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   if (currentPresets.isNotEmpty) ...[
-                    const Text('Current Presets:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Current Presets:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -758,14 +885,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    customSpeedPresetsNotifier.value =
-                        List<double>.from(currentPresets);
+                    customSpeedPresetsNotifier.value = List<double>.from(
+                      currentPresets,
+                    );
                     await _saveCustomSpeedPresets(currentPresets);
                     Navigator.of(context).pop();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('Custom speed presets saved')),
+                          content: Text('Custom speed presets saved'),
+                        ),
                       );
                     }
                   },
@@ -780,7 +909,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showMaxConcurrentDownloadsDialog(
-      BuildContext context, int currentValue) {
+    BuildContext context,
+    int currentValue,
+  ) {
     int selectedValue = currentValue;
 
     showDialog(
@@ -830,8 +961,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                            content: Text(
-                                'Max concurrent downloads set to $selectedValue')),
+                          content: Text(
+                            'Max concurrent downloads set to $selectedValue',
+                          ),
+                        ),
                       );
                     }
                   },
@@ -847,8 +980,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showAnimationSettingsDialog(BuildContext context) {
     final animationService = AnimationService.instance;
-    final currentSettings =
-        Map<AnimationType, bool>.from(animationService.animationSettings);
+    final currentSettings = Map<AnimationType, bool>.from(
+      animationService.animationSettings,
+    );
 
     showDialog(
       context: context,
@@ -938,58 +1072,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: AnimationType.values
                             .where((type) => type != AnimationType.all)
                             .map((type) {
-                          String title;
-                          String subtitle;
-                          IconData icon;
+                              String title;
+                              String subtitle;
+                              IconData icon;
 
-                          switch (type) {
-                            case AnimationType.pageTransitions:
-                              title = 'Page Transitions';
-                              subtitle =
-                                  'Screen transitions and navigation animations';
-                              icon = Icons.swap_horiz;
-                              break;
-                            case AnimationType.equalizerAnimations:
-                              title = 'Equalizer Animations';
-                              subtitle = 'Moving bars in the equalizer';
-                              icon = Icons.graphic_eq;
-                              break;
-                            case AnimationType.songChangeAnimations:
-                              title = 'Song Change Animations';
-                              subtitle = 'Animations when switching songs';
-                              icon = Icons.music_note;
-                              break;
-                            case AnimationType.uiAnimations:
-                              title = 'UI Animations';
-                              subtitle =
-                                  'Buttons, switches, and interface animations';
-                              icon = Icons.touch_app;
-                              break;
-                            case AnimationType.lyricsAnimations:
-                              title = 'Lyrics Animations';
-                              subtitle = 'Lyrics scrolling and highlighting';
-                              icon = Icons.text_fields;
-                              break;
-                            default:
-                              title = type.name;
-                              subtitle = '';
-                              icon = Icons.settings;
-                          }
+                              switch (type) {
+                                case AnimationType.pageTransitions:
+                                  title = 'Page Transitions';
+                                  subtitle =
+                                      'Screen transitions and navigation animations';
+                                  icon = Icons.swap_horiz;
+                                  break;
+                                case AnimationType.equalizerAnimations:
+                                  title = 'Equalizer Animations';
+                                  subtitle = 'Moving bars in the equalizer';
+                                  icon = Icons.graphic_eq;
+                                  break;
+                                case AnimationType.songChangeAnimations:
+                                  title = 'Song Change Animations';
+                                  subtitle = 'Animations when switching songs';
+                                  icon = Icons.music_note;
+                                  break;
+                                case AnimationType.uiAnimations:
+                                  title = 'UI Animations';
+                                  subtitle =
+                                      'Buttons, switches, and interface animations';
+                                  icon = Icons.touch_app;
+                                  break;
+                                case AnimationType.lyricsAnimations:
+                                  title = 'Lyrics Animations';
+                                  subtitle =
+                                      'Lyrics scrolling and highlighting';
+                                  icon = Icons.text_fields;
+                                  break;
+                                default:
+                                  title = type.name;
+                                  subtitle = '';
+                                  icon = Icons.settings;
+                              }
 
-                          return ListTile(
-                            leading: Icon(icon),
-                            title: Text(title),
-                            subtitle: Text(subtitle),
-                            trailing: Switch(
-                              value: currentSettings[type] ?? true,
-                              onChanged: (value) {
-                                setState(() {
-                                  currentSettings[type] = value;
-                                });
-                              },
-                            ),
-                          );
-                        }).toList(),
+                              return ListTile(
+                                leading: Icon(icon),
+                                title: Text(title),
+                                subtitle: Text(subtitle),
+                                trailing: Switch(
+                                  value: currentSettings[type] ?? true,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      currentSettings[type] = value;
+                                    });
+                                  },
+                                ),
+                              );
+                            })
+                            .toList(),
                       ),
                     ),
                     // Actions
@@ -1009,15 +1145,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               for (AnimationType type in AnimationType.values) {
                                 if (type != AnimationType.all) {
                                   await _saveAnimationSetting(
-                                      type, currentSettings[type] ?? true);
+                                    type,
+                                    currentSettings[type] ?? true,
+                                  );
                                 }
                               }
                               Navigator.of(context).pop();
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                      content:
-                                          Text('Animation settings saved')),
+                                    content: Text('Animation settings saved'),
+                                  ),
                                 );
                               }
                             },
@@ -1037,7 +1175,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showMaxConcurrentPlaylistMatchesDialog(
-      BuildContext context, int currentValue) {
+    BuildContext context,
+    int currentValue,
+  ) {
     int selectedValue = currentValue;
 
     showDialog(
@@ -1083,13 +1223,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () async {
                     maxConcurrentPlaylistMatchesNotifier.value = selectedValue;
                     await _saveMaxConcurrentPlaylistMatchesSetting(
-                        selectedValue);
+                      selectedValue,
+                    );
                     Navigator.of(context).pop();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                            content: Text(
-                                'Max concurrent playlist matches set to $selectedValue')),
+                          content: Text(
+                            'Max concurrent playlist matches set to $selectedValue',
+                          ),
+                        ),
                       );
                     }
                   },
@@ -1117,19 +1260,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ...presetMinutes.map((m) => RadioListTile<int>(
-                        title: Text('$m minutes'),
-                        value: m,
-                        // ignore: deprecated_member_use
-                        groupValue: selectedMinutes,
-                        // ignore: deprecated_member_use
-                        onChanged: (val) {
-                          setState(() {
-                            selectedMinutes = val;
-                            customController.clear();
-                          });
-                        },
-                      )),
+                  ...presetMinutes.map(
+                    (m) => RadioListTile<int>(
+                      title: Text('$m minutes'),
+                      value: m,
+                      // ignore: deprecated_member_use
+                      groupValue: selectedMinutes,
+                      // ignore: deprecated_member_use
+                      onChanged: (val) {
+                        setState(() {
+                          selectedMinutes = val;
+                          customController.clear();
+                        });
+                      },
+                    ),
+                  ),
                   RadioListTile<int>(
                     title: Row(
                       children: [
@@ -1150,12 +1295,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ],
                     ),
-                    value: selectedMinutes != null &&
+                    value:
+                        selectedMinutes != null &&
                             !presetMinutes.contains(selectedMinutes!)
                         ? selectedMinutes!
                         : -1,
                     // ignore: deprecated_member_use
-                    groupValue: selectedMinutes != null &&
+                    groupValue:
+                        selectedMinutes != null &&
                             !presetMinutes.contains(selectedMinutes!)
                         ? selectedMinutes!
                         : -1,
@@ -1270,7 +1417,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                          content: Text('Could not launch ${updateInfo.url}')),
+                        content: Text('Could not launch ${updateInfo.url}'),
+                      ),
                     );
                   }
                 }
@@ -1366,19 +1514,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: const Text(
                         'Update Now',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       onPressed: () async {
                         final Uri url = Uri.parse(updateInfo.url);
                         if (await canLaunchUrl(url)) {
-                          await launchUrl(url,
-                              mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                          );
                         } else {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content: Text(
-                                      'Could not launch ${updateInfo.url}')),
+                                content: Text(
+                                  'Could not launch ${updateInfo.url}',
+                                ),
+                              ),
                             );
                           }
                         }
@@ -1397,9 +1551,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _performUpdateCheck() async {
     if (!mounted) return;
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checking for updates...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
     }
 
     try {
@@ -1422,9 +1576,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _versionRefreshNotifier.value++;
       } else {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('App is up to date.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('App is up to date.')));
         }
         latestKnownVersionNotifier.value =
             currentAppVersion; // Only update the notifier
@@ -1459,9 +1613,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title,
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -1482,9 +1636,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         trailing: const SizedBox(
           width: 50,
           height: 30,
-          child: Center(
-            child: CircularProgressIndicator(strokeWidth: 2.0),
-          ),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
         ),
       );
     }
@@ -1492,20 +1644,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       leading: Icon(icon),
       title: Text(title),
       subtitle: Text(subtitle),
-      trailing: Switch(
-        value: value,
-        onChanged: onChanged,
-      ),
+      trailing: Switch(value: value, onChanged: onChanged),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
       body: ListView(
         key: const PageStorageKey('settings_list'),
         controller: _scrollController,
@@ -1517,8 +1663,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             valueListenable: _contentDiscoveryRefreshNotifier,
             builder: (context, _, __) {
               return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 4.0,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24.0),
                 ),
@@ -1537,8 +1685,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               width: 50,
                               height: 30,
                               child: Center(
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2.0)),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.0,
+                                ),
+                              ),
                             ),
                           );
                         }
@@ -1569,16 +1719,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               width: 50,
                               height: 30,
                               child: Center(
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2.0)),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.0,
+                                ),
+                              ),
                             ),
                           );
                         }
                         return ListTile(
                           leading: const Icon(Icons.tab),
                           title: const Text('Show Radio Tab'),
-                          subtitle:
-                              const Text('Display radio tab in navigation'),
+                          subtitle: const Text(
+                            'Display radio tab in navigation',
+                          ),
                           trailing: Switch(
                             value: showRadioTab,
                             onChanged: (bool value) async {
@@ -1598,13 +1751,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             leading: Icon(Icons.filter_alt),
                             title: Text('Show Only Saved Songs in Albums'),
                             subtitle: Text(
-                                'Only show your downloaded/saved songs in saved albums'),
+                              'Only show your downloaded/saved songs in saved albums',
+                            ),
                             trailing: SizedBox(
                               width: 50,
                               height: 30,
                               child: Center(
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2.0)),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.0,
+                                ),
+                              ),
                             ),
                           );
                         }
@@ -1612,13 +1768,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           leading: const Icon(Icons.filter_alt),
                           title: const Text('Show Only Saved Songs in Albums'),
                           subtitle: const Text(
-                              'Only show your downloaded/saved songs in saved albums'),
+                            'Only show your downloaded/saved songs in saved albums',
+                          ),
                           trailing: Switch(
                             value: showOnlySavedSongsInAlbums,
                             onChanged: (bool value) async {
                               showOnlySavedSongsInAlbumsNotifier.value = value;
                               await _saveShowOnlySavedSongsInAlbumsSetting(
-                                  value);
+                                value,
+                              );
                               _contentDiscoveryRefreshNotifier.value++;
                             },
                           ),
@@ -1646,22 +1804,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return const ListTile(
                         leading: Icon(Icons.favorite),
                         title: Text('Auto Download Liked Songs'),
-                        subtitle:
-                            Text('Automatically download songs when liked'),
+                        subtitle: Text(
+                          'Automatically download songs when liked',
+                        ),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
                           child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                            child: CircularProgressIndicator(strokeWidth: 2.0),
+                          ),
                         ),
                       );
                     }
                     return ListTile(
                       leading: const Icon(Icons.favorite),
                       title: const Text('Auto Download Liked Songs'),
-                      subtitle:
-                          const Text('Automatically download songs when liked'),
+                      subtitle: const Text(
+                        'Automatically download songs when liked',
+                      ),
                       trailing: Switch(
                         value: autoDownloadLikedSongs,
                         onChanged: (bool value) async {
@@ -1679,10 +1839,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.download),
                       title: const Text('Max Concurrent Downloads'),
                       subtitle: Text(
-                          'Download up to $maxConcurrentDownloads song${maxConcurrentDownloads == 1 ? '' : 's'} simultaneously'),
+                        'Download up to $maxConcurrentDownloads song${maxConcurrentDownloads == 1 ? '' : 's'} simultaneously',
+                      ),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => _showMaxConcurrentDownloadsDialog(
-                          context, maxConcurrentDownloads),
+                        context,
+                        maxConcurrentDownloads,
+                      ),
                     );
                   },
                 ),
@@ -1693,10 +1856,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.playlist_add),
                       title: const Text('Max Concurrent Playlist Matches'),
                       subtitle: Text(
-                          'Search up to $maxConcurrentPlaylistMatches song${maxConcurrentPlaylistMatches == 1 ? '' : 's'} simultaneously during import'),
+                        'Search up to $maxConcurrentPlaylistMatches song${maxConcurrentPlaylistMatches == 1 ? '' : 's'} simultaneously during import',
+                      ),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => _showMaxConcurrentPlaylistMatchesDialog(
-                          context, maxConcurrentPlaylistMatches),
+                        context,
+                        maxConcurrentPlaylistMatches,
+                      ),
                     );
                   },
                 ),
@@ -1704,7 +1870,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.cloud_download_outlined),
                   title: const Text('Fetch Metadata for Local Songs'),
                   subtitle: const Text(
-                      'Convert imported songs to native songs with full metadata.'),
+                    'Convert imported songs to native songs with full metadata.',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.of(context).push(
@@ -1734,9 +1901,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return ListTile(
                         leading: const Icon(Icons.speed),
                         title: const Text('Custom Speed Presets'),
-                        subtitle: Text(customPresets.isEmpty
-                            ? 'No custom presets added'
-                            : '${customPresets.length} custom preset${customPresets.length == 1 ? '' : 's'}'),
+                        subtitle: Text(
+                          customPresets.isEmpty
+                              ? 'No custom presets added'
+                              : '${customPresets.length} custom preset${customPresets.length == 1 ? '' : 's'}',
+                        ),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () => _showCustomSpeedPresetsDialog(context),
                       );
@@ -1747,7 +1916,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Sleep Timer'),
                   subtitle: _sleepTimerService.sleepTimerEndTime != null
                       ? Text(
-                          'Timer set: ends at ${_sleepTimerService.getEndTimeString()}')
+                          'Timer set: ends at ${_sleepTimerService.getEndTimeString()}',
+                        )
                       : const Text('No timer set'),
                   trailing: _sleepTimerService.sleepTimerEndTime != null
                       ? IconButton(
@@ -1768,13 +1938,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         leading: Icon(Icons.swap_horiz),
                         title: Text('Seamless Context Switch'),
                         subtitle: Text(
-                            'Keep playback uninterrupted when switching playlists/albums'),
+                          'Keep playback uninterrupted when switching playlists/albums',
+                        ),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
                           child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                            child: CircularProgressIndicator(strokeWidth: 2.0),
+                          ),
                         ),
                       );
                     }
@@ -1782,14 +1953,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.swap_horiz),
                       title: const Text('Seamless Context Switch'),
                       subtitle: const Text(
-                          'Keep playback uninterrupted when switching playlists/albums'),
+                        'Keep playback uninterrupted when switching playlists/albums',
+                      ),
                       trailing: Switch(
                         value: switchContextWithoutInterruption,
                         onChanged: (bool value) async {
                           switchContextWithoutInterruptionNotifier.value =
                               value;
                           await _saveSwitchContextWithoutInterruptionSetting(
-                              value);
+                            value,
+                          );
                         },
                       ),
                     );
@@ -1802,8 +1975,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, child) {
               return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 4.0,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24.0),
                 ),
@@ -1813,8 +1988,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ListTile(
                       leading: const Icon(Icons.brightness_6_outlined),
                       title: const Text('Dark Mode'),
-                      subtitle:
-                          Text(themeProvider.isDarkMode ? 'Dark' : 'Light'),
+                      subtitle: Text(
+                        themeProvider.isDarkMode ? 'Dark' : 'Light',
+                      ),
                       trailing: Switch(
                         value: themeProvider.isDarkMode,
                         onChanged: (bool value) {
@@ -1827,8 +2003,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('Accent Color'),
                       trailing: DropdownButton<MaterialColor>(
                         value: themeProvider.accentColor,
-                        items: ThemeProvider.accentColorOptions.entries
-                            .map((entry) {
+                        items: ThemeProvider.accentColorOptions.entries.map((
+                          entry,
+                        ) {
                           String colorName = entry.key;
                           MaterialColor colorValue = entry.value;
                           return DropdownMenuItem<MaterialColor>(
@@ -1869,15 +2046,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      vertical: 20.0, horizontal: 20.0),
+                    vertical: 20.0,
+                    horizontal: 20.0,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Downloaded Songs and Storage Used',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
@@ -1897,15 +2074,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       height: 18,
                                       width: 18,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                        strokeWidth: 2,
+                                      ),
                                     );
                                   } else if (snapshot.hasError) {
-                                    return Text('Error',
-                                        style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .error,
-                                            fontSize: 15));
+                                    return Text(
+                                      'Error',
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                        fontSize: 15,
+                                      ),
+                                    );
                                   } else if (snapshot.hasData) {
                                     return Text(
                                       '${snapshot.data} Songs',
@@ -1913,12 +2094,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           .textTheme
                                           .bodyLarge
                                           ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
                                     );
                                   }
-                                  return const Text('N/A',
-                                      style: TextStyle(fontSize: 15));
+                                  return const Text(
+                                    'N/A',
+                                    style: TextStyle(fontSize: 15),
+                                  );
                                 },
                               );
                             },
@@ -1942,15 +2126,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       height: 18,
                                       width: 18,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                        strokeWidth: 2,
+                                      ),
                                     );
                                   } else if (snapshot.hasError) {
-                                    return Text('Error',
-                                        style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .error,
-                                            fontSize: 15));
+                                    return Text(
+                                      'Error',
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                        fontSize: 15,
+                                      ),
+                                    );
                                   } else if (snapshot.hasData) {
                                     return Text(
                                       '${_formatBytes(snapshot.data ?? 0)} used',
@@ -1958,12 +2146,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           .textTheme
                                           .bodyLarge
                                           ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
                                     );
                                   }
-                                  return const Text('N/A',
-                                      style: TextStyle(fontSize: 15));
+                                  return const Text(
+                                    'N/A',
+                                    style: TextStyle(fontSize: 15),
+                                  );
                                 },
                               );
                             },
@@ -1974,15 +2165,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 ListTile(
-                  leading: Icon(Icons.delete_sweep_outlined,
-                      color: Theme.of(context).colorScheme.error),
+                  leading: Icon(
+                    Icons.delete_sweep_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   title: Text(
                     'Delete All Downloaded Songs',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                   subtitle: const Text(
-                      'Remove local files but keep songs in library'),
+                    'Remove local files but keep songs in library',
+                  ),
                   onTap: () async {
                     bool? confirmDelete = await showDialog<bool>(
                       context: context,
@@ -1990,7 +2185,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return AlertDialog(
                           title: const Text('Delete All Downloads?'),
                           content: const Text(
-                              'Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.'),
+                            'Are you sure you want to delete all downloaded songs? This action will remove local files but keep them in your library. This action cannot be undone.',
+                          ),
                           actions: <Widget>[
                             TextButton(
                               child: const Text('Cancel'),
@@ -1999,10 +2195,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               },
                             ),
                             TextButton(
-                              child: Text('Delete',
-                                  style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error)),
+                              child: Text(
+                                'Delete',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
                               onPressed: () {
                                 Navigator.of(context).pop(true);
                               },
@@ -2017,11 +2215,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.refresh_outlined,
-                      color: Theme.of(context).colorScheme.primary),
+                  leading: Icon(
+                    Icons.refresh_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   title: const Text('Validate & Fix Downloaded Files'),
                   subtitle: const Text(
-                      'Check all downloaded songs, redownload corrupted ones, and unmark missing files'),
+                    'Check all downloaded songs, redownload corrupted ones, and unmark missing files',
+                  ),
                   onTap: () async {
                     bool? confirmValidate = await showDialog<bool>(
                       context: context,
@@ -2029,7 +2230,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return AlertDialog(
                           title: const Text('Validate Downloads?'),
                           content: const Text(
-                              'This will check all downloaded songs for corruption and missing files. Corrupted files will be redownloaded, and missing files will be unmarked as downloaded. This may take some time.'),
+                            'This will check all downloaded songs for corruption and missing files. Corrupted files will be redownloaded, and missing files will be unmarked as downloaded. This may take some time.',
+                          ),
                           actions: <Widget>[
                             TextButton(
                               child: const Text('Cancel'),
@@ -2038,11 +2240,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               },
                             ),
                             TextButton(
-                              child: Text('Validate',
-                                  style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary)),
+                              child: Text(
+                                'Validate',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
                               onPressed: () {
                                 Navigator.of(context).pop(true);
                               },
@@ -2083,11 +2286,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             final parts = <String>[];
                             if (validationResult.corruptedSongs.isNotEmpty) {
                               parts.add(
-                                  '${validationResult.corruptedSongs.length} corrupted files');
+                                '${validationResult.corruptedSongs.length} corrupted files',
+                              );
                             }
                             if (validationResult.unmarkedSongs.isNotEmpty) {
                               parts.add(
-                                  '${validationResult.unmarkedSongs.length} missing files unmarked');
+                                '${validationResult.unmarkedSongs.length} missing files unmarked',
+                              );
                             }
                             message =
                                 'Found ${parts.join(' and ')}. ${validationResult.corruptedSongs.isNotEmpty ? 'Redownloading...' : ''}';
@@ -2106,8 +2311,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Error validating downloads: $e'),
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.error,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.error,
                             ),
                           );
                         }
@@ -2116,11 +2322,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.clear_all_outlined,
-                      color: Theme.of(context).colorScheme.secondary),
+                  leading: Icon(
+                    Icons.clear_all_outlined,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
                   title: const Text('Clear Recently Played Stations'),
                   subtitle: const Text(
-                      'Remove recently played radio stations from history'),
+                    'Remove recently played radio stations from history',
+                  ),
                   onTap: () async {
                     final confirmed = await showDialog<bool>(
                       context: context,
@@ -2128,7 +2337,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return AlertDialog(
                           title: const Text('Clear Recent Stations?'),
                           content: const Text(
-                              'This will clear the list of recently played radio stations. This action cannot be undone.'),
+                            'This will clear the list of recently played radio stations. This action cannot be undone.',
+                          ),
                           actions: <Widget>[
                             TextButton(
                               child: const Text('Cancel'),
@@ -2136,10 +2346,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Navigator.of(dialogContext).pop(false),
                             ),
                             TextButton(
-                              child: Text('Clear',
-                                  style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error)),
+                              child: Text(
+                                'Clear',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
                               onPressed: () =>
                                   Navigator.of(dialogContext).pop(true),
                             ),
@@ -2156,8 +2368,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                              content:
-                                  Text('Recently played stations cleared.')),
+                            content: Text('Recently played stations cleared.'),
+                          ),
                         );
                       }
                     }
@@ -2171,15 +2383,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             valueListenable: listeningStatsEnabledNotifier,
             builder: (context, enabled, _) {
               return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 4.0,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24.0),
                 ),
                 elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      vertical: 20.0, horizontal: 20.0),
+                    vertical: 20.0,
+                    horizontal: 20.0,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2189,9 +2405,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(width: 8),
                           Text(
                             'Your Listening Stats',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const Spacer(),
@@ -2206,8 +2420,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (!enabled)
                         const Padding(
                           padding: EdgeInsets.only(top: 16.0),
-                          child: Text('Listening stats are disabled.',
-                              style: TextStyle(color: Colors.grey)),
+                          child: Text(
+                            'Listening stats are disabled.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ),
                       if (enabled)
                         FutureBuilder<Map<String, dynamic>>(
@@ -2216,12 +2432,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
                               return const Center(
-                                  child: CircularProgressIndicator());
+                                child: CircularProgressIndicator(),
+                              );
                             } else if (snapshot.hasError) {
-                              return Text('Error loading stats',
-                                  style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error));
+                              return Text(
+                                'Error loading stats',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              );
                             } else if (!snapshot.hasData) {
                               return const Text('No stats available');
                             }
@@ -2241,14 +2460,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               children: [
                                 const SizedBox(height: 16),
                                 if (dailyCounts.isNotEmpty &&
-                                    dailyCounts.values
-                                        .any((count) => count > 0)) ...[
-                                  Text('Daily Listening (last 7 days):',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.bold)),
+                                    dailyCounts.values.any(
+                                      (count) => count > 0,
+                                    )) ...[
+                                  Text(
+                                    'Daily Listening (last 7 days):',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
                                   const SizedBox(height: 8),
                                   SizedBox(
                                     height: 200,
@@ -2256,32 +2477,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       BarChartData(
                                         alignment:
                                             BarChartAlignment.spaceAround,
-                                        maxY:
-                                            _calculateMaxY(dailyCounts.values),
+                                        maxY: _calculateMaxY(
+                                          dailyCounts.values,
+                                        ),
                                         minY: 0,
                                         barTouchData: BarTouchData(
                                           enabled: true,
                                           touchTooltipData: BarTouchTooltipData(
                                             tooltipBorder: BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline),
-                                            getTooltipItem: (group, groupIndex,
-                                                rod, rodIndex) {
-                                              final keys =
-                                                  dailyCounts.keys.toList();
-                                              final date = keys[group.x];
-                                              final count = rod.toY.toInt();
-                                              return BarTooltipItem(
-                                                '$date\n$count plays',
-                                                TextStyle(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              );
-                                            },
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outline,
+                                            ),
+                                            getTooltipItem:
+                                                (
+                                                  group,
+                                                  groupIndex,
+                                                  rod,
+                                                  rodIndex,
+                                                ) {
+                                                  final keys = dailyCounts.keys
+                                                      .toList();
+                                                  final date = keys[group.x];
+                                                  final count = rod.toY.toInt();
+                                                  return BarTooltipItem(
+                                                    '$date\n$count plays',
+                                                    TextStyle(
+                                                      color: Theme.of(
+                                                        context,
+                                                      ).colorScheme.onSurface,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  );
+                                                },
                                           ),
                                         ),
                                         titlesData: FlTitlesData(
@@ -2290,84 +2519,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               showTitles: true,
                                               reservedSize: 40,
                                               interval: _calculateYAxisInterval(
-                                                  dailyCounts.values),
-                                              getTitlesWidget: (double value,
-                                                  TitleMeta meta) {
-                                                return Text(
-                                                  value.toInt().toString(),
-                                                  style: TextStyle(
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurface,
-                                                    fontSize: 12,
-                                                  ),
-                                                );
-                                              },
+                                                dailyCounts.values,
+                                              ),
+                                              getTitlesWidget:
+                                                  (
+                                                    double value,
+                                                    TitleMeta meta,
+                                                  ) {
+                                                    return Text(
+                                                      value.toInt().toString(),
+                                                      style: TextStyle(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.onSurface,
+                                                        fontSize: 12,
+                                                      ),
+                                                    );
+                                                  },
                                             ),
                                           ),
                                           bottomTitles: AxisTitles(
                                             sideTitles: SideTitles(
                                               showTitles: true,
-                                              getTitlesWidget: (double value,
-                                                  TitleMeta meta) {
-                                                final keys =
-                                                    dailyCounts.keys.toList();
-                                                if (value.toInt() < 0 ||
-                                                    value.toInt() >=
-                                                        keys.length) {
-                                                  return const SizedBox();
-                                                }
-                                                final dateStr =
-                                                    keys[value.toInt()];
-                                                // Format date as MM/DD
-                                                final parts =
-                                                    dateStr.split('-');
-                                                if (parts.length >= 3) {
-                                                  return Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            top: 8.0),
-                                                    child: Text(
-                                                      '${parts[1]}/${parts[2]}',
-                                                      style: TextStyle(
-                                                        color: Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurface,
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                  );
-                                                }
-                                                return const SizedBox();
-                                              },
+                                              getTitlesWidget:
+                                                  (
+                                                    double value,
+                                                    TitleMeta meta,
+                                                  ) {
+                                                    final keys = dailyCounts
+                                                        .keys
+                                                        .toList();
+                                                    if (value.toInt() < 0 ||
+                                                        value.toInt() >=
+                                                            keys.length) {
+                                                      return const SizedBox();
+                                                    }
+                                                    final dateStr =
+                                                        keys[value.toInt()];
+                                                    // Format date as MM/DD
+                                                    final parts = dateStr.split(
+                                                      '-',
+                                                    );
+                                                    if (parts.length >= 3) {
+                                                      return Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              top: 8.0,
+                                                            ),
+                                                        child: Text(
+                                                          '${parts[1]}/${parts[2]}',
+                                                          style: TextStyle(
+                                                            color:
+                                                                Theme.of(
+                                                                      context,
+                                                                    )
+                                                                    .colorScheme
+                                                                    .onSurface,
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                    return const SizedBox();
+                                                  },
                                               reservedSize: 40,
                                             ),
                                           ),
                                           rightTitles: AxisTitles(
-                                              sideTitles: SideTitles(
-                                                  showTitles: false)),
+                                            sideTitles: SideTitles(
+                                              showTitles: false,
+                                            ),
+                                          ),
                                           topTitles: AxisTitles(
-                                              sideTitles: SideTitles(
-                                                  showTitles: false)),
+                                            sideTitles: SideTitles(
+                                              showTitles: false,
+                                            ),
+                                          ),
                                         ),
                                         borderData: FlBorderData(
                                           show: true,
                                           border: Border(
                                             bottom: BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline),
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outline,
+                                            ),
                                             left: BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline),
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outline,
+                                            ),
                                           ),
                                         ),
                                         gridData: FlGridData(
                                           show: true,
                                           horizontalInterval:
                                               _calculateGridInterval(
-                                                  dailyCounts.values),
+                                                dailyCounts.values,
+                                              ),
                                           getDrawingHorizontalLine: (value) {
                                             return FlLine(
                                               color: Theme.of(context)
@@ -2380,9 +2629,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           drawVerticalLine: false,
                                         ),
                                         barGroups: [
-                                          for (int i = 0;
-                                              i < dailyCounts.length;
-                                              i++)
+                                          for (
+                                            int i = 0;
+                                            i < dailyCounts.length;
+                                            i++
+                                          )
                                             BarChartGroupData(
                                               x: i,
                                               barRods: [
@@ -2390,18 +2641,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                                   toY: dailyCounts.values
                                                       .elementAt(i)
                                                       .toDouble(),
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .primary,
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary,
                                                   width: 20,
                                                   borderRadius:
-                                                      const BorderRadius
-                                                          .vertical(
-                                                          top: Radius.circular(
-                                                              4)),
-                                                )
+                                                      const BorderRadius.vertical(
+                                                        top: Radius.circular(4),
+                                                      ),
+                                                ),
                                               ],
-                                            )
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -2409,11 +2659,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   const SizedBox(height: 16),
                                 ],
                                 if (dailyCounts.isEmpty ||
-                                    !dailyCounts.values
-                                        .any((count) => count > 0))
+                                    !dailyCounts.values.any(
+                                      (count) => count > 0,
+                                    ))
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
-                                        vertical: 16.0),
+                                      vertical: 16.0,
+                                    ),
                                     child: Text(
                                       'No listening data available for the last 7 days.',
                                       style: TextStyle(
@@ -2425,38 +2677,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                     ),
                                   ),
-                                Text('Most Played Songs:',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.bold)),
-                                ...topSongs.map((song) => ListTile(
-                                      leading: robustArtwork(
-                                        song.albumArtUrl,
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                      ),
-                                      title: Text(song.title),
-                                      subtitle: Text(song.artist),
-                                      trailing: Text('${song.playCount} plays'),
-                                      dense: true,
-                                    )),
+                                Text(
+                                  'Most Played Songs:',
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                ...topSongs.map(
+                                  (song) => ListTile(
+                                    leading: robustArtwork(
+                                      song.albumArtUrl,
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    title: Text(song.title),
+                                    subtitle: Text(song.artist),
+                                    trailing: Text('${song.playCount} plays'),
+                                    dense: true,
+                                  ),
+                                ),
                                 const SizedBox(height: 12),
-                                Text('Most Played Artists:',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.bold)),
-                                ...topArtists.map((entry) => ListTile(
-                                      leading: const CircleAvatar(
-                                          child: Icon(Icons.person)),
-                                      title: Text(entry.key),
-                                      trailing: Text('${entry.value} plays'),
-                                      dense: true,
-                                    )),
+                                Text(
+                                  'Most Played Artists:',
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                ...topArtists.map(
+                                  (entry) => ListTile(
+                                    leading: const CircleAvatar(
+                                      child: Icon(Icons.person),
+                                    ),
+                                    title: Text(entry.key),
+                                    trailing: Text('${entry.value} plays'),
+                                    dense: true,
+                                  ),
+                                ),
                               ],
                             );
                           },
@@ -2476,9 +2731,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             elevation: 2,
             child: ExpansionTile(
               key: const PageStorageKey<String>(
-                  'advanced_settings_expansion_tile'),
-              leading: Icon(Icons.settings_applications_outlined,
-                  color: Theme.of(context).colorScheme.secondary),
+                'advanced_settings_expansion_tile',
+              ),
+              leading: Icon(
+                Icons.settings_applications_outlined,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
               title: const Text('Advanced Settings'),
               subtitle: const Text('Danger zone: advanced file management'),
               children: [
@@ -2494,18 +2752,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.animation),
                       title: const Text('Animation Settings'),
                       subtitle: Text(
-                          '$enabledCount of $totalCount animations enabled'),
+                        '$enabledCount of $totalCount animations enabled',
+                      ),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => _showAnimationSettingsDialog(context),
                     );
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.folder_delete_outlined,
-                      color: Theme.of(context).colorScheme.error),
+                  leading: Icon(
+                    Icons.folder_delete_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   title: const Text('Manage Downloaded Files'),
                   subtitle: const Text(
-                      'Delete individual files from the downloads folder'),
+                    'Delete individual files from the downloads folder',
+                  ),
                   onTap: () {
                     Navigator.of(context).push(
                       createAnimatedPageRoute(
@@ -2532,7 +2794,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (context, _, __) {
                     final currentVersion = currentAppVersionNotifier.value;
                     final latestVersion = latestKnownVersionNotifier.value;
-                    final hasUpdate = currentVersion != 'Loading...' &&
+                    final hasUpdate =
+                        currentVersion != 'Loading...' &&
                         latestVersion != 'N/A' &&
                         latestVersion != 'Error' &&
                         latestVersion != currentVersion;
@@ -2542,11 +2805,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.info),
                       title: const Text('Version'),
                       subtitle: Text(
-                          'Current: $currentVersion\nLatest: $latestVersion'),
+                        'Current: $currentVersion\nLatest: $latestVersion',
+                      ),
                       trailing: hasUpdate
                           ? Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Theme.of(context).colorScheme.primary,
                                 borderRadius: BorderRadius.circular(12),
@@ -2554,8 +2820,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: Text(
                                 'Update Available',
                                 style: TextStyle(
-                                  color:
-                                      Theme.of(context).colorScheme.onPrimary,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -2579,8 +2846,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           width: 50,
                           height: 30,
                           child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                            child: CircularProgressIndicator(strokeWidth: 2.0),
+                          ),
                         ),
                       );
                     }
@@ -2599,8 +2866,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       onTap: () async {
                         final releaseChannelService = ReleaseChannelService();
-                        final channels =
-                            releaseChannelService.getAvailableChannels();
+                        final channels = releaseChannelService
+                            .getAvailableChannels();
 
                         if (!mounted) return;
 
@@ -2641,7 +2908,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                    'Switched to ${selected.displayName} channel. Updates will be checked from this channel.'),
+                                  'Switched to ${selected.displayName} channel. Updates will be checked from this channel.',
+                                ),
                               ),
                             );
                           }
@@ -2659,14 +2927,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         key: ValueKey('auto_check_updates_list_tile'),
                         leading: Icon(Icons.sync),
                         title: Text('Auto Check for Updates'),
-                        subtitle:
-                            Text('Automatically check for updates on app open'),
+                        subtitle: Text(
+                          'Automatically check for updates on app open',
+                        ),
                         trailing: SizedBox(
                           width: 50,
                           height: 30,
                           child: Center(
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                            child: CircularProgressIndicator(strokeWidth: 2.0),
+                          ),
                         ),
                       );
                     }
@@ -2675,7 +2944,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.sync),
                       title: const Text('Auto Check for Updates'),
                       subtitle: const Text(
-                          'Automatically check for updates on app open'),
+                        'Automatically check for updates on app open',
+                      ),
                       trailing: Switch(
                         value: autoCheckForUpdates,
                         onChanged: (bool value) async {
@@ -2695,7 +2965,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.upload_file),
                   title: const Text('Export All Data'),
-                  subtitle: const Text('Export playlists, albums, songs, and settings'),
+                  subtitle: const Text(
+                    'Export playlists, albums, songs, and settings',
+                  ),
                   onTap: () => _exportData(context),
                 ),
                 ListTile(
@@ -2723,13 +2995,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () => _showTermsOfService(context),
                 ),
                 ListTile(
-                  leading: Icon(Icons.bug_report,
-                      color: Theme.of(context).colorScheme.error),
+                  leading: Icon(
+                    Icons.bug_report,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   title: const Text('Report a Bug'),
                   subtitle: const Text('Help us improve the app'),
                   onTap: () {
-                    BugReportService()
-                        .logUserAction('bug_report_dialog_opened');
+                    BugReportService().logUserAction(
+                      'bug_report_dialog_opened',
+                    );
                     showBugReportDialog(context);
                   },
                 ),
@@ -2766,20 +3041,20 @@ class ThemeProvider extends ChangeNotifier {
   MaterialColor get accentColor => _accentColor;
 
   ThemeData get lightTheme => ThemeData(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _accentColor,
-          brightness: Brightness.light,
-        ),
-      );
+    brightness: Brightness.light,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _accentColor,
+      brightness: Brightness.light,
+    ),
+  );
 
   ThemeData get darkTheme => ThemeData(
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _accentColor,
-          brightness: Brightness.dark,
-        ),
-      );
+    brightness: Brightness.dark,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _accentColor,
+      brightness: Brightness.dark,
+    ),
+  );
 
   ThemeProvider() {
     _loadThemeMode();
@@ -2903,16 +3178,19 @@ Future<Map<String, dynamic>> _getListeningStats() async {
       }
     }
   }
-  allAlbums.sort((a, b) =>
-      (b['playCount'] as int? ?? 0).compareTo(a['playCount'] as int? ?? 0));
+  allAlbums.sort(
+    (a, b) =>
+        (b['playCount'] as int? ?? 0).compareTo(a['playCount'] as int? ?? 0),
+  );
   final topAlbums = allAlbums.take(3).toList();
   // Artists
   final artistPlayCountsJson = prefs.getString('artist_play_counts');
   Map<String, int> artistPlayCounts = {};
   if (artistPlayCountsJson != null) {
     try {
-      artistPlayCounts =
-          Map<String, int>.from(jsonDecode(artistPlayCountsJson));
+      artistPlayCounts = Map<String, int>.from(
+        jsonDecode(artistPlayCountsJson),
+      );
     } catch (_) {}
   }
   final topArtists = artistPlayCounts.entries.toList()
@@ -2927,7 +3205,7 @@ Future<Map<String, dynamic>> _getListeningStats() async {
   }
   // Only keep last 7 days, sorted
   final last7Days = [
-    for (int i = 6; i >= 0; i--) now.subtract(Duration(days: i))
+    for (int i = 6; i >= 0; i--) now.subtract(Duration(days: i)),
   ];
   final Map<String, int> last7DailyCounts = {};
 
