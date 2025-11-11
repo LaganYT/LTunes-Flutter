@@ -419,15 +419,21 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       // Only auto-skip if we're already playing and this is not the first song attempt
       // For the first song in a new playback session, let the caller handle the error
-      final isFirstSongAttempt = !_audioPlayer.playing && playbackState.value.processingState == AudioProcessingState.idle;
+      final isFirstSongAttempt = !_audioPlayer.playing &&
+          playbackState.value.processingState == AudioProcessingState.idle;
 
-      if (!isFirstSongAttempt && _playlist.isNotEmpty && _currentIndex >= 0 && _currentIndex < _playlist.length) {
-        debugPrint("AudioHandler: Auto-skipping to next song due to playback error (not first song)");
+      if (!isFirstSongAttempt &&
+          _playlist.isNotEmpty &&
+          _currentIndex >= 0 &&
+          _currentIndex < _playlist.length) {
+        debugPrint(
+            "AudioHandler: Auto-skipping to next song due to playback error (not first song)");
         try {
           // Try to skip to next song
           if (_currentIndex < _playlist.length - 1) {
             await skipToNext();
-          } else if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+          } else if (playbackState.value.repeatMode ==
+              AudioServiceRepeatMode.all) {
             // Loop to beginning if repeat is enabled
             await skipToQueueItem(0);
           } else {

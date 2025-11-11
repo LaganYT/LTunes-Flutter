@@ -35,6 +35,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.APP_MUSIC"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
@@ -49,8 +55,41 @@
             android:exported="true" tools:ignore="Instantiatable">
           <intent-filter>
             <action android:name="android.media.browse.MediaBrowserService" />
+            <category android:name="android.intent.category.DEFAULT" />
           </intent-filter>
+          <meta-data
+              android:name="android.media.browse.CONTENT_STYLE_SUPPORTED"
+              android:value="true" />
+          <meta-data
+              android:name="android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
+              android:value="2" />
+          <meta-data
+              android:name="android.media.browse.CONTENT_STYLE_PLAYABLE_HINT"
+              android:value="2" />
+          <meta-data
+              android:name="android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT"
+              android:value="2" />
+          <meta-data
+              android:name="android.media.browse.CONTENT_TYPE"
+              android:value="1" />
+          <meta-data
+              android:name="android.media.browse.SEARCH_SUPPORTED"
+              android:value="true" />
         </service>
+        <service
+    android:name=".CarMediaBrowserService"
+    android:exported="true"
+    android:foregroundServiceType="mediaPlayback">
+    <intent-filter>
+        <action android:name="android.media.browse.MediaBrowserService" />
+        <category android:name="android.intent.category.CAR_MEDIA" />
+    </intent-filter>
+
+    <!-- Let Android Auto know this service provides media content -->
+    <meta-data
+        android:name="com.google.android.gms.car.application"
+        android:resource="@xml/automotive_app_desc" />
+</service>
 
         <!-- ADD THIS "RECEIVER" element -->
         <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver"
