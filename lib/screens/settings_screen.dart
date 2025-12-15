@@ -28,6 +28,7 @@ import '../screens/playlists_list_screen.dart' show robustArtwork;
 import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/animation_service.dart'; // Import AnimationService
 import '../widgets/bug_report_dialog.dart'; // Import BugReportDialog
+import '../widgets/update_dialog.dart'; // Import UpdateDialog
 import '../services/bug_report_service.dart'; // Import BugReportService
 import '../services/haptic_service.dart'; // Import HapticService
 
@@ -1106,153 +1107,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false, // User must interact with the dialog
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Update Available'),
-          content: Text(updateInfo.message),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Later'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Update Now'),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                final Uri url = Uri.parse(updateInfo.url);
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                } else {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text('Could not launch ${updateInfo.url}')),
-                    );
-                  }
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+    await UpdateDialog.show(context, updateInfo, isMandatory: false);
   }
 
   Future<void> _showMandatoryUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
-
-    // Show a non-dismissible dialog for mandatory updates
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Cannot be dismissed by tapping outside
-      builder: (BuildContext context) {
-        return PopScope(
-          canPop: false, // Prevent back button from closing dialog
-          child: Dialog(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.9,
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title with warning icon
-                  Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.orange, size: 24),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Mandatory Update Required',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  // Content
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'A critical update is required to continue using the app.',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Text(
-                              updateInfo.message,
-                              style: TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'You must update the app to continue.',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  // Action button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text(
-                        'Update Now',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: () async {
-                        final Uri url = Uri.parse(updateInfo.url);
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url,
-                              mode: LaunchMode.externalApplication);
-                        } else {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(
-                                      'Could not launch ${updateInfo.url}')),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    await UpdateDialog.show(context, updateInfo, isMandatory: true);
   }
 
   Future<void> _performUpdateCheck() async {

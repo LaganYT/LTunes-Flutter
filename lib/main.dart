@@ -21,6 +21,7 @@ import 'services/bug_report_service.dart'; // Import BugReportService
 import 'services/artwork_service.dart'; // Import ArtworkService
 import 'services/liked_songs_service.dart'; // Import LikedSongsService
 import 'services/haptic_service.dart'; // Import HapticService
+import 'widgets/update_dialog.dart'; // Import UpdateDialog
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
@@ -348,156 +349,12 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
 
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
-    final scaffoldMessenger =
-        ScaffoldMessenger.of(context); // Capture before async gap
-    showDialog(
-      context: context,
-      barrierDismissible: false, // User must interact with the dialog
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Update Available'),
-          content: Text(updateInfo.message),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Later'),
-              onPressed: () async {
-                await HapticService().lightImpact();
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Update Now'),
-              onPressed: () async {
-                await HapticService().lightImpact();
-                Navigator.of(context).pop();
-                final Uri url = Uri.parse(updateInfo.url);
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url, mode: LaunchMode.externalApplication);
-                } else {
-                  // Use captured scaffoldMessenger instead of context after async
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                        content: Text('Could not launch ${updateInfo.url}')),
-                  );
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+    await UpdateDialog.show(context, updateInfo, isMandatory: false);
   }
 
   Future<void> _showMandatoryUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
-    final scaffoldMessenger =
-        ScaffoldMessenger.of(context); // Capture before async gap
-
-    // Show a non-dismissible dialog for mandatory updates
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Cannot be dismissed by tapping outside
-      builder: (BuildContext context) {
-        return PopScope(
-          canPop: false, // Prevent back button from closing dialog
-          child: Dialog(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.9,
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title with warning icon
-                  Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.orange, size: 24),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Mandatory Update Required',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  // Content
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'A critical update is required to continue using the app.',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            updateInfo.message,
-                            style: TextStyle(fontSize: 14),
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            'You must update the app to continue.',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  // Action button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text(
-                        'Update Now',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      onPressed: () async {
-                        await HapticService().lightImpact();
-                        final Uri url = Uri.parse(updateInfo.url);
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url,
-                              mode: LaunchMode.externalApplication);
-                        } else {
-                          // Use captured scaffoldMessenger instead of context after async
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                                content:
-                                    Text('Could not launch ${updateInfo.url}')),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    await UpdateDialog.show(context, updateInfo, isMandatory: true);
   }
 
   void _performMemoryCleanup() {
