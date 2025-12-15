@@ -503,7 +503,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults();
 
-
     if (context.mounted) {
       // Ensure mounted check before showing SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
