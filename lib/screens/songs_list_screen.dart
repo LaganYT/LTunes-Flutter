@@ -15,6 +15,7 @@ import '../services/auto_fetch_service.dart';
 import '../services/liked_songs_service.dart';
 import 'song_detail_screen.dart';
 import '../services/album_manager_service.dart'; // Import for AlbumManagerService
+import '../services/artwork_service.dart'; // Import centralized artwork service
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class SongsScreen extends StatefulWidget {
@@ -92,42 +93,13 @@ class SongsScreenState extends State<SongsScreen> {
       child: ListTile(
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
-          child: s.albumArtUrl.isNotEmpty
-              ? (s.albumArtUrl.startsWith('http')
-                  ? Image.network(
-                      s.albumArtUrl,
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.album, size: 40);
-                      },
-                    )
-                  : FutureBuilder<String>(
-                      future: () async {
-                        final dir = await getApplicationDocumentsDirectory();
-                        final fname = p.basename(s.albumArtUrl);
-                        final path = p.join(dir.path, fname);
-                        return await File(path).exists() ? path : '';
-                      }(),
-                      builder: (_, snap) {
-                        if (snap.connectionState == ConnectionState.done &&
-                            snap.hasData &&
-                            snap.data!.isNotEmpty) {
-                          return Image.file(
-                            File(snap.data!),
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(Icons.album, size: 40);
-                            },
-                          );
-                        }
-                        return const Icon(Icons.album, size: 40);
-                      },
-                    ))
-              : const Icon(Icons.album, size: 40),
+          child: artworkService.getArtworkWidget(
+            s.albumArtUrl,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+            errorWidget: const Icon(Icons.album, size: 40),
+          ),
         ),
         title: Text(s.title),
         subtitle: Text(s.artist),

@@ -15,6 +15,5 @@
 - Display countdown for the sleep timer in the full screen player app bar; redesign sleep timer integration
 - Ensure that when clicking a song in song list, playback starts immediately by loading/playin the song first and queuing the remainder in segments, avoiding queue load delays
 - Experiment with queue containing only song IDs and loading song details dynamically as needed
-- Reduce icon flickering when scrolling down the song list
 - Redesign the update available popup
 - Add native android auto support, but only for android, not ios.
