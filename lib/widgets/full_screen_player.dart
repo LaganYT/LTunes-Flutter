@@ -673,6 +673,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   // Debounce timer for lyrics toggle button to prevent spam
   Timer? _lyricsToggleDebounceTimer;
 
+  // Timer to update sleep timer countdown every minute
+  Timer? _sleepTimerCountdownUpdater;
+
   // Store reference to lyrics positions listener for proper cleanup
   VoidCallback? _lyricsPositionsListenerCallback;
 
@@ -790,9 +793,18 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     }
     _sleepTimerService.setCallbacks(
       onTimerUpdate: () {
-        if (mounted) setState(() {});
+        if (mounted) {
+          setState(() {});
+          // Start or stop countdown updater based on timer state
+          if (_sleepTimerService.isTimerActive) {
+            _startSleepTimerCountdownUpdater();
+          } else {
+            _stopSleepTimerCountdownUpdater();
+          }
+        }
       },
       onTimerExpired: () {
+        _stopSleepTimerCountdownUpdater();
         if (mounted && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1081,6 +1093,29 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
         _textFadeController.forward();
       }
     });
+  }
+
+  // Start countdown timer updater when sleep timer is active
+  void _startSleepTimerCountdownUpdater() {
+    _stopSleepTimerCountdownUpdater(); // Cancel any existing timer
+    if (_sleepTimerService.isTimerActive) {
+      _sleepTimerCountdownUpdater = Timer.periodic(
+        const Duration(seconds: 30), // Update every 30 seconds for smooth countdown
+        (_) {
+          if (mounted && _sleepTimerService.isTimerActive) {
+            setState(() {});
+          } else {
+            _stopSleepTimerCountdownUpdater();
+          }
+        },
+      );
+    }
+  }
+
+  // Stop countdown timer updater
+  void _stopSleepTimerCountdownUpdater() {
+    _sleepTimerCountdownUpdater?.cancel();
+    _sleepTimerCountdownUpdater = null;
   }
 
   // Enhanced song change animation method
@@ -1930,6 +1965,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
 
     // Cancel lyrics toggle debounce timer if active
     _lyricsToggleDebounceTimer?.cancel();
+
+    // Cancel sleep timer countdown updater
+    _stopSleepTimerCountdownUpdater();
+
     super.dispose();
   }
 
@@ -2272,6 +2311,52 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
             : null,
         centerTitle: true,
         actions: [
+          // Sleep timer countdown display when active
+          if (_sleepTimerService.isTimerActive)
+            Container(
+              margin: const EdgeInsets.only(right: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(16.0),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  width: 1.0,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.timer,
+                    size: 16.0,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 4.0),
+                  Text(
+                    _sleepTimerService.getRemainingTimeString(),
+                    style: TextStyle(
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  InkWell(
+                    onTap: () => _sleepTimerService.cancelTimer(),
+                    borderRadius: BorderRadius.circular(12.0),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2.0),
+                      child: Icon(
+                        Icons.close,
+                        size: 14.0,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             tooltip: 'More Options',
@@ -2318,38 +2403,15 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                     ],
                   ),
                 ),
+              // Sleep timer is now handled in the app bar, but keep a quick access option
               if (_sleepTimerService.sleepTimerEndTime == null)
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'sleep_timer',
                   child: Row(
                     children: [
-                      Icon(Icons.timer),
-                      SizedBox(width: 8),
-                      Text('Sleep Timer'),
-                    ],
-                  ),
-                )
-              else
-                PopupMenuItem<String>(
-                  value: 'cancel_sleep_timer',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.timer_off),
+                      Icon(Icons.timer, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text('Cancel Sleep Timer'),
-                            Text(
-                              'Ends at ${_sleepTimerService.getEndTimeString()}',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const Text('Set Sleep Timer'),
                     ],
                   ),
                 ),

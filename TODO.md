@@ -12,7 +12,6 @@
 - Add touch haptics (toggleable in settings)
 - Automatically download new songs added to downloaded playlists by improving playlist download handling
 - Design a fully-featured listening stats page
-- Display countdown for the sleep timer in the full screen player app bar; redesign sleep timer integration
 - Ensure that when clicking a song in song list, playback starts immediately by loading/playin the song first and queuing the remainder in segments, avoiding queue load delays
 - Experiment with queue containing only song IDs and loading song details dynamically as needed
 - Redesign the update available popup
