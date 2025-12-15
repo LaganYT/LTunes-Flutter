@@ -1,6 +1,7 @@
 import 'dart:convert'; // For jsonEncode
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:audio_service/audio_service.dart'; // For AudioServiceRepeatMode
 import '../providers/current_song_provider.dart'; // Ensure CurrentSongProvider is imported
 import '../models/song.dart'; // Ensure Song model is imported
 import '../models/lyrics_data.dart'; // Import LyricsData
@@ -2219,7 +2220,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     final bool isPlaying = currentSongProvider.isPlaying;
     final bool isLoading = currentSongProvider.isLoadingAudio;
     final bool isRadio = currentSongProvider.isCurrentlyPlayingRadio;
-    final LoopMode loopMode = currentSongProvider.loopMode;
+    final AudioServiceRepeatMode repeatMode = currentSongProvider.repeatMode;
 
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final TextTheme textTheme = Theme.of(context).textTheme;
@@ -2885,21 +2886,26 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                           Consumer<CurrentSongProvider>(
                             builder: (context, provider, _) => IconButton(
                               icon: Icon(
-                                provider.loopMode == LoopMode.none
+                                provider.repeatMode ==
+                                        AudioServiceRepeatMode.none
                                     ? Icons.repeat
-                                    : provider.loopMode == LoopMode.queue
+                                    : provider.repeatMode ==
+                                            AudioServiceRepeatMode.all
                                         ? Icons.repeat_outlined
                                         : Icons.repeat_one,
-                                color: provider.loopMode != LoopMode.none
+                                color: provider.repeatMode !=
+                                        AudioServiceRepeatMode.none
                                     ? colorScheme.primary
                                     : colorScheme.onSurface
                                         .withValues(alpha: 0.5),
                               ),
                               iconSize: 26,
                               onPressed: () => provider.toggleLoop(),
-                              tooltip: provider.loopMode == LoopMode.none
+                              tooltip: provider.repeatMode ==
+                                      AudioServiceRepeatMode.none
                                   ? 'Repeat Off'
-                                  : provider.loopMode == LoopMode.queue
+                                  : provider.repeatMode ==
+                                          AudioServiceRepeatMode.all
                                       ? 'Repeat Queue'
                                       : 'Repeat Song',
                             ),

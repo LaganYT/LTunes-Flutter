@@ -20,9 +20,6 @@ import '../services/download_notification_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/version_service.dart';
 
-// Define LoopMode enum
-enum LoopMode { none, queue, song }
-
 /// Validation result containing information about corrupted and unmarked songs
 class ValidationResult {
   final List<Song> corruptedSongs;
@@ -116,21 +113,10 @@ class CurrentSongProvider with ChangeNotifier {
     return mediaItem?.extras?['isRadio'] as bool? ?? false;
   }
 
-  // Getter for LoopMode based on AudioHandler's state
-  LoopMode get loopMode {
-    final currentAudioHandlerMode =
-        _audioHandler.playbackState.value.repeatMode;
-    switch (currentAudioHandlerMode) {
-      case AudioServiceRepeatMode.none:
-        return LoopMode.none;
-      case AudioServiceRepeatMode.all:
-        return LoopMode.queue;
-      case AudioServiceRepeatMode.one:
-        return LoopMode.song;
-      default:
-        return LoopMode.none;
-    }
-  }
+  /// Returns the current repeat mode directly from the AudioHandler.
+  /// Uses AudioServiceRepeatMode from audio_service package.
+  AudioServiceRepeatMode get repeatMode =>
+      _audioHandler.playbackState.value.repeatMode;
 
   bool get isShuffling => _isShuffling;
 
@@ -907,19 +893,8 @@ class CurrentSongProvider with ChangeNotifier {
   }
 
   Future<void> seek(Duration position) async {
-    // Check if current song is streaming
-    final currentSong = _currentSongFromAppLogic;
-    final isStreaming = currentSong != null && !currentSong.isDownloaded;
-
-    if (isStreaming) {
-      // Use streaming seek for better handling of streaming URLs
-      await _audioHandler.customAction('streamingSeek', {
-        'position': position.inMilliseconds,
-      });
-    } else {
-      // Use regular seek for local files
-      await _audioHandler.seek(position);
-    }
+    // Use the standard audio handler seek - it handles both streaming and local files
+    await _audioHandler.seek(position);
 
     // Force immediate position update
     _currentPosition = position;
@@ -1685,32 +1660,6 @@ class CurrentSongProvider with ChangeNotifier {
     return fetchedUrl ?? '';
   }
 
-  MediaItem songToMediaItem(Song song, String audioUrl, Duration? duration) {
-    Uri? artUri;
-    if (song.albumArtUrl.isNotEmpty && song.albumArtUrl.startsWith('http')) {
-      artUri = Uri.tryParse(song.albumArtUrl);
-    }
-
-    return MediaItem(
-      id: audioUrl,
-      album: song.album,
-      title: song.title,
-      artist: song.artist,
-      duration: duration,
-      artUri: artUri,
-      extras: {
-        'songId': song.id,
-        'artistId': song.artistId,
-        'isLocal': song.isDownloaded,
-        'localArtFileName': (!song.albumArtUrl.startsWith('http') &&
-                song.albumArtUrl.isNotEmpty)
-            ? song.albumArtUrl
-            : null,
-        'isRadio': song.artist == 'Radio Station',
-      },
-    );
-  }
-
   // Initialization and storage methods
   Future<void> _initializeDownloadManager() async {
     if (_isDownloadManagerInitialized && _downloadManager != null) return;
@@ -2436,16 +2385,10 @@ class CurrentSongProvider with ChangeNotifier {
     Timer(const Duration(seconds: 45), () {
       if (_isLoadingAudio) {
         debugPrint(
-            "CurrentSongProvider: Detected stuck loading state, attempting recovery");
-        _audioHandler.customAction('recoverFromStuckState', {}).then((success) {
-          if (success == true) {
-            debugPrint(
-                "CurrentSongProvider: Recovery from stuck loading state successful");
-          } else {
-            debugPrint(
-                "CurrentSongProvider: Recovery from stuck loading state failed");
-          }
-        });
+            "CurrentSongProvider: Detected stuck loading state, resetting state");
+        // Simply reset the loading state - the audio handler will handle recovery
+        _isLoadingAudio = false;
+        notifyListeners();
       }
     });
   }
@@ -2536,15 +2479,9 @@ class CurrentSongProvider with ChangeNotifier {
 
         if (_isLoadingAudio) {
           debugPrint(
-              "CurrentSongProvider: Still loading after 3 seconds, attempting recovery");
-          final success =
-              await _audioHandler.customAction('recoverFromStuckState', {});
-          if (success == true) {
-            debugPrint(
-                "CurrentSongProvider: Recovery from stuck state successful");
-          } else {
-            debugPrint("CurrentSongProvider: Recovery from stuck state failed");
-          }
+              "CurrentSongProvider: Still loading after 3 seconds, resetting state");
+          _isLoadingAudio = false;
+          notifyListeners();
         }
       }
     } catch (e) {

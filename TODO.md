@@ -18,5 +18,3 @@
 - Reduce icon flickering when scrolling down the song list
 - Redesign the update available popup
 - Add native android auto support, but only for android, not ios.
-
-Go through the entire codebase focusing on the audio handler and current song provider components. Identify and remove all custom audio-related code that duplicates functionality already provided by the audio, audio_service, or audio_session Flutter packages. Refactor the code to rely solely on these packages for audio playback, session management, and song state handling. Remove any unnecessary custom event listeners, state management, or helper functions related to audio that these packages can handle internally. Adjust the UI and providers to directly use the APIs and reactive streams from these packages without extra abstraction or duplication. The goal is to simplify the audio logic by leveraging the standard, well-supported Flutter audio ecosystem fully.

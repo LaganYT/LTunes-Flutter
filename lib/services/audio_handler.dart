@@ -15,6 +15,8 @@ import 'bug_report_service.dart';
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
 
+/// Converts a Song to a MediaItem for use with audio_service.
+/// This is the canonical function for this conversion - use this throughout the app.
 MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
   Uri? artUri;
   if (song.albumArtUrl.isNotEmpty && song.albumArtUrl.startsWith('http')) {
@@ -31,6 +33,7 @@ MediaItem songToMediaItem(Song song, String playableUrl, Duration? duration) {
         : song.duration,
     extras: {
       'songId': song.id,
+      'artistId': song.artistId,
       'isLocal': song.isDownloaded,
       'localArtFileName':
           (!song.albumArtUrl.startsWith('http') && song.albumArtUrl.isNotEmpty)
@@ -71,11 +74,6 @@ class AudioPlayerHandler extends BaseAudioHandler
   static const int _maxConsecutiveErrors = 3;
   Timer? _errorRecoveryTimer;
 
-  // Audio session optimization
-  DateTime? _lastSessionConfig;
-  static const Duration _sessionConfigThrottle =
-      Duration(seconds: 10); // Don't reconfigure too often
-
   // Track loop reset state
   bool _justResetForLoop = false;
 
@@ -88,14 +86,8 @@ class AudioPlayerHandler extends BaseAudioHandler
   DateTime? _lastContinuityCheck;
   static const Duration _continuityCheckThrottle = Duration(seconds: 5);
 
-  // Gapless playback settings
-  bool _gaplessModeEnabled = true; // Enable by default for better UX
-  static const Duration _gaplessTransitionDelay =
-      Duration(milliseconds: 10); // Minimal delay
-
   AudioPlayerHandler() {
     _initializeAudioSession();
-    _configureAudioPlayer(); // Configure player for optimal playback
     _notifyAudioHandlerAboutPlaybackEvents();
   }
 
@@ -108,23 +100,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       playbackState.add(playbackState.value.copyWith(playing: false));
     }
   }
-
-  /// Configure audio player for optimal playback performance
-  void _configureAudioPlayer() {
-    // Configure player settings for better performance
-    // Note: Most audio player optimizations are handled by just_audio automatically
-    // but we can add any app-specific configurations here
-  }
-
-  /// Enable or disable gapless playback mode
-  void setGaplessMode(bool enabled) {
-    _gaplessModeEnabled = enabled;
-    debugPrint(
-        "AudioHandler: Gapless mode ${enabled ? 'enabled' : 'disabled'}");
-  }
-
-  /// Get current gapless mode status
-  bool get gaplessModeEnabled => _gaplessModeEnabled;
 
   Duration get currentPosition => _audioPlayer.position;
 
@@ -419,15 +394,21 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       // Only auto-skip if we're already playing and this is not the first song attempt
       // For the first song in a new playback session, let the caller handle the error
-      final isFirstSongAttempt = !_audioPlayer.playing && playbackState.value.processingState == AudioProcessingState.idle;
+      final isFirstSongAttempt = !_audioPlayer.playing &&
+          playbackState.value.processingState == AudioProcessingState.idle;
 
-      if (!isFirstSongAttempt && _playlist.isNotEmpty && _currentIndex >= 0 && _currentIndex < _playlist.length) {
-        debugPrint("AudioHandler: Auto-skipping to next song due to playback error (not first song)");
+      if (!isFirstSongAttempt &&
+          _playlist.isNotEmpty &&
+          _currentIndex >= 0 &&
+          _currentIndex < _playlist.length) {
+        debugPrint(
+            "AudioHandler: Auto-skipping to next song due to playback error (not first song)");
         try {
           // Try to skip to next song
           if (_currentIndex < _playlist.length - 1) {
             await skipToNext();
-          } else if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+          } else if (playbackState.value.repeatMode ==
+              AudioServiceRepeatMode.all) {
             // Loop to beginning if repeat is enabled
             await skipToQueueItem(0);
           } else {
@@ -1382,16 +1363,10 @@ class AudioPlayerHandler extends BaseAudioHandler
     debugPrint(
         "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
 
-    // OPTIMIZED: Single session check at start of completion handling
-    // Only do extra session management in background mode when necessary
+    // Ensure audio session is active in background mode
     if (_isBackgroundMode) {
       await _ensureAudioSessionActive();
     }
-
-    // OPTIMIZED: Throttle session reconfiguration to prevent excessive operations
-    final now = DateTime.now();
-    final needsReconfig = _lastSessionConfig == null ||
-        now.difference(_lastSessionConfig!) > _sessionConfigThrottle;
 
     // For local files, check if we're stuck in a completion loop
     if (isLocalFile && songId != null) {
@@ -1541,10 +1516,8 @@ class AudioPlayerHandler extends BaseAudioHandler
     try {
       if (_audioPlayer.processingState == ProcessingState.completed) {
         await _audioPlayer.stop();
-        // Use minimal delay in gapless mode for seamless transitions
-        await Future.delayed(_gaplessModeEnabled
-            ? _gaplessTransitionDelay
-            : const Duration(milliseconds: 50));
+        // Use minimal delay for seamless transitions
+        await Future.delayed(const Duration(milliseconds: 10));
       }
 
       await _prepareToPlay(newIndex);
@@ -1702,14 +1675,6 @@ class AudioPlayerHandler extends BaseAudioHandler
         ));
         break;
 
-      case 'streamingSeek':
-        final positionMillis = extras?['position'] as int?;
-        if (positionMillis != null) {
-          final position = Duration(milliseconds: positionMillis);
-          await seek(position);
-        }
-        break;
-
       case 'handleAppBackground':
         await handleAppBackground();
         break;
@@ -1721,39 +1686,6 @@ class AudioPlayerHandler extends BaseAudioHandler
       case 'restoreAudioSession':
         await _restoreAudioSessionIfNeeded();
         break;
-
-      case 'forceNextSong':
-        // Force move to next song (useful for stuck local files)
-        if (_playlist.isNotEmpty && _currentIndex >= 0) {
-          debugPrint("AudioHandler: Force next song requested");
-          await skipToNext();
-        }
-        break;
-
-      case 'seekToPosition':
-        final positionMillis = extras?['position'] as int?;
-        if (positionMillis != null) {
-          final position = Duration(milliseconds: positionMillis);
-          await seek(position);
-        }
-        break;
-
-      case 'getCurrentPosition':
-        return _audioPlayer.position.inMilliseconds;
-
-      case 'getAudioDuration':
-        return _audioPlayer.duration?.inMilliseconds;
-
-      case 'isAudioReady':
-        return _audioPlayer.processingState == ProcessingState.ready;
-
-      case 'setShouldBePaused':
-        final shouldPause = extras?['shouldBePaused'] as bool?;
-        if (shouldPause != null) shouldBePaused = shouldPause;
-        break;
-
-      case 'getShouldBePaused':
-        return shouldBePaused;
 
       case 'detectAndFixAudioSessionBug':
         // CRITICAL FIX: Detect and fix the specific bug where audio stops but UI shows as playing
@@ -1806,14 +1738,6 @@ class AudioPlayerHandler extends BaseAudioHandler
           debugPrint("AudioHandler: Error detecting audio session bug: $e");
           return {'bugDetected': false, 'fixed': false, 'error': e.toString()};
         }
-
-      case 'setGaplessMode':
-        final enabled = extras?['enabled'] as bool? ?? true;
-        setGaplessMode(enabled);
-        return {'gaplessMode': enabled};
-
-      case 'getGaplessMode':
-        return {'gaplessMode': _gaplessModeEnabled};
     }
     return null;
   }
