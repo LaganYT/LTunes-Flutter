@@ -9,7 +9,6 @@
 - let users re-arange their tabs
 - When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
 
-- Add touch haptics (toggleable in settings)
 - Automatically download new songs added to downloaded playlists by improving playlist download handling
 - Design a fully-featured listening stats page
 - Ensure that when clicking a song in song list, playback starts immediately by loading/playin the song first and queuing the remainder in segments, avoiding queue load delays

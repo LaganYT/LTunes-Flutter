@@ -27,6 +27,7 @@ import '../services/animation_service.dart'; // Import AnimationService
 import '../models/album.dart'; // Import Album model
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 
 // Helper class for parsed lyric lines
@@ -2236,6 +2237,7 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   }
 
   Future<void> _toggleLike() async {
+    await HapticService().lightImpact();
     final song = _currentSongProvider.currentSong!;
     final likedSongsService =
         Provider.of<LikedSongsService>(context, listen: false);
@@ -2794,12 +2796,13 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                               icon: Icon(_showLyrics
                                   ? Icons.music_note_rounded
                                   : Icons.lyrics_outlined),
-                              onPressed: () {
+                              onPressed: () async {
                                 // Debounce to prevent spam
                                 if (_lyricsToggleDebounceTimer?.isActive ==
                                     true) {
                                   return;
                                 }
+                                await HapticService().lightImpact();
 
                                 final song = _currentSongProvider.currentSong;
                                 if (song == null) return;
@@ -2884,7 +2887,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             icon: const Icon(Icons.skip_previous_rounded),
                             iconSize: 42,
                             color: colorScheme.onSurface,
-                            onPressed: () {
+                            onPressed: () async {
+                              await HapticService().lightImpact();
                               _slideOffsetX = -1.0;
                               currentSongProvider.playPrevious();
                             },
@@ -2921,7 +2925,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                 color: colorScheme.onSecondary,
                                 onPressed: isLoading
                                     ? null
-                                    : () {
+                                    : () async {
+                                        await HapticService().mediumImpact();
                                         if (isPlaying) {
                                           provider.pauseSong();
                                         } else {
@@ -2938,7 +2943,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                             icon: const Icon(Icons.skip_next_rounded),
                             iconSize: 42,
                             color: colorScheme.onSurface,
-                            onPressed: () {
+                            onPressed: () async {
+                              await HapticService().lightImpact();
                               _slideOffsetX = 1.0;
                               currentSongProvider.playNext();
                             },

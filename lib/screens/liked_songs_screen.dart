@@ -11,6 +11,7 @@ import '../services/artwork_service.dart'; // Import centralized artwork service
 import '../providers/current_song_provider.dart';
 import 'song_detail_screen.dart'; // for AddToPlaylistDialog
 import '../widgets/full_screen_player.dart'; // For navigation to player
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class LikedSongsScreen extends StatefulWidget {
@@ -423,9 +424,13 @@ class LikedSongsScreenState extends State<LikedSongsScreen> {
                       trailing: IconButton(
                         icon: Icon(Icons.favorite,
                             color: Theme.of(context).colorScheme.secondary),
-                        onPressed: () => _removeLikedSong(song),
+                        onPressed: () async {
+                          await HapticService().lightImpact();
+                          _removeLikedSong(song);
+                        },
                       ),
-                      onTap: () {
+                      onTap: () async {
+                        await HapticService().lightImpact();
                         // queue all liked songs and play starting at this one
                         provider.smartPlayWithContext(_likedSongs, _likedSongs[i]);
                       },

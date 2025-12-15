@@ -23,6 +23,7 @@ import 'package:http/http.dart' as http;
 import '../models/playlist.dart';
 import '../services/loading_service.dart';
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 
 // Enum for content types
 enum ContentType {
@@ -854,17 +855,22 @@ class _SearchScreenState extends State<SearchScreen>
                           isLiked ? Icons.favorite : Icons.favorite_border,
                           color: isLiked ? Colors.red : null,
                         ),
-                        onPressed: () => _toggleLike(songWithStatus),
+                        onPressed: () async {
+                          await HapticService().lightImpact();
+                          _toggleLike(songWithStatus);
+                        },
                       );
                     },
                   ),
                 ],
               ),
               onTap: () async {
+                await HapticService().lightImpact();
                 await currentSongProvider
                     .smartPlayWithContext([songWithStatus], songWithStatus);
               },
-              onLongPress: () {
+              onLongPress: () async {
+                await HapticService().lightImpact();
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -940,9 +946,13 @@ class _SearchScreenState extends State<SearchScreen>
                 ? Theme.of(context).colorScheme.primary
                 : null,
           ),
-          onPressed: () => _toggleAlbumSave(album),
+          onPressed: () async {
+            await HapticService().lightImpact();
+            _toggleAlbumSave(album);
+          },
         ),
         onTap: () async {
+          await HapticService().lightImpact();
           // Show loading dialog
           showDialog(
             context: context,
@@ -1040,7 +1050,8 @@ class _SearchScreenState extends State<SearchScreen>
           'Artist',
           style: TextStyle(color: Colors.grey[600]),
         ),
-        onTap: () {
+        onTap: () async {
+          await HapticService().lightImpact();
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1095,7 +1106,8 @@ class _SearchScreenState extends State<SearchScreen>
         ),
         trailing: IconButton(
           icon: const Icon(Icons.play_arrow),
-          onPressed: () {
+          onPressed: () async {
+            await HapticService().lightImpact();
             final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
             final stationFavicon =
                 station['favicon'] ?? station['imageUrl'] ?? '';
@@ -1109,7 +1121,8 @@ class _SearchScreenState extends State<SearchScreen>
             );
           },
         ),
-        onTap: () {
+        onTap: () async {
+          await HapticService().lightImpact();
           final streamUrl = station['streamUrl'] ?? station['url'] ?? '';
           final stationFavicon =
               station['favicon'] ?? station['imageUrl'] ?? '';

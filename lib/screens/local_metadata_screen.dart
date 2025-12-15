@@ -13,6 +13,7 @@ import '../providers/current_song_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 
 class LocalMetadataScreen extends StatefulWidget {
   const LocalMetadataScreen({super.key});
@@ -93,6 +94,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
   }
 
   Future<void> _ignoreSong(Song song) async {
+    await HapticService().mediumImpact();
     setState(() {
       _ignoredSongIds.add(song.id);
     });
@@ -116,6 +118,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
   }
 
   Future<void> _unignoreSong(Song song) async {
+    await HapticService().lightImpact();
     setState(() {
       _ignoredSongIds.remove(song.id);
     });
@@ -137,6 +140,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
   }
 
   Future<void> _showIgnoredSongs() async {
+    await HapticService().lightImpact();
     try {
       final prefs = await SharedPreferences.getInstance();
       final Set<String> keys = prefs.getKeys();
@@ -254,6 +258,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
   }
 
   Future<void> _loadLocalSongs() async {
+    await HapticService().lightImpact();
     setState(() {
       _isLoading = true;
     });
@@ -501,6 +506,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                             : IconButton(
                                 icon: const Icon(Icons.search),
                                 onPressed: () async {
+                                  await HapticService().lightImpact();
                                   if (searchController.text.trim().isNotEmpty) {
                                     setState(() {
                                       isSearching = true;
@@ -640,7 +646,8 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    await HapticService().lightImpact();
                     Navigator.of(context).pop();
                     setState(() {
                       _fetchErrors[localSong.id] = 'No song selected';
@@ -650,6 +657,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                 ),
                 TextButton(
                   onPressed: () async {
+                    await HapticService().lightImpact();
                     // Show custom metadata entry dialog
                     final customSong = await showDialog<Song>(
                       context: context,
@@ -697,6 +705,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                           icon: const Icon(Icons.image),
                                           label: const Text('Import Image'),
                                           onPressed: () async {
+                                            await HapticService().lightImpact();
                                             final result = await FilePicker
                                                 .platform
                                                 .pickFiles(
@@ -734,11 +743,15 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                               ),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.of(context).pop(),
+                                  onPressed: () async {
+                                    await HapticService().lightImpact();
+                                    Navigator.of(context).pop();
+                                  },
                                   child: const Text('Cancel'),
                                 ),
                                 TextButton(
                                   onPressed: () async {
+                                    await HapticService().lightImpact();
                                     // Save the image to app documents directory if picked
                                     String albumArtUrl = '';
                                     if (pickedImage != null) {
@@ -936,6 +949,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
 
   // New method to undo metadata fetch
   Future<void> _undoMetadataFetch(String newSongId) async {
+    await HapticService().lightImpact();
     try {
       // Find the history entry
       final historyService = MetadataHistoryService();
@@ -1161,6 +1175,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                           icon: const Icon(Icons.image),
                           label: const Text('Import Image'),
                           onPressed: () async {
+                            await HapticService().lightImpact();
                             final result = await FilePicker.platform
                                 .pickFiles(type: FileType.image);
                             if (result != null &&
@@ -1185,11 +1200,15 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () async {
+                    await HapticService().lightImpact();
+                    Navigator.of(context).pop();
+                  },
                   child: const Text('Cancel'),
                 ),
                 TextButton(
                   onPressed: () async {
+                    await HapticService().lightImpact();
                     String albumArtUrl = baseSong.albumArtUrl;
                     if (pickedImage != null) {
                       final appDocDir =

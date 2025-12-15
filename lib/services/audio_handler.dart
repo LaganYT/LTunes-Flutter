@@ -11,6 +11,7 @@ import '../screens/download_queue_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'bug_report_service.dart';
+import 'haptic_service.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -452,7 +453,10 @@ class AudioPlayerHandler extends BaseAudioHandler
             actions: <Widget>[
               TextButton(
                 child: const Text('OK'),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () async {
+                  await HapticService().lightImpact();
+                  Navigator.of(context).pop();
+                },
               ),
             ],
           );

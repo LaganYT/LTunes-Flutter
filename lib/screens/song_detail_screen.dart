@@ -18,6 +18,7 @@ import 'package:provider/provider.dart';
 import '../providers/current_song_provider.dart';
 import '../services/api_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 import 'album_screen.dart';
 import 'lyrics_screen.dart';
 import 'artist_screen.dart'; // Import artist screen
@@ -216,7 +217,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
-  void _downloadSong() {
+  void _downloadSong() async {
+    await HapticService().lightImpact();
     // No longer async, just triggers the provider's background download
     Provider.of<CurrentSongProvider>(context, listen: false)
         .queueSongForDownload(widget.song);
@@ -250,6 +252,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _deleteSong() async {
+    await HapticService().mediumImpact();
     // Capture context and song for use in async operations, checking mounted status.
     if (!mounted) return;
     final currentContext = context; // Capture context
@@ -453,6 +456,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _viewAlbum(BuildContext context) async {
+    await HapticService().lightImpact();
     if (widget.song.album == null ||
         widget.song.album!.isEmpty ||
         widget.song.artist.isEmpty) {
@@ -518,6 +522,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _fetchAndShowLyrics(BuildContext context) async {
+    await HapticService().lightImpact();
     if (widget.song.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -593,6 +598,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _toggleLike(Song song) async {
+    await HapticService().lightImpact();
     final likedSongsService =
         Provider.of<LikedSongsService>(context, listen: false);
     final wasLiked = await likedSongsService.toggleLike(song);
@@ -634,6 +640,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   Future<void> _viewArtist(BuildContext context) async {
+    await HapticService().lightImpact();
     if (widget.song.artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1037,7 +1044,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
                         ),
                         onPressed: isRadioPlayingGlobal
                             ? null
-                            : () {
+                            : () async {
+                                await HapticService().lightImpact();
                                 final currentSongProvider =
                                     Provider.of<CurrentSongProvider>(context,
                                         listen: false);
@@ -1498,7 +1506,8 @@ class SongDetailScreenState extends State<SongDetailScreen> {
     );
   }
 
-  void _showAddToPlaylistDialog(BuildContext context, Song song) {
+  void _showAddToPlaylistDialog(BuildContext context, Song song) async {
+    await HapticService().lightImpact();
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1722,7 +1731,8 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                               ),
                               title: Text(playlist.name),
                               subtitle: Text('${playlist.songs.length} songs'),
-                              onTap: () {
+                              onTap: () async {
+                                await HapticService().lightImpact();
                                 if (!playlist.songs
                                     .any((s) => s.id == widget.song.id)) {
                                   _playlistManagerService.addSongToPlaylist(
@@ -1761,7 +1771,8 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
     );
   }
 
-  void _showCreatePlaylistDialog(BuildContext context) {
+  void _showCreatePlaylistDialog(BuildContext context) async {
+    await HapticService().lightImpact();
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -1777,13 +1788,15 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
           actions: [
             TextButton(
               child: const Text('Cancel'),
-              onPressed: () {
+              onPressed: () async {
+                await HapticService().lightImpact();
                 Navigator.of(dialogContext).pop(); // Use dialogContext
               },
             ),
             TextButton(
               child: const Text('Create'),
-              onPressed: () {
+              onPressed: () async {
+                await HapticService().lightImpact();
                 final playlistName = playlistNameController.text.trim();
                 if (playlistName.isNotEmpty) {
                   final newPlaylist = Playlist(

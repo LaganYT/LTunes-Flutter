@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 
 class LyricsScreen extends StatefulWidget {
   final String songTitle;
@@ -33,7 +34,8 @@ class _LyricsScreenState extends State<LyricsScreen> {
             : 'Album Art - ${widget.songTitle}'),
       ),
       body: GestureDetector(
-        onTap: () {
+        onTap: () async {
+          await HapticService().lightImpact();
           setState(() {
             _showLyrics = !_showLyrics;
           });

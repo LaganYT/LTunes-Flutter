@@ -9,12 +9,13 @@ import '../services/playlist_manager_service.dart';
 import '../services/album_manager_service.dart';
 import 'song_detail_screen.dart';
 import 'album_screen.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/Provider.dart';
 import '../providers/current_song_provider.dart';
 import '../services/liked_songs_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 
 class ArtistScreen extends StatefulWidget {
   final String artistId;
@@ -79,6 +80,7 @@ class _ArtistScreenState extends State<ArtistScreen>
 
 
   Future<void> _toggleLike(Song song) async {
+    await HapticService().lightImpact();
     final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
     final wasLiked = await likedSongsService.toggleLike(song);
 
@@ -321,7 +323,8 @@ class _ArtistScreenState extends State<ArtistScreen>
               extentRatio: 0.32,
               children: [
                 SlidableAction(
-                  onPressed: (context) {
+                  onPressed: (context) async {
+                    await HapticService().lightImpact();
                     if (!isRadioPlayingGlobal) {
                       currentSongProvider.addToQueue(track);
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -336,7 +339,8 @@ class _ArtistScreenState extends State<ArtistScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 SlidableAction(
-                  onPressed: (context) {
+                  onPressed: (context) async {
+                    await HapticService().lightImpact();
                     if (!isRadioPlayingGlobal) {
                       showDialog(
                         context: context,
@@ -404,14 +408,18 @@ class _ArtistScreenState extends State<ArtistScreen>
                 ],
               ),
               onTap: () async {
+                await HapticService().lightImpact();
                 await currentSongProvider.smartPlayWithContext(_tracks!, track);
               },
-              onLongPress: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SongDetailScreen(song: track),
-                ),
-              ),
+              onLongPress: () async {
+                await HapticService().mediumImpact();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SongDetailScreen(song: track),
+                  ),
+                );
+              },
             ),
           ),
         );
@@ -451,6 +459,7 @@ class _ArtistScreenState extends State<ArtistScreen>
         final album = _albums![index];
         return GestureDetector(
           onTap: () async {
+            await HapticService().lightImpact();
             showDialog(
               context: context,
               barrierDismissible: false,

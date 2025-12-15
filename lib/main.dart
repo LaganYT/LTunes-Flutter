@@ -20,6 +20,7 @@ import 'services/animation_service.dart'; // Import AnimationService
 import 'services/bug_report_service.dart'; // Import BugReportService
 import 'services/artwork_service.dart'; // Import ArtworkService
 import 'services/liked_songs_service.dart'; // Import LikedSongsService
+import 'services/haptic_service.dart'; // Import HapticService
 import 'dart:io'; // Import for Platform
 import 'dart:async'; // Import for Timer
 import 'package:shared_preferences/shared_preferences.dart'; // Import for SharedPreferences
@@ -40,6 +41,9 @@ Future<void> main() async {
 
   // Initialize bug report service
   await BugReportService().initialize();
+
+  // Initialize haptic service
+  await HapticService().initialize();
 
   _audioHandler = await AudioService.init(
     builder: () => AudioPlayerHandler(),
@@ -356,13 +360,15 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
           actions: <Widget>[
             TextButton(
               child: const Text('Later'),
-              onPressed: () {
+              onPressed: () async {
+                await HapticService().lightImpact();
                 Navigator.of(context).pop();
               },
             ),
             TextButton(
               child: const Text('Update Now'),
               onPressed: () async {
+                await HapticService().lightImpact();
                 Navigator.of(context).pop();
                 final Uri url = Uri.parse(updateInfo.url);
                 if (await canLaunchUrl(url)) {
@@ -469,6 +475,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
                             fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       onPressed: () async {
+                        await HapticService().lightImpact();
                         final Uri url = Uri.parse(updateInfo.url);
                         if (await canLaunchUrl(url)) {
                           await launchUrl(url,
@@ -507,7 +514,9 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     }
   }
 
-  void _onItemTapped(int index) {
+  void _onItemTapped(int index) async {
+    await HapticService().lightImpact();
+    await HapticService().lightImpact();
     setState(() {
       _selectedIndex = index;
     });

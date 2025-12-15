@@ -12,6 +12,7 @@ import '../screens/song_detail_screen.dart'; // For navigation to song details
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/playlist_manager_service.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class AlbumScreen extends StatefulWidget {
@@ -661,13 +662,15 @@ class _AlbumScreenState extends State<AlbumScreen>
                   style: Theme.of(context).textTheme.bodySmall,
                 )
               : null,
-          onTap: () {
+          onTap: () async {
+            await HapticService().lightImpact();
             final currentSongProvider =
                 Provider.of<CurrentSongProvider>(context, listen: false);
             currentSongProvider.smartPlayWithContext(
                 widget.album.tracks, widget.album.tracks[index]);
           },
-          onLongPress: () {
+          onLongPress: () async {
+            await HapticService().lightImpact();
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -1182,7 +1185,8 @@ class _AlbumScreenState extends State<AlbumScreen>
                         extentRatio: 0.32, // enough for two square buttons
                         children: [
                           SlidableAction(
-                            onPressed: (context) {
+                            onPressed: (context) async {
+                              await HapticService().lightImpact();
                               final currentSongProvider =
                                   Provider.of<CurrentSongProvider>(context,
                                       listen: false);
@@ -1201,7 +1205,8 @@ class _AlbumScreenState extends State<AlbumScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                           SlidableAction(
-                            onPressed: (context) {
+                            onPressed: (context) async {
+                              await HapticService().lightImpact();
                               showDialog(
                                 context: context,
                                 builder: (BuildContext dialogContext) {
@@ -1276,6 +1281,7 @@ class _AlbumScreenState extends State<AlbumScreen>
                             ],
                           ),
                           onTap: () async {
+                            await HapticService().lightImpact();
                             final currentSongProvider =
                                 Provider.of<CurrentSongProvider>(context,
                                     listen: false);
@@ -1283,7 +1289,8 @@ class _AlbumScreenState extends State<AlbumScreen>
                                 widget.album.tracks,
                                 widget.album.tracks[index]);
                           },
-                          onLongPress: () {
+                          onLongPress: () async {
+                            await HapticService().lightImpact();
                             Navigator.push(
                               context,
                               MaterialPageRoute(

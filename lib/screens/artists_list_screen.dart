@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import 'songs_list_screen.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:path_provider/path_provider.dart';
 import 'dart:io' as io;
 import 'package:path/path.dart' as p;
@@ -149,12 +150,15 @@ class ArtistsListScreenState extends State<ArtistsListScreen> {
                         .toList();
                     final artUrl = arts.isNotEmpty ? arts.first : '';
                     return GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SongsScreen(artistFilter: name),
-                        ),
-                      ),
+                      onTap: () async {
+                        await HapticService().lightImpact();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SongsScreen(artistFilter: name),
+                          ),
+                        );
+                      },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

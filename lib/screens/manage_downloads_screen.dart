@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 
 class DeleteDownloadsScreen extends StatefulWidget {
   const DeleteDownloadsScreen({super.key});
@@ -115,14 +116,21 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
         title: const Text('Are you sure?'),
         content: Text('This $action may break the app or cause data loss. Only continue if you know what you are doing.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Continue', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () async {
+            await HapticService().lightImpact();
+            Navigator.pop(context, false);
+          }, child: const Text('Cancel')),
+          TextButton(onPressed: () async {
+            await HapticService().mediumImpact();
+            Navigator.pop(context, true);
+          }, child: const Text('Continue', style: TextStyle(color: Colors.red))),
         ],
       ),
     ) ?? false;
   }
 
   Future<void> _exportFile(File file) async {
+    await HapticService().lightImpact();
     try {
       final fileName = p.basename(file.path);
       await SharePlus.instance.share(
@@ -140,6 +148,7 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
   }
 
   Future<void> _deleteEntity(FileSystemEntity entity) async {
+    await HapticService().mediumImpact();
     final isDir = entity is Directory;
     final fileName = p.basename(entity.path);
     final navigator = Navigator.of(context); // Capture before async
@@ -153,8 +162,14 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
         title: Text('Delete ${isDir ? 'Folder' : 'File'}?'),
         content: Text('Are you sure you want to delete "$fileName"?${isDir ? '\n(Folder must be empty)' : ''}'),
         actions: [
-          TextButton(onPressed: () => navigator.pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => navigator.pop(true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () async {
+            await HapticService().lightImpact();
+            navigator.pop(false);
+          }, child: const Text('Cancel')),
+          TextButton(onPressed: () async {
+            await HapticService().mediumImpact();
+            navigator.pop(true);
+          }, child: const Text('Delete', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -214,13 +229,15 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
     }
   }
 
-  void _navigateTo(Directory dir) {
+  void _navigateTo(Directory dir) async {
+    await HapticService().lightImpact();
     _navStack.add(_currentDir);
     _currentDir = dir;
     _loadEntities();
   }
 
-  void _goBack() {
+  void _goBack() async {
+    await HapticService().lightImpact();
     if (_navStack.isNotEmpty) {
       _currentDir = _navStack.removeLast();
       _loadEntities();
@@ -243,7 +260,8 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
     ));
   }
 
-  void _openAudioFilesFolder() {
+  void _openAudioFilesFolder() async {
+    await HapticService().lightImpact();
     final dir = _entities.firstWhere(
       (e) => e is Directory && p.basename(e.path).toLowerCase() == 'ltunes_downloads',
       orElse: () => Directory("")
@@ -298,6 +316,7 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
   }
 
   Future<void> _clearDeadFilesWithPrompt() async {
+    await HapticService().mediumImpact();
     setState(() => _clearingDeadFiles = true);
     final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     final downloadsDir = await getDownloadsDir();
@@ -569,6 +588,7 @@ class _GroupedFolderScreenState extends State<_GroupedFolderScreen> {
   bool _clearing = false;
 
   Future<void> _clearDeadFiles() async {
+    await HapticService().mediumImpact();
     setState(() => _clearing = true);
     final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
     final prefs = await SharedPreferences.getInstance();
@@ -641,12 +661,18 @@ class _GroupedFolderScreenState extends State<_GroupedFolderScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.share, color: Colors.blue),
-                        onPressed: () => widget.onExport(file),
+                        onPressed: () async {
+                          await HapticService().lightImpact();
+                          widget.onExport(file);
+                        },
                         tooltip: 'Export/Share File',
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => widget.onDelete(file),
+                        onPressed: () async {
+                          await HapticService().mediumImpact();
+                          widget.onDelete(file);
+                        },
                         tooltip: 'Delete File',
                       ),
                     ],

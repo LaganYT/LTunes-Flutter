@@ -7,6 +7,7 @@ import '../services/animation_service.dart';
 import '../services/artwork_service.dart'; // Add import for centralized artwork service
 import '../widgets/full_screen_player.dart';
 import 'animated_page_route.dart';
+import '../services/haptic_service.dart';
 import 'package:path_provider/path_provider.dart'; // Added import
 import 'package:path/path.dart' as p; // Added import
 import 'package:cached_network_image/cached_network_image.dart';
@@ -434,7 +435,8 @@ class _PlaybarControls extends StatelessWidget {
                   isPlaying ? Icons.pause : Icons.play_arrow,
                   color: colorScheme.onSurface,
                 ),
-                onPressed: () {
+                onPressed: () async {
+                  await HapticService().lightImpact();
                   if (isPlaying) {
                     currentSongProvider.pauseSong();
                   } else {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'bug_report_service.dart';
+import 'haptic_service.dart';
 
 class ErrorHandlerService {
   static final ErrorHandlerService _instance = ErrorHandlerService._internal();
@@ -196,12 +197,16 @@ class ErrorHandlerService {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () async {
+                await HapticService().lightImpact();
+                Navigator.of(context).pop();
+              },
               child: const Text('OK'),
             ),
             if (strategies.contains('retry'))
               TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  await HapticService().lightImpact();
                   Navigator.of(context).pop();
                   _handleErrorAction(context, error, 'Retry');
                 },
@@ -375,7 +380,8 @@ class ErrorHandlerService {
   }
 
   // Handle error actions
-  void _handleErrorAction(BuildContext context, dynamic error, String action) {
+  void _handleErrorAction(BuildContext context, dynamic error, String action) async {
+    await HapticService().lightImpact();
     switch (action.toLowerCase()) {
       case 'retry':
         // Trigger retry logic - this would be implemented by the calling code
@@ -391,7 +397,8 @@ class ErrorHandlerService {
   }
 
   // Open app settings
-  void _openAppSettings() {
+  void _openAppSettings() async {
+    await HapticService().lightImpact();
     // This would typically use a package like app_settings
     // For now, we'll just log the action
     debugPrint('Opening app settings...');

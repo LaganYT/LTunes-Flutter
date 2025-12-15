@@ -29,6 +29,7 @@ import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/animation_service.dart'; // Import AnimationService
 import '../widgets/bug_report_dialog.dart'; // Import BugReportDialog
 import '../services/bug_report_service.dart'; // Import BugReportService
+import '../services/haptic_service.dart'; // Import HapticService
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -70,6 +71,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ValueNotifier<bool?>(null); // NEW
   final ValueNotifier<ReleaseChannel?> selectedReleaseChannelNotifier =
       ValueNotifier<ReleaseChannel?>(null); // NEW
+  final ValueNotifier<bool?> hapticsEnabledNotifier =
+      ValueNotifier<bool?>(null); // NEW
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -197,6 +200,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     switchContextWithoutInterruptionNotifier.value =
         switchContextWithoutInterruption;
 
+    // Load Haptics Enabled setting
+    final hapticService = HapticService();
+    await hapticService.initialize();
+    hapticsEnabledNotifier.value = hapticService.hapticsEnabled;
+
     // Load Selected Release Channel setting
     final releaseChannelService = ReleaseChannelService();
     final selectedChannel = await releaseChannelService.getSelectedChannel();
@@ -260,6 +268,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_currentSongProvider != null) {
       await _currentSongProvider!.setSwitchContextWithoutInterruption(value);
     }
+  }
+
+  Future<void> _saveHapticsEnabledSetting(bool value) async {
+    final hapticService = HapticService();
+    await hapticService.setHapticsEnabled(value);
   }
 
   Future<void> _saveCustomSpeedPresets(List<double> presets) async {
@@ -830,7 +843,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             subtitle: Text(subtitle),
                             trailing: Switch(
                               value: currentSettings[type] ?? true,
-                              onChanged: (value) {
+                              onChanged: (value) async {
+                                await HapticService().lightImpact();
                                 setState(() {
                                   currentSettings[type] = value;
                                 });
@@ -1634,10 +1648,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: Switch(
                         value: switchContextWithoutInterruption,
                         onChanged: (bool value) async {
+                          await HapticService().lightImpact();
                           switchContextWithoutInterruptionNotifier.value =
                               value;
                           await _saveSwitchContextWithoutInterruptionSetting(
                               value);
+                        },
+                      ),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<bool?>(
+                  valueListenable: hapticsEnabledNotifier,
+                  builder: (context, hapticsEnabled, _) {
+                    if (hapticsEnabled == null) {
+                      return const ListTile(
+                        leading: Icon(Icons.vibration),
+                        title: Text('Touch Haptics'),
+                        subtitle: Text('Vibrations for touch interactions'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+                    return ListTile(
+                      leading: const Icon(Icons.vibration),
+                      title: const Text('Touch Haptics'),
+                      subtitle: const Text('Vibrations for touch interactions'),
+                      trailing: Switch(
+                        value: hapticsEnabled,
+                        onChanged: (bool value) async {
+                          await HapticService().lightImpact();
+                          hapticsEnabledNotifier.value = value;
+                          await _saveHapticsEnabledSetting(value);
                         },
                       ),
                     );
@@ -1665,7 +1712,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Text(themeProvider.isDarkMode ? 'Dark' : 'Light'),
                       trailing: Switch(
                         value: themeProvider.isDarkMode,
-                        onChanged: (bool value) {
+                        onChanged: (bool value) async {
+                          await HapticService().lightImpact();
                           themeProvider.toggleTheme();
                         },
                       ),

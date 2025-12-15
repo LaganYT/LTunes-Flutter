@@ -8,6 +8,7 @@ import '../providers/current_song_provider.dart';
 import '../models/song.dart'; // For Song model
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 
 class DownloadQueueScreen extends StatefulWidget {
   const DownloadQueueScreen({super.key});
@@ -54,7 +55,8 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Check for stuck downloads',
-            onPressed: () {
+            onPressed: () async {
+              await HapticService().lightImpact();
               final provider =
                   Provider.of<CurrentSongProvider>(context, listen: false);
               provider.checkForStuckDownloads();
@@ -69,6 +71,7 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
             icon: const Icon(Icons.settings_backup_restore),
             tooltip: 'Reinitialize download manager',
             onPressed: () async {
+              await HapticService().lightImpact();
               final provider =
                   Provider.of<CurrentSongProvider>(context, listen: false);
               await provider.reinitializeDownloadManagerIfNeeded();
@@ -89,7 +92,8 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                   tooltip: 'Cancel All Downloads',
                   onPressed: _isCancelling
                       ? null
-                      : () {
+                      : () async {
+                          await HapticService().mediumImpact();
                           showDialog(
                             context: context,
                             builder: (BuildContext dialogContext) {
@@ -100,14 +104,16 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                                 actions: <Widget>[
                                   TextButton(
                                     child: const Text('No'),
-                                    onPressed: () {
+                                    onPressed: () async {
+                                      await HapticService().lightImpact();
                                       Navigator.of(dialogContext)
                                           .pop(); // Close the dialog
                                     },
                                   ),
                                   TextButton(
                                     child: const Text('Yes, Cancel All'),
-                                    onPressed: () {
+                                    onPressed: () async {
+                                      await HapticService().mediumImpact();
                                       Navigator.of(dialogContext)
                                           .pop(); // Close the dialog
                                       setState(() {
@@ -378,6 +384,7 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                                 tooltip: 'Redownload',
                                 color: Colors.blue,
                                 onPressed: () async {
+                                  await HapticService().lightImpact();
                                   final scaffoldMessenger =
                                       ScaffoldMessenger.of(
                                           context); // Capture before async
@@ -395,7 +402,8 @@ class _DownloadQueueScreenState extends State<DownloadQueueScreen> {
                               icon: const Icon(Icons.cancel_outlined),
                               tooltip: 'Cancel Download',
                               color: Colors.orangeAccent,
-                              onPressed: () {
+                              onPressed: () async {
+                                await HapticService().mediumImpact();
                                 provider.cancelDownload(song.id);
                                 // Optional: Show a SnackBar
                                 ScaffoldMessenger.of(context).showSnackBar(

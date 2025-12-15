@@ -16,6 +16,7 @@ import '../services/api_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart'; // <-- Add this import
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
   // Use centralized artwork service for consistent handling
@@ -258,12 +259,18 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             );
           }
           playlistCards.addAll(_playlists.map((p) => GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => PlaylistDetailScreen(playlist: p)),
-                ),
-                onLongPress: () => _showPlaylistOptions(p),
+                onTap: () async {
+                  await HapticService().lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => PlaylistDetailScreen(playlist: p)),
+                  );
+                },
+                onLongPress: () async {
+                  await HapticService().lightImpact();
+                  _showPlaylistOptions(p);
+                },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -401,7 +408,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             ListTile(
               leading: const Icon(Icons.play_arrow),
               title: const Text('Play Playlist'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 _playPlaylist(playlist);
               },
@@ -409,7 +417,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             ListTile(
               leading: const Icon(Icons.info),
               title: const Text('View Details'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 Navigator.push(
                   context,
@@ -421,7 +430,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('Rename Playlist'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 _renamePlaylist(playlist);
               },
@@ -429,7 +439,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
             ListTile(
               leading: const Icon(Icons.queue_music),
               title: const Text('Add to Queue'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 _addPlaylistToQueue(playlist);
               },

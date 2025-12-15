@@ -13,6 +13,7 @@ import '../services/artwork_service.dart'; // Import centralized artwork service
 import '../services/auto_fetch_service.dart';
 import '../services/unified_search_service.dart';
 import '../services/liked_songs_service.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 import 'playlist_detail_screen.dart'; // Import for navigation
 import 'album_screen.dart'; // Import AlbumScreen for navigation
 import '../widgets/full_screen_player.dart'; // For navigation to player
@@ -3365,11 +3366,14 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                           color: Theme.of(context).colorScheme.primary),
                       title: const Text('Liked Songs'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const LikedSongsScreen()),
-                      ),
+                      onTap: () async {
+                        await HapticService().lightImpact();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LikedSongsScreen()),
+                        );
+                      },
                     );
                   },
                 ),
@@ -3378,41 +3382,53 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                       color: Theme.of(context).colorScheme.primary),
                   title: const Text('Playlists'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
-                  ),
+                  onTap: () async {
+                    await HapticService().lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
+                    );
+                  },
                 ),
                 ListTile(
                   leading: Icon(Icons.person,
                       color: Theme.of(context).colorScheme.primary),
                   title: const Text('Artists'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const ArtistsListScreen()),
-                  ),
+                  onTap: () async {
+                    await HapticService().lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ArtistsListScreen()),
+                    );
+                  },
                 ),
                 ListTile(
                   leading: Icon(Icons.album,
                       color: Theme.of(context).colorScheme.primary),
                   title: const Text('Albums'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
-                  ),
+                  onTap: () async {
+                    await HapticService().lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
+                    );
+                  },
                 ),
                 ListTile(
                   leading: Icon(Icons.music_note,
                       color: Theme.of(context).colorScheme.primary),
                   title: const Text('Songs'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SongsScreen()),
-                  ),
+                  onTap: () async {
+                    await HapticService().lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SongsScreen()),
+                    );
+                  },
                 ),
                 if (_importedSongs.isNotEmpty)
                   ListTile(
@@ -3420,15 +3436,18 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                         color: Theme.of(context).colorScheme.primary),
                     title: Text('Imported Songs (${_importedSongs.length})'),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SongsScreen(
-                          // Pass a filter to show only imported songs
-                          importedSongsOnly: true,
+                    onTap: () async {
+                      await HapticService().lightImpact();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongsScreen(
+                            // Pass a filter to show only imported songs
+                            importedSongsOnly: true,
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 Consumer<CurrentSongProvider>(
                   builder: (context, provider, child) {

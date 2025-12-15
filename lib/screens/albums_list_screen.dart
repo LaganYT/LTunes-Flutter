@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 import '../providers/current_song_provider.dart';
 
 double _getSafeIconSize(double? width) {
@@ -180,11 +181,17 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
               itemBuilder: (context, index) {
                 final a = _albums[index];
                 return GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => AlbumScreen(album: a)),
-                  ),
-                  onLongPress: () => _showAlbumOptions(context, a),
+                  onTap: () async {
+                    await HapticService().lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AlbumScreen(album: a)),
+                    );
+                  },
+                  onLongPress: () async {
+                    await HapticService().lightImpact();
+                    _showAlbumOptions(context, a);
+                  },
                   child: Column(
                     children: [
                       AspectRatio(
@@ -230,7 +237,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
             ListTile(
               leading: const Icon(Icons.play_arrow),
               title: const Text('Play Album'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 _playAlbum(album);
               },
@@ -238,7 +246,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
             ListTile(
               leading: const Icon(Icons.info),
               title: const Text('View Details'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 Navigator.push(
                   context,
@@ -249,7 +258,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
             ListTile(
               leading: const Icon(Icons.person),
               title: const Text('View Artist'),
-              onTap: () {
+              onTap: () async {
+                await HapticService().lightImpact();
                 Navigator.pop(context);
                 _viewArtist(album);
               },

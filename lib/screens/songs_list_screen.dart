@@ -16,6 +16,7 @@ import '../services/liked_songs_service.dart';
 import 'song_detail_screen.dart';
 import '../services/album_manager_service.dart'; // Import for AlbumManagerService
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class SongsScreen extends StatefulWidget {
@@ -61,7 +62,8 @@ class SongsScreenState extends State<SongsScreen> {
         extentRatio: 0.32, // enough for two square buttons
         children: [
           SlidableAction(
-            onPressed: (context) {
+            onPressed: (context) async {
+              await HapticService().lightImpact();
               final currentSongProvider =
                   Provider.of<CurrentSongProvider>(context, listen: false);
               currentSongProvider.addToQueue(s);
@@ -75,7 +77,8 @@ class SongsScreenState extends State<SongsScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           SlidableAction(
-            onPressed: (context) {
+            onPressed: (context) async {
+              await HapticService().lightImpact();
               showDialog(
                 context: context,
                 builder: (BuildContext dialogContext) {
@@ -104,6 +107,7 @@ class SongsScreenState extends State<SongsScreen> {
         title: Text(s.title),
         subtitle: Text(s.artist),
         onTap: () async {
+          await HapticService().lightImpact();
           final prov = Provider.of<CurrentSongProvider>(context, listen: false);
           // If the song is downloaded, has a network album art URL, and is missing local art, try to download it
           bool needsArtDownload = s.isDownloaded &&
@@ -124,7 +128,10 @@ class SongsScreenState extends State<SongsScreen> {
         },
         trailing: IconButton(
           icon: const Icon(Icons.delete, color: Colors.red),
-          onPressed: () => _deleteSong(s),
+          onPressed: () async {
+            await HapticService().mediumImpact();
+            _deleteSong(s);
+          },
         ),
       ),
     );

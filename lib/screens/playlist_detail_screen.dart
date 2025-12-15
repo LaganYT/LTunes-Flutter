@@ -15,6 +15,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/album_manager_service.dart';
 import '../services/artwork_service.dart'; // Import centralized artwork service
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 Future<ImageProvider> getRobustArtworkProvider(String artUrl) async {
@@ -1139,7 +1140,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                           extentRatio: 0.32,
                           children: [
                             SlidableAction(
-                              onPressed: (context) {
+                              onPressed: (context) async {
+                                await HapticService().lightImpact();
                                 showDialog(
                                   context: context,
                                   builder: (BuildContext context) {
@@ -1155,7 +1157,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             SlidableAction(
-                              onPressed: (context) {
+                              onPressed: (context) async {
+                                await HapticService().mediumImpact();
                                 _showRemoveSongDialog(
                                     song, index, currentPlaylist);
                               },
@@ -1220,6 +1223,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               ],
                             ),
                             onTap: () async {
+                              await HapticService().lightImpact();
                               await currentSongProvider.smartPlayWithContext(
                                   currentPlaylist.songs, song);
                             },

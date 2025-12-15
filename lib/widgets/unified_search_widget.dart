@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
+import '../services/haptic_service.dart'; // Import HapticService
 import 'package:http/http.dart' as http;
 import '../services/artwork_service.dart'; // Import centralized artwork service
 
@@ -465,6 +466,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           IconButton(
             icon: const Icon(Icons.play_arrow),
             onPressed: () async {
+              await HapticService().lightImpact();
               await currentSongProvider.playWithContext([song], song);
               widget.onResultTap?.call();
             },
@@ -472,10 +474,12 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
         ],
       ),
       onTap: () async {
+        await HapticService().lightImpact();
         await currentSongProvider.playWithContext([song], song);
         widget.onResultTap?.call();
       },
-      onLongPress: () {
+      onLongPress: () async {
+        await HapticService().mediumImpact();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -548,7 +552,8 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
         ],
       ),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: () {
+      onTap: () async {
+        await HapticService().lightImpact();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -606,7 +611,8 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
         ],
       ),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: () {
+      onTap: () async {
+        await HapticService().lightImpact();
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -649,6 +655,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
       trailing: IconButton(
         icon: const Icon(Icons.play_arrow),
         onPressed: () async {
+          await HapticService().lightImpact();
           // Create a radio song object
           final radioSong = Song(
             title: station.name,
@@ -663,6 +670,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
         },
       ),
       onTap: () async {
+        await HapticService().lightImpact();
         final radioSong = Song(
           title: station.name,
           id: station.id,

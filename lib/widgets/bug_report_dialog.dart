@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/bug_report_service.dart';
+import '../services/haptic_service.dart'; // Import HapticService
 
 class BugReportDialog extends StatefulWidget {
   const BugReportDialog({super.key});
@@ -170,7 +171,10 @@ class _BugReportDialogState extends State<BugReportDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+          onPressed: _isLoading ? null : () async {
+            await HapticService().lightImpact();
+            Navigator.of(context).pop();
+          },
           child: const Text('Cancel'),
         ),
         ElevatedButton.icon(
@@ -198,6 +202,7 @@ class _BugReportDialogState extends State<BugReportDialog> {
   }
 
   Future<void> _submitBugReport() async {
+    await HapticService().lightImpact();
     if (!_formKey.currentState!.validate()) {
       return;
     }
