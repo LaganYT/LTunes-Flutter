@@ -7,7 +7,6 @@
 
 - Let users change their default tab
 - let users re-arange their tabs
-- When you scroll a certain amount past the current lyric have it not auto scroll the current lyric into view unless you scroll back into that range
 
 - Automatically download new songs added to downloaded playlists by improving playlist download handling
 - Redesign the update available popup
