@@ -148,7 +148,7 @@ class Song {
       String singleArtistId = _asString(json['artistId'] ?? json['ART_ID']);
 
       // Handle artists array if present (support both API v2 and Deezer formats)
-      final artistsList = json['artists'] ?? json['ARTISTS'] as List?;
+      final artistsList = (json['artists'] ?? json['ARTISTS']) as List?;
       if (artistsList != null && artistsList.isNotEmpty) {
         for (final artistMap in artistsList) {
           if (artistMap is Map) {
