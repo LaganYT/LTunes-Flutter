@@ -64,3 +64,5 @@
 -keep class okio.** { *; }
 -dontwarn okhttp3.**
 -dontwarn okio.**
+
+
