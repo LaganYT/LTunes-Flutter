@@ -64,8 +64,8 @@ class AutoFetchService {
       final nativeSong = Song(
         id: apiSong.id, // Use the API song's ID
         title: apiSong.title,
-        artist: apiSong.artist,
-        artistId: apiSong.artistId,
+        artists: apiSong.artists,
+        artistIds: apiSong.artistIds,
         album: apiSong.album,
         albumArtUrl: apiSong.albumArtUrl,
         releaseDate: apiSong.releaseDate,

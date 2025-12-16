@@ -397,8 +397,8 @@ class _QueueBottomSheetContentState extends State<_QueueBottomSheetContent> {
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          song.artist.isNotEmpty
-                                              ? song.artist
+                                          song.artists.isNotEmpty
+                                              ? song.artists.join(', ')
                                               : "Unknown Artist",
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -2674,25 +2674,32 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                           const SizedBox(height: 8),
                           FadeTransition(
                             opacity: _textFadeAnimation,
-                            child: Text(
-                              isRadio
-                                  ? (currentSong.artist.isNotEmpty
-                                      ? currentSong.artist
-                                      : "Live Radio")
-                                  : (currentSong.artist.isNotEmpty
-                                      ? currentSong.artist
-                                      : 'Unknown Artist'),
-                              key: ValueKey<String>('artist_${currentSong.id}'),
-                              style: textTheme.titleMedium?.copyWith(
-                                      color: colorScheme.onSurface
-                                          .withValues(alpha: 0.7)) ??
-                                  TextStyle(
-                                      color: colorScheme.onSurface
-                                          .withValues(alpha: 0.7),
-                                      fontSize: 16.0),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: Builder(
+                              builder: (context) {
+                                final displayText = isRadio
+                                    ? (currentSong.artists.isNotEmpty
+                                        ? currentSong.artists.join(', ')
+                                        : "Live Radio")
+                                    : (currentSong.artists.isNotEmpty
+                                        ? currentSong.artists.join(', ')
+                                        : 'Unknown Artist');
+                                // Debug logging
+                                debugPrint('Full screen player artist display: "$displayText" for song "${currentSong.title}" (artists: ${currentSong.artists})');
+                                return Text(
+                                  displayText,
+                                  key: ValueKey<String>('artist_${currentSong.id}'),
+                                  style: textTheme.titleMedium?.copyWith(
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.7)) ??
+                                      TextStyle(
+                                          color: colorScheme.onSurface
+                                              .withValues(alpha: 0.7),
+                                          fontSize: 16.0),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
                             ),
                           ),
                         ],

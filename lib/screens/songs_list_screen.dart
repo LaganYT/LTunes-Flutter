@@ -553,7 +553,7 @@ class SongsScreenState extends State<SongsScreen> {
               id: songId,
               title: metadata?.title ??
                   p.basenameWithoutExtension(originalFileName),
-              artist: metadata?.artist ?? 'Unknown Artist',
+              artists: [metadata?.artist ?? 'Unknown Artist'],
               album: metadata?.album,
               albumArtUrl: albumArtFileName, // Store just the filename
               audioUrl:

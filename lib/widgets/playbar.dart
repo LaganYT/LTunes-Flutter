@@ -375,7 +375,7 @@ class PlaybarState extends State<Playbar> {
                             final song = provider.currentSong;
                             if (song == null) return const SizedBox.shrink();
                             return Text(
-                              song.artist,
+                              song.artists.join(', '),
                               style: textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurface
                                     .withValues(alpha: 0.7),

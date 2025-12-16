@@ -2002,7 +2002,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
             final radioSong = Song(
               title: station.name,
               id: station.id,
-              artist: 'Radio',
+              artists: ['Radio'],
               albumArtUrl: station.imageUrl,
               audioUrl: station.streamUrl,
               extras: {'isRadio': true, 'streamUrl': station.streamUrl},
@@ -2015,7 +2015,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
           final radioSong = Song(
             title: station.name,
             id: station.id,
-            artist: 'Radio',
+            artists: ['Radio'],
             albumArtUrl: station.imageUrl,
             audioUrl: station.streamUrl,
             extras: {'isRadio': true, 'streamUrl': station.streamUrl},
@@ -2766,7 +2766,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
             Song newSong = Song(
               id: songId,
               title: metadata?.title ?? p.basenameWithoutExtension(origName),
-              artist: metadata?.artist ?? 'Unknown Artist',
+              artists: [metadata?.artist ?? 'Unknown Artist'],
               album: metadata?.album,
               albumArtUrl: albumArtFileName, // Store just the filename
               audioUrl:
@@ -3851,8 +3851,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                             final song = Song(
                               id: station.id,
                               title: station.name,
-                              artist:
-                                  'Radio Station', // Marker for our listener
+                              artists: ['Radio Station'], // Marker for our listener
                               album: 'Live Radio',
                               albumArtUrl: station.imageUrl,
                               audioUrl: station.streamUrl,

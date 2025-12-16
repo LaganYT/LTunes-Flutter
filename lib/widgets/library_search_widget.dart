@@ -645,7 +645,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
           final radioSong = Song(
             title: station.name,
             id: station.id,
-            artist: 'Radio',
+            artists: ['Radio'],
             albumArtUrl: station.imageUrl,
             audioUrl: station.streamUrl,
             extras: {'isRadio': true, 'streamUrl': station.streamUrl},
@@ -660,7 +660,7 @@ class _UnifiedSearchWidgetState extends State<UnifiedSearchWidget> {
         final radioSong = Song(
           title: station.name,
           id: station.id,
-          artist: 'Radio',
+          artists: ['Radio'],
           albumArtUrl: station.imageUrl,
           audioUrl: station.streamUrl,
           extras: {'isRadio': true, 'streamUrl': station.streamUrl},

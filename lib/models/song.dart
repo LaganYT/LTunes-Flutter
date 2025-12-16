@@ -3,14 +3,18 @@ import '../services/version_service.dart';
 class Song {
   final String title;
   final String id;
-  final String artist;
-  final String artistId;
+  final List<String> artists;
+  final List<String> artistIds;
   final String
       albumArtUrl; // Can be network URL or local filename (relative to docs dir)
   final String? album;
   final String? releaseDate;
   final String audioUrl; // Ensure non-nullable, default to empty
   final Duration? duration;
+
+  // Backward compatibility getters
+  String get artist => artists.isNotEmpty ? artists.first : '';
+  String get artistId => artistIds.isNotEmpty ? artistIds.first : '';
 
   // Add these fields
   bool isDownloaded;
@@ -36,8 +40,10 @@ class Song {
   Song({
     required this.title,
     required this.id,
-    required this.artist,
-    this.artistId = '', // Default to empty string if not provided
+    List<String>? artists,
+    List<String>? artistIds,
+    String? artist, // Backward compatibility
+    String? artistId, // Backward compatibility
     required this.albumArtUrl,
     this.album,
     this.releaseDate,
@@ -53,13 +59,16 @@ class Song {
     this.syncedLyrics,
     this.playCount = 0, // Default to 0
     this.isCustomMetadata = false, // Default to false
-  });
+  })  : artists =
+            artists ?? (artist != null && artist.isNotEmpty ? [artist] : []),
+        artistIds = artistIds ??
+            (artistId != null && artistId.isNotEmpty ? [artistId] : []);
 
   Song copyWith({
     String? title,
     String? id, // Allow copying ID if necessary, though typically fixed
-    String? artist,
-    String? artistId, // Added artistId
+    List<String>? artists,
+    List<String>? artistIds,
     String? albumArtUrl,
     String? album,
     String? releaseDate,
@@ -79,9 +88,8 @@ class Song {
     return Song(
       title: title ?? this.title,
       id: id ?? this.id, // Keep original ID unless explicitly overridden
-      artist: artist ?? this.artist,
-      artistId: artistId ??
-          this.artistId, // Updated to use provided or existing artistId
+      artists: artists ?? this.artists,
+      artistIds: artistIds ?? this.artistIds,
       albumArtUrl: albumArtUrl ?? this.albumArtUrl, // Handled by consumers
       album: album ?? this.album,
       releaseDate: releaseDate ?? this.releaseDate,
@@ -132,9 +140,37 @@ class Song {
       final id = _asString(json['id'] ?? json['SNG_ID'],
           DateTime.now().millisecondsSinceEpoch.toString());
 
-      String artist = _asString(json['artist'] ?? json['ART_NAME']);
-      String artistIdFromJson =
-          _asString(json['artistId'] ?? json['ART_ID']); // Parse artistId
+      List<String> artists = [];
+      List<String> artistIds = [];
+
+      // Parse single artist for backward compatibility
+      String singleArtist = _asString(json['artist'] ?? json['ART_NAME']);
+      String singleArtistId = _asString(json['artistId'] ?? json['ART_ID']);
+
+      // Handle artists array if present (support both API v2 and Deezer formats)
+      final artistsList = json['artists'] ?? json['ARTISTS'] as List?;
+      if (artistsList != null && artistsList.isNotEmpty) {
+        for (final artistMap in artistsList) {
+          if (artistMap is Map) {
+            // Support both API v2 format (name/id) and Deezer format (ART_NAME/ART_ID)
+            final artistName =
+                _asString(artistMap['name'] ?? artistMap['ART_NAME']);
+            final artistId = _asString(artistMap['id'] ?? artistMap['ART_ID']);
+            if (artistName.isNotEmpty) {
+              artists.add(artistName);
+              artistIds.add(artistId);
+            }
+          }
+        }
+      }
+
+      // If no artists array, use single artist fields
+      if (artists.isEmpty) {
+        if (singleArtist.isNotEmpty) {
+          artists.add(singleArtist);
+          artistIds.add(singleArtistId);
+        }
+      }
       String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
       String audioUrl = _asString(json['audioUrl']);
 
@@ -177,18 +213,6 @@ class Song {
       // If they were persisted, you'd parse them here.
       // For now, they will default to false and 0.0 respectively via the constructor.
 
-      if (artist.isEmpty && json.containsKey('artists')) {
-        final artistsList = json['artists'] as List?;
-        if (artistsList != null && artistsList.isNotEmpty) {
-          final firstArtistMap = artistsList.first as Map?;
-          artist = _asString(firstArtistMap?['name']);
-          // Attempt to get artistId from the same structure if not already found
-          if (artistIdFromJson.isEmpty) {
-            artistIdFromJson = _asString(firstArtistMap?['id']);
-          }
-        }
-      }
-
       // Handle album parsing for both generic and Deezer API formats
       final albumField = json['album'];
       if (albumField is Map) {
@@ -228,8 +252,8 @@ class Song {
       return Song(
         title: title,
         id: id,
-        artist: artist,
-        artistId: artistIdFromJson, // Assign parsed artistId
+        artists: artists,
+        artistIds: artistIds,
         albumArtUrl:
             albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
@@ -270,8 +294,37 @@ class Song {
       final id = _asString(
           json['id'], DateTime.now().millisecondsSinceEpoch.toString());
 
-      String artist = _asString(json['artist']);
-      String artistIdFromJson = _asString(json['artistId']); // Parse artistId
+      List<String> artists = [];
+      List<String> artistIds = [];
+
+      // Parse single artist for backward compatibility
+      String singleArtist = _asString(json['artist']);
+      String singleArtistId = _asString(json['artistId']);
+
+      // Handle artists array (same as old method)
+      if (json.containsKey('artists')) {
+        final artistsList = json['artists'] as List?;
+        if (artistsList != null && artistsList.isNotEmpty) {
+          for (final artistMap in artistsList) {
+            if (artistMap is Map) {
+              final artistName = _asString(artistMap['name']);
+              final artistId = _asString(artistMap['id']);
+              if (artistName.isNotEmpty) {
+                artists.add(artistName);
+                artistIds.add(artistId);
+              }
+            }
+          }
+        }
+      }
+
+      // If no artists array, use single artist fields
+      if (artists.isEmpty) {
+        if (singleArtist.isNotEmpty) {
+          artists.add(singleArtist);
+          artistIds.add(singleArtistId);
+        }
+      }
       String albumArtUrlFromJson = _asString(json['albumArtUrl']); // Raw value
       String audioUrl = _asString(json['audioUrl']);
 
@@ -290,19 +343,6 @@ class Song {
       final Duration? parsedDuration = durationMsAsInt != null
           ? Duration(milliseconds: durationMsAsInt)
           : null;
-
-      // Handle artists array (same as old method)
-      if (artist.isEmpty && json.containsKey('artists')) {
-        final artistsList = json['artists'] as List?;
-        if (artistsList != null && artistsList.isNotEmpty) {
-          final firstArtistMap = artistsList.first as Map?;
-          artist = _asString(firstArtistMap?['name']);
-          // Attempt to get artistId from the same structure if not already found
-          if (artistIdFromJson.isEmpty) {
-            artistIdFromJson = _asString(firstArtistMap?['id']);
-          }
-        }
-      }
 
       // Handle album field (same as old method)
       final albumField = json['album'];
@@ -333,8 +373,8 @@ class Song {
       return Song(
         title: title,
         id: id,
-        artist: artist,
-        artistId: artistIdFromJson, // Assign parsed artistId
+        artists: artists,
+        artistIds: artistIds,
         albumArtUrl:
             albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
@@ -399,8 +439,8 @@ class Song {
     return Song(
       id: songId,
       title: title,
-      artist: artist,
-      artistId: artistId, // Assign parsed artistId
+      artists: [artist],
+      artistIds: [artistId],
       album: albumTitle,
       albumArtUrl: albumArtUrl,
       releaseDate: albumReleaseDate,
@@ -419,8 +459,10 @@ class Song {
   Map<String, dynamic> toJson() => {
         'title': title,
         'id': id, // Ensure ID is saved
-        'artist': artist,
-        'artistId': artistId, // Serialize artistId
+        'artist': artist, // Backward compatibility - first artist
+        'artistId': artistId, // Backward compatibility - first artist ID
+        'artists': artists, // New field for multiple artists
+        'artistIds': artistIds, // New field for multiple artist IDs
         'albumArtUrl':
             albumArtUrl, // Will save filename if correctly set by app logic
         'album': album,

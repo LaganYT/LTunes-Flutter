@@ -769,11 +769,10 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                           ? 'Unknown Title'
                                           : titleController.text.trim(),
                                       id: const Uuid().v4(),
-                                      artist:
-                                          artistController.text.trim().isEmpty
-                                              ? 'Unknown Artist'
-                                              : artistController.text.trim(),
-                                      artistId: '',
+                                      artists: [artistController.text.trim().isEmpty
+                                          ? 'Unknown Artist'
+                                          : artistController.text.trim()],
+                                      artistIds: [''],
                                       albumArtUrl: albumArtUrl,
                                       album: albumController.text.trim().isEmpty
                                           ? null
@@ -890,8 +889,8 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
       final nativeSong = Song(
         id: apiSong.id, // Use the API song's ID
         title: apiSong.title,
-        artist: apiSong.artist,
-        artistId: apiSong.artistId,
+        artists: apiSong.artists,
+        artistIds: apiSong.artistIds,
         album: apiSong.album,
         albumArtUrl: apiSong.albumArtUrl,
         releaseDate: apiSong.releaseDate,
@@ -1224,10 +1223,10 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                           ? 'Unknown Title'
                           : titleController.text.trim(),
                       id: baseSong.id, // Keep the same ID for editing
-                      artist: artistController.text.trim().isEmpty
+                      artists: [artistController.text.trim().isEmpty
                           ? 'Unknown Artist'
-                          : artistController.text.trim(),
-                      artistId: '',
+                          : artistController.text.trim()],
+                      artistIds: [''],
                       albumArtUrl: albumArtUrl,
                       album: albumController.text.trim().isEmpty
                           ? null
