@@ -1516,6 +1516,9 @@ class AudioPlayerHandler extends BaseAudioHandler
     debugPrint(
         "AudioHandler: Direct transition from $_currentIndex to $newIndex");
 
+    // CRITICAL FIX: Keep playing state true during transition to prevent CurrentSongProvider from saving pause state
+    playbackState.add(playbackState.value.copyWith(playing: true));
+
     // Streamlined version of skipToQueueItem optimized for gapless playback
     try {
       if (_audioPlayer.processingState == ProcessingState.completed) {
