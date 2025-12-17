@@ -4,7 +4,6 @@
 - Audiobooks
 - Copy Spotify's lyric sharing feature where it makes an image with the selected lyrics
 
-- Let users change their default tab
 - let users re-arange their tabs
 
 - Automatically download new songs added to downloaded playlists by improving playlist download handling

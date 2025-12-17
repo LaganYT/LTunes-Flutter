@@ -70,6 +70,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ValueNotifier<ReleaseChannel?>(null); // NEW
   final ValueNotifier<bool?> hapticsEnabledNotifier =
       ValueNotifier<bool?>(null); // NEW
+  final ValueNotifier<int?> defaultTabIndexNotifier =
+      ValueNotifier<int?>(null); // Default tab index
   final SleepTimerService _sleepTimerService = SleepTimerService();
   CurrentSongProvider? _currentSongProvider; // Store reference to provider
 
@@ -198,6 +200,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final releaseChannelService = ReleaseChannelService();
     final selectedChannel = await releaseChannelService.getSelectedChannel();
     selectedReleaseChannelNotifier.value = selectedChannel;
+
+    // Load Default Tab Index setting
+    final defaultTabIndex = prefs.getInt('defaultTabIndex') ?? 0;
+    defaultTabIndexNotifier.value = defaultTabIndex;
   }
 
   Future<void> _saveUSRadioOnlySetting(bool value) async {
@@ -257,6 +263,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveHapticsEnabledSetting(bool value) async {
     final hapticService = HapticService();
     await hapticService.setHapticsEnabled(value);
+  }
+
+  Future<void> _saveDefaultTabIndexSetting(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('defaultTabIndex', value);
   }
 
   Future<void> _saveCustomSpeedPresets(List<double> presets) async {
@@ -482,6 +493,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Reset ThemeProvider settings
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     await themeProvider.resetToDefaults();
+
+    // Reset Default Tab Index setting
+    defaultTabIndexNotifier.value = 0; // Default value
+    await _saveDefaultTabIndexSetting(0);
 
     if (context.mounted) {
       // Ensure mounted check before showing SnackBar
@@ -937,6 +952,216 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Text('Save'),
                 ),
               ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showDefaultTabDialog(BuildContext context, int currentValue) {
+    final List<String> tabNames = ['Search', 'Library', 'Settings'];
+    final List<IconData> tabIcons = [
+      Icons.search,
+      Icons.library_music,
+      Icons.settings
+    ];
+
+    int selectedValue = currentValue;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.0),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.9,
+                ),
+                padding: const EdgeInsets.all(20.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.tab,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Default Tab',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ...List.generate(tabNames.length, (index) {
+                      final isSelected = selectedValue == index;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(bottom: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () {
+                              setState(() {
+                                selectedValue = index;
+                              });
+                              HapticService().lightImpact();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    tabIcons[index],
+                                    color: isSelected
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    tabNames[index],
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: isSelected
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface,
+                                        ),
+                                  ),
+                                  const Spacer(),
+                                  if (isSelected)
+                                    Icon(
+                                      Icons.check_circle,
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+
+                    const SizedBox(height: 20),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () async {
+                              defaultTabIndexNotifier.value = selectedValue;
+                              await _saveDefaultTabIndexSetting(selectedValue);
+                              Navigator.of(context).pop();
+                              HapticService().mediumImpact();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Default tab set to ${tabNames[selectedValue]}'),
+                                  ),
+                                );
+                              }
+                            },
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text('Save'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         );
@@ -2062,6 +2287,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             elevation: 2,
             child: Column(
               children: [
+                ValueListenableBuilder<int?>(
+                  key: const ValueKey('default_tab_tile'),
+                  valueListenable: defaultTabIndexNotifier,
+                  builder: (context, defaultTabIndex, _) {
+                    if (defaultTabIndex == null) {
+                      return const ListTile(
+                        key: ValueKey('default_tab_list_tile'),
+                        leading: Icon(Icons.tab),
+                        title: Text('Default Tab'),
+                        subtitle: Text('Choose which tab to show on app start'),
+                        trailing: SizedBox(
+                          width: 50,
+                          height: 30,
+                          child: Center(
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2.0)),
+                        ),
+                      );
+                    }
+
+                    final List<String> tabNames = [
+                      'Search',
+                      'Library',
+                      'Settings'
+                    ];
+                    final List<IconData> tabIcons = [
+                      Icons.search,
+                      Icons.library_music,
+                      Icons.settings
+                    ];
+
+                    return ListTile(
+                      key: const ValueKey('default_tab_list_tile'),
+                      leading: Icon(tabIcons[defaultTabIndex]),
+                      title: const Text('Default Tab'),
+                      subtitle: Text('Currently: ${tabNames[defaultTabIndex]}'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () =>
+                          _showDefaultTabDialog(context, defaultTabIndex),
+                    );
+                  },
+                ),
                 ValueListenableBuilder<int>(
                   key: const ValueKey('app_version_tile'),
                   valueListenable: _versionRefreshNotifier,

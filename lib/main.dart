@@ -147,6 +147,7 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadDefaultTabIndex();
     _initializeVersionAndCheckForUpdates();
 
     // Ensure audio session is initialized when app opens
@@ -161,6 +162,19 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
     // Perform memory cleanup when TabView is disposed
     _performMemoryCleanup();
     super.dispose();
+  }
+
+  Future<void> _loadDefaultTabIndex() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final defaultTabIndex = prefs.getInt('defaultTabIndex') ?? 0;
+      setState(() {
+        _selectedIndex = defaultTabIndex;
+      });
+    } catch (e) {
+      debugPrint('Error loading default tab index: $e');
+      // Keep default value of 0
+    }
   }
 
   /// Starts a timer to ensure background playback continues on iOS.
