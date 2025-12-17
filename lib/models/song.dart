@@ -8,6 +8,7 @@ class Song {
   final String
       albumArtUrl; // Can be network URL or local filename (relative to docs dir)
   final String? album;
+  final String? albumId; // Album ID for direct album lookup
   final String? releaseDate;
   final String audioUrl; // Ensure non-nullable, default to empty
   final Duration? duration;
@@ -46,6 +47,7 @@ class Song {
     String? artistId, // Backward compatibility
     required this.albumArtUrl,
     this.album,
+    this.albumId,
     this.releaseDate,
     this.audioUrl = '', // Default to empty string
     this.isDownloaded = false,
@@ -71,6 +73,7 @@ class Song {
     List<String>? artistIds,
     String? albumArtUrl,
     String? album,
+    String? albumId,
     String? releaseDate,
     String? audioUrl,
     bool? isDownloaded,
@@ -92,6 +95,7 @@ class Song {
       artistIds: artistIds ?? this.artistIds,
       albumArtUrl: albumArtUrl ?? this.albumArtUrl, // Handled by consumers
       album: album ?? this.album,
+      albumId: albumId ?? this.albumId,
       releaseDate: releaseDate ?? this.releaseDate,
       audioUrl: audioUrl ?? this.audioUrl,
       isDownloaded: isDownloaded ?? this.isDownloaded,
@@ -175,6 +179,7 @@ class Song {
       String audioUrl = _asString(json['audioUrl']);
 
       String? albumName;
+      String? albumId;
       String? releaseDate = _asNullableString(
           json['releaseDate'] ?? json['PHYSICAL_RELEASE_DATE']);
 
@@ -230,6 +235,7 @@ class Song {
         // albumField is not a Map (could be String, null, or other type to convert)
         albumName = _asNullableString(albumField) ??
             _asNullableString(json['ALB_TITLE']);
+        albumId = _asNullableString(json['ALB_ID']);
       }
 
       // Handle Deezer API album art URL
@@ -257,6 +263,7 @@ class Song {
         albumArtUrl:
             albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
+        albumId: albumId,
         releaseDate: releaseDate, // releaseDate is already String?
         audioUrl: audioUrl,
         isDownloaded: json['isDownloaded'] as bool? ??
@@ -329,6 +336,7 @@ class Song {
       String audioUrl = _asString(json['audioUrl']);
 
       String? albumName;
+      String? albumId;
       String? releaseDate = _asNullableString(json['releaseDate']);
 
       // Parse duration_ms robustly (same as old method)
@@ -360,6 +368,7 @@ class Song {
       } else {
         // albumField is not a Map (could be String, null, or other type to convert)
         albumName = _asNullableString(albumField);
+        albumId = _asNullableString(json['albumId']);
       }
 
       final bool isImported =
@@ -378,6 +387,7 @@ class Song {
         albumArtUrl:
             albumArtUrlFromJson, // Store as is; migration/usage logic handles interpretation
         album: albumName, // albumName is already String?
+        albumId: albumId,
         releaseDate: releaseDate, // releaseDate is already String?
         audioUrl: audioUrl,
         isDownloaded: json['isDownloaded'] as bool? ??
@@ -405,7 +415,8 @@ class Song {
       String albumTitle,
       String albumArtPictureId,
       String albumReleaseDate,
-      String albumArtistName) {
+      String albumArtistName,
+      String albumId) {
     final String songId = trackJson['SNG_ID']?.toString() ??
         DateTime.now().millisecondsSinceEpoch.toString();
     String title = trackJson['SNG_TITLE']?.toString() ?? 'Unknown Track';
@@ -442,6 +453,7 @@ class Song {
       artists: [artist],
       artistIds: [artistId],
       album: albumTitle,
+      albumId: albumId,
       albumArtUrl: albumArtUrl,
       releaseDate: albumReleaseDate,
       audioUrl: '', // To be fetched later
@@ -466,6 +478,7 @@ class Song {
         'albumArtUrl':
             albumArtUrl, // Will save filename if correctly set by app logic
         'album': album,
+        'albumId': albumId,
         'releaseDate': releaseDate,
         'audioUrl': audioUrl,
         'isDownloaded': isDownloaded,

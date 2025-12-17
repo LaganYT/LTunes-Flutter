@@ -2748,7 +2748,9 @@ class CurrentSongProvider with ChangeNotifier {
               exactMatch.albumArtUrl.startsWith('http')) {
             networkArtUrl = exactMatch.albumArtUrl;
           } else if (song.album != null && song.album!.isNotEmpty) {
-            final album = await apiService.getAlbum(song.album!, song.artist);
+            final album = song.albumId != null
+                ? await apiService.getAlbum(song.albumId!)
+                : null;
             if (album != null && album.fullAlbumArtUrl.isNotEmpty) {
               networkArtUrl = album.fullAlbumArtUrl;
             }

@@ -39,7 +39,7 @@ class LyricsService {
         "Fetching lyrics for ${song.title} (has plain: $hasPlainLyrics)");
 
     try {
-      final lyricsData = await _apiService.fetchLyrics(song.artist, song.title);
+      final lyricsData = await _apiService.fetchLyrics(song.id);
 
       if (lyricsData == null) {
         debugPrint("No lyrics found for ${song.title}");
@@ -122,7 +122,7 @@ class LyricsService {
     debugPrint("Force fetching lyrics for ${song.title}");
 
     try {
-      final lyricsData = await _apiService.fetchLyrics(song.artist, song.title);
+      final lyricsData = await _apiService.fetchLyrics(song.id);
 
       if (lyricsData != null) {
         await provider.updateSongLyrics(song.id, lyricsData);

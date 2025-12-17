@@ -1101,7 +1101,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     _stopSleepTimerCountdownUpdater(); // Cancel any existing timer
     if (_sleepTimerService.isTimerActive) {
       _sleepTimerCountdownUpdater = Timer.periodic(
-        const Duration(seconds: 30), // Update every 30 seconds for smooth countdown
+        const Duration(
+            seconds: 30), // Update every 30 seconds for smooth countdown
         (_) {
           if (mounted && _sleepTimerService.isTimerActive) {
             setState(() {});
@@ -2317,12 +2318,19 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
           if (_sleepTimerService.isTimerActive)
             Container(
               margin: const EdgeInsets.only(right: 8.0),
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surface
+                    .withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(16.0),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.3),
                   width: 1.0,
                 ),
               ),
@@ -2352,7 +2360,10 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                       child: Icon(
                         Icons.close,
                         size: 14.0,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.7),
                       ),
                     ),
                   ),
@@ -2411,7 +2422,8 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                   value: 'sleep_timer',
                   child: Row(
                     children: [
-                      Icon(Icons.timer, color: Theme.of(context).colorScheme.primary),
+                      Icon(Icons.timer,
+                          color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       const Text('Set Sleep Timer'),
                     ],
@@ -2684,10 +2696,12 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                         ? currentSong.artists.join(', ')
                                         : 'Unknown Artist');
                                 // Debug logging
-                                debugPrint('Full screen player artist display: "$displayText" for song "${currentSong.title}" (artists: ${currentSong.artists})');
+                                debugPrint(
+                                    'Full screen player artist display: "$displayText" for song "${currentSong.title}" (artists: ${currentSong.artists})');
                                 return Text(
                                   displayText,
-                                  key: ValueKey<String>('artist_${currentSong.id}'),
+                                  key: ValueKey<String>(
+                                      'artist_${currentSong.id}'),
                                   style: textTheme.titleMedium?.copyWith(
                                           color: colorScheme.onSurface
                                               .withValues(alpha: 0.7)) ??
@@ -3550,7 +3564,9 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
     );
 
     try {
-      final albumDetails = await _apiService.getAlbum(song.album!, song.artist);
+      final albumDetails = song.albumId != null
+          ? await _apiService.getAlbum(song.albumId!)
+          : null;
 
       if (mounted) {
         Navigator.of(context).pop(); // Remove loading dialog

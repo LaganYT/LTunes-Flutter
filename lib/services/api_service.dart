@@ -317,12 +317,8 @@ class ApiService {
     }
   }
 
-  Future<Album?> getAlbum(String albumName, String artistName) async {
-    final albumId = await _searchForAlbumId(albumName, artistName);
-    if (albumId != null) {
-      return await fetchAlbumDetailsById(albumId);
-    }
-    return null;
+  Future<Album?> getAlbum(String albumId) async {
+    return await fetchAlbumDetailsById(albumId);
   }
 
   // Search albums by query
@@ -690,16 +686,10 @@ class ApiService {
     return null;
   }
 
-  Future<LyricsData?> fetchLyrics(String artist, String musicName) async {
+  Future<LyricsData?> fetchLyrics(String songId) async {
     try {
-      // First, search for tracks to get trackId
-      final tracks = await _fetchSongsInternal('$artist $musicName');
-      if (tracks.isEmpty) {
-        return null;
-      }
-
-      final trackId = tracks.first.id;
-      final url = '${baseUrl}lyrics?trackId=$trackId';
+      // Directly call lyrics endpoint with songId
+      final url = '${baseUrl}lyrics?trackId=$songId';
 
       final response = await _get(url);
       final data = jsonDecode(response.body);
@@ -710,11 +700,12 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      debugPrint('Primary API failed for fetchLyrics "$artist $musicName": $e');
+      debugPrint(
+          'Primary API failed for fetchLyrics with songId "$songId": $e');
       try {
-        // Fallback to original API
-        final fallbackUrl =
-            '${originalBaseUrl}lyrics?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}';
+        // Fallback to original API - need to get song details first to get artist/title
+        // For now, we'll try the fallback API with the trackId parameter if it supports it
+        final fallbackUrl = '${originalBaseUrl}lyrics?trackId=$songId';
         final fallbackResponse = await _get(fallbackUrl);
         final data = jsonDecode(fallbackResponse.body);
 

@@ -342,8 +342,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final albumDetails =
-          await apiService.getAlbum(widget.song.album!, widget.song.artist);
+      final albumDetails = widget.song.albumId != null
+          ? await apiService.getAlbum(widget.song.albumId!)
+          : null;
 
       if (!mounted) return; // Early return if widget is disposed
 
@@ -411,7 +412,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final artistData = await apiService.getArtistById(widget.song.artist);
+      final artistData = await apiService.getArtistById(widget.song.artistId);
 
       if (!mounted) return; // Early return if widget is disposed
 
@@ -423,6 +424,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
           raw['ALB_PICTURE']?.toString() ?? '',
           '',
           artistInfo['ART_NAME']?.toString() ?? '',
+          raw['ALB_ID']?.toString() ?? '',
         );
       }).toList();
 
@@ -486,8 +488,9 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final albumDetails =
-          await apiService.getAlbum(widget.song.album!, widget.song.artist);
+      final albumDetails = widget.song.albumId != null
+          ? await apiService.getAlbum(widget.song.albumId!)
+          : null;
 
       if (mounted) {
         if (albumDetails != null) {
@@ -556,8 +559,7 @@ class SongDetailScreenState extends State<SongDetailScreen> {
 
     try {
       final apiService = ApiService();
-      final lyricsData =
-          await apiService.fetchLyrics(widget.song.artist, widget.song.title);
+      final lyricsData = await apiService.fetchLyrics(widget.song.id);
 
       if (mounted) {
         if (lyricsData != null &&

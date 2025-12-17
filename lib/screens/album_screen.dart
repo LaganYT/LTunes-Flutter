@@ -492,8 +492,9 @@ class _AlbumScreenState extends State<AlbumScreen>
               originalAlbumArtUrl = exactMatch.albumArtUrl;
             } else if (track.album != null && track.album!.isNotEmpty) {
               // Try to get the album art from the album
-              final album =
-                  await apiService.getAlbum(track.album!, track.artist);
+              final album = track.albumId != null
+                  ? await apiService.getAlbum(track.albumId!)
+                  : null;
               if (album != null && album.fullAlbumArtUrl.isNotEmpty) {
                 originalAlbumArtUrl = album.fullAlbumArtUrl;
               }

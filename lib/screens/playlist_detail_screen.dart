@@ -265,7 +265,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               originalAlbumArtUrl = exactMatch.albumArtUrl;
             } else if (song.album != null && song.album!.isNotEmpty) {
               // Try to get the album art from the album
-              final album = await apiService.getAlbum(song.album!, song.artist);
+              final album = song.albumId != null
+                  ? await apiService.getAlbum(song.albumId!)
+                  : null;
               if (album != null && album.fullAlbumArtUrl.isNotEmpty) {
                 originalAlbumArtUrl = album.fullAlbumArtUrl;
               }
@@ -530,7 +532,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     if (artUrls.length < 4) {
       // Display the first artwork by playlist order as a single image
-      final artworkToShow = firstArtworkByOrder ?? (artUrls.isNotEmpty ? artUrls.first : '');
+      final artworkToShow =
+          firstArtworkByOrder ?? (artUrls.isNotEmpty ? artUrls.first : '');
       if (artworkToShow.isEmpty) {
         return Container(
           width: containerSize,
@@ -821,7 +824,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               width: 200,
                               height: 200,
                               child: _buildProminentPlaylistArt(
-                                  uniqueAlbumArtUrls, firstArtworkByOrder, 200.0),
+                                  uniqueAlbumArtUrls,
+                                  firstArtworkByOrder,
+                                  200.0),
                             ),
                           ),
                         ),

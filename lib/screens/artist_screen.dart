@@ -78,10 +78,10 @@ class _ArtistScreenState extends State<ArtistScreen>
     super.dispose();
   }
 
-
   Future<void> _toggleLike(Song song) async {
     await HapticService().lightImpact();
-    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final likedSongsService =
+        Provider.of<LikedSongsService>(context, listen: false);
     final wasLiked = await likedSongsService.toggleLike(song);
 
     // If song was just liked (not unliked), check for auto-download
@@ -89,7 +89,8 @@ class _ArtistScreenState extends State<ArtistScreen>
       final prefs = await SharedPreferences.getInstance();
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+        final provider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
         provider.queueSongForDownload(song);
       }
     }
@@ -131,6 +132,7 @@ class _ArtistScreenState extends State<ArtistScreen>
               raw['ALB_PICTURE']?.toString() ?? '',
               '',
               info['ART_NAME']?.toString() ?? '',
+              raw['ALB_ID']?.toString() ?? '',
             );
           }).toList();
           _albums = albums;
