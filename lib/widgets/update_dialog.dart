@@ -40,7 +40,7 @@ class UpdateDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 20,
             spreadRadius: 5,
           ),
@@ -64,9 +64,8 @@ class UpdateDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isMandatory
-            ? Colors.orange.shade50
-            : colorScheme.primaryContainer,
+        color:
+            isMandatory ? Colors.orange.shade50 : colorScheme.primaryContainer,
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -79,15 +78,13 @@ class UpdateDialog extends StatelessWidget {
             decoration: BoxDecoration(
               color: isMandatory
                   ? Colors.orange.shade100
-                  : colorScheme.primary.withOpacity(0.1),
+                  : colorScheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               isMandatory ? Icons.warning_rounded : Icons.system_update_rounded,
               size: 28,
-              color: isMandatory
-                  ? Colors.orange.shade700
-                  : colorScheme.primary,
+              color: isMandatory ? Colors.orange.shade700 : colorScheme.primary,
             ),
           ),
           const SizedBox(width: 16),
@@ -205,7 +202,7 @@ class UpdateDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant.withOpacity(0.3),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
@@ -240,9 +237,8 @@ class UpdateDialog extends StatelessWidget {
               onPressed: () => _handleUpdateNow(context),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                backgroundColor: isMandatory
-                    ? Colors.orange.shade600
-                    : colorScheme.primary,
+                backgroundColor:
+                    isMandatory ? Colors.orange.shade600 : colorScheme.primary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

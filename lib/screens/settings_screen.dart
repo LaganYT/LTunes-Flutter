@@ -2364,21 +2364,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           builder: (BuildContext context) {
                             return AlertDialog(
                               title: const Text('Select Release Channel'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: channels.map((channel) {
-                                  return RadioListTile<ReleaseChannel>(
-                                    title: Text(channel.displayName),
-                                    subtitle: Text(channel.description),
-                                    value: channel,
-                                    groupValue: selectedChannel,
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        Navigator.of(context).pop(value);
-                                      }
-                                    },
-                                  );
-                                }).toList(),
+                              content: RadioGroup<ReleaseChannel>(
+                                groupValue: selectedChannel,
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    Navigator.of(context).pop(value);
+                                  }
+                                },
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: channels.map((channel) {
+                                    return RadioListTile<ReleaseChannel>(
+                                      title: Text(channel.displayName),
+                                      subtitle: Text(channel.description),
+                                      value: channel,
+                                    );
+                                  }).toList(),
+                                ),
                               ),
                               actions: [
                                 TextButton(
