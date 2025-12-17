@@ -629,34 +629,139 @@ class ApiService {
     _httpClient.close();
   }
 
-  // Method to compare versions (e.g., "1.0.1" vs "1.0.0" or "2025.11.02-beta")
+  // Method to compare versions (e.g., "1.0.1" vs "1.0.0", "2025.11.02-beta", or "2025.12.16+9")
   // Returns > 0 if v1 is greater, < 0 if v2 is greater, 0 if equal
   int _compareVersions(String v1, String v2) {
-    // Extract numeric version by removing beta suffix
-    String v1Numeric = v1.replaceAll('-beta', '');
-    String v2Numeric = v2.replaceAll('-beta', '');
+    try {
+      // Handle new format: year.month.day+build#
+      // Extract build numbers from both versions
+      int v1Build = 0;
+      int v2Build = 0;
+      String v1Base = v1;
+      String v2Base = v2;
 
-    // Check if versions are beta
-    bool v1IsBeta = v1.contains('-beta');
-    bool v2IsBeta = v2.contains('-beta');
+      // Check for build number in format +number
+      final buildRegex = RegExp(r'\+(\d+)$');
+      final v1BuildMatch = buildRegex.firstMatch(v1);
+      final v2BuildMatch = buildRegex.firstMatch(v2);
 
-    List<int> v1Parts = v1Numeric.split('.').map(int.parse).toList();
-    List<int> v2Parts = v2Numeric.split('.').map(int.parse).toList();
+      if (v1BuildMatch != null) {
+        v1Build = int.tryParse(v1BuildMatch.group(1)!) ?? 0;
+        v1Base = v1.replaceAll(buildRegex, '');
+      }
 
-    // Compare numeric parts first
-    for (int i = 0; i < v1Parts.length || i < v2Parts.length; i++) {
-      int part1 = (i < v1Parts.length) ? v1Parts[i] : 0;
-      int part2 = (i < v2Parts.length) ? v2Parts[i] : 0;
+      if (v2BuildMatch != null) {
+        v2Build = int.tryParse(v2BuildMatch.group(1)!) ?? 0;
+        v2Base = v2.replaceAll(buildRegex, '');
+      }
 
-      if (part1 < part2) return -1;
-      if (part1 > part2) return 1;
+      // Extract numeric version by removing beta suffix from base version
+      String v1Numeric = v1Base.replaceAll('-beta', '');
+      String v2Numeric = v2Base.replaceAll('-beta', '');
+
+      // Check if versions are beta
+      bool v1IsBeta = v1Base.contains('-beta');
+      bool v2IsBeta = v2Base.contains('b');
+
+      // Safely parse version parts, defaulting to 0 for invalid parts
+      List<int> v1Parts = v1Numeric.split('.').map((part) {
+        try {
+          return int.parse(part);
+        } catch (e) {
+          debugPrint(
+              'Warning: Invalid version part "$part" in "$v1", treating as 0');
+          return 0;
+        }
+      }).toList();
+
+      List<int> v2Parts = v2Numeric.split('.').map((part) {
+        try {
+          return int.parse(part);
+        } catch (e) {
+          debugPrint(
+              'Warning: Invalid version part "$part" in "$v2", treating as 0');
+          return 0;
+        }
+      }).toList();
+
+      // Compare numeric parts first (date or traditional version)
+      for (int i = 0; i < v1Parts.length || i < v2Parts.length; i++) {
+        int part1 = (i < v1Parts.length) ? v1Parts[i] : 0;
+        int part2 = (i < v2Parts.length) ? v2Parts[i] : 0;
+
+        if (part1 < part2) return -1;
+        if (part1 > part2) return 1;
+      }
+
+      // If numeric versions are equal, compare build numbers
+      if (v1Build < v2Build) return -1;
+      if (v1Build > v2Build) return 1;
+
+      // If both numeric and build are equal, stable versions are greater than beta versions
+      if (v1IsBeta && !v2IsBeta) return -1;
+      if (!v1IsBeta && v2IsBeta) return 1;
+
+      return 0;
+    } catch (e) {
+      // If comparison fails entirely, log error and assume versions are equal
+      debugPrint(
+          'Error comparing versions "$v1" vs "$v2": $e. Assuming equal.');
+      return 0;
+    }
+  }
+
+  // Helper method to validate version string format
+  bool _isValidVersionString(String version) {
+    if (version.isEmpty) return false;
+
+    // Handle new format: year.month.day+build#
+    // Extract base version (remove build suffix if present)
+    String baseVersion = version;
+    final buildRegex = RegExp(r'\+(\d+)$');
+    final buildMatch = buildRegex.firstMatch(version);
+
+    if (buildMatch != null) {
+      // Validate build number
+      final buildNumber = buildMatch.group(1)!;
+      try {
+        int.parse(buildNumber);
+      } catch (e) {
+        return false;
+      }
+      // Remove build suffix for base validation
+      baseVersion = version.replaceAll(buildRegex, '');
     }
 
-    // If numeric versions are equal, stable versions are greater than beta versions
-    if (v1IsBeta && !v2IsBeta) return -1;
-    if (!v1IsBeta && v2IsBeta) return 1;
+    // Remove beta suffix for validation
+    String numericVersion = baseVersion.replaceAll('-beta', '');
 
-    return 0;
+    // Check if it contains only digits and dots
+    final versionRegex = RegExp(r'^[\d\.]+$');
+    if (!versionRegex.hasMatch(numericVersion)) {
+      return false;
+    }
+
+    // Check that it doesn't start or end with dots and has valid structure
+    if (numericVersion.startsWith('.') ||
+        numericVersion.endsWith('.') ||
+        numericVersion.contains('..')) {
+      return false;
+    }
+
+    // Check that all parts are valid integers (no leading zeros except for 0 itself)
+    final parts = numericVersion.split('.');
+    for (final part in parts) {
+      if (part.isEmpty || (part.length > 1 && part.startsWith('0'))) {
+        return false;
+      }
+      try {
+        int.parse(part);
+      } catch (e) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   Future<UpdateInfo?> checkForUpdate(String currentAppVersion) async {
@@ -668,6 +773,19 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final updateInfo = UpdateInfo.fromJson(data);
+
+        // Validate both versions before comparison
+        if (!_isValidVersionString(updateInfo.version)) {
+          debugPrint(
+              'Warning: Invalid version format received from server: "${updateInfo.version}". Skipping update check.');
+          return null;
+        }
+
+        if (!_isValidVersionString(currentAppVersion)) {
+          debugPrint(
+              'Warning: Invalid current app version format: "${currentAppVersion}". Skipping update check.');
+          return null;
+        }
 
         if (_compareVersions(updateInfo.version, currentAppVersion) > 0) {
           return updateInfo;
