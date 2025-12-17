@@ -2695,9 +2695,6 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
                                     : (currentSong.artists.isNotEmpty
                                         ? currentSong.artists.join(', ')
                                         : 'Unknown Artist');
-                                // Debug logging
-                                debugPrint(
-                                    'Full screen player artist display: "$displayText" for song "${currentSong.title}" (artists: ${currentSong.artists})');
                                 return Text(
                                   displayText,
                                   key: ValueKey<String>(
