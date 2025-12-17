@@ -541,6 +541,7 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                               ),
                         border: const OutlineInputBorder(),
                       ),
+                      autocorrect: false,
                       onSubmitted: (value) async {
                         if (value.trim().isNotEmpty) {
                           setState(() {
@@ -769,9 +770,11 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                                           ? 'Unknown Title'
                                           : titleController.text.trim(),
                                       id: const Uuid().v4(),
-                                      artists: [artistController.text.trim().isEmpty
-                                          ? 'Unknown Artist'
-                                          : artistController.text.trim()],
+                                      artists: [
+                                        artistController.text.trim().isEmpty
+                                            ? 'Unknown Artist'
+                                            : artistController.text.trim()
+                                      ],
                                       artistIds: [''],
                                       albumArtUrl: albumArtUrl,
                                       album: albumController.text.trim().isEmpty
@@ -1223,9 +1226,11 @@ class _LocalMetadataScreenState extends State<LocalMetadataScreen> {
                           ? 'Unknown Title'
                           : titleController.text.trim(),
                       id: baseSong.id, // Keep the same ID for editing
-                      artists: [artistController.text.trim().isEmpty
-                          ? 'Unknown Artist'
-                          : artistController.text.trim()],
+                      artists: [
+                        artistController.text.trim().isEmpty
+                            ? 'Unknown Artist'
+                            : artistController.text.trim()
+                      ],
                       artistIds: [''],
                       albumArtUrl: albumArtUrl,
                       album: albumController.text.trim().isEmpty

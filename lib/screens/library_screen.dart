@@ -418,6 +418,7 @@ class LibraryItemContextMenu extends StatelessWidget {
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 0, horizontal: 16),
                         ),
+                        autocorrect: false,
                         onChanged: (value) {
                           setState(() {
                             filteredPlaylists = playlists
@@ -454,8 +455,7 @@ class LibraryItemContextMenu extends StatelessWidget {
                                     height: 48,
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(4.0),
-                                      child: Container(
-                                          color: Colors.grey),
+                                      child: Container(color: Colors.grey),
                                     ),
                                   ),
                                   title: Text(playlist.name),
@@ -873,7 +873,8 @@ class _ContextMenuBottomSheet extends StatelessWidget {
                 break;
               }
             }
-            final artworkToShow = firstArtworkByOrder ?? uniqueAlbumArtUrls.first;
+            final artworkToShow =
+                firstArtworkByOrder ?? uniqueAlbumArtUrls.first;
             return ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: _buildPlaylistArtWidget(
@@ -3345,6 +3346,7 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                     ? Colors.grey[900]
                     : Colors.grey[200],
               ),
+              autocorrect: false,
             ),
           ),
         ),
@@ -3386,7 +3388,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                     await HapticService().lightImpact();
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const PlaylistsScreen()),
                     );
                   },
                 ),
@@ -3413,7 +3416,8 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                     await HapticService().lightImpact();
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const AlbumsListScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const AlbumsListScreen()),
                     );
                   },
                 ),
@@ -3851,7 +3855,9 @@ class ModernLibraryScreenState extends State<ModernLibraryScreen>
                             final song = Song(
                               id: station.id,
                               title: station.name,
-                              artists: ['Radio Station'], // Marker for our listener
+                              artists: [
+                                'Radio Station'
+                              ], // Marker for our listener
                               album: 'Live Radio',
                               albumArtUrl: station.imageUrl,
                               audioUrl: station.streamUrl,

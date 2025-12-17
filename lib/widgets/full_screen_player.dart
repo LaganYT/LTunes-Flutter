@@ -3631,82 +3631,286 @@ class _FullScreenPlayerState extends State<FullScreenPlayer>
   }
 
   void _showSleepTimerDialog(BuildContext context) {
-    final List<int> presetMinutes = [15, 30, 60];
-    int? selectedMinutes = _sleepTimerService.sleepTimerMinutes;
-    final TextEditingController customController = TextEditingController();
+    int selectedMinutes = _sleepTimerService.sleepTimerMinutes ?? 30;
+    const List<int> presetMinutes = [30, 60, 90];
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Set Sleep Timer'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ...presetMinutes.map((m) => RadioListTile<int>(
-                        title: Text('$m minutes'),
-                        value: m,
-                        // ignore: deprecated_member_use
-                        groupValue: selectedMinutes,
-                        // ignore: deprecated_member_use
-                        onChanged: (val) {
-                          setState(() {
-                            selectedMinutes = val;
-                            customController.clear();
-                          });
-                        },
-                      )),
-                  RadioListTile<int>(
-                    title: Row(
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28.0),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(28.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Row(
                       children: [
-                        const Text('Custom: '),
-                        SizedBox(
-                          width: 60,
-                          child: TextField(
-                            controller: customController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: 'min'),
-                            onChanged: (val) {
-                              final parsed = int.tryParse(val);
-                              setState(() {
-                                selectedMinutes = parsed;
-                              });
-                            },
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.bedtime,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Sleep Timer',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              Text(
+                                'Stop playback automatically',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    value: selectedMinutes != null &&
-                            !presetMinutes.contains(selectedMinutes!)
-                        ? selectedMinutes!
-                        : -1,
-                    // ignore: deprecated_member_use
-                    groupValue: selectedMinutes != null &&
-                            !presetMinutes.contains(selectedMinutes!)
-                        ? selectedMinutes!
-                        : -1,
-                    // ignore: deprecated_member_use
-                    onChanged: (_) {},
-                  ),
-                ],
+                    const SizedBox(height: 24),
+
+                    // Current selection display
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.timer,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$selectedMinutes minutes',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Preset buttons
+                    Text(
+                      'Quick Select',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: presetMinutes.map((minutes) {
+                        final isSelected = selectedMinutes == minutes;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          child: Material(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                setState(() {
+                                  selectedMinutes = minutes;
+                                });
+                                HapticService().lightImpact();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                child: Text(
+                                  '$minutes min',
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Custom slider
+                    Text(
+                      'Custom Duration',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: Theme.of(context).colorScheme.primary,
+                        inactiveTrackColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        thumbColor: Theme.of(context).colorScheme.primary,
+                        overlayColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.2),
+                        valueIndicatorColor:
+                            Theme.of(context).colorScheme.primary,
+                        valueIndicatorTextStyle: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                      child: Slider(
+                        value: selectedMinutes.toDouble(),
+                        min: 1,
+                        max: 180, // 3 hours max
+                        divisions: 179,
+                        label: '$selectedMinutes min',
+                        onChanged: (value) {
+                          setState(() {
+                            selectedMinutes = value.round();
+                          });
+                        },
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '1 min',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                        Text(
+                          '3 hours',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: selectedMinutes > 0
+                                ? () {
+                                    _sleepTimerService
+                                        .startTimer(selectedMinutes);
+                                    Navigator.of(context).pop();
+                                    HapticService().mediumImpact();
+                                  }
+                                : null,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Start Timer'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: (selectedMinutes != null && selectedMinutes! > 0)
-                      ? () {
-                          _sleepTimerService.startTimer(selectedMinutes!);
-                          Navigator.of(context).pop();
-                        }
-                      : null,
-                  child: const Text('Start'),
-                ),
-              ],
             );
           },
         );

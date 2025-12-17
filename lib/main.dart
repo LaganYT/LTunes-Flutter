@@ -17,7 +17,6 @@ import 'services/playlist_manager_service.dart'; // Import PlaylistManagerServic
 import 'services/download_notification_service.dart'; // Import DownloadNotificationService
 import 'services/metadata_history_service.dart'; // Import MetadataHistoryService
 import 'services/animation_service.dart'; // Import AnimationService
-import 'services/bug_report_service.dart'; // Import BugReportService
 import 'services/artwork_service.dart'; // Import ArtworkService
 import 'services/liked_songs_service.dart'; // Import LikedSongsService
 import 'services/haptic_service.dart'; // Import HapticService
@@ -39,9 +38,6 @@ Future<void> main() async {
 
   // Initialize download notification service
   await DownloadNotificationService().initialize();
-
-  // Initialize bug report service
-  await BugReportService().initialize();
 
   // Initialize haptic service
   await HapticService().initialize();

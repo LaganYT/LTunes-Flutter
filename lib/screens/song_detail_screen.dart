@@ -1681,6 +1681,7 @@ class AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                         contentPadding: const EdgeInsets.symmetric(
                             vertical: 0, horizontal: 16),
                       ),
+                      autocorrect: false,
                     ),
                   ),
                 ],

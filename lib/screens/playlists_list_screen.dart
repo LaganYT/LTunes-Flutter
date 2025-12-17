@@ -994,6 +994,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                         labelText: 'Search',
                         border: OutlineInputBorder(),
                       ),
+                      autocorrect: false,
                       onSubmitted: (value) async {
                         if (value.trim().isNotEmpty) {
                           setState(() {

@@ -366,7 +366,6 @@ class _SearchScreenState extends State<SearchScreen>
     super.dispose();
   }
 
-
   Future<void> _loadInitialContent() async {
     if (_searchQuery.isEmpty) {
       _loadInitialMusic();
@@ -609,7 +608,8 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Future<void> _toggleLike(Song song) async {
-    final likedSongsService = Provider.of<LikedSongsService>(context, listen: false);
+    final likedSongsService =
+        Provider.of<LikedSongsService>(context, listen: false);
     final wasLiked = await likedSongsService.toggleLike(song);
 
     // If song was just liked (not unliked), check for auto-download
@@ -617,7 +617,8 @@ class _SearchScreenState extends State<SearchScreen>
       final prefs = await SharedPreferences.getInstance();
       final bool autoDL = prefs.getBool('autoDownloadLikedSongs') ?? false;
       if (autoDL) {
-        final provider = Provider.of<CurrentSongProvider>(context, listen: false);
+        final provider =
+            Provider.of<CurrentSongProvider>(context, listen: false);
         provider.queueSongForDownload(song);
       }
     }
@@ -849,7 +850,8 @@ class _SearchScreenState extends State<SearchScreen>
                         color: Colors.green, size: 20),
                   Consumer<LikedSongsService>(
                     builder: (context, likedSongsService, child) {
-                      final isLiked = likedSongsService.isLiked(songWithStatus.id);
+                      final isLiked =
+                          likedSongsService.isLiked(songWithStatus.id);
                       return IconButton(
                         icon: Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
@@ -1254,6 +1256,7 @@ class _SearchScreenState extends State<SearchScreen>
                     ? Colors.grey[900]
                     : Colors.grey[200],
               ),
+              autocorrect: false,
             ),
           ),
         ),

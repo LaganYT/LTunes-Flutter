@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'bug_report_service.dart';
 import 'haptic_service.dart';
 
 class ErrorHandlerService {
@@ -380,7 +379,8 @@ class ErrorHandlerService {
   }
 
   // Handle error actions
-  void _handleErrorAction(BuildContext context, dynamic error, String action) async {
+  void _handleErrorAction(
+      BuildContext context, dynamic error, String action) async {
     await HapticService().lightImpact();
     switch (action.toLowerCase()) {
       case 'retry':
@@ -443,10 +443,6 @@ class ErrorHandlerService {
     if (stackTrace != null) {
       debugPrint('ErrorHandler: Stack trace: $stackTrace');
     }
-
-    // Log to bug report service
-    BugReportService()
-        .logError(error, context: context, stackTrace: stackTrace);
   }
 
   // Check if error is recoverable

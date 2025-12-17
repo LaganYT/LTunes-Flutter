@@ -21,14 +21,6 @@ import '../services/lyrics_service.dart';
 import '../services/version_service.dart';
 
 /// Validation result containing information about corrupted and unmarked songs
-class ValidationResult {
-  final List<Song> corruptedSongs;
-  final List<Song> unmarkedSongs;
-
-  ValidationResult({required this.corruptedSongs, required this.unmarkedSongs});
-
-  int get totalIssues => corruptedSongs.length + unmarkedSongs.length;
-}
 
 class CurrentSongProvider with ChangeNotifier {
   final AudioHandler _audioHandler;
@@ -2815,79 +2807,6 @@ class CurrentSongProvider with ChangeNotifier {
       debugPrint('Error validating file for ${song.title}: $e');
       await redownloadSong(song);
       return true;
-    }
-  }
-
-  /// Validate all downloaded songs and redownload corrupted ones
-  Future<ValidationResult> validateAllDownloadedSongs() async {
-    debugPrint(
-        'CurrentSongProvider: Starting validation of all downloaded songs');
-    final List<Song> corruptedSongs = [];
-    final List<Song> unmarkedSongs = [];
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final Set<String> keys = prefs.getKeys();
-
-      for (String key in keys) {
-        if (key.startsWith('song_')) {
-          final String? songJson = prefs.getString(key);
-          if (songJson != null) {
-            try {
-              Map<String, dynamic> songMap =
-                  jsonDecode(songJson) as Map<String, dynamic>;
-              Song song = Song.fromJson(songMap);
-
-              if (song.isDownloaded &&
-                  song.localFilePath != null &&
-                  song.localFilePath!.isNotEmpty) {
-                final appDocDir = await getApplicationDocumentsDirectory();
-                final String downloadsSubDir =
-                    _downloadManager?.subDir ?? 'ltunes_downloads';
-                final filePath = p.join(
-                    appDocDir.path, downloadsSubDir, song.localFilePath!);
-                final file = File(filePath);
-
-                if (!await file.exists()) {
-                  // File is missing - unmark as downloaded
-                  debugPrint(
-                      'File missing for downloaded song ${song.title}, unmarking as downloaded');
-                  final updatedSong = song.copyWith(
-                    isDownloaded: false,
-                    localFilePath: null,
-                    isDownloading: false,
-                    downloadProgress: 0.0,
-                  );
-                  await _persistSongMetadata(updatedSong);
-                  updateSongDetails(updatedSong);
-                  await PlaylistManagerService()
-                      .updateSongInPlaylists(updatedSong);
-                  unmarkedSongs.add(song);
-                } else {
-                  // File exists, check if corrupted
-                  final needsRedownload =
-                      await validateAndRedownloadIfNeeded(song);
-                  if (needsRedownload) {
-                    corruptedSongs.add(song);
-                  }
-                }
-              }
-            } catch (e) {
-              debugPrint('Error parsing song metadata for key $key: $e');
-            }
-          }
-        }
-      }
-
-      debugPrint(
-          'CurrentSongProvider: Validation complete. Found ${corruptedSongs.length} corrupted songs and unmarked ${unmarkedSongs.length} missing files');
-      return ValidationResult(
-          corruptedSongs: corruptedSongs, unmarkedSongs: unmarkedSongs);
-    } catch (e) {
-      debugPrint('CurrentSongProvider: Error during bulk validation: $e');
-      _errorHandler.logError(e, context: 'validateAllDownloadedSongs');
-      return ValidationResult(
-          corruptedSongs: corruptedSongs, unmarkedSongs: unmarkedSongs);
     }
   }
 

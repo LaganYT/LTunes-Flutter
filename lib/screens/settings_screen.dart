@@ -27,9 +27,7 @@ import 'manage_downloads_screen.dart'; // Import DeleteDownloadsScreen
 import '../screens/playlists_list_screen.dart' show robustArtwork;
 import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/animation_service.dart'; // Import AnimationService
-import '../widgets/bug_report_dialog.dart'; // Import BugReportDialog
 import '../widgets/update_dialog.dart'; // Import UpdateDialog
-import '../services/bug_report_service.dart'; // Import BugReportService
 import '../services/haptic_service.dart'; // Import HapticService
 
 class SettingsScreen extends StatefulWidget {
@@ -60,12 +58,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ValueNotifier<String>('Loading...');
   final ValueNotifier<String> latestKnownVersionNotifier =
       ValueNotifier<String>('N/A');
-  final ValueNotifier<bool?> showOnlySavedSongsInAlbumsNotifier =
-      ValueNotifier<bool?>(null); // NEW
   final ValueNotifier<int> maxConcurrentDownloadsNotifier =
-      ValueNotifier<int>(1); // NEW
+      ValueNotifier<int>(10); // NEW
   final ValueNotifier<int> maxConcurrentPlaylistMatchesNotifier =
-      ValueNotifier<int>(5); // NEW
+      ValueNotifier<int>(20); // NEW
   final ValueNotifier<Map<AnimationType, bool>> animationSettingsNotifier =
       ValueNotifier<Map<AnimationType, bool>>({}); // NEW
   final ValueNotifier<bool?> switchContextWithoutInterruptionNotifier =
@@ -85,9 +81,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSettings();
     _loadAppVersion();
     _loadListeningStatsEnabled();
-
-    // Log settings screen opened
-    BugReportService().logUserAction('settings_screen_opened');
   }
 
   @override
@@ -177,18 +170,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       customSpeedPresetsNotifier.value = customSpeedPresets;
     }
 
-    // Load Only Show Saved Songs in Albums setting
-    final showOnlySavedSongs =
-        prefs.getBool('showOnlySavedSongsInAlbums') ?? false;
-    showOnlySavedSongsInAlbumsNotifier.value = showOnlySavedSongs;
-
     // Load Max Concurrent Downloads setting
-    final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 1;
+    final maxConcurrentDownloads = prefs.getInt('maxConcurrentDownloads') ?? 10;
     maxConcurrentDownloadsNotifier.value = maxConcurrentDownloads;
 
     // Load Max Concurrent Playlist Matches setting
     final maxConcurrentPlaylistMatches =
-        prefs.getInt('maxConcurrentPlaylistMatches') ?? 5;
+        prefs.getInt('maxConcurrentPlaylistMatches') ?? 20;
     maxConcurrentPlaylistMatchesNotifier.value = maxConcurrentPlaylistMatches;
 
     // Load Animation Settings
@@ -237,11 +225,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveAutoCheckForUpdatesSetting(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('autoCheckForUpdates', value);
-  }
-
-  Future<void> _saveShowOnlySavedSongsInAlbumsSetting(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('showOnlySavedSongsInAlbums', value);
   }
 
   Future<void> _saveMaxConcurrentDownloadsSetting(int value) async {
@@ -483,17 +466,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     customSpeedPresetsNotifier.value = [];
     await _saveCustomSpeedPresets([]);
 
-    // Reset Show Only Saved Songs in Albums
-    showOnlySavedSongsInAlbumsNotifier.value = false;
-    await _saveShowOnlySavedSongsInAlbumsSetting(false);
-
     // Reset Max Concurrent Downloads
-    maxConcurrentDownloadsNotifier.value = 1;
-    await _saveMaxConcurrentDownloadsSetting(1);
+    maxConcurrentDownloadsNotifier.value = 10;
+    await _saveMaxConcurrentDownloadsSetting(10);
 
     // Reset Max Concurrent Playlist Matches
-    maxConcurrentPlaylistMatchesNotifier.value = 5;
-    await _saveMaxConcurrentPlaylistMatchesSetting(5);
+    maxConcurrentPlaylistMatchesNotifier.value = 20;
+    await _saveMaxConcurrentPlaylistMatchesSetting(20);
 
     // Reset Animation Settings
     await AnimationService.instance.resetToDefaults();
@@ -966,81 +945,285 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showSleepTimerDialog(BuildContext context) {
-    final List<int> presetMinutes = [15, 30, 60];
-    int? selectedMinutes = _sleepTimerService.sleepTimerMinutes;
-    final TextEditingController customController = TextEditingController();
+    int selectedMinutes = _sleepTimerService.sleepTimerMinutes ?? 30;
+    const List<int> presetMinutes = [30, 60, 90];
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Set Sleep Timer'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ...presetMinutes.map((m) => RadioListTile<int>(
-                        title: Text('$m minutes'),
-                        value: m,
-                        // ignore: deprecated_member_use
-                        groupValue: selectedMinutes,
-                        // ignore: deprecated_member_use
-                        onChanged: (val) {
-                          setState(() {
-                            selectedMinutes = val;
-                            customController.clear();
-                          });
-                        },
-                      )),
-                  RadioListTile<int>(
-                    title: Row(
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28.0),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(28.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Row(
                       children: [
-                        const Text('Custom: '),
-                        SizedBox(
-                          width: 60,
-                          child: TextField(
-                            controller: customController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(hintText: 'min'),
-                            onChanged: (val) {
-                              final parsed = int.tryParse(val);
-                              setState(() {
-                                selectedMinutes = parsed;
-                              });
-                            },
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.bedtime,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Sleep Timer',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              Text(
+                                'Stop playback automatically',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    value: selectedMinutes != null &&
-                            !presetMinutes.contains(selectedMinutes!)
-                        ? selectedMinutes!
-                        : -1,
-                    // ignore: deprecated_member_use
-                    groupValue: selectedMinutes != null &&
-                            !presetMinutes.contains(selectedMinutes!)
-                        ? selectedMinutes!
-                        : -1,
-                    // ignore: deprecated_member_use
-                    onChanged: (_) {},
-                  ),
-                ],
+                    const SizedBox(height: 24),
+
+                    // Current selection display
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.timer,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$selectedMinutes minutes',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Preset buttons
+                    Text(
+                      'Quick Select',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: presetMinutes.map((minutes) {
+                        final isSelected = selectedMinutes == minutes;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          child: Material(
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                setState(() {
+                                  selectedMinutes = minutes;
+                                });
+                                HapticService().lightImpact();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                child: Text(
+                                  '$minutes min',
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Custom slider
+                    Text(
+                      'Custom Duration',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: Theme.of(context).colorScheme.primary,
+                        inactiveTrackColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        thumbColor: Theme.of(context).colorScheme.primary,
+                        overlayColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.2),
+                        valueIndicatorColor:
+                            Theme.of(context).colorScheme.primary,
+                        valueIndicatorTextStyle: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                      child: Slider(
+                        value: selectedMinutes.toDouble(),
+                        min: 1,
+                        max: 180, // 3 hours max
+                        divisions: 179,
+                        label: '$selectedMinutes min',
+                        onChanged: (value) {
+                          setState(() {
+                            selectedMinutes = value.round();
+                          });
+                        },
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '1 min',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                        Text(
+                          '3 hours',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: selectedMinutes > 0
+                                ? () {
+                                    _startSleepTimer(selectedMinutes);
+                                    Navigator.of(context).pop();
+                                    HapticService().mediumImpact();
+                                  }
+                                : null,
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Start Timer'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: (selectedMinutes != null && selectedMinutes! > 0)
-                      ? () {
-                          _startSleepTimer(selectedMinutes!);
-                          Navigator.of(context).pop();
-                        }
-                      : null,
-                  child: const Text('Start'),
-                ),
-              ],
             );
           },
         );
@@ -1305,41 +1488,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onChanged: (bool value) async {
                               showRadioTabNotifier.value = value;
                               await _saveShowRadioTabSetting(value);
-                              _contentDiscoveryRefreshNotifier.value++;
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                    ValueListenableBuilder<bool?>(
-                      valueListenable: showOnlySavedSongsInAlbumsNotifier,
-                      builder: (context, showOnlySavedSongsInAlbums, _) {
-                        if (showOnlySavedSongsInAlbums == null) {
-                          return const ListTile(
-                            leading: Icon(Icons.filter_alt),
-                            title: Text('Show Only Saved Songs in Albums'),
-                            subtitle: Text(
-                                'Only show your downloaded/saved songs in saved albums'),
-                            trailing: SizedBox(
-                              width: 50,
-                              height: 30,
-                              child: Center(
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2.0)),
-                            ),
-                          );
-                        }
-                        return ListTile(
-                          leading: const Icon(Icons.filter_alt),
-                          title: const Text('Show Only Saved Songs in Albums'),
-                          subtitle: const Text(
-                              'Only show your downloaded/saved songs in saved albums'),
-                          trailing: Switch(
-                            value: showOnlySavedSongsInAlbums,
-                            onChanged: (bool value) async {
-                              showOnlySavedSongsInAlbumsNotifier.value = value;
-                              await _saveShowOnlySavedSongsInAlbumsSetting(
-                                  value);
                               _contentDiscoveryRefreshNotifier.value++;
                             },
                           ),
@@ -1768,105 +1916,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                     if (confirmDelete == true) {
                       await _deleteAllDownloads();
-                    }
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.refresh_outlined,
-                      color: Theme.of(context).colorScheme.primary),
-                  title: const Text('Validate & Fix Downloaded Files'),
-                  subtitle: const Text(
-                      'Check all downloaded songs, redownload corrupted ones, and unmark missing files'),
-                  onTap: () async {
-                    bool? confirmValidate = await showDialog<bool>(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: const Text('Validate Downloads?'),
-                          content: const Text(
-                              'This will check all downloaded songs for corruption and missing files. Corrupted files will be redownloaded, and missing files will be unmarked as downloaded. This may take some time.'),
-                          actions: <Widget>[
-                            TextButton(
-                              child: const Text('Cancel'),
-                              onPressed: () {
-                                Navigator.of(context).pop(false);
-                              },
-                            ),
-                            TextButton(
-                              child: Text('Validate',
-                                  style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary)),
-                              onPressed: () {
-                                Navigator.of(context).pop(true);
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                    if (confirmValidate == true &&
-                        _currentSongProvider != null) {
-                      // Show loading dialog
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (BuildContext context) {
-                          return const AlertDialog(
-                            content: Row(
-                              children: [
-                                CircularProgressIndicator(),
-                                SizedBox(width: 16),
-                                Text('Validating downloads...'),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-
-                      try {
-                        final validationResult = await _currentSongProvider!
-                            .validateAllDownloadedSongs();
-                        Navigator.of(context).pop(); // Close loading dialog
-
-                        if (mounted) {
-                          String message;
-                          if (validationResult.totalIssues == 0) {
-                            message = 'All downloads validated successfully!';
-                          } else {
-                            final parts = <String>[];
-                            if (validationResult.corruptedSongs.isNotEmpty) {
-                              parts.add(
-                                  '${validationResult.corruptedSongs.length} corrupted files');
-                            }
-                            if (validationResult.unmarkedSongs.isNotEmpty) {
-                              parts.add(
-                                  '${validationResult.unmarkedSongs.length} missing files unmarked');
-                            }
-                            message =
-                                'Found ${parts.join(' and ')}. ${validationResult.corruptedSongs.isNotEmpty ? 'Redownloading...' : ''}';
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(message),
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        Navigator.of(context).pop(); // Close loading dialog
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error validating downloads: $e'),
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.error,
-                            ),
-                          );
-                        }
-                      }
                     }
                   },
                 ),
@@ -2466,17 +2515,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Terms of Service'),
                   subtitle: const Text('View terms of service'),
                   onTap: () => _showTermsOfService(context),
-                ),
-                ListTile(
-                  leading: Icon(Icons.bug_report,
-                      color: Theme.of(context).colorScheme.error),
-                  title: const Text('Report a Bug'),
-                  subtitle: const Text('Help us improve the app'),
-                  onTap: () {
-                    BugReportService()
-                        .logUserAction('bug_report_dialog_opened');
-                    showBugReportDialog(context);
-                  },
                 ),
               ],
             ),

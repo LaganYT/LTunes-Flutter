@@ -153,6 +153,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                         .onSurface
                         .withValues(alpha: 0.7)),
               ),
+              autocorrect: false,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               onChanged: (query) {
                 setState(() {
@@ -319,8 +320,84 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        onPressed: () {
-                          // Implement new playlist creation logic here
+                        onPressed: () async {
+                          final nameCtrl = TextEditingController();
+                          final playlistName = await showDialog<String>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('New Playlist'),
+                              content: TextField(
+                                controller: nameCtrl,
+                                decoration: const InputDecoration(
+                                  hintText: 'Playlist Name',
+                                  labelText: 'Name',
+                                ),
+                                autofocus: true,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    final name = nameCtrl.text.trim();
+                                    if (name.isNotEmpty) {
+                                      Navigator.of(dialogContext).pop(name);
+                                    }
+                                  },
+                                  child: const Text('Create'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (playlistName != null && playlistName.isNotEmpty) {
+                            final playlistManager = PlaylistManagerService();
+                            final scaffoldMessenger =
+                                ScaffoldMessenger.of(context);
+
+                            try {
+                              // Create the new playlist
+                              final newPlaylist = Playlist(
+                                id: DateTime.now()
+                                    .millisecondsSinceEpoch
+                                    .toString(),
+                                name: playlistName,
+                                songs: [],
+                              );
+                              await playlistManager.addPlaylist(newPlaylist);
+
+                              // Add all album tracks to the new playlist
+                              for (final track in album.tracks) {
+                                await playlistManager.addSongToPlaylist(
+                                    newPlaylist, track);
+                              }
+
+                              // Close the add to playlist dialog
+                              Navigator.of(context).pop();
+
+                              // Show success message
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Created playlist "$playlistName" with ${album.tracks.length} songs'),
+                                ),
+                              );
+                            } catch (e) {
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content:
+                                      Text('Failed to create playlist: $e'),
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.error,
+                                ),
+                              );
+                            }
+                          }
                         },
                         child: const Text('New playlist',
                             style: TextStyle(
@@ -354,6 +431,7 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
                                 contentPadding: const EdgeInsets.symmetric(
                                     vertical: 0, horizontal: 16),
                               ),
+                              autocorrect: false,
                               onChanged: (value) {
                                 setState(() {
                                   filteredPlaylists = playlists
@@ -452,7 +530,8 @@ class _AlbumsListScreenState extends State<AlbumsListScreen> {
     final currentSongProvider =
         Provider.of<CurrentSongProvider>(context, listen: false);
     if (album.tracks.isNotEmpty) {
-      currentSongProvider.smartPlayWithContext(album.tracks, album.tracks.first);
+      currentSongProvider.smartPlayWithContext(
+          album.tracks, album.tracks.first);
     }
   }
 
