@@ -1483,8 +1483,7 @@ class CurrentSongProvider with ChangeNotifier {
 
     if (playableUrl.isEmpty) {
       final apiService = ApiService();
-      final fetchedApiUrl = await apiService.fetchAudioUrl(
-          effectiveSong.artist, effectiveSong.title);
+      final fetchedApiUrl = await apiService.fetchAudioUrl(effectiveSong.id);
       if (playRequest != null && playRequest != _playRequestCounter) {
         return Future.error('Cancelled');
       }
@@ -1623,8 +1622,7 @@ class CurrentSongProvider with ChangeNotifier {
             return song.audioUrl;
           }
           final apiService = ApiService();
-          final fetchedUrl =
-              await apiService.fetchAudioUrl(song.artist, song.title);
+          final fetchedUrl = await apiService.fetchAudioUrl(song.id);
           return fetchedUrl ?? '';
         }
         return filePath;
@@ -1653,7 +1651,7 @@ class CurrentSongProvider with ChangeNotifier {
     }
 
     final apiService = ApiService();
-    final fetchedUrl = await apiService.fetchAudioUrl(song.artist, song.title);
+    final fetchedUrl = await apiService.fetchAudioUrl(song.id);
     if (playRequest != null && playRequest != _playRequestCounter) {
       return Future.error('Cancelled');
     }
@@ -3103,8 +3101,7 @@ class CurrentSongProvider with ChangeNotifier {
           audioUrl.startsWith('file://') ||
           !(Uri.tryParse(audioUrl)?.isAbsolute ?? false)) {
         final apiService = ApiService();
-        audioUrl =
-            await apiService.fetchAudioUrl(song.artist, song.title).timeout(
+        audioUrl = await apiService.fetchAudioUrl(song.id).timeout(
           const Duration(seconds: 30),
           onTimeout: () {
             throw Exception('Timeout while fetching audio URL from API');
@@ -3347,8 +3344,7 @@ class CurrentSongProvider with ChangeNotifier {
             originalAudioUrl.startsWith('file://') ||
             !(Uri.tryParse(originalAudioUrl)?.isAbsolute ?? false)) {
           final apiService = ApiService();
-          originalAudioUrl =
-              await apiService.fetchAudioUrl(song.artist, song.title);
+          originalAudioUrl = await apiService.fetchAudioUrl(song.id);
         }
       } catch (e) {
         debugPrint(

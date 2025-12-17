@@ -443,72 +443,35 @@ class ApiService {
     return url;
   }
 
-  Future<String?> fetchAudioUrl(String artist, String musicName) async {
-    final cacheKey = '${artist}_$musicName';
+  Future<String?> fetchAudioUrl(String songId) async {
+    final cacheKey = songId;
     final cached = _audioUrlCache[cacheKey];
     if (cached != null && !cached.isExpired) {
       return cached.data;
     }
 
-    // Try version-aware search queries for better matching
-    final searchQueries =
-        VersionService.createAlternativeSearchQueries(artist, musicName);
-
     String? audioUrl;
 
-    // Try each search query until we find a match
-    for (final query in searchQueries) {
-      try {
-        // First, search for tracks to get trackId
-        final tracks = await _fetchSongsInternal(query);
-        if (tracks.isNotEmpty) {
-          final trackId = tracks.first.id;
-          final Uri url = Uri.parse('${baseUrl}audio?trackId=$trackId');
+    try {
+      // Directly call audio endpoint with songId
+      final Uri url = Uri.parse('${baseUrl}audio?trackId=$songId');
 
-          final response = await _get(url.toString());
-          if (response.statusCode == 200) {
-            final data = json.decode(response.body);
-            if (data != null && data['audioURL'] != null) {
-              audioUrl = data['audioURL'] as String;
-              break; // Found a match, stop searching
-            }
-          }
+      final response = await _get(url.toString());
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['audioURL'] != null) {
+          audioUrl = data['audioURL'] as String;
         }
-      } catch (e) {
-        // Log error but continue trying other queries
-        debugPrint('Error fetching audio with query "$query": $e');
-        continue;
       }
-    }
-
-    // If version-aware search didn't work, try the original approach as fallback
-    if (audioUrl == null) {
+    } catch (e) {
+      debugPrint(
+          'Primary API failed for fetchAudioUrl with songId "$songId": $e');
+      // Try fallback API
       try {
-        // Search for tracks using original artist and musicName
-        final tracks = await _fetchSongsInternal('$artist $musicName');
-        if (tracks.isNotEmpty) {
-          final trackId = tracks.first.id;
-          final Uri url = Uri.parse('${baseUrl}audio?trackId=$trackId');
-
-          final response = await _get(url.toString());
-          if (response.statusCode == 200) {
-            final data = json.decode(response.body);
-            if (data != null && data['audioURL'] != null) {
-              audioUrl = data['audioURL'] as String;
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint(
-            'Primary API failed for fetchAudioUrl "$artist $musicName": $e');
-        // Try fallback API with original approach
-        try {
-          audioUrl = await _fetchAudioUrlFromFallbackApi(
-              artist, musicName, searchQueries);
-        } catch (fallbackError) {
-          _errorHandler.logError(fallbackError,
-              context: 'fetchAudioUrl fallback');
-        }
+        audioUrl = await _fetchAudioUrlFromFallbackApi(songId);
+      } catch (fallbackError) {
+        _errorHandler.logError(fallbackError,
+            context: 'fetchAudioUrl fallback');
       }
     }
 
@@ -522,54 +485,22 @@ class ApiService {
   }
 
   // Fallback method for audio URL fetching using original API
-  Future<String?> _fetchAudioUrlFromFallbackApi(
-      String artist, String musicName, List<String> searchQueries) async {
+  Future<String?> _fetchAudioUrlFromFallbackApi(String songId) async {
     String? audioUrl;
 
-    // Try each search query until we find a match
-    for (final query in searchQueries) {
-      final parts = query.trim().split(' ');
-      if (parts.length < 2) continue;
+    try {
+      // Try fallback API with songId - assuming the fallback API also supports trackId parameter
+      final Uri url = Uri.parse('${originalBaseUrl}audio?trackId=$songId');
 
-      // Extract potential artist and music name from query
-      final queryArtist = parts.last; // Assume artist is last
-      final queryMusicName =
-          parts.take(parts.length - 1).join(' '); // Rest is music name
-
-      final Uri url = Uri.parse(
-          '${originalBaseUrl}audio/?artist=${Uri.encodeComponent(queryArtist)}&musicName=${Uri.encodeComponent(queryMusicName)}');
-
-      try {
-        final response = await _get(url.toString());
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data != null && data['audioURL'] != null) {
-            audioUrl = data['audioURL'] as String;
-            break; // Found a match, stop searching
-          }
+      final response = await _get(url.toString());
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['audioURL'] != null) {
+          audioUrl = data['audioURL'] as String;
         }
-      } catch (e) {
-        // Log error but continue trying other queries
-        debugPrint('Error fetching audio with fallback query "$query": $e');
-        continue;
       }
-    }
-
-    // If version-aware search didn't work, try the original approach as fallback
-    if (audioUrl == null) {
-      final Uri fallbackUrl = Uri.parse(
-          '${originalBaseUrl}audio/?artist=${Uri.encodeComponent(artist)}&musicName=${Uri.encodeComponent(musicName)}');
-      try {
-        final response = await _get(fallbackUrl.toString());
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data != null && data['audioURL'] != null) {
-            audioUrl = data['audioURL'] as String;
-          }
-        }
-      } catch (e) {
-        debugPrint('Fallback API also failed for audio URL: $e');
-      }
+    } catch (e) {
+      debugPrint('Fallback API failed for audio URL with songId "$songId": $e');
     }
 
     return audioUrl;
