@@ -42,7 +42,8 @@ class LyricsService {
       final lyricsData = await _apiService.fetchLyrics(song.id);
 
       if (lyricsData == null) {
-        debugPrint("No lyrics found for ${song.title}");
+        // Don't log 404s as they're expected for many songs
+        // The API service handles 404s gracefully by returning null
         return null;
       }
 
@@ -127,6 +128,9 @@ class LyricsService {
       if (lyricsData != null) {
         await provider.updateSongLyrics(song.id, lyricsData);
         debugPrint("Force updated lyrics for ${song.title}");
+      } else {
+        // Don't log when lyrics are not found (404s are handled gracefully by API service)
+        debugPrint("No lyrics available for ${song.title}");
       }
 
       return lyricsData;
