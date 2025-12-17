@@ -20,7 +20,6 @@ import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'local_metadata_screen.dart';
 import 'dart:async'; // Required for Timer
-import 'package:fl_chart/fl_chart.dart'; // For charts
 import '../services/sleep_timer_service.dart'; // Import SleepTimerService
 import '../services/album_manager_service.dart'; // Import AlbumManagerService
 import 'manage_downloads_screen.dart'; // Import DeleteDownloadsScreen
@@ -29,6 +28,7 @@ import '../widgets/animated_page_route.dart'; // Import AnimatedPageRoute
 import '../services/animation_service.dart'; // Import AnimationService
 import '../widgets/update_dialog.dart'; // Import UpdateDialog
 import '../services/haptic_service.dart'; // Import HapticService
+import 'listening_stats_screen.dart'; // Import ListeningStatsScreen
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -1252,42 +1252,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() {}); // Use setState from State class
   }
 
-  double _calculateMaxY(Iterable<int> values) {
-    if (values.isEmpty) return 1.0;
-    final maxValue = values.reduce((a, b) => a > b ? a : b);
-    if (maxValue == 0) return 1.0;
-    if (maxValue <= 3) return 3.0;
-    if (maxValue <= 6) return 6.0;
-    if (maxValue <= 10) return 10.0;
-    if (maxValue <= 20) return 20.0;
-    if (maxValue <= 50) return 50.0;
-    // For larger values, round up to the nearest multiple of 10
-    return ((maxValue / 10).ceil() * 10).toDouble();
-  }
-
-  double _calculateGridInterval(Iterable<int> values) {
-    if (values.isEmpty) return 1.0;
-    final maxValue = values.reduce((a, b) => a > b ? a : b);
-    if (maxValue <= 3) return 1.0;
-    if (maxValue <= 6) return 1.0;
-    if (maxValue <= 10) return 2.0;
-    if (maxValue <= 20) return 5.0;
-    if (maxValue <= 50) return 10.0;
-    return (maxValue / 10).ceil().toDouble();
-  }
-
-  double _calculateYAxisInterval(Iterable<int> values) {
-    if (values.isEmpty) return 1.0;
-    final maxValue = values.reduce((a, b) => a > b ? a : b);
-    if (maxValue == 0) return 1.0;
-    if (maxValue <= 3) return 1.0;
-    if (maxValue <= 6) return 1.0;
-    if (maxValue <= 10) return 2.0;
-    if (maxValue <= 20) return 5.0;
-    if (maxValue <= 50) return 10.0;
-    return (maxValue / 10).ceil().toDouble();
-  }
-
   Future<void> _showUpdateDialog(UpdateInfo updateInfo) async {
     if (!mounted) return;
     await UpdateDialog.show(context, updateInfo, isMandatory: false);
@@ -2014,256 +1978,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               style: TextStyle(color: Colors.grey)),
                         ),
                       if (enabled)
-                        FutureBuilder<Map<String, dynamic>>(
-                          future: _getListeningStats(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                  child: CircularProgressIndicator());
-                            } else if (snapshot.hasError) {
-                              return Text('Error loading stats',
-                                  style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error));
-                            } else if (!snapshot.hasData) {
-                              return const Text('No stats available');
-                            }
-                            final stats = snapshot.data!;
-                            final List<Song> topSongs =
-                                stats['topSongs'] as List<Song>;
-                            final List<Map<String, dynamic>> topAlbums =
-                                stats['topAlbums']
-                                    as List<Map<String, dynamic>>;
-                            final List<MapEntry<String, int>> topArtists =
-                                stats['topArtists']
-                                    as List<MapEntry<String, int>>;
-                            final Map<String, int> dailyCounts =
-                                stats['dailyCounts'] as Map<String, int>? ?? {};
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 16),
-                                if (dailyCounts.isNotEmpty &&
-                                    dailyCounts.values
-                                        .any((count) => count > 0)) ...[
-                                  Text('Daily Listening (last 7 days):',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    height: 200,
-                                    child: BarChart(
-                                      BarChartData(
-                                        alignment:
-                                            BarChartAlignment.spaceAround,
-                                        maxY:
-                                            _calculateMaxY(dailyCounts.values),
-                                        minY: 0,
-                                        barTouchData: BarTouchData(
-                                          enabled: true,
-                                          touchTooltipData: BarTouchTooltipData(
-                                            tooltipBorder: BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline),
-                                            getTooltipItem: (group, groupIndex,
-                                                rod, rodIndex) {
-                                              final keys =
-                                                  dailyCounts.keys.toList();
-                                              final date = keys[group.x];
-                                              final count = rod.toY.toInt();
-                                              return BarTooltipItem(
-                                                '$date\n$count plays',
-                                                TextStyle(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                        titlesData: FlTitlesData(
-                                          leftTitles: AxisTitles(
-                                            sideTitles: SideTitles(
-                                              showTitles: true,
-                                              reservedSize: 40,
-                                              interval: _calculateYAxisInterval(
-                                                  dailyCounts.values),
-                                              getTitlesWidget: (double value,
-                                                  TitleMeta meta) {
-                                                return Text(
-                                                  value.toInt().toString(),
-                                                  style: TextStyle(
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurface,
-                                                    fontSize: 12,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                          bottomTitles: AxisTitles(
-                                            sideTitles: SideTitles(
-                                              showTitles: true,
-                                              getTitlesWidget: (double value,
-                                                  TitleMeta meta) {
-                                                final keys =
-                                                    dailyCounts.keys.toList();
-                                                if (value.toInt() < 0 ||
-                                                    value.toInt() >=
-                                                        keys.length) {
-                                                  return const SizedBox();
-                                                }
-                                                final dateStr =
-                                                    keys[value.toInt()];
-                                                // Format date as MM/DD
-                                                final parts =
-                                                    dateStr.split('-');
-                                                if (parts.length >= 3) {
-                                                  return Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            top: 8.0),
-                                                    child: Text(
-                                                      '${parts[1]}/${parts[2]}',
-                                                      style: TextStyle(
-                                                        color: Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurface,
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                  );
-                                                }
-                                                return const SizedBox();
-                                              },
-                                              reservedSize: 40,
-                                            ),
-                                          ),
-                                          rightTitles: AxisTitles(
-                                              sideTitles: SideTitles(
-                                                  showTitles: false)),
-                                          topTitles: AxisTitles(
-                                              sideTitles: SideTitles(
-                                                  showTitles: false)),
-                                        ),
-                                        borderData: FlBorderData(
-                                          show: true,
-                                          border: Border(
-                                            bottom: BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline),
-                                            left: BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline),
-                                          ),
-                                        ),
-                                        gridData: FlGridData(
-                                          show: true,
-                                          horizontalInterval:
-                                              _calculateGridInterval(
-                                                  dailyCounts.values),
-                                          getDrawingHorizontalLine: (value) {
-                                            return FlLine(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .outline
-                                                  .withValues(alpha: 0.3),
-                                              strokeWidth: 1,
-                                            );
-                                          },
-                                          drawVerticalLine: false,
-                                        ),
-                                        barGroups: [
-                                          for (int i = 0;
-                                              i < dailyCounts.length;
-                                              i++)
-                                            BarChartGroupData(
-                                              x: i,
-                                              barRods: [
-                                                BarChartRodData(
-                                                  toY: dailyCounts.values
-                                                      .elementAt(i)
-                                                      .toDouble(),
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .primary,
-                                                  width: 20,
-                                                  borderRadius:
-                                                      const BorderRadius
-                                                          .vertical(
-                                                          top: Radius.circular(
-                                                              4)),
-                                                )
-                                              ],
-                                            )
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
-                                if (dailyCounts.isEmpty ||
-                                    !dailyCounts.values
-                                        .any((count) => count > 0))
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16.0),
-                                    child: Text(
-                                      'No listening data available for the last 7 days.',
-                                      style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface
-                                            .withValues(alpha: 0.6),
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ),
-                                Text('Most Played Songs:',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.bold)),
-                                ...topSongs.map((song) => ListTile(
-                                      leading: robustArtwork(
-                                        song.albumArtUrl,
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                      ),
-                                      title: Text(song.title),
-                                      subtitle: Text(song.artist),
-                                      trailing: Text('${song.playCount} plays'),
-                                      dense: true,
-                                    )),
-                                const SizedBox(height: 12),
-                                Text('Most Played Artists:',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.bold)),
-                                ...topArtists.map((entry) => ListTile(
-                                      leading: const CircleAvatar(
-                                          child: Icon(Icons.person)),
-                                      title: Text(entry.key),
-                                      trailing: Text('${entry.value} plays'),
-                                      dense: true,
-                                    )),
-                              ],
-                            );
-                          },
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ListeningStatsScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.bar_chart),
+                            label: const Text('View Listening Stats'),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 48),
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -2650,79 +2382,4 @@ class ThemeProvider extends ChangeNotifier {
 
     notifyListeners();
   }
-}
-
-// Add this method to _SettingsScreenState:
-Future<Map<String, dynamic>> _getListeningStats() async {
-  final prefs = await SharedPreferences.getInstance();
-  final keys = prefs.getKeys();
-  // Songs
-  final List<Song> allSongs = [];
-  final now = DateTime.now();
-  for (final key in keys) {
-    if (key.startsWith('song_')) {
-      final songJson = prefs.getString(key);
-      if (songJson != null) {
-        try {
-          final songMap = jsonDecode(songJson) as Map<String, dynamic>;
-          final song = Song.fromJson(songMap);
-          allSongs.add(song);
-        } catch (_) {}
-      }
-    }
-  }
-  allSongs.sort((a, b) => b.playCount.compareTo(a.playCount));
-  final topSongs = allSongs.take(3).toList();
-  // Albums
-  final List<Map<String, dynamic>> allAlbums = [];
-  for (final key in keys) {
-    if (key.startsWith('album_')) {
-      final albumJson = prefs.getString(key);
-      if (albumJson != null) {
-        try {
-          final albumMap = jsonDecode(albumJson) as Map<String, dynamic>;
-          allAlbums.add(albumMap);
-        } catch (_) {}
-      }
-    }
-  }
-  allAlbums.sort((a, b) =>
-      (b['playCount'] as int? ?? 0).compareTo(a['playCount'] as int? ?? 0));
-  final topAlbums = allAlbums.take(3).toList();
-  // Artists
-  final artistPlayCountsJson = prefs.getString('artist_play_counts');
-  Map<String, int> artistPlayCounts = {};
-  if (artistPlayCountsJson != null) {
-    try {
-      artistPlayCounts =
-          Map<String, int>.from(jsonDecode(artistPlayCountsJson));
-    } catch (_) {}
-  }
-  final topArtists = artistPlayCounts.entries.toList()
-    ..sort((a, b) => b.value.compareTo(a.value));
-  // Daily play counts (actual)
-  final dailyPlayCountsJson = prefs.getString('daily_play_counts');
-  Map<String, int> dailyCounts = {};
-  if (dailyPlayCountsJson != null) {
-    try {
-      dailyCounts = Map<String, int>.from(jsonDecode(dailyPlayCountsJson));
-    } catch (_) {}
-  }
-  // Only keep last 7 days, sorted
-  final last7Days = [
-    for (int i = 6; i >= 0; i--) now.subtract(Duration(days: i))
-  ];
-  final Map<String, int> last7DailyCounts = {};
-
-  for (final day in last7Days) {
-    final dateKey =
-        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    last7DailyCounts[dateKey] = dailyCounts[dateKey] ?? 0;
-  }
-  return {
-    'topSongs': topSongs,
-    'topAlbums': topAlbums,
-    'topArtists': topArtists.take(3).toList(),
-    'dailyCounts': last7DailyCounts,
-  };
 }
