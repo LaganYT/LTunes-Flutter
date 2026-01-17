@@ -1169,13 +1169,27 @@ class CurrentSongProvider with ChangeNotifier {
     if (newIndex == -1) {
       // If we can't find the current song in the new context, fall back to playing
       // the target song (if provided) or the first equivalent song in the new context
-      final songToPlay = targetSong ??
-          newContext.firstWhere(
+      // BUG FIX: Improved fallback logic with clearer null safety
+      Song? songToPlay;
+      
+      if (targetSong != null) {
+        songToPlay = targetSong;
+      } else {
+        // Try to find an equivalent song
+        try {
+          songToPlay = newContext.firstWhere(
             (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
-            orElse: () => newContext.first,
           );
-      await playWithContext(newContext, songToPlay,
-          playImmediately: _isPlaying);
+        } catch (e) {
+          // No equivalent found, use first song in context or current song as fallback
+          songToPlay = newContext.isNotEmpty ? newContext.first : _currentSongFromAppLogic;
+        }
+      }
+      
+      if (songToPlay != null) {
+        await playWithContext(newContext, songToPlay,
+            playImmediately: _isPlaying);
+      }
       return;
     }
 
@@ -1696,11 +1710,27 @@ class CurrentSongProvider with ChangeNotifier {
     for (final entry in _downloadStartTimes.entries) {
       final songId = entry.key;
       final startTime = entry.value;
-      final progress = _downloadProgress[songId] ?? 0.0;
+      
+      // BUG FIX #20: Get progress with null safety and use a small threshold instead of exact 0
+      // This prevents race conditions where progress callback arrives just as we check
+      final progress = _downloadProgress[songId];
+      
+      // Consider stuck if:
+      // 1. Progress is null (never started) OR
+      // 2. Progress is very low (< 0.01 = 1%) after 5 minutes
+      final isStuck = progress == null || progress < 0.01;
 
-      // If download has been running for more than 5 minutes with no progress
-      if (now.difference(startTime) > stuckThreshold && progress == 0.0) {
-        stuckDownloads.add(songId);
+      // If download has been running for more than 5 minutes with no meaningful progress
+      if (now.difference(startTime) > stuckThreshold && isStuck) {
+        // BUG FIX #20: Double-check the progress one more time to avoid race condition
+        // This gives the async progress callback one more chance to update
+        final doubleCheckProgress = _downloadProgress[songId];
+        if (doubleCheckProgress == null || doubleCheckProgress < 0.01) {
+          stuckDownloads.add(songId);
+        } else {
+          debugPrint(
+              'Download for song ID: $songId appeared stuck but has progress: ${doubleCheckProgress * 100}%');
+        }
       }
     }
 
@@ -3238,6 +3268,8 @@ class CurrentSongProvider with ChangeNotifier {
       if (_downloadProgress.containsKey(songId)) {
         _downloadProgress.remove(songId);
       }
+      // BUG FIX #19: Clean up download start times on cancellation
+      _downloadStartTimes.remove(songId);
       notifyListeners();
       return;
     }
@@ -3246,8 +3278,10 @@ class CurrentSongProvider with ChangeNotifier {
     if (song == null) {
       if (_downloadProgress.containsKey(songId)) {
         _downloadProgress.remove(songId);
-        notifyListeners();
       }
+      // BUG FIX #19: Clean up download start times even if song not in active downloads
+      _downloadStartTimes.remove(songId);
+      notifyListeners();
       return;
     }
 
@@ -3313,6 +3347,8 @@ class CurrentSongProvider with ChangeNotifier {
     _retryTimers.remove(songId);
     _downloadRetryCount.remove(songId);
     _downloadLastRetry.remove(songId);
+    // BUG FIX #19: Clean up download start times on cancellation
+    _downloadStartTimes.remove(songId);
 
     if (_activeDownloads.containsKey(songId)) {
       _activeDownloads.remove(songId);

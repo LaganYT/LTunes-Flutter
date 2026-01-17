@@ -68,6 +68,8 @@ class AudioPlayerHandler extends BaseAudioHandler
   static const Duration _sessionActivationCooldown =
       Duration(milliseconds: 500);
   bool _isSessionActive = false;
+  // Lock for audio session state to prevent race conditions (Bug #6 fix)
+  bool _isSessionOperationInProgress = false;
 
   // Improved error handling
   int _consecutiveErrors = 0;
@@ -80,7 +82,8 @@ class AudioPlayerHandler extends BaseAudioHandler
   // Track local file completion to prevent infinite loops
   String? _lastLocalFileCompleted;
   int _localFileCompletionCount = 0;
-  static const int _maxLocalFileCompletions = 3;
+  // BUG FIX #16: Increased threshold to 5 to allow more legitimate repeats
+  static const int _maxLocalFileCompletions = 5;
 
   // Throttling for background continuity checks
   DateTime? _lastContinuityCheck;
@@ -131,10 +134,13 @@ class AudioPlayerHandler extends BaseAudioHandler
           await Future.delayed(const Duration(milliseconds: 100));
           await _audioSession!.setActive(true);
           _isSessionActive = true;
+          debugPrint("AudioHandler: Initial audio session activation succeeded");
         } catch (e) {
           debugPrint(
               "Initial audio session activation failed (non-critical): $e");
           _isSessionActive = false;
+          // BUG FIX #25: Schedule retry for failed activation
+          _scheduleSessionInitializationRetry();
         }
       } else {
         // Android configuration
@@ -145,8 +151,32 @@ class AudioPlayerHandler extends BaseAudioHandler
       debugPrint("AudioHandler: Audio session initialized successfully");
     } catch (e) {
       debugPrint("Error configuring audio session: $e");
-      // Don't set _audioSessionConfigured to true if initialization failed
+      // BUG FIX #25: Don't set _audioSessionConfigured to true if initialization failed
+      // Schedule a retry to recover from the failure
+      _audioSessionConfigured = false;
+      _isSessionActive = false;
+      _scheduleSessionInitializationRetry();
     }
+  }
+
+  // BUG FIX #25: Schedule retry for failed session initialization
+  void _scheduleSessionInitializationRetry() {
+    if (!_isIOS) return;
+    
+    Future.delayed(const Duration(seconds: 5), () async {
+      if (!_audioSessionConfigured && _audioSession != null) {
+        debugPrint("AudioHandler: Retrying audio session initialization");
+        try {
+          await _audioSession!.setActive(true);
+          _isSessionActive = true;
+          _audioSessionConfigured = true;
+          debugPrint("AudioHandler: Audio session initialization retry succeeded");
+        } catch (e) {
+          debugPrint("AudioHandler: Audio session initialization retry failed: $e");
+          // If still failing, the error recovery mechanism will handle further attempts
+        }
+      }
+    });
   }
 
   Future<void> _ensureAudioSessionActive() async {
@@ -171,7 +201,14 @@ class AudioPlayerHandler extends BaseAudioHandler
       return;
     }
 
+    // BUG FIX #6: Prevent concurrent session operations
+    if (_isSessionOperationInProgress) {
+      debugPrint("AudioHandler: Session operation already in progress, skipping");
+      return;
+    }
+
     if (!_isSessionActive) {
+      _isSessionOperationInProgress = true;
       try {
         await _audioSession!.setActive(true);
         _isSessionActive = true;
@@ -193,6 +230,9 @@ class AudioPlayerHandler extends BaseAudioHandler
         }
 
         _scheduleErrorRecovery();
+      } finally {
+        // BUG FIX #6: Always release the lock
+        _isSessionOperationInProgress = false;
       }
     } else if (_isBackgroundMode) {
       // In background mode, gently verify session is still active (less aggressive)
@@ -605,9 +645,10 @@ class AudioPlayerHandler extends BaseAudioHandler
             if (songId != null &&
                 songId != _lastCompletedSongId &&
                 !_isHandlingCompletion) {
+              // BUG FIX #2: Set completion flag BEFORE any async operations to prevent race
+              _isHandlingCompletion = true;
               _lastCompletedSongId = songId;
               _lastCompletionTime = now;
-              _isHandlingCompletion = true;
 
               debugPrint(
                   "AudioHandler: Position-based completion detected for song: $songId");
@@ -617,8 +658,12 @@ class AudioPlayerHandler extends BaseAudioHandler
                 await _ensureAudioSessionActive();
               }
 
-              await _handleSongCompletion();
-              _isHandlingCompletion = false;
+              try {
+                await _handleSongCompletion();
+              } finally {
+                // BUG FIX #2: Always reset flag even if completion handler throws
+                _isHandlingCompletion = false;
+              }
             }
           }
         }
@@ -637,8 +682,9 @@ class AudioPlayerHandler extends BaseAudioHandler
           return;
         }
 
-        _lastCompletionTime = now;
+        // BUG FIX #2: Set flag BEFORE any async operations to prevent race
         _isHandlingCompletion = true;
+        _lastCompletionTime = now;
 
         // If we're in background mode, ensure audio session stays active
         if (_isBackgroundMode) {
@@ -647,8 +693,12 @@ class AudioPlayerHandler extends BaseAudioHandler
 
         debugPrint(
             "AudioHandler: ProcessingState.completed detected - handling song completion");
-        await _handleSongCompletion();
-        _isHandlingCompletion = false;
+        try {
+          await _handleSongCompletion();
+        } finally {
+          // BUG FIX #2: Always reset flag even if completion handler throws
+          _isHandlingCompletion = false;
+        }
       }
     });
   }
@@ -683,7 +733,9 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   @override
   Future<void> removeQueueItemAt(int index) async {
+    // BUG FIX #21: Early return for invalid index
     if (index < 0 || index >= _playlist.length) return;
+    
     _playlist.removeAt(index);
     queue.add(List.unmodifiable(_playlist));
 
@@ -691,12 +743,35 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (_playlist.isEmpty) {
         _currentIndex = -1;
         await stop();
+        return; // BUG FIX #21: Early return to prevent further operations
       } else if (_currentIndex >= _playlist.length) {
         _currentIndex = _playlist.length - 1;
+        // BUG FIX #21: If we're playing and the current index is now out of bounds,
+        // prepare and play the corrected index
+        if (_audioPlayer.playing) {
+          try {
+            await _prepareToPlay(_currentIndex);
+            await _audioPlayer.play();
+          } catch (e) {
+            debugPrint("AudioHandler: Error after removeQueueItemAt correction: $e");
+            await stop();
+            return;
+          }
+        }
       }
     } else if (_currentIndex > index) {
       _currentIndex--;
     }
+    
+    // BUG FIX #21: Final validation that current index is within bounds
+    if (_currentIndex >= _playlist.length) {
+      _currentIndex = _playlist.isNotEmpty ? _playlist.length - 1 : -1;
+      if (_currentIndex < 0) {
+        await stop();
+        return;
+      }
+    }
+    
     playbackState.add(playbackState.value.copyWith(queueIndex: _currentIndex));
   }
 
@@ -1315,11 +1390,33 @@ class AudioPlayerHandler extends BaseAudioHandler
             .add(playbackState.value.copyWith(updatePosition: verifyPosition));
       }
 
+      // BUG FIX #13: Bidirectional audio session/playback state validation
       // Check for playing state drift (critical for the bug fix)
       if (verifyPlaying != actualIsPlaying) {
         debugPrint(
             "AudioHandler: Playing state drift detected - correcting from $actualIsPlaying to $verifyPlaying");
         playbackState.add(playbackState.value.copyWith(playing: verifyPlaying));
+      }
+      
+      // BUG FIX #13: Additional check - if session is active but audio player is not playing
+      // This catches the inverse case: session thinks we're ready but we're actually paused
+      if (_isIOS && _audioSession != null && !verifyPlaying) {
+        try {
+          // Check if session is still marked as active
+          final sessionIsActive = _isSessionActive;
+          if (sessionIsActive && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+            // Session is active but we're not playing - verify this is intentional (paused)
+            final processingState = _audioPlayer.processingState;
+            if (processingState == ProcessingState.ready) {
+              debugPrint("AudioHandler: Session active but playback paused - state is correct");
+            } else if (processingState == ProcessingState.idle) {
+              debugPrint("AudioHandler: Session active but audio player idle - potential inconsistency");
+              // This might indicate a problem, but don't auto-fix as user might have paused
+            }
+          }
+        } catch (e) {
+          debugPrint("AudioHandler: Error during bidirectional state validation: $e");
+        }
       }
     });
   }
@@ -1349,12 +1446,17 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   Future<void> _handleSongCompletion() async {
+    // BUG FIX #3: Validate playlist and index before accessing
+    if (_playlist.isEmpty || _currentIndex < 0 || _currentIndex >= _playlist.length) {
+      debugPrint("AudioHandler: Invalid playlist state in _handleSongCompletion, stopping playback");
+      await stop();
+      return;
+    }
+
     final repeatMode = playbackState.value.repeatMode;
-    final currentItem = _currentIndex >= 0 && _currentIndex < _playlist.length
-        ? _playlist[_currentIndex]
-        : null;
-    final isLocalFile = currentItem?.extras?['isLocal'] as bool? ?? false;
-    final songId = currentItem?.extras?['songId'] as String?;
+    final currentItem = _playlist[_currentIndex]; // Safe to access now after validation
+    final isLocalFile = currentItem.extras?['isLocal'] as bool? ?? false;
+    final songId = currentItem.extras?['songId'] as String?;
 
     debugPrint(
         "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
@@ -1364,32 +1466,39 @@ class AudioPlayerHandler extends BaseAudioHandler
       await _ensureAudioSessionActive();
     }
 
+    // BUG FIX #16: Improved local file completion detection logic
     // For local files, check if we're stuck in a completion loop
-    if (isLocalFile && songId != null) {
+    // But only consider it a loop if repeat-one is NOT active
+    if (isLocalFile && songId != null && repeatMode != AudioServiceRepeatMode.one) {
       if (_lastLocalFileCompleted == songId) {
         _localFileCompletionCount++;
         debugPrint(
             "AudioHandler: Local file completion count: $_localFileCompletionCount for song: $songId");
 
-        // If we've completed the same local file too many times, force move to next
+        // BUG FIX #16: Only apply threshold when repeat-one is NOT active
+        // If we've completed the same local file too many times without repeat-one, force move to next
         if (_localFileCompletionCount >= _maxLocalFileCompletions) {
           debugPrint(
-              "AudioHandler: Too many completions for local file, forcing next song");
+              "AudioHandler: Too many completions for local file without repeat, forcing next song");
           _localFileCompletionCount = 0;
           _lastLocalFileCompleted = null;
 
+          // BUG FIX #3: Validate bounds before accessing
           if (_currentIndex < _playlist.length - 1) {
             await skipToNext();
             return;
           } else if (repeatMode == AudioServiceRepeatMode.all) {
-            await _prepareToPlay(0);
-            _currentIndex = 0;
-            playbackState.add(playbackState.value.copyWith(
-              queueIndex: _currentIndex,
-              playing: true,
-            ));
-            await _audioPlayer.play();
-            await _syncMetadata();
+            // BUG FIX #3: Validate playlist is not empty before preparing
+            if (_playlist.isNotEmpty) {
+              await _prepareToPlay(0);
+              _currentIndex = 0;
+              playbackState.add(playbackState.value.copyWith(
+                queueIndex: _currentIndex,
+                playing: true,
+              ));
+              await _audioPlayer.play();
+              await _syncMetadata();
+            }
             return;
           } else {
             // Stop playback at end of queue
@@ -1405,6 +1514,11 @@ class AudioPlayerHandler extends BaseAudioHandler
         _localFileCompletionCount = 1;
         _lastLocalFileCompleted = songId;
       }
+    } else if (repeatMode == AudioServiceRepeatMode.one) {
+      // BUG FIX #16: Reset local file completion tracking when repeat-one is active
+      // This allows infinite looping of a single song
+      _localFileCompletionCount = 0;
+      _lastLocalFileCompleted = null;
     }
 
     if (repeatMode == AudioServiceRepeatMode.one) {
@@ -1469,8 +1583,28 @@ class AudioPlayerHandler extends BaseAudioHandler
                   AudioProcessingState.ready, // Keep as ready, not completed
             ));
 
-            // Ensure the audio session stays active even though we're paused
-            await _ensureAudioSessionActive();
+            // BUG FIX #1: Ensure the audio session stays active even though we're paused
+            // This prevents the session from being deactivated when queue ends in background
+            try {
+              await _ensureAudioSessionActive();
+              debugPrint(
+                  "AudioHandler: Background session maintained after queue end");
+              
+              // BUG FIX #1: Double-check session is truly active with a verification call
+              if (_isIOS && _audioSession != null) {
+                await _audioSession!.setActive(true);
+                debugPrint("AudioHandler: Session actively verified after pause");
+              }
+            } catch (e) {
+              debugPrint("AudioHandler: Error maintaining session after pause: $e");
+              // Try one more time with a small delay
+              await Future.delayed(const Duration(milliseconds: 100));
+              try {
+                await _ensureAudioSessionActive();
+              } catch (e2) {
+                debugPrint("AudioHandler: Second attempt to maintain session failed: $e2");
+              }
+            }
             debugPrint(
                 "AudioHandler: Background session maintained after queue end");
           } else {

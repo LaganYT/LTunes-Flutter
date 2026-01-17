@@ -184,12 +184,22 @@ class DownloadNotificationService {
 
     if (activeCount > 0) {
       // Show active download status without progress percentage
-      final activeSong = activeDownloads.values.first;
-      
-      title = 'Downloading: ${activeSong.title}';
-      body = 'Download in progress';
-      if (queuedCount > 0) {
-        body += ' • $queuedCount queued';
+      // BUG FIX: Check if activeDownloads is not empty before accessing .first
+      if (activeDownloads.isNotEmpty) {
+        final activeSong = activeDownloads.values.first;
+        
+        title = 'Downloading: ${activeSong.title}';
+        body = 'Download in progress';
+        if (queuedCount > 0) {
+          body += ' • $queuedCount queued';
+        }
+      } else {
+        // Fallback if somehow activeCount > 0 but map is empty
+        title = 'Downloading';
+        body = 'Download in progress';
+        if (queuedCount > 0) {
+          body += ' • $queuedCount queued';
+        }
       }
     } else {
       // Show queued status

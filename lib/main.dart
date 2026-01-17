@@ -65,9 +65,14 @@ Future<void> main() async {
   // Add Bluetooth event MethodChannel listener
   const bluetoothChannel = MethodChannel('bluetooth_events');
   bluetoothChannel.setMethodCallHandler((call) async {
+    // BUG FIX #29: Add error handling for Bluetooth events
     if (call.method == 'bluetooth_connected') {
       // Re-activate audio session on Bluetooth reconnect
-      await _audioHandler.customAction('forceSessionActivation', {});
+      try {
+        await _audioHandler.customAction('forceSessionActivation', {});
+      } catch (e) {
+        debugPrint('Error handling bluetooth_connected: $e');
+      }
     } else if (call.method == 'bluetooth_disconnected') {
       // Optionally handle disconnect
       debugPrint('Bluetooth disconnected');
@@ -183,13 +188,16 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   void _startBackgroundContinuityTimer() {
     if (!Platform.isIOS || _isTimerActive) return;
 
+    // BUG FIX #30: Stop any existing timer first to prevent duplicates
     _stopBackgroundContinuityTimer();
+    
     _backgroundContinuityCount = 0;
     _isTimerActive = true;
 
     // Single timer with 60-second intervals for background continuity
     _backgroundContinuityTimer =
         Timer.periodic(const Duration(seconds: 60), (timer) {
+      // BUG FIX #30: Check flag at the beginning to prevent race conditions
       if (!_isTimerActive) {
         timer.cancel();
         return;
@@ -216,11 +224,17 @@ class _TabViewState extends State<TabView> with WidgetsBindingObserver {
   }
 
   void _stopBackgroundContinuityTimer() {
+    // BUG FIX #30: Set flag first before canceling timer
     _isTimerActive = false;
-    _backgroundContinuityTimer?.cancel();
-    _backgroundContinuityTimer = null;
+    
+    // BUG FIX #30: Safely cancel timer with null check
+    if (_backgroundContinuityTimer != null) {
+      _backgroundContinuityTimer?.cancel();
+      _backgroundContinuityTimer = null;
+      debugPrint("Main: Stopped background continuity timer");
+    }
+    
     _backgroundContinuityCount = 0;
-    debugPrint("Main: Stopped background continuity timer");
   }
 
   @override
