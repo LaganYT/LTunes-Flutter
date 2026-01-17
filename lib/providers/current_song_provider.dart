@@ -1169,14 +1169,27 @@ class CurrentSongProvider with ChangeNotifier {
     if (newIndex == -1) {
       // If we can't find the current song in the new context, fall back to playing
       // the target song (if provided) or the first equivalent song in the new context
-      // BUG FIX: Check if newContext is not empty before using .first as fallback
-      final songToPlay = targetSong ??
-          newContext.firstWhere(
+      // BUG FIX: Improved fallback logic with clearer null safety
+      Song? songToPlay;
+      
+      if (targetSong != null) {
+        songToPlay = targetSong;
+      } else {
+        // Try to find an equivalent song
+        try {
+          songToPlay = newContext.firstWhere(
             (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
-            orElse: () => newContext.isNotEmpty ? newContext.first : targetSong ?? _currentSongFromAppLogic!,
           );
-      await playWithContext(newContext, songToPlay,
-          playImmediately: _isPlaying);
+        } catch (e) {
+          // No equivalent found, use first song in context or current song as fallback
+          songToPlay = newContext.isNotEmpty ? newContext.first : _currentSongFromAppLogic;
+        }
+      }
+      
+      if (songToPlay != null) {
+        await playWithContext(newContext, songToPlay,
+            playImmediately: _isPlaying);
+      }
       return;
     }
 
