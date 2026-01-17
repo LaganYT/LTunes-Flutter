@@ -508,8 +508,11 @@ class UnifiedSearchService extends ChangeNotifier {
   void _cacheResults(String query, List<SearchResult> results) {
     if (_searchCache.length >= _maxCacheSize) {
       // Remove oldest entry
-      final oldestKey = _searchCache.keys.first;
-      _searchCache.remove(oldestKey);
+      // BUG FIX: Check if cache is not empty before accessing .first
+      if (_searchCache.isNotEmpty) {
+        final oldestKey = _searchCache.keys.first;
+        _searchCache.remove(oldestKey);
+      }
     }
     _searchCache[query] = results;
   }

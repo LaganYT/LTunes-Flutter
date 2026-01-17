@@ -176,13 +176,19 @@ class _DeleteDownloadsScreenState extends State<DeleteDownloadsScreen> {
     if (confirm == true) {
       try {
         if (isDir) {
-          if ((entity).listSync().isNotEmpty) {
-            if (context.mounted) {
-              scaffoldMessenger.showSnackBar(
-                SnackBar(content: Text('Folder is not empty: $fileName')),
-              );
+          // BUG FIX: Add try-catch for listSync() which can throw on permission errors
+          try {
+            if ((entity).listSync().isNotEmpty) {
+              if (context.mounted) {
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('Folder is not empty: $fileName')),
+                );
+              }
+              return;
             }
-            return;
+          } catch (e) {
+            debugPrint('Error checking if directory is empty: $e');
+            // If we can't check, try to delete anyway
           }
           await entity.delete();
         } else {

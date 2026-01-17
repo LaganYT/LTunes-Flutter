@@ -1169,10 +1169,11 @@ class CurrentSongProvider with ChangeNotifier {
     if (newIndex == -1) {
       // If we can't find the current song in the new context, fall back to playing
       // the target song (if provided) or the first equivalent song in the new context
+      // BUG FIX: Check if newContext is not empty before using .first as fallback
       final songToPlay = targetSong ??
           newContext.firstWhere(
             (s) => _areSongsEquivalent(s, _currentSongFromAppLogic!),
-            orElse: () => newContext.first,
+            orElse: () => newContext.isNotEmpty ? newContext.first : targetSong ?? _currentSongFromAppLogic!,
           );
       await playWithContext(newContext, songToPlay,
           playImmediately: _isPlaying);
