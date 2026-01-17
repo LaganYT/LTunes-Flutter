@@ -1389,11 +1389,33 @@ class AudioPlayerHandler extends BaseAudioHandler
             .add(playbackState.value.copyWith(updatePosition: verifyPosition));
       }
 
+      // BUG FIX #13: Bidirectional audio session/playback state validation
       // Check for playing state drift (critical for the bug fix)
       if (verifyPlaying != actualIsPlaying) {
         debugPrint(
             "AudioHandler: Playing state drift detected - correcting from $actualIsPlaying to $verifyPlaying");
         playbackState.add(playbackState.value.copyWith(playing: verifyPlaying));
+      }
+      
+      // BUG FIX #13: Additional check - if session is active but audio player is not playing
+      // This catches the inverse case: session thinks we're ready but we're actually paused
+      if (_isIOS && _audioSession != null && !verifyPlaying) {
+        try {
+          // Check if session is still marked as active
+          final sessionIsActive = _isSessionActive;
+          if (sessionIsActive && _currentIndex >= 0 && _currentIndex < _playlist.length) {
+            // Session is active but we're not playing - verify this is intentional (paused)
+            final processingState = _audioPlayer.processingState;
+            if (processingState == ProcessingState.ready) {
+              debugPrint("AudioHandler: Session active but playback paused - state is correct");
+            } else if (processingState == ProcessingState.idle) {
+              debugPrint("AudioHandler: Session active but audio player idle - potential inconsistency");
+              // This might indicate a problem, but don't auto-fix as user might have paused
+            }
+          }
+        } catch (e) {
+          debugPrint("AudioHandler: Error during bidirectional state validation: $e");
+        }
       }
     });
   }
@@ -1423,12 +1445,17 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   Future<void> _handleSongCompletion() async {
+    // BUG FIX #3: Validate playlist and index before accessing
+    if (_playlist.isEmpty || _currentIndex < 0 || _currentIndex >= _playlist.length) {
+      debugPrint("AudioHandler: Invalid playlist state in _handleSongCompletion, stopping playback");
+      await stop();
+      return;
+    }
+
     final repeatMode = playbackState.value.repeatMode;
-    final currentItem = _currentIndex >= 0 && _currentIndex < _playlist.length
-        ? _playlist[_currentIndex]
-        : null;
-    final isLocalFile = currentItem?.extras?['isLocal'] as bool? ?? false;
-    final songId = currentItem?.extras?['songId'] as String?;
+    final currentItem = _playlist[_currentIndex]; // Safe to access now after validation
+    final isLocalFile = currentItem.extras?['isLocal'] as bool? ?? false;
+    final songId = currentItem.extras?['songId'] as String?;
 
     debugPrint(
         "AudioHandler: Song completion - Repeat: $repeatMode, Index: $_currentIndex, Local: $isLocalFile");
@@ -1438,32 +1465,39 @@ class AudioPlayerHandler extends BaseAudioHandler
       await _ensureAudioSessionActive();
     }
 
+    // BUG FIX #16: Improved local file completion detection logic
     // For local files, check if we're stuck in a completion loop
-    if (isLocalFile && songId != null) {
+    // But only consider it a loop if repeat-one is NOT active
+    if (isLocalFile && songId != null && repeatMode != AudioServiceRepeatMode.one) {
       if (_lastLocalFileCompleted == songId) {
         _localFileCompletionCount++;
         debugPrint(
             "AudioHandler: Local file completion count: $_localFileCompletionCount for song: $songId");
 
-        // If we've completed the same local file too many times, force move to next
-        if (_localFileCompletionCount >= _maxLocalFileCompletions) {
+        // BUG FIX #16: Increase threshold and only apply when repeat-one is NOT active
+        // If we've completed the same local file too many times without repeat-one, force move to next
+        if (_localFileCompletionCount >= 5) { // Increased from 3 to 5
           debugPrint(
-              "AudioHandler: Too many completions for local file, forcing next song");
+              "AudioHandler: Too many completions for local file without repeat, forcing next song");
           _localFileCompletionCount = 0;
           _lastLocalFileCompleted = null;
 
+          // BUG FIX #3: Validate bounds before accessing
           if (_currentIndex < _playlist.length - 1) {
             await skipToNext();
             return;
           } else if (repeatMode == AudioServiceRepeatMode.all) {
-            await _prepareToPlay(0);
-            _currentIndex = 0;
-            playbackState.add(playbackState.value.copyWith(
-              queueIndex: _currentIndex,
-              playing: true,
-            ));
-            await _audioPlayer.play();
-            await _syncMetadata();
+            // BUG FIX #3: Validate playlist is not empty before preparing
+            if (_playlist.isNotEmpty) {
+              await _prepareToPlay(0);
+              _currentIndex = 0;
+              playbackState.add(playbackState.value.copyWith(
+                queueIndex: _currentIndex,
+                playing: true,
+              ));
+              await _audioPlayer.play();
+              await _syncMetadata();
+            }
             return;
           } else {
             // Stop playback at end of queue
@@ -1479,6 +1513,11 @@ class AudioPlayerHandler extends BaseAudioHandler
         _localFileCompletionCount = 1;
         _lastLocalFileCompleted = songId;
       }
+    } else if (repeatMode == AudioServiceRepeatMode.one) {
+      // BUG FIX #16: Reset local file completion tracking when repeat-one is active
+      // This allows infinite looping of a single song
+      _localFileCompletionCount = 0;
+      _lastLocalFileCompleted = null;
     }
 
     if (repeatMode == AudioServiceRepeatMode.one) {

@@ -3238,6 +3238,8 @@ class CurrentSongProvider with ChangeNotifier {
       if (_downloadProgress.containsKey(songId)) {
         _downloadProgress.remove(songId);
       }
+      // BUG FIX #19: Clean up download start times on cancellation
+      _downloadStartTimes.remove(songId);
       notifyListeners();
       return;
     }
@@ -3246,8 +3248,10 @@ class CurrentSongProvider with ChangeNotifier {
     if (song == null) {
       if (_downloadProgress.containsKey(songId)) {
         _downloadProgress.remove(songId);
-        notifyListeners();
       }
+      // BUG FIX #19: Clean up download start times even if song not in active downloads
+      _downloadStartTimes.remove(songId);
+      notifyListeners();
       return;
     }
 
@@ -3313,6 +3317,8 @@ class CurrentSongProvider with ChangeNotifier {
     _retryTimers.remove(songId);
     _downloadRetryCount.remove(songId);
     _downloadLastRetry.remove(songId);
+    // BUG FIX #19: Clean up download start times on cancellation
+    _downloadStartTimes.remove(songId);
 
     if (_activeDownloads.containsKey(songId)) {
       _activeDownloads.remove(songId);
