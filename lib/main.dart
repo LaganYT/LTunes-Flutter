@@ -65,12 +65,7 @@ Future<void> main() async {
   // Add Bluetooth event MethodChannel listener
   const bluetoothChannel = MethodChannel('bluetooth_events');
   bluetoothChannel.setMethodCallHandler((call) async {
-    // BUG FIX #29: Add null safety check for method
-    if (call.method == null) {
-      debugPrint('Bluetooth event received with null method');
-      return;
-    }
-    
+    // BUG FIX #29: Add error handling for Bluetooth events
     if (call.method == 'bluetooth_connected') {
       // Re-activate audio session on Bluetooth reconnect
       try {

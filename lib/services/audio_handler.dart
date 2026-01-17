@@ -82,7 +82,8 @@ class AudioPlayerHandler extends BaseAudioHandler
   // Track local file completion to prevent infinite loops
   String? _lastLocalFileCompleted;
   int _localFileCompletionCount = 0;
-  static const int _maxLocalFileCompletions = 3;
+  // BUG FIX #16: Increased threshold to 5 to allow more legitimate repeats
+  static const int _maxLocalFileCompletions = 5;
 
   // Throttling for background continuity checks
   DateTime? _lastContinuityCheck;
@@ -1474,9 +1475,9 @@ class AudioPlayerHandler extends BaseAudioHandler
         debugPrint(
             "AudioHandler: Local file completion count: $_localFileCompletionCount for song: $songId");
 
-        // BUG FIX #16: Increase threshold and only apply when repeat-one is NOT active
+        // BUG FIX #16: Only apply threshold when repeat-one is NOT active
         // If we've completed the same local file too many times without repeat-one, force move to next
-        if (_localFileCompletionCount >= 5) { // Increased from 3 to 5
+        if (_localFileCompletionCount >= _maxLocalFileCompletions) {
           debugPrint(
               "AudioHandler: Too many completions for local file without repeat, forcing next song");
           _localFileCompletionCount = 0;

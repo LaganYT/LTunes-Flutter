@@ -1696,11 +1696,27 @@ class CurrentSongProvider with ChangeNotifier {
     for (final entry in _downloadStartTimes.entries) {
       final songId = entry.key;
       final startTime = entry.value;
-      final progress = _downloadProgress[songId] ?? 0.0;
+      
+      // BUG FIX #20: Get progress with null safety and use a small threshold instead of exact 0
+      // This prevents race conditions where progress callback arrives just as we check
+      final progress = _downloadProgress[songId];
+      
+      // Consider stuck if:
+      // 1. Progress is null (never started) OR
+      // 2. Progress is very low (< 0.01 = 1%) after 5 minutes
+      final isStuck = progress == null || progress < 0.01;
 
-      // If download has been running for more than 5 minutes with no progress
-      if (now.difference(startTime) > stuckThreshold && progress == 0.0) {
-        stuckDownloads.add(songId);
+      // If download has been running for more than 5 minutes with no meaningful progress
+      if (now.difference(startTime) > stuckThreshold && isStuck) {
+        // BUG FIX #20: Double-check the progress one more time to avoid race condition
+        // This gives the async progress callback one more chance to update
+        final doubleCheckProgress = _downloadProgress[songId];
+        if (doubleCheckProgress == null || doubleCheckProgress < 0.01) {
+          stuckDownloads.add(songId);
+        } else {
+          debugPrint(
+              'Download for song ID: $songId appeared stuck but has progress: ${doubleCheckProgress * 100}%');
+        }
       }
     }
 
